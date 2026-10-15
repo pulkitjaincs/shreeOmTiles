@@ -238,34 +238,31 @@ npx expo start --tunnel
 
 To generate an installable `.apk` file that does not require Expo Go:
 
-1. Install EAS CLI globally:
+1. Log in to your Expo account:
    ```bash
-   npm install -g eas-cli
+   npx eas login
    ```
+   *(Or `npx eas-cli login`)*
 
-2. Log in to your Expo account:
-   ```bash
-   eas login
-   ```
-
-3. Configure the build profile in `mobile-app/eas.json`:
+2. Configure the build profile (already configured in [eas.json](file:///d:/code/Projects/dhraERP/mobile-app/eas.json)):
    ```json
    {
      "build": {
        "preview": {
+         "distribution": "internal",
          "android": {
            "buildType": "apk"
          },
          "env": {
-           "EXPO_PUBLIC_API_URL": "https://your-backend-domain.com"
+           "EXPO_PUBLIC_API_URL": "http://192.168.1.8:3001"
          }
        }
      }
    }
    ```
 
-4. Trigger cloud APK build:
+3. Trigger cloud APK build:
    ```bash
-   eas build -p android --profile preview
+   npx eas build -p android --profile preview
    ```
-   *EAS will compile the Android APK in the cloud and give you a direct download link to install on any Android phone.*
+   *EAS will compile the Android APK in the cloud and provide a direct download link and QR code to install on any Android phone.*
