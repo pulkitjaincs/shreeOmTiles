@@ -272,6 +272,6 @@ To generate an installable `.apk` file that does not require Expo Go:
 ### 📥 Direct APK Download Link (Latest Build)
 
 - **Direct APK Download**: [Download Shree Om Tiles ERP APK](https://expo.dev/artifacts/eas/8EdkHQxJxtFpi21Mt2bpcDghLc3LpkVtUoBnfkZmZHU.apk)
-- **EAS Build Page**: [Build #7a2d2894 Details (Cleartext Enabled)](https://expo.dev/accounts/sogani.pulkit.jain/projects/shree-om-tiles-erp/builds/7a2d2894-8d2b-4f15-8a45-d39b355290de)
+- **EAS Build Page**: [Build #28f9396e Details (Cleartext Enabled)](https://expo.dev/accounts/sogani.pulkit.jain/projects/shree-om-tiles-erp/builds/28f9396e-b5e1-4545-86d0-5e5b3078c7ab)
 - **Package**: `com.shreeomtiles.erp` (Version 1.0.0, Build 2)
 - **Target Backend**: `http://192.168.1.8:3001` (Cleartext HTTP Permitted)
