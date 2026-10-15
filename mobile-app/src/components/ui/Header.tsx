@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, StatusBar } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
 import { getInitials } from '@/lib/formatters';
@@ -22,46 +23,53 @@ export function Header({
   showBrand = true,
 }: HeaderProps) {
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
+  const topPadding = Math.max(
+    insets.top,
+    Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : 0,
+  );
 
   return (
-    <View style={styles.header}>
-      <View style={styles.left}>
-        {showBrand ? (
-          <View style={styles.brandContainer}>
-            <View style={styles.logoBadge}>
-              <Text style={styles.logoText}>SO</Text>
+    <View style={[styles.header, { paddingTop: topPadding }]}>
+      <View style={styles.headerContent}>
+        <View style={styles.left}>
+          {showBrand ? (
+            <View style={styles.brandContainer}>
+              <View style={styles.logoBadge}>
+                <Text style={styles.logoText}>SO</Text>
+              </View>
+              <View>
+                <Text style={styles.brandTitle}>{title || 'Shree Om Tiles'}</Text>
+                <Text style={styles.brandSubtitle}>
+                  {subtitle || (user?.role ? `${user.role} Portal` : 'Tiles & Sanitaryware')}
+                </Text>
+              </View>
             </View>
+          ) : (
             <View>
-              <Text style={styles.brandTitle}>{title || 'Shree Om Tiles'}</Text>
-              <Text style={styles.brandSubtitle}>
-                {subtitle || (user?.role ? `${user.role} Portal` : 'Tiles & Sanitaryware')}
-              </Text>
+              {title ? <Text style={styles.pageTitle}>{title}</Text> : null}
+              {subtitle ? <Text style={styles.pageSubtitle}>{subtitle}</Text> : null}
             </View>
-          </View>
-        ) : (
-          <View>
-            {title ? <Text style={styles.pageTitle}>{title}</Text> : null}
-            {subtitle ? <Text style={styles.pageSubtitle}>{subtitle}</Text> : null}
-          </View>
-        )}
-      </View>
+          )}
+        </View>
 
-      <View style={styles.right}>
-        {rightAction ? (
-          <TouchableOpacity
-            style={styles.actionBtn}
-            onPress={rightAction.onPress}
-            activeOpacity={0.7}
-          >
-            <Ionicons name={rightAction.icon} size={18} color="#FFFFFF" />
-          </TouchableOpacity>
-        ) : null}
+        <View style={styles.right}>
+          {rightAction ? (
+            <TouchableOpacity
+              style={styles.actionBtn}
+              onPress={rightAction.onPress}
+              activeOpacity={0.7}
+            >
+              <Ionicons name={rightAction.icon} size={18} color="#FFFFFF" />
+            </TouchableOpacity>
+          ) : null}
 
-        {user ? (
-          <View style={styles.userBadge}>
-            <Text style={styles.userInitials}>{getInitials(user.name)}</Text>
-          </View>
-        ) : null}
+          {user ? (
+            <View style={styles.userBadge}>
+              <Text style={styles.userInitials}>{getInitials(user.name)}</Text>
+            </View>
+          ) : null}
+        </View>
       </View>
     </View>
   );
@@ -69,10 +77,12 @@ export function Header({
 
 const styles = StyleSheet.create({
   header: {
-    height: 60,
     backgroundColor: Colors.dark.background,
     borderBottomWidth: 1,
     borderBottomColor: Colors.dark.border,
+  },
+  headerContent: {
+    height: 58,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',

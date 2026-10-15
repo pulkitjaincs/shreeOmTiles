@@ -10,6 +10,7 @@ import {
   TouchableWithoutFeedback,
   ScrollView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -30,6 +31,7 @@ export function BottomSheetModal({
   children,
   maxHeightPercent = 0.88,
 }: BottomSheetModalProps) {
+  const insets = useSafeAreaInsets();
   if (!visible) return null;
 
   return (
@@ -44,7 +46,13 @@ export function BottomSheetModal({
           <TouchableWithoutFeedback>
             <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-              style={[styles.sheet, { maxHeight: `${Math.round(maxHeightPercent * 100)}%` }]}
+              style={[
+                styles.sheet,
+                {
+                  maxHeight: `${Math.round(maxHeightPercent * 100)}%`,
+                  paddingBottom: Math.max(insets.bottom, 16),
+                },
+              ]}
             >
               {/* Drag Handle Indicator */}
               <View style={styles.handleContainer}>

@@ -110,10 +110,16 @@ export async function mobileApiRequest<T = any>(
 
   const url = `${API_BASE}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
 
-  const res = await fetch(url, {
-    ...options,
-    headers,
-  });
+  let res: Response;
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      res = await fetch(url, { ...options, headers });
+      break;
+    } catch (error) {
+      if (attempt >= 2) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 2500));
+    }
+  }
 
   if (!res.ok) {
     if (res.status === 401 && !endpoint.includes('/auth/login')) {

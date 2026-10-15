@@ -4,14 +4,15 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
   Image,
   ActivityIndicator,
   Alert,
+  Linking,
 } from 'react-native';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import { Colors } from '@/constants/theme';
 import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
 import { formatINR } from '@/lib/formatters';
@@ -23,9 +24,12 @@ interface RecordSettlementModalProps {
   onClose: () => void;
   onSuccess: () => void;
   parties: Party[];
+  onPartyCreated?: (newParty: Party) => void;
   initialDirection?: 'COLLECT' | 'PAY';
   initialPartyId?: string;
   initialAmount?: string;
+  initialInvoiceId?: string;
+  initialNotes?: string;
 }
 
 export function RecordSettlementModal({
@@ -33,17 +37,29 @@ export function RecordSettlementModal({
   onClose,
   onSuccess,
   parties,
+  onPartyCreated,
   initialDirection = 'COLLECT',
   initialPartyId = '',
   initialAmount = '',
+  initialInvoiceId,
+  initialNotes = '',
 }: RecordSettlementModalProps) {
   const [direction, setDirection] = useState<'COLLECT' | 'PAY'>(initialDirection);
   const [selectedPartyId, setSelectedPartyId] = useState(initialPartyId || parties[0]?.id || '');
   const [amount, setAmount] = useState(initialAmount || '');
   const [mode, setMode] = useState<'CASH' | 'UPI'>('CASH');
   const [utr, setUtr] = useState('');
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState(initialNotes || '');
+  const [invoiceId, setInvoiceId] = useState(initialInvoiceId || '');
   const [submitting, setSubmitting] = useState(false);
+
+  // Quick "Create New Party On The Spot" inside Modal
+  const [isCreatingPartyOnSpot, setIsCreatingPartyOnSpot] = useState(false);
+  const [spotPartyName, setSpotPartyName] = useState('');
+  const [spotPartyPhone, setSpotPartyPhone] = useState('');
+  const [spotPartyAddress, setSpotPartyAddress] = useState('');
+  const [spotPartyGstin, setSpotPartyGstin] = useState('');
+  const [spotPartyLoading, setSpotPartyLoading] = useState(false);
 
   // Guard refs to prevent re-render loops and state overwriting
   const prevVisibleRef = useRef(false);
@@ -105,9 +121,15 @@ export function RecordSettlementModal({
       modeRef.current = defaultMode;
 
       setUtr('');
-      setNotes('');
+      setNotes(initialNotes || '');
+      setInvoiceId(initialInvoiceId || '');
       setUpiPreview(null);
       setUpiLoading(false);
+      setIsCreatingPartyOnSpot(false);
+      setSpotPartyName('');
+      setSpotPartyPhone('');
+      setSpotPartyAddress('');
+      setSpotPartyGstin('');
 
       // Load UPI accounts from settings
       cachedMobileApiRequest<{ upiAccounts?: UpiAccount[] }>('/settings')
@@ -134,7 +156,7 @@ export function RecordSettlementModal({
       setUpiPreview(null);
       setUpiLoading(false);
     }
-  }, [visible, initialDirection, initialPartyId, initialAmount, parties, generateUpiQr]);
+  }, [visible, initialDirection, initialPartyId, initialAmount, initialNotes, initialInvoiceId, parties, generateUpiQr]);
 
   const handleAmountChange = (val: string) => {
     setAmount(val);
@@ -162,6 +184,57 @@ export function RecordSettlementModal({
     }
   };
 
+  const handleOpenUpiIntent = () => {
+    if (upiPreview?.upiUri) {
+      Linking.openURL(upiPreview.upiUri).catch(() => {
+        Alert.alert(
+          'UPI App Not Found',
+          'Could not find a supported UPI application installed on this device. Please scan the QR code instead.',
+        );
+      });
+    }
+  };
+
+  const handleCreatePartyOnSpot = async () => {
+    const cleanPhone = spotPartyPhone.replace(/\D/g, '');
+    if (!spotPartyName.trim()) {
+      Alert.alert('Required Field', 'Please enter customer / party name');
+      return;
+    }
+    if (cleanPhone.length !== 10) {
+      Alert.alert('Invalid Mobile', 'Mobile number must be exactly 10 digits');
+      return;
+    }
+
+    setSpotPartyLoading(true);
+    try {
+      const newParty = await mobileApiRequest<Party>('/parties', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: spotPartyName.trim(),
+          phone: cleanPhone,
+          address: spotPartyAddress.trim() || undefined,
+          gstin: spotPartyGstin.trim().toUpperCase() || undefined,
+        }),
+      });
+
+      if (onPartyCreated) {
+        onPartyCreated(newParty);
+      }
+      setSelectedPartyId(newParty.id);
+      setIsCreatingPartyOnSpot(false);
+      setSpotPartyName('');
+      setSpotPartyPhone('');
+      setSpotPartyAddress('');
+      setSpotPartyGstin('');
+      Alert.alert('Party Created', `Added ${newParty.name} and selected for this settlement.`);
+    } catch (err: any) {
+      Alert.alert('Error Creating Party', err.message || 'Could not create party');
+    } finally {
+      setSpotPartyLoading(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!selectedPartyId || !amount) {
       Alert.alert('Required Fields', 'Please select a party and enter the settlement amount');
@@ -185,6 +258,7 @@ export function RecordSettlementModal({
         method: 'POST',
         body: JSON.stringify({
           partyId: selectedPartyId,
+          invoiceId: invoiceId || undefined,
           type: direction === 'COLLECT' ? 'INFLOW' : 'OUTFLOW',
           mode: direction === 'PAY' ? 'CASH' : mode,
           amount: amtNum,
@@ -208,6 +282,8 @@ export function RecordSettlementModal({
     }
   };
 
+  const initialAmountNum = parseFloat(initialAmount || '0');
+
   return (
     <BottomSheetModal
       visible={visible}
@@ -225,232 +301,353 @@ export function RecordSettlementModal({
           <TouchableOpacity
             style={[styles.dirBtn, direction === 'COLLECT' && styles.dirBtnActiveCollect]}
             onPress={() => {
-              setDirection('COLLECT');
-              const amtNum = parseFloat(amount);
-              if (mode === 'UPI' && !isNaN(amtNum) && amtNum > 0) {
-                void generateUpiQr(amtNum, selectedUpiAccount);
-              }
-            }}
+            setDirection('COLLECT');
+            const amtNum = parseFloat(amount);
+            if (mode === 'UPI' && !isNaN(amtNum) && amtNum > 0) {
+              void generateUpiQr(amtNum, selectedUpiAccount);
+            }
+          }}
+          activeOpacity={0.8}
+        >
+          <Ionicons
+            name="arrow-down-circle"
+            size={15}
+            color={direction === 'COLLECT' ? '#10B981' : Colors.dark.textSecondary}
+          />
+          <Text
+            style={[
+              styles.dirText,
+              direction === 'COLLECT' && { color: '#10B981', fontWeight: '800' },
+            ]}
           >
-            <Ionicons
-              name="arrow-down-circle"
-              size={15}
-              color={direction === 'COLLECT' ? '#10B981' : Colors.dark.textSecondary}
-            />
-            <Text
-              style={[
-                styles.dirText,
-                direction === 'COLLECT' && { color: '#10B981', fontWeight: '800' },
-              ]}
-            >
-              Collect (Inflow)
-            </Text>
-          </TouchableOpacity>
+            Collect (Inflow)
+          </Text>
+        </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.dirBtn, direction === 'PAY' && styles.dirBtnActivePay]}
-            onPress={() => {
-              setDirection('PAY');
-              setUpiPreview(null);
-            }}
+        <TouchableOpacity
+          style={[styles.dirBtn, direction === 'PAY' && styles.dirBtnActivePay]}
+          onPress={() => {
+            setDirection('PAY');
+            setUpiPreview(null);
+          }}
+          activeOpacity={0.8}
+        >
+          <Ionicons
+            name="arrow-up-circle"
+            size={15}
+            color={direction === 'PAY' ? '#F59E0B' : Colors.dark.textSecondary}
+          />
+          <Text
+            style={[
+              styles.dirText,
+              direction === 'PAY' && { color: '#F59E0B', fontWeight: '800' },
+            ]}
           >
-            <Ionicons
-              name="arrow-up-circle"
-              size={15}
-              color={direction === 'PAY' ? '#F59E0B' : Colors.dark.textSecondary}
-            />
-            <Text
-              style={[
-                styles.dirText,
-                direction === 'PAY' && { color: '#F59E0B', fontWeight: '800' },
-              ]}
+            Pay Out (Disbursement)
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Inline Create Party on the Spot or Party Select */}
+      {isCreatingPartyOnSpot ? (
+        <View style={styles.spotPartyCard}>
+          <View style={styles.spotHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="person-add" size={16} color="#10B981" />
+              <Text style={styles.spotTitle}>Quick Add Party On The Spot</Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setIsCreatingPartyOnSpot(false)}
+              style={styles.spotCancelBtn}
             >
-              Pay Out (Disbursement)
-            </Text>
-          </TouchableOpacity>
+              <Text style={styles.spotCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+
+          <Input
+            label="Party / Customer Name *"
+            placeholder="e.g. Rahul Sharma or Balaji Traders"
+            value={spotPartyName}
+            onChangeText={setSpotPartyName}
+            icon="person-outline"
+          />
+
+          <Input
+            label="Mobile Number (10 digits) *"
+            placeholder="e.g. 9876543210"
+            value={spotPartyPhone}
+            onChangeText={setSpotPartyPhone}
+            keyboardType="phone-pad"
+            icon="call-outline"
+          />
+
+          <Input
+            label="Address (Optional)"
+            placeholder="e.g. Shop 4, Gandhi Chowk"
+            value={spotPartyAddress}
+            onChangeText={setSpotPartyAddress}
+            icon="location-outline"
+          />
+
+          <Input
+            label="GSTIN (Optional)"
+            placeholder="e.g. 08AAACD1234E1Z5"
+            value={spotPartyGstin}
+            onChangeText={setSpotPartyGstin}
+            autoCapitalize="characters"
+            icon="document-text-outline"
+          />
+
+          <Button
+            title={spotPartyLoading ? 'Saving Party...' : 'Save & Select Party'}
+            variant="primary"
+            loading={spotPartyLoading}
+            onPress={handleCreatePartyOnSpot}
+            style={{ marginTop: 6 }}
+          />
         </View>
+      ) : (
+        <View style={{ marginBottom: 4 }}>
+          <View style={styles.partySelectHeader}>
+            <Text style={styles.partySelectLabel}>
+              {direction === 'COLLECT' ? 'Customer / Party *' : 'Vendor / Party *'}
+            </Text>
+            <TouchableOpacity
+              onPress={() => setIsCreatingPartyOnSpot(true)}
+              style={styles.createPartyBtn}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="add-circle-outline" size={13} color="#10B981" />
+              <Text style={styles.createPartyBtnText}>+ New Party</Text>
+            </TouchableOpacity>
+          </View>
 
-        {/* Party Selector */}
-        <Text style={styles.fieldLabel}>
-          {direction === 'COLLECT' ? 'Customer / Party' : 'Vendor / Party'}
-        </Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 6 }}>
-          {parties.map((p) => {
-            const isSelected = selectedPartyId === p.id;
-            return (
-              <TouchableOpacity
-                key={p.id}
-                onPress={() => setSelectedPartyId(p.id)}
-                style={[styles.smallChip, isSelected && styles.smallChipActive]}
-              >
-                <Text style={[styles.smallChipText, isSelected && styles.smallChipTextActive]}>
-                  {p.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+          <Select
+            placeholder="Choose customer / party..."
+            value={selectedPartyId}
+            onChange={setSelectedPartyId}
+            searchable
+            searchPlaceholder="Search party name or phone..."
+            icon="person-outline"
+            options={parties.map((p) => ({
+              value: p.id,
+              label: p.name,
+              subLabel: p.phone + (p.address ? ` • ${p.address}` : ''),
+              badge: p.gstin ? 'GST' : undefined,
+            }))}
+          />
+        </View>
+      )}
 
-        {/* Amount */}
+      {/* Amount with Quick Helper Chips */}
+      <View style={{ marginTop: 6 }}>
         <Input
-          label="Settlement Amount (₹)"
+          label={direction === 'COLLECT' ? 'Settlement Amount (₹) *' : 'Disbursement Amount (₹) *'}
           placeholder="e.g. 5000"
           value={amount}
           onChangeText={handleAmountChange}
           keyboardType="numeric"
         />
 
-        {/* Payment Mode Selector (Only needed for collections) */}
-        {direction === 'COLLECT' && (
-          <>
-            <Text style={styles.fieldLabel}>Payment Mode</Text>
-            <View style={styles.modeToggleBar}>
-              {(['CASH', 'UPI'] as const).map((m) => (
-                <TouchableOpacity
-                  key={m}
-                  style={[styles.modeBtn, mode === m && styles.modeBtnActive]}
-                  onPress={() => handleModeChange(m)}
-                >
-                  <Ionicons
-                    name={m === 'CASH' ? 'cash-outline' : 'qr-code-outline'}
-                    size={14}
-                    color={mode === m ? '#09090B' : Colors.dark.textSecondary}
-                  />
-                  <Text style={[styles.modeText, mode === m && styles.modeTextActive]}>
-                    {m === 'CASH' ? 'Cash in Hand' : 'UPI (Dynamic QR)'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </>
-        )}
+        {initialAmountNum > 0 && (
+          <View style={styles.quickChipsRow}>
+            <Text style={styles.quickChipsLabel}>Quick Fill:</Text>
+            <TouchableOpacity
+              style={styles.quickChip}
+              onPress={() => handleAmountChange(initialAmountNum.toFixed(2))}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.quickChipText}>Full ({formatINR(initialAmountNum)})</Text>
+            </TouchableOpacity>
 
-        {/* Dynamic UPI Section when Collecting via UPI */}
-        {direction === 'COLLECT' && mode === 'UPI' ? (
-          <View style={styles.upiContainer}>
-            {upiAccounts.length > 1 ? (
-              <View style={{ marginBottom: 10 }}>
-                <Text style={styles.upiAccountLabel}>Receive into UPI Account:</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
-                  {upiAccounts.map((acc) => {
-                    const isSelected = selectedUpiAccount?.id === acc.id;
-                    return (
-                      <TouchableOpacity
-                        key={acc.id}
-                        onPress={() => {
-                          setSelectedUpiAccount(acc);
-                          const amtNum = parseFloat(amount);
-                          if (!isNaN(amtNum) && amtNum > 0) {
-                            void generateUpiQr(amtNum, acc);
-                          }
-                        }}
-                        style={[styles.accChip, isSelected && styles.accChipActive]}
-                      >
-                        <Text style={[styles.accChipText, isSelected && styles.accChipTextActive]}>
-                          {acc.upiId} {acc.merchantName ? `(${acc.merchantName})` : ''}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              </View>
-            ) : null}
+            <TouchableOpacity
+              style={styles.quickChip}
+              onPress={() => handleAmountChange((initialAmountNum / 2).toFixed(2))}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.quickChipText}>50% ({formatINR(initialAmountNum / 2)})</Text>
+            </TouchableOpacity>
 
-            {upiLoading ? (
-              <View style={styles.qrLoadingBox}>
-                <ActivityIndicator size="small" color="#FFFFFF" />
-                <Text style={styles.qrLoadingText}>Generating exact-amount QR code...</Text>
-              </View>
-            ) : upiPreview?.qrDataUrl ? (
-              <View style={styles.qrCard}>
-                <View style={styles.qrWhiteBox}>
-                  <Image
-                    source={{ uri: upiPreview.qrDataUrl }}
-                    style={styles.qrImage}
-                    resizeMode="contain"
-                  />
-                </View>
-                <Text style={styles.qrAmountText}>
-                  Amount Pre-filled: <Text style={styles.qrAmountHighlight}>{formatINR(upiPreview.amount)}</Text>
-                </Text>
-                <Text style={styles.qrVpaText}>Target VPA: {upiPreview.vpa}</Text>
-                <Text style={styles.qrSubText}>
-                  Customer scans with GPay, PhonePe, Paytm, or BHIM
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.qrPromptBox}>
-                <Ionicons name="qr-code-outline" size={32} color="#A1A1AA" />
-                <Text style={styles.qrPromptText}>
-                  Enter an amount above to generate live NPCI QR code
-                </Text>
-              </View>
-            )}
-
-            <Input
-              label="UPI UTR / Reference No. (Optional)"
-              placeholder="e.g. 402918239012"
-              value={utr}
-              onChangeText={setUtr}
-              keyboardType="numeric"
-            />
+            <TouchableOpacity
+              style={[styles.quickChip, { borderColor: 'rgba(239, 68, 68, 0.3)' }]}
+              onPress={() => handleAmountChange('')}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.quickChipText, { color: '#EF4444' }]}>Clear</Text>
+            </TouchableOpacity>
           </View>
-        ) : null}
+        )}
+      </View>
 
-        {direction === 'COLLECT' && mode === 'CASH' ? (
-          <View style={styles.cashContainer}>
-            <View style={styles.cashHeaderRow}>
-              <Ionicons name="cash" size={20} color="#10B981" />
-              <Text style={styles.cashHeaderTitle}>Cash in Hand Collection</Text>
+      {/* Payment Mode Selector (Only needed for collections) */}
+      {direction === 'COLLECT' && (
+        <>
+          <Text style={styles.fieldLabel}>Payment Mode</Text>
+          <View style={styles.modeToggleBar}>
+            {(['CASH', 'UPI'] as const).map((m) => (
+              <TouchableOpacity
+                key={m}
+                style={[styles.modeBtn, mode === m && styles.modeBtnActive]}
+                onPress={() => handleModeChange(m)}
+                activeOpacity={0.8}
+              >
+                <Ionicons
+                  name={m === 'CASH' ? 'cash-outline' : 'qr-code-outline'}
+                  size={14}
+                  color={mode === m ? '#09090B' : Colors.dark.textSecondary}
+                />
+                <Text style={[styles.modeText, mode === m && styles.modeTextActive]}>
+                  {m === 'CASH' ? 'Cash in Hand' : 'UPI (Dynamic QR)'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </>
+      )}
+
+      {/* Dynamic UPI Section when Collecting via UPI */}
+      {direction === 'COLLECT' && mode === 'UPI' ? (
+        <View style={styles.upiContainer}>
+          {upiAccounts.length > 0 ? (
+            <View style={{ marginBottom: 10 }}>
+              <Select
+                label="Receive into UPI Account"
+                placeholder="Select UPI Account..."
+                value={selectedUpiAccount?.id || (upiAccounts.find((a) => a.isPrimary)?.id || upiAccounts[0]?.id || '')}
+                onChange={(id) => {
+                  const acc = upiAccounts.find((a) => a.id === id);
+                  if (acc) {
+                    setSelectedUpiAccount(acc);
+                    const amtNum = parseFloat(amount);
+                    if (!isNaN(amtNum) && amtNum > 0) {
+                      void generateUpiQr(amtNum, acc);
+                    }
+                  }
+                }}
+                icon="qr-code-outline"
+                options={upiAccounts.map((acc) => ({
+                  value: acc.id,
+                  label: acc.upiId,
+                  subLabel: acc.merchantName || undefined,
+                  badge: acc.isPrimary ? 'Primary' : undefined,
+                }))}
+              />
             </View>
-            <Text style={styles.cashSubText}>
-              Collect physical cash directly from customer and record the deposit into store register drawer.
-            </Text>
-            <View style={styles.cashAmountBox}>
-              <Text style={styles.cashAmountLabel}>Exact Cash to Receive:</Text>
-              <Text style={styles.cashAmountVal}>
-                {amount ? formatINR(parseFloat(amount) || 0) : '₹0.00'}
+          ) : (
+            <View style={styles.upiWarningBox}>
+              <Ionicons name="information-circle-outline" size={14} color="#F59E0B" />
+              <Text style={styles.upiWarningText}>
+                No store UPI IDs configured yet. Please configure a UPI ID in Owner Settings.
               </Text>
             </View>
-            <Input
-              label="Cash Drawer Note / Slip No. (Optional)"
-              placeholder="e.g. Counter 1 Register Slip"
-              value={utr}
-              onChangeText={setUtr}
-            />
+          )}
+
+          {upiLoading ? (
+            <View style={styles.qrLoadingBox}>
+              <ActivityIndicator size="small" color="#FFFFFF" />
+              <Text style={styles.qrLoadingText}>Generating exact-amount QR code...</Text>
+            </View>
+          ) : upiPreview?.qrDataUrl ? (
+            <View style={styles.qrCard}>
+              <View style={styles.qrWhiteBox}>
+                <Image
+                  source={{ uri: upiPreview.qrDataUrl }}
+                  style={styles.qrImage}
+                  resizeMode="contain"
+                />
+              </View>
+              <Text style={styles.qrAmountText}>
+                Amount Pre-filled: <Text style={styles.qrAmountHighlight}>{formatINR(upiPreview.amount)}</Text>
+              </Text>
+              <Text style={styles.qrVpaText}>Target VPA: {upiPreview.vpa}</Text>
+              <Text style={styles.qrSubText}>
+                Customer scans with GPay, PhonePe, Paytm, or BHIM
+              </Text>
+
+              {upiPreview.upiUri ? (
+                <TouchableOpacity
+                  style={styles.openUpiBtn}
+                  onPress={handleOpenUpiIntent}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="open-outline" size={13} color="#FFFFFF" />
+                  <Text style={styles.openUpiBtnText}>Launch UPI App Directly</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+          ) : (
+            <View style={styles.qrPromptBox}>
+              <Ionicons name="qr-code-outline" size={32} color="#A1A1AA" />
+              <Text style={styles.qrPromptText}>
+                Enter an amount above to generate live NPCI QR code
+              </Text>
+            </View>
+          )}
+
+          <Input
+            label="UPI UTR / Reference No. (Optional)"
+            placeholder="e.g. 402918239012"
+            value={utr}
+            onChangeText={setUtr}
+            keyboardType="numeric"
+          />
+        </View>
+      ) : null}
+
+      {direction === 'COLLECT' && mode === 'CASH' ? (
+        <View style={styles.cashContainer}>
+          <View style={styles.cashHeaderRow}>
+            <Ionicons name="cash" size={20} color="#10B981" />
+            <Text style={styles.cashHeaderTitle}>Cash in Hand Collection</Text>
           </View>
-        ) : null}
+          <Text style={styles.cashSubText}>
+            Collect physical cash directly from customer and record the deposit into store register drawer.
+          </Text>
+          <View style={styles.cashAmountBox}>
+            <Text style={styles.cashAmountLabel}>Exact Cash to Receive:</Text>
+            <Text style={styles.cashAmountVal}>
+              {amount ? formatINR(parseFloat(amount) || 0) : '₹0.00'}
+            </Text>
+          </View>
+          <Input
+            label="Cash Drawer Note / Slip No. (Optional)"
+            placeholder="e.g. Counter 1 Register Slip"
+            value={utr}
+            onChangeText={setUtr}
+          />
+        </View>
+      ) : null}
 
-        {/* Notes */}
-        <Input
-          label={direction === 'PAY' ? 'Payment Notes' : 'Transaction Notes (Optional)'}
-          placeholder={
-            direction === 'PAY'
-              ? 'e.g. Cleared vendor invoice or advance repayment'
-              : 'e.g. Cleared 50% invoice balance'
-          }
-          value={notes}
-          onChangeText={setNotes}
-        />
+      {/* Notes */}
+      <Input
+        label={direction === 'PAY' ? 'Payment Notes' : 'Transaction Notes (Optional)'}
+        placeholder={
+          direction === 'PAY'
+            ? 'e.g. Cleared vendor invoice or advance repayment'
+            : 'e.g. Cleared 50% invoice balance'
+        }
+        value={notes}
+        onChangeText={setNotes}
+      />
 
-        <Button
-          title={
-            submitting
-              ? 'Recording...'
-              : direction === 'COLLECT'
-              ? mode === 'CASH'
-                ? `Confirm Cash Received ${amount ? formatINR(parseFloat(amount) || 0) : ''}`
-                : `Confirm UPI Received ${amount ? formatINR(parseFloat(amount) || 0) : ''}`
-              : `Confirm & Disburse ${amount ? formatINR(parseFloat(amount) || 0) : ''}`
-          }
-          onPress={handleSubmit}
-          loading={submitting}
-          variant="primary"
-          size="lg"
-          style={{ marginTop: 12 }}
-        />
-      </View>
-    </BottomSheetModal>
+      <Button
+        title={
+          submitting
+            ? 'Recording...'
+            : direction === 'COLLECT'
+            ? mode === 'CASH'
+              ? `Confirm Cash Received ${amount ? formatINR(parseFloat(amount) || 0) : ''}`
+              : `Confirm UPI Received ${amount ? formatINR(parseFloat(amount) || 0) : ''}`
+            : `Confirm & Disburse ${amount ? formatINR(parseFloat(amount) || 0) : ''}`
+        }
+        onPress={handleSubmit}
+        loading={submitting}
+        variant="primary"
+        size="lg"
+        style={{ marginTop: 12 }}
+      />
+    </View>
+  </BottomSheetModal>
   );
 }
 
@@ -496,27 +693,87 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textTransform: 'uppercase',
   },
-  smallChip: {
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+  partySelectHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  partySelectLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.dark.textSecondary,
+    textTransform: 'uppercase',
+  },
+  createPartyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+  },
+  createPartyBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  spotPartyCard: {
+    backgroundColor: 'rgba(16, 185, 129, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    gap: 6,
+  },
+  spotHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  spotTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  spotCancelBtn: {
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 6,
     backgroundColor: Colors.dark.card,
     borderWidth: 1,
     borderColor: Colors.dark.border,
-    marginRight: 6,
   },
-  smallChipActive: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
-  },
-  smallChipText: {
-    fontSize: 12,
+  spotCancelText: {
+    fontSize: 11,
     color: Colors.dark.textSecondary,
     fontWeight: '600',
   },
-  smallChipTextActive: {
-    color: '#09090B',
-    fontWeight: '800',
+  quickChipsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+    marginBottom: 4,
+  },
+  quickChipsLabel: {
+    fontSize: 11,
+    color: Colors.dark.textSecondary,
+    fontWeight: '600',
+  },
+  quickChip: {
+    paddingVertical: 4,
+    paddingHorizontal: 9,
+    borderRadius: 6,
+    backgroundColor: Colors.dark.card,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  quickChipText: {
+    fontSize: 11,
+    color: '#10B981',
+    fontWeight: '700',
   },
   modeToggleBar: {
     flexDirection: 'row',
@@ -555,34 +812,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     marginBottom: 10,
-  },
-  upiAccountLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    textTransform: 'uppercase',
-  },
-  accChip: {
-    paddingVertical: 5,
-    paddingHorizontal: 9,
-    borderRadius: 6,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    marginRight: 6,
-  },
-  accChipActive: {
-    borderColor: '#10B981',
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-  },
-  accChipText: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    fontFamily: 'monospace',
-  },
-  accChipTextActive: {
-    color: '#10B981',
-    fontWeight: '700',
   },
   qrLoadingBox: {
     paddingVertical: 24,
@@ -633,6 +862,24 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: Colors.dark.textTertiary,
     marginTop: 4,
+  },
+  openUpiBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  openUpiBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   qrPromptBox: {
     paddingVertical: 20,
@@ -691,5 +938,22 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#10B981',
     fontFamily: 'monospace',
+  },
+  upiWarningBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.25)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  upiWarningText: {
+    fontSize: 11,
+    color: '#F59E0B',
+    flex: 1,
   },
 });

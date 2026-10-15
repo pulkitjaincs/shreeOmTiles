@@ -4,10 +4,12 @@ import { Colors } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TabsLayout() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading } = useAuth();
+  const insets = useSafeAreaInsets();
   const role = user?.role || 'SALESMAN';
 
   const isDriver = role === 'DRIVER';
@@ -20,6 +22,8 @@ export default function TabsLayout() {
     }
   }, [isLoading, isAuthenticated, router]);
 
+  const bottomInset = Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 8);
+
   return (
     <Tabs
       screenOptions={{
@@ -28,8 +32,8 @@ export default function TabsLayout() {
           backgroundColor: Colors.dark.background,
           borderTopColor: Colors.dark.border,
           borderTopWidth: 1,
-          height: Platform.OS === 'ios' ? 84 : 64,
-          paddingBottom: Platform.OS === 'ios' ? 24 : 10,
+          height: 52 + bottomInset,
+          paddingBottom: bottomInset,
           paddingTop: 8,
           elevation: 0,
         },
@@ -97,6 +101,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="stock"
         options={{
+          href: isDriver ? null : undefined,
           title: 'Stock & Inventory',
           tabBarLabel: 'Stock',
           tabBarIcon: ({ color, size, focused }) => (

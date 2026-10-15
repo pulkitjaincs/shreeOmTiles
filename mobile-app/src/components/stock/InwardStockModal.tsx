@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, Alert, StyleSheet } from 'react-native';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import { Colors } from '@/constants/theme';
 import { mobileApiRequest } from '@/lib/api';
-import { Product, Warehouse } from './types';
+import { Ionicons } from '@expo/vector-icons';
+import { Product, Warehouse, StockItem } from './types';
 
 interface InwardStockModalProps {
   visible: boolean;
@@ -13,6 +15,10 @@ interface InwardStockModalProps {
   onSuccess: () => void;
   products: Product[];
   warehouses: Warehouse[];
+  stocks?: StockItem[];
+  initialProductId?: string;
+  initialWarehouseId?: string;
+  initialBatchNo?: string;
 }
 
 export function InwardStockModal({
@@ -21,6 +27,10 @@ export function InwardStockModal({
   onSuccess,
   products,
   warehouses,
+  stocks = [],
+  initialProductId,
+  initialWarehouseId,
+  initialBatchNo,
 }: InwardStockModalProps) {
   const [selectedProductId, setSelectedProductId] = useState('');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
@@ -30,12 +40,42 @@ export function InwardStockModal({
 
   useEffect(() => {
     if (visible) {
-      setSelectedProductId(products[0]?.id || '');
-      setSelectedWarehouseId(warehouses[0]?.id || '');
-      setBatchNo(`LOT-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`);
-      setQuantity('');
+      setSelectedProductId(initialProductId || products[0]?.id || '');
+      setSelectedWarehouseId(initialWarehouseId || warehouses[0]?.id || '');
+      const defaultLot =
+        initialBatchNo ||
+        `LOT-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+      setBatchNo(defaultLot);
+      setQuantity('50');
     }
-  }, [visible, products, warehouses]);
+  }, [visible, products, warehouses, initialProductId, initialWarehouseId, initialBatchNo]);
+
+  const selectedProduct = products.find((p) => p.id === selectedProductId);
+
+  // Current stock of selected product in the selected warehouse
+  const currentMatchingStock = stocks.find(
+    (s) =>
+      s.productId === selectedProductId &&
+      s.warehouseId === selectedWarehouseId &&
+      (batchNo ? s.batchNo === batchNo.trim() : !s.batchNo),
+  );
+  const currentQty = currentMatchingStock?.quantity || 0;
+  const incomingNum = parseInt(quantity, 10) || 0;
+  const projectedQty = currentQty + incomingNum;
+
+  // Warehouses dropdown with current stock levels for selected product
+  const warehouseOptions = warehouses.map((wh) => {
+    const sMatch = stocks.find(
+      (s) => s.productId === selectedProductId && s.warehouseId === wh.id,
+    );
+    const qty = sMatch?.quantity || 0;
+    return {
+      value: wh.id,
+      label: wh.name,
+      subLabel: `Current Stock: ${qty} ${selectedProduct?.unit || 'units'} • ${wh.address || wh.type || 'Godown'}`,
+      badge: `${qty} in stock`,
+    };
+  });
 
   const handleInward = async () => {
     if (!selectedProductId || !selectedWarehouseId || !quantity) {
@@ -61,7 +101,7 @@ export function InwardStockModal({
         }),
       });
 
-      Alert.alert('Success', 'Inventory successfully inwarded and restocked!');
+      Alert.alert('Success', `Successfully inwarded ${qtyNum} ${selectedProduct?.unit || 'units'} into warehouse!`);
       onClose();
       onSuccess();
     } catch (err: any) {
@@ -75,46 +115,56 @@ export function InwardStockModal({
     <BottomSheetModal
       visible={visible}
       onClose={onClose}
-      title="Inward Stock"
-      subtitle="Record newly received inventory into warehouse"
+      title="Inward Stock to Warehouse"
+      subtitle="Receive and add newly procured inventory into showroom or godown"
     >
       <View>
-        <Text style={styles.fieldLabel}>Select Product</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 6 }}>
-          {products.map((p) => {
-            const isSelected = selectedProductId === p.id;
-            return (
-              <TouchableOpacity
-                key={p.id}
-                onPress={() => setSelectedProductId(p.id)}
-                style={[styles.smallChip, isSelected && styles.smallChipActive]}
-              >
-                <Text style={[styles.smallChipText, isSelected && styles.smallChipTextActive]}>
-                  {p.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        {/* Product Search & Selector */}
+        <Select
+          label="Select Product / Tile Design"
+          placeholder="Search product..."
+          value={selectedProductId}
+          onChange={setSelectedProductId}
+          searchable
+          searchPlaceholder="Search product by name or category..."
+          icon="cube-outline"
+          options={products.map((p) => ({
+            value: p.id,
+            label: p.name,
+            subLabel: `${p.category || 'Standard'} • Unit: ${p.unit}`,
+          }))}
+        />
 
-        <Text style={styles.fieldLabel}>Target Warehouse</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 6 }}>
-          {warehouses.map((wh) => {
-            const isSelected = selectedWarehouseId === wh.id;
-            return (
-              <TouchableOpacity
-                key={wh.id}
-                onPress={() => setSelectedWarehouseId(wh.id)}
-                style={[styles.smallChip, isSelected && styles.smallChipActive]}
-              >
-                <Text style={[styles.smallChipText, isSelected && styles.smallChipTextActive]}>
-                  {wh.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        {/* Target Warehouse with Current Stock */}
+        <Select
+          label="Destination Warehouse / Showroom"
+          placeholder="Choose target warehouse..."
+          value={selectedWarehouseId}
+          onChange={setSelectedWarehouseId}
+          icon="business-outline"
+          options={warehouseOptions}
+        />
 
+        {/* Original Amount & Projection Display */}
+        {selectedWarehouseId ? (
+          <View style={styles.stockProjectionBox}>
+            <View style={styles.stockProjRow}>
+              <View>
+                <Text style={styles.projLabel}>Current Stock</Text>
+                <Text style={styles.projVal}>{currentQty} {selectedProduct?.unit || 'units'}</Text>
+              </View>
+              <Ionicons name="arrow-forward" size={16} color={Colors.dark.textSecondary} />
+              <View>
+                <Text style={styles.projLabel}>Projected After Inward</Text>
+                <Text style={[styles.projVal, { color: '#10B981' }]}>
+                  {projectedQty} {selectedProduct?.unit || 'units'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        ) : null}
+
+        {/* Batch / Lot */}
         <Input
           label="Batch / Lot Number"
           placeholder="e.g. LOT-2026-10"
@@ -122,8 +172,9 @@ export function InwardStockModal({
           onChangeText={setBatchNo}
         />
 
+        {/* Incoming Quantity */}
         <Input
-          label="Incoming Quantity"
+          label="Incoming Quantity *"
           placeholder="e.g. 100"
           value={quantity}
           onChangeText={setQuantity}
@@ -144,34 +195,31 @@ export function InwardStockModal({
 }
 
 const styles = StyleSheet.create({
-  fieldLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    marginBottom: 4,
-    marginTop: 8,
-    textTransform: 'uppercase',
-  },
-  smallChip: {
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: Colors.dark.card,
+  stockProjectionBox: {
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
-    marginRight: 6,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginVertical: 8,
   },
-  smallChipActive: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
+  stockProjRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  smallChipText: {
-    fontSize: 12,
+  projLabel: {
+    fontSize: 11,
     color: Colors.dark.textSecondary,
     fontWeight: '600',
+    textTransform: 'uppercase',
   },
-  smallChipTextActive: {
-    color: '#09090B',
+  projVal: {
+    fontSize: 15,
     fontWeight: '800',
+    color: '#FFFFFF',
+    fontFamily: 'monospace',
+    marginTop: 2,
   },
 });

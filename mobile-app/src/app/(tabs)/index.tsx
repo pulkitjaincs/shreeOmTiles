@@ -28,7 +28,11 @@ export default function DashboardScreen() {
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [preset, setPreset] = useState<'today' | '7d' | '30d' | 'month' | 'all'>('today');
+  const [preset, setPreset] = useState<'today' | '7d' | '30d' | 'month' | 'all' | 'custom'>('today');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [appliedDateFrom, setAppliedDateFrom] = useState('');
+  const [appliedDateTo, setAppliedDateTo] = useState('');
 
   // Analytics data for Owner/Admin and Salesman
   const [analyticsData, setAnalyticsData] = useState<any>(null);
@@ -45,8 +49,13 @@ export default function DashboardScreen() {
         });
         setDriverDeliveries(deliveries || []);
       } else {
+        if (preset === 'custom' && (!appliedDateFrom || !appliedDateTo)) {
+          setAnalyticsData(null);
+          return;
+        }
+        const query = preset === 'custom' ? `preset=custom&from=${encodeURIComponent(appliedDateFrom)}&to=${encodeURIComponent(appliedDateTo)}` : `preset=${preset}`;
         const data = await cachedMobileApiRequest<any>(
-          `/analytics/dashboard?preset=${preset}`,
+          `/analytics/dashboard?${query}`,
           {
             forceRefresh: force,
             onRevalidate: (fresh) => setAnalyticsData(fresh),
@@ -60,7 +69,7 @@ export default function DashboardScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [isDriver, preset]);
+  }, [isDriver, preset, appliedDateFrom, appliedDateTo]);
 
   useEffect(() => {
     setLoading(true);
@@ -153,6 +162,13 @@ export default function DashboardScreen() {
       <SalesmanDashboardView
         user={user}
         analyticsData={analyticsData}
+        preset={preset}
+        setPreset={setPreset}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        setDateFrom={setDateFrom}
+        setDateTo={setDateTo}
+        onApplyDateRange={() => { setAppliedDateFrom(dateFrom); setAppliedDateTo(dateTo); }}
         refreshing={refreshing}
         onRefresh={onRefresh}
         router={router}
@@ -165,6 +181,11 @@ export default function DashboardScreen() {
       analyticsData={analyticsData}
       preset={preset}
       setPreset={setPreset}
+      dateFrom={dateFrom}
+      dateTo={dateTo}
+      setDateFrom={setDateFrom}
+      setDateTo={setDateTo}
+      onApplyDateRange={() => { setAppliedDateFrom(dateFrom); setAppliedDateTo(dateTo); }}
       refreshing={refreshing}
       onRefresh={onRefresh}
       handoverInProgress={handoverInProgress}

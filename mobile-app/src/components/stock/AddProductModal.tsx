@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import { Colors } from '@/constants/theme';
 import { mobileApiRequest } from '@/lib/api';
 import { Product } from './types';
@@ -12,6 +13,7 @@ interface AddProductModalProps {
   onClose: () => void;
   onSuccess: () => void;
   product?: Product | null;
+  warehouses?: { id: string; name: string }[];
 }
 
 export function AddProductModal({
@@ -19,11 +21,19 @@ export function AddProductModal({
   onClose,
   onSuccess,
   product,
+  warehouses = [],
 }: AddProductModalProps) {
   const [prodName, setProdName] = useState('');
   const [prodCategory, setProdCategory] = useState('');
   const [prodUnit, setProdUnit] = useState('box');
   const [prodHsn, setProdHsn] = useState('');
+  const [prodSize, setProdSize] = useState('');
+  const [prodFinish, setProdFinish] = useState('');
+  const [sellingPrice, setSellingPrice] = useState('');
+  const [purchasePrice, setPurchasePrice] = useState('');
+  const [initialWarehouseId, setInitialWarehouseId] = useState('');
+  const [initialQuantity, setInitialQuantity] = useState('');
+  const [initialBatchNo, setInitialBatchNo] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -33,18 +43,37 @@ export function AddProductModal({
         setProdCategory(product.category);
         setProdUnit(product.unit || 'box');
         setProdHsn(product.hsnCode || '');
+        const attrs = product.attributes || {};
+        setProdSize(String(attrs.size || ''));
+        setProdFinish(String(attrs.finish || ''));
+        setSellingPrice(attrs.price == null ? '' : String(attrs.price));
+        setPurchasePrice(attrs.purchasePrice == null ? '' : String(attrs.purchasePrice));
+        setInitialWarehouseId('');
+        setInitialQuantity('');
+        setInitialBatchNo('');
       } else {
         setProdName('');
         setProdCategory('');
         setProdUnit('box');
         setProdHsn('');
+        setProdSize('');
+        setProdFinish('');
+        setSellingPrice('');
+        setPurchasePrice('');
+        setInitialWarehouseId(warehouses[0]?.id || '');
+        setInitialQuantity('');
+        setInitialBatchNo('');
       }
     }
-  }, [visible, product]);
+  }, [visible, product, warehouses]);
 
   const handleSave = async () => {
     if (!prodName.trim() || !prodCategory.trim()) {
       Alert.alert('Required Fields', 'Product name and category are required');
+      return;
+    }
+    if (initialQuantity.trim() && (!Number.isInteger(Number(initialQuantity)) || Number(initialQuantity) < 0 || !initialWarehouseId)) {
+      Alert.alert('Invalid Opening Stock', 'Choose a warehouse and enter a whole quantity of zero or more.');
       return;
     }
 
@@ -58,6 +87,13 @@ export function AddProductModal({
             category: prodCategory.trim(),
             unit: prodUnit,
             hsnCode: prodHsn.trim() || undefined,
+            attributes: {
+              ...(product.attributes || {}),
+              size: prodSize.trim(),
+              finish: prodFinish.trim(),
+              price: sellingPrice.trim() ? Number(sellingPrice) : undefined,
+              purchasePrice: purchasePrice.trim() ? Number(purchasePrice) : undefined,
+            },
           }),
         });
         Alert.alert('Success', 'Product updated successfully!');
@@ -69,6 +105,16 @@ export function AddProductModal({
             category: prodCategory.trim(),
             unit: prodUnit,
             hsnCode: prodHsn.trim() || undefined,
+            price: sellingPrice.trim() ? Number(sellingPrice) : undefined,
+            attributes: {
+              size: prodSize.trim(),
+              finish: prodFinish.trim(),
+              price: sellingPrice.trim() ? Number(sellingPrice) : undefined,
+              purchasePrice: purchasePrice.trim() ? Number(purchasePrice) : undefined,
+            },
+            initialWarehouseId: initialWarehouseId || undefined,
+            initialQuantity: initialQuantity.trim() ? Number(initialQuantity) : undefined,
+            initialBatchNo: initialBatchNo.trim() || undefined,
           }),
         });
         Alert.alert('Success', 'New product added to catalog!');
@@ -104,6 +150,17 @@ export function AddProductModal({
           value={prodCategory}
           onChangeText={setProdCategory}
         />
+
+        <Input label="Size (Optional)" placeholder="e.g. 600x1200 mm" value={prodSize} onChangeText={setProdSize} />
+        <Input label="Finish (Optional)" placeholder="e.g. Glossy" value={prodFinish} onChangeText={setProdFinish} />
+        <Input label="Selling Price (₹)" placeholder="0" value={sellingPrice} onChangeText={setSellingPrice} keyboardType="numeric" />
+        <Input label="Purchase Price (₹)" placeholder="0" value={purchasePrice} onChangeText={setPurchasePrice} keyboardType="numeric" />
+
+        {!product && <>
+          <Select label="Initial Stock Warehouse" value={initialWarehouseId} onChange={setInitialWarehouseId} options={warehouses.map((w) => ({ value: w.id, label: w.name }))} placeholder="Choose warehouse" />
+          <Input label="Initial Inward Quantity" placeholder="0" value={initialQuantity} onChangeText={setInitialQuantity} keyboardType="numeric" />
+          <Input label="Initial Batch Number (Optional)" placeholder="e.g. BATCH-001" value={initialBatchNo} onChangeText={setInitialBatchNo} />
+        </>}
 
         <Text style={styles.fieldLabel}>Unit of Measure</Text>
         <View style={styles.unitRow}>

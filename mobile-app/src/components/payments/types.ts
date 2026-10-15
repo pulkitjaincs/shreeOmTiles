@@ -1,9 +1,95 @@
+export interface PendingCreditLedger {
+  id: string;
+  invoiceId?: string | null;
+  invoiceNo?: string | null;
+  partyId: string;
+  partyName?: string;
+  partyPhone?: string;
+  amountDue: number;
+  createdAt: string;
+  status: string;
+  type: string;
+}
+
 export interface Party {
   id: string;
   name: string;
   phone: string;
   address?: string;
   gstin?: string;
+  type?: string;
+}
+
+export type ActiveTabType = 'dues' | 'payables' | 'all' | 'inflows' | 'credits';
+
+export interface PaymentRecord {
+  id: string;
+  invoiceId?: string | null;
+  partyId?: string | null;
+  mode: string;
+  type?: 'INFLOW' | 'OUTFLOW';
+  amount: number | string;
+  upiTxnRef?: string | null;
+  upiUtr?: string | null;
+  notes?: string | null;
+  status: string;
+  createdAt: string;
+  paidAt?: string | null;
+  invoice?: {
+    id: string;
+    invoiceNo: string;
+    total?: number | string;
+    party?: { id: string; name: string; phone: string };
+  } | null;
+  party?: { id: string; name: string; phone: string } | null;
+  confirmedBy?: { id: string; name: string } | null;
+}
+
+export interface CreditLedgerRecord {
+  id: string;
+  partyId: string;
+  invoiceId?: string | null;
+  amountDue: number | string;
+  dueDate?: string | null;
+  type: 'RECEIVABLE' | 'PAYABLE';
+  notes?: string | null;
+  status: string;
+  remindersSent?: number;
+  createdAt: string;
+  party?: { id: string; name: string; phone: string };
+  invoice?: { id: string; invoiceNo: string };
+}
+
+export interface PendingItem {
+  id: string;
+  invoiceNo?: string;
+  partyId: string;
+  partyName: string;
+  partyPhone: string;
+  total?: number;
+  paid?: number;
+  remainingDue: number;
+  createdAt: string;
+  status: string;
+  isCreditLedger?: boolean;
+  creditType?: 'RECEIVABLE' | 'PAYABLE';
+}
+
+export interface FinancialStats {
+  totalSales: number;
+  totalCollected: number;
+  totalPaidOut: number;
+  cashCollected: number;
+  upiCollected: number;
+  pendingReceivables: number;
+  creditsOwed: number;
+}
+
+export interface UpiPreviewData {
+  amount: number;
+  vpa: string;
+  upiUri: string;
+  qrDataUrl: string;
 }
 
 export interface UpiAccount {
@@ -11,46 +97,4 @@ export interface UpiAccount {
   upiId: string;
   merchantName?: string;
   isPrimary: boolean;
-}
-
-export interface UpiPreviewData {
-  qrDataUrl: string;
-  upiUri: string;
-  amount: number;
-  vpa: string;
-  merchantName?: string;
-}
-
-export interface PaymentRecord {
-  id: string;
-  invoiceId?: string;
-  partyId?: string;
-  amount: number;
-  type: 'INFLOW' | 'OUTFLOW';
-  mode: 'CASH' | 'UPI';
-  status: string;
-  upiTxnRef?: string;
-  upiUtr?: string;
-  notes?: string;
-  createdAt: string;
-  party?: Party;
-  invoice?: {
-    id: string;
-    invoiceNo: string;
-  };
-}
-
-export interface CreditRecord {
-  partyId: string;
-  partyName: string;
-  partyPhone: string;
-  totalDue: number;
-  invoiceCount: number;
-}
-
-export interface PaymentStats {
-  todayInflow: number;
-  todayOutflow: number;
-  todayNet: number;
-  totalOutstandingCredit: number;
 }

@@ -1,6 +1,6 @@
 # Shree Om Tiles ERP - Web Dashboard 💻
 
-> Responsive, modern enterprise web dashboard engineered for Shree Om Tiles administrative, sales, logistics, and counter operations. Built with Next.js 16.3.1 (App Router + Turbopack), React 19, Tailwind CSS v4, and Lucide icons.
+> Responsive, enterprise web management portal engineered for Shree Om Tiles administrative, sales, logistics, and counter operations. Built with Next.js 16.3.1 (App Router + Turbopack), React 19, Tailwind CSS v4, and Lucide icons.
 
 ---
 
@@ -18,22 +18,24 @@
 
 ## ✨ Key Features
 
-- **Blazing Fast Turbopack Builds**: Instant HMR and sub-second page transitions powered by Next.js 16 Turbopack engine.
-- **Dynamic Role-Based Views**: Automatically mounts specialized layouts for `OWNER`, `SALESMAN`, and `DRIVER`.
-- **B2B Billing with Upfront Dynamic UPI QR**: Create multi-item tile invoices, calculate box-to-square-feet conversions, and immediately show an on-screen NPCI UPI QR code modal for counter payments.
-- **Double-Entry Party Statement Ledgers**: Comprehensive customer and supplier registries with live Net Due vs. Store Credit calculation and running balances.
+- **Blazing Fast Turbopack Engine**: Instant Hot Module Replacement (HMR) and optimized compilation powered by Next.js 16.3.1 Turbopack.
+- **Dynamic Role-Based Views**: Automatically mounts specialized layouts for `OWNER`, `SALESMAN`, and `DRIVER` with tailored toolsets.
+- **B2B Billing with Upfront Dynamic UPI QR**: Create multi-item tile invoices, calculate box-to-square-feet conversions in real time, and immediately display an on-screen NPCI UPI QR code modal for counter payments.
+- **Double-Entry Party Statement Ledgers**: Comprehensive customer and supplier registries with live Net Due vs. Store Credit calculation, running balance ledgers, and 1-click printable PDF statement generation.
 - **Logistics & Dispatch Board**: Drag-and-drop or modal-based delivery assignments with live trip tracking, driver vehicle allocation, and owner settlement approval.
-- **Stock & Warehouse Management**: Multi-godown tracking, low-inventory alerts, and stock adjustments.
+- **Multi-Warehouse Stock Operations**: Multi-godown tracking, low-inventory alerts, inter-warehouse transfers, inward stock logging, and manual stock adjustments.
+- **Staff & User Role Directory**: Manage team members, toggle active/inactive access, and reset passwords directly from the portal.
 - **Crisp Dark & Light Mode**: Seamless dark/light theme switching with zero layout shift or hydration mismatch.
 
 ---
 
 ## 🛠️ Tech Stack
 
-- **Framework**: [Next.js 16.3.1](https://nextjs.org/) (App Router, Server & Client Components)
+- **Framework**: [Next.js 16.3.1](https://nextjs.org/) (App Router, Server & Client Components, Turbopack)
 - **Library**: [React 19](https://react.dev/)
 - **Styling**: [Tailwind CSS v4](https://tailwindcss.com/) + `@tailwindcss/postcss`
 - **Icons**: [Lucide React](https://lucide.dev/)
+- **State & Theming**: React Context + `next-themes`
 - **Utilities**: `clsx`, `tailwind-merge`, `class-variance-authority`
 - **Linting**: ESLint 9 with Next.js flat configuration
 
@@ -65,7 +67,7 @@ web-dashboard/
 │       ├── users/
 │       │   └── page.tsx                  # Employee directory, roles, active driver statuses
 │       └── warehouses/
-│           └── page.tsx                  # Showrooms vs godowns, stock transfers
+│           └── page.tsx                  # Showrooms vs godowns, stock transfers & adjustments
 │
 ├── components/
 │   ├── auth-provider.tsx                 # React Context for active user, token, and permissions
@@ -74,11 +76,13 @@ web-dashboard/
 │   ├── driver-dashboard.tsx              # Mobile-responsive web view for drivers
 │   ├── salesman-dashboard.tsx            # Fast billing and customer lookup view for sales reps
 │   ├── analytics/                        # Chart widgets and overdue aging tables
-│   ├── deliveries/                       # Create delivery modals, driver assigners
+│   ├── deliveries/                       # Create delivery modals, driver assigners, settlements
 │   ├── invoices/                         # Create invoice drawer, upfront UPI QR modal, PDF viewer
 │   ├── parties/                          # Party statement drawer, ledger audit trail
-│   ├── payments/                         # Payment creation modals, filter bars
-│   └── products/                         # Product modal, stock adjustment drawers
+│   ├── payments/                         # Payment creation modals, filter bars, customer dues
+│   ├── products/                         # Product modal, stock adjustment drawers, inward drawers
+│   ├── warehouses/                       # Warehouse forms, transfer modals
+│   └── ui/                               # Accessible buttons, input fields, modals, and sheets
 │
 └── lib/
     ├── api.ts                            # Typed HTTP client with Bearer auth injection
@@ -121,8 +125,9 @@ When a user logs in, the `/dashboard` home automatically adapts:
 - Distinguishes **Net Overdue Debt** from **Advance / Store Credit** with explicit positive/negative coloring.
 - One-click trigger to download printable PDF party statement.
 
-### Themed Select Components
-- Uses clean, styled select elements with accessible popups and contrasting option text in both light and dark modes, eliminating native browser unstyled white-on-white text issues.
+### Multi-Warehouse Inventory Tracking (`components/products/`, `components/warehouses/`)
+- Live breakdown of boxes and square footage across individual locations.
+- Inter-godown transfer modal with source/destination warehouse stock checks.
 
 ---
 
@@ -135,7 +140,7 @@ Create or configure `.env.local` inside `web-dashboard/`:
 NEXT_PUBLIC_API_URL=http://localhost:3001
 ```
 
-*Note: For testing from mobile browsers on the local network, replace `localhost` with your computer's local Wi-Fi IP address (e.g. `http://192.168.1.15:3001`).*
+*Note: For testing from mobile browsers or tablets on the local network, replace `localhost` with your computer's local Wi-Fi IP address (e.g. `http://192.168.1.15:3001`).*
 
 ---
 

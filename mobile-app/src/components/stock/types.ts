@@ -1,9 +1,18 @@
+export interface StockLedgerEntry {
+  warehouse?: { name: string };
+  batchNo?: string;
+  quantity: number;
+}
+
 export interface Product {
   id: string;
   name: string;
   category: string;
   unit: string;
   hsnCode?: string;
+  price?: number;
+  attributes?: Record<string, unknown>;
+  stockLedgers?: StockLedgerEntry[];
 }
 
 export interface Warehouse {

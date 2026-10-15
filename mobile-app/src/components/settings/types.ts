@@ -4,6 +4,9 @@ export interface StaffUser {
   phone: string;
   role: 'ADMIN' | 'SALESMAN' | 'DRIVER' | 'OWNER';
   active: boolean;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface UpiAccount {
@@ -11,10 +14,15 @@ export interface UpiAccount {
   upiId: string;
   merchantName?: string;
   isPrimary: boolean;
+  createdAt?: string;
 }
 
 export interface SystemSettings {
-  companyName: string;
-  taxRate: number;
+  id?: string;
+  companyName?: string;
+  merchantName?: string;
+  upiId?: string;
+  taxRate?: number;
   upiAccounts: UpiAccount[];
+  [key: string]: any;
 }

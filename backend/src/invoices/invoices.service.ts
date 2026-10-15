@@ -695,7 +695,14 @@ export class InvoicesService {
 
     const fy = this.getFinancialYear();
 
-    return this.prisma.$transaction(async (tx) => {
+    // Fetch party name before transaction (read-only, safe outside tx)
+    const invoiceForParty = await this.prisma.invoice.findUnique({
+      where: { id },
+      select: { party: { select: { name: true } } },
+    });
+    const customerName = invoiceForParty?.party?.name || 'Customer';
+
+    const result = await this.prisma.$transaction(async (tx) => {
       // 1. Fetch invoice and relations inside transaction to prevent concurrency races
       const invoice = await tx.invoice.findUnique({
         where: { id },
@@ -987,6 +994,20 @@ export class InvoicesService {
         restockedItems: returnedSummaries,
       };
     });
+
+    // Notify Owner & Admin about credit note / sales return
+    const formattedRefund = Math.round(result.totalRefund).toLocaleString('en-IN');
+    void this.notifications.notifyAdmins(
+      'Credit Note Issued',
+      `₹${formattedRefund} refunded/credited for Invoice #${result.invoiceNo} (${customerName}).`,
+      {
+        type: 'CREDIT_NOTE_ISSUED',
+        invoiceId: id,
+        refundInvoiceId: result.refundInvoice.id,
+      },
+    );
+
+    return result;
   }
 
   /**

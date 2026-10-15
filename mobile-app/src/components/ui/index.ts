@@ -7,3 +7,5 @@ export * from './FilterPills';
 export * from './SearchBar';
 export * from './BottomSheetModal';
 export * from './EmptyState';
+export * from './Select';
+

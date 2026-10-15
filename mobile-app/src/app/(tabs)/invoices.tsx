@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,26 +14,34 @@ import { useAuth } from '@/lib/auth-context';
 import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
 import { Colors } from '@/constants/theme';
 import { Header } from '@/components/ui/Header';
-import { Card } from '@/components/ui/Card';
-import { SearchBar } from '@/components/ui/SearchBar';
-import { FilterPills } from '@/components/ui/FilterPills';
-import { StatusBadge } from '@/components/ui/StatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { formatINR, formatDate, cleanPhoneNumber } from '@/lib/formatters';
 import { downloadAndSharePdf } from '@/lib/pdf';
+import { buildFullInvoiceShareUrl } from '@/lib/whatsapp';
 import { Ionicons } from '@expo/vector-icons';
 
-import { Product, Warehouse, Party, StockLedger, UpiModalData } from '@/components/invoices/types';
-import { CreateInvoiceModal } from '@/components/invoices/CreateInvoiceModal';
-import { ReturnInvoiceModal } from '@/components/invoices/ReturnInvoiceModal';
-import { UpiQrModal } from '@/components/invoices/UpiQrModal';
-import { InvoiceDetailsModal } from '@/components/invoices/InvoiceDetailsModal';
+import {
+  Invoice,
+  InvoiceListEntry,
+  Product,
+  Warehouse,
+  Party,
+  StockLedger,
+  CreateInvoiceModal,
+  ReturnInvoiceModal,
+  InvoiceDetailsModal,
+  ShareInvoiceModal,
+  ActiveLocationsModal,
+  InvoiceListFilters,
+  InvoiceListCard,
+  filterInvoiceList,
+} from '@/components/invoices';
 
 export default function InvoicesScreen() {
   const { user } = useAuth();
   const isSalesman = user?.role === 'SALESMAN';
+  const canReturn = Boolean(user && user.role !== 'SALESMAN');
 
-  const [invoices, setInvoices] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<InvoiceListEntry[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
@@ -43,12 +51,17 @@ export default function InvoicesScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [modeFilter, setModeFilter] = useState('ALL');
+  const [dateFilter, setDateFilter] = useState('ALL');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   // Modals state
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [detailsInvoice, setDetailsInvoice] = useState<any>(null);
   const [returnInvoice, setReturnInvoice] = useState<any>(null);
-  const [upiModalData, setUpiModalData] = useState<UpiModalData | null>(null);
+  const [locationsOpen, setLocationsOpen] = useState(false);
+  const [createdInvoiceSuccess, setCreatedInvoiceSuccess] = useState<Invoice | null>(null);
 
   const loadData = useCallback(async (force = false) => {
     try {
@@ -101,57 +114,86 @@ export default function InvoicesScreen() {
     loadData(true);
   };
 
-  // WhatsApp Share Handler
-  const handleShareWhatsApp = (invoice: any) => {
-    const phone = cleanPhoneNumber(invoice.party?.phone || invoice.partyPhone);
-    const partyName = invoice.party?.name || invoice.partyName || 'Customer';
-    const totalVal = formatINR(invoice.total);
-    const msg = `*Shree Om Tiles & Sanitaryware*\nInvoice: #${invoice.invoiceNo}\nCustomer: ${partyName}\nTotal: ${totalVal}\nStatus: ${invoice.status || 'PAID'}\n\nThank you for your business!`;
-    const url = phone
-      ? `https://wa.me/91${phone}?text=${encodeURIComponent(msg)}`
-      : `https://wa.me/?text=${encodeURIComponent(msg)}`;
-
-    Linking.openURL(url).catch(() => {
-      Alert.alert('Error', 'Unable to launch WhatsApp. Please ensure WhatsApp is installed.');
-    });
+  const refreshInvoiceStock = async () => {
+    const fresh = await cachedMobileApiRequest<StockLedger[]>('/stock', { forceRefresh: true });
+    const list = Array.isArray(fresh) ? fresh : [];
+    setStockList(list);
+    return list;
   };
 
-  // Open Dynamic UPI QR
-  const handleOpenUpiQr = async (invoice: any) => {
+  // WhatsApp Share Handler - shares rich, itemized order details
+  const handleShareWhatsApp = async (invoice: any) => {
     try {
-      const qrData = await mobileApiRequest<any>(`/invoices/${invoice.id}/upi-qr`);
-      setUpiModalData({
-        invoiceId: invoice.id,
-        invoiceNo: qrData.invoiceNo || invoice.invoiceNo,
-        partyName: invoice.party?.name,
-        partyPhone: invoice.party?.phone,
-        total: Number(qrData.amount || invoice.total),
-        qrDataUrl: qrData.qrDataUrl,
-        vpa: qrData.vpa,
-      });
-    } catch (err: any) {
-      Alert.alert('UPI QR Error', err.message || 'Unable to load UPI QR code. Please check connection.');
+      let fullInv = invoice;
+      // If line items are not populated on the list card, fetch full invoice
+      if (!invoice.items || invoice.items.length === 0) {
+        try {
+          const res = await mobileApiRequest<any>(`/invoices/${invoice.id}`);
+          if (res && res.id) {
+            fullInv = res;
+          }
+        } catch {
+          // fallback to invoice
+        }
+      }
+
+      const url = buildFullInvoiceShareUrl(fullInv);
+      const supported = await Linking.canOpenURL(url).catch(() => false);
+      if (supported) {
+        await Linking.openURL(url);
+      } else {
+        await Linking.openURL(url).catch(() => {
+          Alert.alert('Error', 'Unable to launch WhatsApp. Please ensure WhatsApp is installed.');
+        });
+      }
+    } catch {
+      Alert.alert('Error', 'Failed to prepare order details for WhatsApp');
     }
   };
 
   const handleInvoiceCreated = (res?: any) => {
-    loadData(true);
-    // If created with UPI mode, prompt dynamic NPCI UPI QR code for counter scanning
-    if (res?.id && res?.paymentMode === 'UPI') {
-      handleOpenUpiQr(res);
+    void loadData(true);
+    if (res?.id) {
+      setCreatedInvoiceSuccess(res);
+    } else if (res?.invoiceNo) {
+      Alert.alert('Invoice Created', `Invoice #${res.invoiceNo} was generated successfully.`);
     }
   };
 
-  // Filtered invoices
-  const filteredInvoices = invoices.filter((inv) => {
-    const matchesSearch =
-      inv.invoiceNo?.toLowerCase().includes(search.toLowerCase()) ||
-      inv.party?.name?.toLowerCase().includes(search.toLowerCase()) ||
-      inv.party?.phone?.includes(search);
+  const handleOpenInvoiceDetails = async (invoice: any) => {
+    setDetailsInvoice(invoice);
+    try {
+      const fullInvoice = await mobileApiRequest<any>(`/invoices/${invoice.id}`);
+      if (fullInvoice?.id === invoice.id) setDetailsInvoice(fullInvoice);
+    } catch {
+      // Keep the list record visible if detail loading is temporarily unavailable.
+    }
+  };
 
-    const matchesStatus = statusFilter === 'ALL' || inv.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const handleDownloadRefundPdf = async (refundId: string, refundNo: string) => {
+    await downloadAndSharePdf(`invoices/refund/${refundId}/pdf`, refundNo || `Credit_Note_${refundId}`);
+  };
+
+  const clearFilters = () => {
+    setSearch('');
+    setStatusFilter('ALL');
+    setModeFilter('ALL');
+    setDateFilter('ALL');
+    setDateFrom('');
+    setDateTo('');
+  };
+
+  const filteredInvoices = useMemo(
+    () => filterInvoiceList(invoices, {
+      search,
+      status: statusFilter,
+      paymentMode: modeFilter,
+      datePreset: dateFilter,
+      dateFrom,
+      dateTo,
+    }),
+    [invoices, search, statusFilter, modeFilter, dateFilter, dateFrom, dateTo],
+  );
 
   return (
     <View style={styles.screen}>
@@ -164,23 +206,36 @@ export default function InvoicesScreen() {
         }}
       />
 
-      <SearchBar
-        value={search}
-        onChangeText={setSearch}
-        placeholder="Search invoice #, customer name, phone..."
-      />
+      {canReturn ? (
+        <View style={styles.utilityActions}>
+          <TouchableOpacity style={styles.locationAction} onPress={() => setLocationsOpen(true)}>
+            <Ionicons name="business-outline" size={15} color={Colors.dark.primary} />
+            <Text style={styles.utilityActionText}>Active Locations ({warehouses.length})</Text>
+            <Ionicons name="chevron-down" size={14} color={Colors.dark.textTertiary} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.returnAction} onPress={() => setReturnInvoice({ lookupOnly: true })}>
+            <Ionicons name="return-up-back-outline" size={15} color="#FBBF24" />
+            <Text style={styles.returnActionText}>Process Return</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
-      {/* Status Filter Chips */}
-      <FilterPills
-        options={[
-          { label: 'All Bills', value: 'ALL', count: invoices.length },
-          { label: 'Paid', value: 'PAID' },
-          { label: 'Partial', value: 'PARTIAL' },
-          { label: 'Created', value: 'CREATED' },
-          { label: 'Cancelled', value: 'CANCELLED' },
-        ]}
-        selected={statusFilter}
-        onSelect={setStatusFilter}
+      <InvoiceListFilters
+        search={search}
+        onSearchChange={setSearch}
+        status={statusFilter}
+        onStatusChange={setStatusFilter}
+        datePreset={dateFilter}
+        onDatePresetChange={setDateFilter}
+        dateFrom={dateFrom}
+        onDateFromChange={setDateFrom}
+        dateTo={dateTo}
+        onDateToChange={setDateTo}
+        paymentMode={modeFilter}
+        onPaymentModeChange={setModeFilter}
+        invoiceCount={invoices.length}
+        resultCount={filteredInvoices.length}
+        onClear={clearFilters}
       />
 
       {loading && !refreshing ? (
@@ -206,70 +261,14 @@ export default function InvoicesScreen() {
             />
           }
           renderItem={({ item }) => (
-            <Card
-              elevated
-              style={styles.invoiceCard}
-              onPress={() => setDetailsInvoice(item)}
-            >
-              <View style={styles.cardTop}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.invoiceNumber}>#{item.invoiceNo}</Text>
-                  <Text style={styles.partyName}>{item.party?.name || 'Counter Sale'}</Text>
-                  <Text style={styles.dateText}>{formatDate(item.createdAt)}</Text>
-                </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={styles.totalAmount}>{formatINR(item.total)}</Text>
-                  <StatusBadge status={item.status} size="sm" />
-                </View>
-              </View>
-
-              <View style={styles.cardDivider} />
-
-              <View style={styles.cardBottom}>
-                <View style={styles.badgeRow}>
-                  <View style={styles.modeBadge}>
-                    <Text style={styles.modeText}>{item.paymentMode || 'UPI'}</Text>
-                  </View>
-                  <Text style={styles.salesmanText}>
-                    By: {item.salesman?.name || 'Staff'}
-                  </Text>
-                </View>
-
-                <View style={styles.actionsRow}>
-                  <TouchableOpacity
-                    style={styles.actionIconBtn}
-                    onPress={() => downloadAndSharePdf(`invoices/${item.id}/pdf`, item.invoiceNo || `Invoice_${item.id}`)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Ionicons name="document-text-outline" size={18} color="#3B82F6" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.actionIconBtn}
-                    onPress={() => handleOpenUpiQr(item)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Ionicons name="qr-code-outline" size={18} color="#FFFFFF" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.actionIconBtn}
-                    onPress={() => handleShareWhatsApp(item)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Ionicons name="logo-whatsapp" size={18} color="#10B981" />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.actionIconBtn}
-                    onPress={() => setReturnInvoice(item)}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  >
-                    <Ionicons name="return-up-back-outline" size={18} color="#A1A1AA" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </Card>
+            <InvoiceListCard
+              invoice={item}
+              canReturn={canReturn}
+              onOpen={handleOpenInvoiceDetails}
+              onDownloadPdf={(invoice) => void downloadAndSharePdf(`invoices/${invoice.id}/pdf`, invoice.invoiceNo || `Invoice_${invoice.id}`)}
+              onShareWhatsApp={handleShareWhatsApp}
+              onReturn={setReturnInvoice}
+            />
           )}
         />
       )}
@@ -293,7 +292,7 @@ export default function InvoicesScreen() {
         warehouses={warehouses}
         parties={parties}
         stockList={stockList}
-        isSalesman={isSalesman}
+        onRefreshStock={refreshInvoiceStock}
       />
 
       <InvoiceDetailsModal
@@ -301,21 +300,33 @@ export default function InvoicesScreen() {
         visible={Boolean(detailsInvoice)}
         onClose={() => setDetailsInvoice(null)}
         onShareWhatsApp={handleShareWhatsApp}
-        onInitiateReturn={(inv) => setReturnInvoice(inv)}
+        onDownloadRefundPdf={handleDownloadRefundPdf}
+        onInitiateReturn={canReturn ? (inv) => setReturnInvoice(inv) : undefined}
       />
 
       <ReturnInvoiceModal
         invoice={returnInvoice}
         visible={Boolean(returnInvoice)}
         onClose={() => setReturnInvoice(null)}
+        warehouses={warehouses}
+        onDownloadRefundPdf={handleDownloadRefundPdf}
         onSuccess={() => loadData(true)}
       />
 
-      <UpiQrModal
-        data={upiModalData}
-        onClose={() => setUpiModalData(null)}
-        onShareWhatsApp={(data) => handleShareWhatsApp(data)}
+      <ShareInvoiceModal
+        visible={Boolean(createdInvoiceSuccess)}
+        invoice={createdInvoiceSuccess}
+        onClose={() => setCreatedInvoiceSuccess(null)}
+        onShareWhatsApp={handleShareWhatsApp}
+        onViewDetails={handleOpenInvoiceDetails}
       />
+
+      <ActiveLocationsModal
+        visible={locationsOpen}
+        onClose={() => setLocationsOpen(false)}
+        warehouses={warehouses}
+      />
+
     </View>
   );
 }
@@ -340,76 +351,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 10,
   },
-  invoiceCard: {
-    padding: 16,
-    marginBottom: 10,
-  },
-  cardTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  invoiceNumber: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.2,
-  },
-  partyName: {
-    fontSize: 13,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-    fontWeight: '500',
-  },
-  dateText: {
-    fontSize: 11,
-    color: Colors.dark.textTertiary,
-    marginTop: 4,
-  },
-  totalAmount: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  cardDivider: {
-    height: 1,
-    backgroundColor: Colors.dark.border,
-    marginVertical: 12,
-  },
-  cardBottom: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  modeBadge: {
-    backgroundColor: Colors.dark.secondary,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  modeText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  salesmanText: {
-    color: Colors.dark.textTertiary,
-    fontSize: 11,
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  actionIconBtn: {
-    padding: 4,
-  },
+  utilityActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8 },
+  locationAction: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 34, paddingHorizontal: 10, borderRadius: 9, borderWidth: 1, borderColor: Colors.dark.border, backgroundColor: Colors.dark.card },
+  utilityActionText: { color: Colors.dark.text, fontSize: 11, fontWeight: '700' },
+  returnAction: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 34, paddingHorizontal: 10, borderRadius: 9, borderWidth: 1, borderColor: 'rgba(251,191,36,0.28)', backgroundColor: 'rgba(251,191,36,0.08)' },
+  returnActionText: { color: '#FBBF24', fontSize: 11, fontWeight: '700' },
   fab: {
     position: 'absolute',
     bottom: 20,

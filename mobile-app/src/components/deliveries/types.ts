@@ -26,6 +26,14 @@ export interface DispatchSelectionItem {
   selected: boolean;
 }
 
+export interface DeliveryTrip {
+  id: string;
+  tripNo: number;
+  vehicle?: string;
+  cost: number;
+  notes?: string;
+}
+
 export interface Delivery {
   id: string;
   status: string;
@@ -43,6 +51,7 @@ export interface Delivery {
     phone: string;
   };
   items?: DispatchedItem[];
+  trips?: DeliveryTrip[];
   invoice: {
     id: string;
     invoiceNo: string;
@@ -54,11 +63,11 @@ export interface Delivery {
       address?: string;
     };
     items?: {
-      id: string;
+      id?: string;
       productId: string;
       qty: number;
       product?: { name: string; unit: string };
-      warehouse?: { id: string; name: string; address?: string };
+      warehouse?: { id?: string; name: string; address?: string };
       batchNo?: string;
     }[];
   };
@@ -73,4 +82,34 @@ export interface DriverUser {
   id: string;
   name: string;
   phone: string;
+  role?: string;
+  isActive?: boolean;
+}
+
+export interface PushSuccessDialogData {
+  invoiceNo: string;
+  driverName: string;
+  driverPhone: string;
+  itemsCount: number;
+  amountToCollect: number;
+  transportCost: number;
+  hasRemaining: boolean;
+  waUrl: string;
+}
+
+export type FilterTab =
+  | 'ALL'
+  | 'PENDING'
+  | 'OUT_FOR_PICKUP'
+  | 'OUT_FOR_DELIVERY'
+  | 'DELIVERED'
+  | 'CANCELLED';
+
+export interface DeliveryCounts {
+  total: number;
+  pending: number;
+  outForPickup: number;
+  outForDelivery: number;
+  delivered: number;
+  cancelled: number;
 }

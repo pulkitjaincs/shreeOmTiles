@@ -4,17 +4,20 @@ import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { mobileApiRequest } from '@/lib/api';
+import { Party } from './types';
 
 interface PartyFormModalProps {
   visible: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  party?: Party | null;
 }
 
 export function PartyFormModal({
   visible,
   onClose,
   onSuccess,
+  party,
 }: PartyFormModalProps) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -24,10 +27,10 @@ export function PartyFormModal({
 
   useEffect(() => {
     if (visible) {
-      setName('');
-      setPhone('');
-      setGstin('');
-      setAddress('');
+      setName(party?.name || '');
+      setPhone(party?.phone || '');
+      setGstin(party?.gstin || '');
+      setAddress(party?.address || '');
     }
   }, [visible]);
 
@@ -44,8 +47,8 @@ export function PartyFormModal({
 
     setSubmitting(true);
     try {
-      await mobileApiRequest('/parties', {
-        method: 'POST',
+      await mobileApiRequest(party ? `/parties/${party.id}` : '/parties', {
+        method: party ? 'PATCH' : 'POST',
         body: JSON.stringify({
           name: name.trim(),
           phone: cleanPhone,
@@ -54,7 +57,7 @@ export function PartyFormModal({
         }),
       });
 
-      Alert.alert('Success', `Customer "${name.trim()}" registered!`);
+      Alert.alert('Success', party ? `Customer "${name.trim()}" updated!` : `Customer "${name.trim()}" registered!`);
       onClose();
       onSuccess();
     } catch (err: any) {
@@ -68,7 +71,7 @@ export function PartyFormModal({
     <BottomSheetModal
       visible={visible}
       onClose={onClose}
-      title="Add Customer / Party"
+      title={party ? 'Edit Customer / Party' : 'Add Customer / Party'}
       subtitle="Register customer in directory for fast counter billing"
     >
       <View>
@@ -100,7 +103,7 @@ export function PartyFormModal({
           onChangeText={setAddress}
         />
         <Button
-          title={submitting ? 'Saving...' : 'Add Customer Profile'}
+          title={submitting ? 'Saving...' : party ? 'Save Customer Changes' : 'Add Customer Profile'}
           onPress={handleSubmit}
           loading={submitting}
           variant="primary"

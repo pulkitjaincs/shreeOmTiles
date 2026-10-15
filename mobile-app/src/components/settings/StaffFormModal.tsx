@@ -5,36 +5,39 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Colors } from '@/constants/theme';
 import { mobileApiRequest } from '@/lib/api';
+import { StaffUser } from './types';
 
 interface StaffFormModalProps {
   visible: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  staff?: StaffUser | null;
 }
 
 export function StaffFormModal({
   visible,
   onClose,
   onSuccess,
+  staff,
 }: StaffFormModalProps) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'SALESMAN' | 'DRIVER' | 'ADMIN'>('SALESMAN');
+  const [role, setRole] = useState<'SALESMAN' | 'DRIVER' | 'ADMIN' | 'OWNER'>('SALESMAN');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (visible) {
-      setName('');
-      setPhone('');
+      setName(staff?.name || '');
+      setPhone(staff?.phone || '');
       setPassword('');
-      setRole('SALESMAN');
+      setRole(staff?.role || 'SALESMAN');
     }
-  }, [visible]);
+  }, [visible, staff]);
 
   const handleSubmit = async () => {
-    if (!name.trim() || !phone.trim() || !password) {
-      Alert.alert('Required', 'Please fill name, phone, and password');
+    if (!name.trim() || !phone.trim() || (!staff && !password)) {
+      Alert.alert('Required', staff ? 'Please fill name and phone' : 'Please fill name, phone, and password');
       return;
     }
     const cleanPhone = phone.replace(/\D/g, '').slice(0, 10);
@@ -42,24 +45,24 @@ export function StaffFormModal({
       Alert.alert('Invalid Phone', 'Phone must be exactly 10 digits');
       return;
     }
-    if (password.length < 6) {
+    if (password && password.length < 6) {
       Alert.alert('Short Password', 'Password must be at least 6 characters');
       return;
     }
 
     setSubmitting(true);
     try {
-      await mobileApiRequest('/users', {
-        method: 'POST',
+      await mobileApiRequest(staff ? `/users/${staff.id}` : '/users', {
+        method: staff ? 'PATCH' : 'POST',
         body: JSON.stringify({
           name: name.trim(),
           phone: cleanPhone,
-          password,
+          ...(password ? { password } : {}),
           role,
         }),
       });
 
-      Alert.alert('Success', `Staff member ${name} created!`);
+      Alert.alert('Success', staff ? `Staff member ${name} updated!` : `Staff member ${name} created!`);
       onClose();
       onSuccess();
     } catch (err: any) {
@@ -73,8 +76,8 @@ export function StaffFormModal({
     <BottomSheetModal
       visible={visible}
       onClose={onClose}
-      title="Create Staff Member"
-      subtitle="Add a new salesman, driver, or manager"
+      title={staff ? 'Edit Staff Member' : 'Create Staff Member'}
+      subtitle={staff ? 'Update staff profile and access role' : 'Add a new salesman, driver, or manager'}
     >
       <View>
         <Input
@@ -92,12 +95,13 @@ export function StaffFormModal({
           maxLength={10}
         />
         <Input
-          label="Password"
-          placeholder="Minimum 6 characters"
+          label={staff ? 'New Password (Optional)' : 'Password'}
+          placeholder={staff ? 'Leave blank to keep current password' : 'Minimum 6 characters'}
           value={password}
           onChangeText={setPassword}
           isPassword
         />
+        {staff?.role !== 'OWNER' ? <>
         <Text style={styles.fieldLabel}>Role Designation</Text>
         <View style={styles.roleToggleRow}>
           {(['SALESMAN', 'DRIVER', 'ADMIN'] as const).map((r) => (
@@ -117,9 +121,10 @@ export function StaffFormModal({
             </TouchableOpacity>
           ))}
         </View>
+        </> : null}
 
         <Button
-          title={submitting ? 'Creating...' : 'Create Staff Member'}
+          title={submitting ? 'Saving...' : staff ? 'Save Staff Changes' : 'Create Staff Member'}
           onPress={handleSubmit}
           loading={submitting}
           variant="primary"

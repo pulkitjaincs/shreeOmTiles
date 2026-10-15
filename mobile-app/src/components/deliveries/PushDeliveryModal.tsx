@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ScrollView,
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,15 +11,17 @@ import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import { Colors } from '@/constants/theme';
 import { mobileApiRequest } from '@/lib/api';
-import { Delivery, DriverUser, DispatchSelectionItem } from './types';
+import { buildFullDeliveryManifestShareUrl } from '@/lib/whatsapp';
+import { Delivery, DriverUser, DispatchSelectionItem, PushSuccessDialogData } from './types';
 
 interface PushDeliveryModalProps {
   delivery: Delivery | null;
   visible: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (data?: PushSuccessDialogData) => void;
   drivers: DriverUser[];
 }
 
@@ -93,21 +94,42 @@ export function PushDeliveryModal({
 
     setSubmittingPush(true);
     try {
+      const costNum = transportCost ? Number(transportCost) : 0;
+      const toCollectNum = dispatchAmountToCollect ? Number(dispatchAmountToCollect) : Number(delivery.amountToCollect || 0);
+
       await mobileApiRequest(`/delivery/${delivery.id}/push`, {
         method: 'POST',
         body: JSON.stringify({
           driverId: selectedDriverId,
           vehicle: vehicle.trim() || undefined,
-          transportCost: transportCost ? Number(transportCost) : 0,
+          transportCost: costNum,
           amountToCollect: dispatchAmountToCollect ? Number(dispatchAmountToCollect) : undefined,
           notes: dispatchNotes.trim() || undefined,
           items: itemsToDispatch,
         }),
       });
 
-      Alert.alert('Dispatched', 'Order dispatched to driver successfully!');
+      const targetDriver = drivers.find((d) => d.id === selectedDriverId);
+      const waUrl = buildFullDeliveryManifestShareUrl({
+        ...delivery,
+        amountToCollect: toCollectNum,
+        driver: targetDriver ? { id: targetDriver.id, name: targetDriver.name, phone: targetDriver.phone } : delivery.driver,
+        items: itemsToDispatch,
+      });
+
+      const dialogData: PushSuccessDialogData = {
+        invoiceNo: delivery.invoice?.invoiceNo || '',
+        driverName: targetDriver?.name || 'Driver',
+        driverPhone: targetDriver?.phone || '',
+        itemsCount: itemsToDispatch.length,
+        amountToCollect: toCollectNum,
+        transportCost: costNum,
+        hasRemaining: itemsToDispatch.length < dispatchItems.length,
+        waUrl,
+      };
+
       onClose();
-      onSuccess();
+      onSuccess(dialogData);
     } catch (err: any) {
       Alert.alert('Dispatch Failed', err.message || 'Could not push delivery');
     } finally {
@@ -124,24 +146,18 @@ export function PushDeliveryModal({
       maxHeightPercent={0.92}
     >
       <View>
-        <Text style={styles.fieldLabel}>Select Available Driver</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 6 }}>
-          {drivers.map((dr) => {
-            const isSelected = selectedDriverId === dr.id;
-            return (
-              <TouchableOpacity
-                key={dr.id}
-                onPress={() => setSelectedDriverId(dr.id)}
-                style={[styles.driverChip, isSelected && styles.driverChipActive]}
-              >
-                <Ionicons name="person" size={14} color={isSelected ? '#09090B' : '#FFFFFF'} />
-                <Text style={[styles.driverChipText, isSelected && styles.driverChipTextActive]}>
-                  {dr.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <Select
+          label="Select Available Driver"
+          placeholder="Choose driver..."
+          value={selectedDriverId}
+          onChange={setSelectedDriverId}
+          icon="car-outline"
+          options={drivers.map((dr) => ({
+            value: dr.id,
+            label: dr.name,
+            subLabel: dr.phone ? `Phone: ${dr.phone}` : undefined,
+          }))}
+        />
 
         {/* Line Items Partial Dispatch Checklist */}
         <View style={styles.sectionHeaderRow}>

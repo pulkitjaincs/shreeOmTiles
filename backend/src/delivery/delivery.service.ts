@@ -304,7 +304,7 @@ export class DeliveryService {
       );
     }
 
-    return this.prisma.delivery.update({
+    const updated = await this.prisma.delivery.update({
       where: { id },
       data: {
         status,
@@ -313,8 +313,34 @@ export class DeliveryService {
           : {}),
         ...(notes !== undefined ? { notes } : {}),
       },
-      include: { driver: true, invoice: true },
+      include: { driver: true, invoice: { include: { party: true } } },
     });
+
+    if (status === DeliveryStatus.DELIVERED) {
+      const customerName = updated.invoice?.party?.name || 'Customer';
+      const invoiceNo = updated.invoice?.invoiceNo || 'Order';
+      const byWhom = isMarkingCustomerPickup
+        ? 'Customer counter pickup'
+        : `Driver ${updated.driver?.name || 'Driver'}`;
+
+      void this.notifications.notifyAdmins(
+        'Delivery Completed',
+        `Invoice #${invoiceNo} for ${customerName} delivered (${byWhom}).`,
+        { type: 'DELIVERY_COMPLETED', deliveryId: id, invoiceId: updated.invoiceId },
+      );
+    } else if (status === DeliveryStatus.CANCELLED) {
+      const customerName = updated.invoice?.party?.name || 'Customer';
+      const invoiceNo = updated.invoice?.invoiceNo || 'Order';
+      const reasonText = notes ? ` Reason: ${notes}` : '';
+
+      void this.notifications.notifyAdmins(
+        'Delivery Cancelled',
+        `Delivery for Invoice #${invoiceNo} (${customerName}) was cancelled.${reasonText}`,
+        { type: 'DELIVERY_CANCELLED', deliveryId: id, invoiceId: updated.invoiceId },
+      );
+    }
+
+    return updated;
   }
 
   async assignDriver(id: string, driverId: string) {

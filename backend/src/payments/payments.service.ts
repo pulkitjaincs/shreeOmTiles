@@ -16,10 +16,14 @@ import {
 } from '@prisma/client';
 import { PaginationParams } from '../common/interfaces/pagination.interface';
 import { generateUpiIntentQr } from '../common/utils/upi.util';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class PaymentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   async create(data: CreatePaymentDto, userId?: string) {
     let partyId = data.partyId;
@@ -35,8 +39,8 @@ export class PaymentsService {
       data.type || (data.invoiceId ? PaymentType.INFLOW : PaymentType.INFLOW);
 
     if (data.autoConfirm) {
-      return this.prisma.$transaction(async (tx) => {
-        const payment = await tx.payment.create({
+      const payment = await this.prisma.$transaction(async (tx) => {
+        const txPayment = await tx.payment.create({
           data: {
             invoiceId: data.invoiceId || null,
             partyId: partyId || null,
@@ -162,8 +166,30 @@ export class PaymentsService {
           }
         }
 
-        return payment;
+        return txPayment;
       });
+
+      // Notify Owner & Admin about payment / settlement
+      const partyName =
+        payment.party?.name || payment.invoice?.party?.name || 'Party';
+      const formattedAmount = Math.round(Number(payment.amount)).toLocaleString('en-IN');
+      const modeText = payment.mode ? `via ${payment.mode}` : '';
+      const isOutflow = payment.type === PaymentType.OUTFLOW;
+
+      void this.notifications.notifyAdmins(
+        isOutflow ? 'Store Payable Settled' : 'Payment Received!',
+        isOutflow
+          ? `₹${formattedAmount} paid to ${partyName} ${modeText}.`
+          : `₹${formattedAmount} received from ${partyName} ${modeText}.`,
+        {
+          type: 'PAYMENT_RECEIVED',
+          paymentId: payment.id,
+          invoiceId: payment.invoiceId,
+          partyId: payment.partyId,
+        },
+      );
+
+      return payment;
     }
 
     return this.prisma.payment.create({
@@ -348,6 +374,25 @@ export class PaymentsService {
 
       return updatedPayment;
     });
+
+    // Notify Owner & Admin about confirmed payment
+    const partyName =
+      result.party?.name || result.invoice?.party?.name || 'Party';
+    const formattedAmount = Math.round(Number(result.amount)).toLocaleString('en-IN');
+    const modeText = result.mode ? `via ${result.mode}` : '';
+
+    void this.notifications.notifyAdmins(
+      'Payment Confirmed',
+      `Payment of ₹${formattedAmount} for ${partyName} confirmed ${modeText}.`,
+      {
+        type: 'PAYMENT_RECEIVED',
+        paymentId: result.id,
+        invoiceId: result.invoiceId,
+        partyId: result.partyId,
+      },
+    );
+
+    return result;
   }
 
   async previewUpiQr(

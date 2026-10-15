@@ -1,11 +1,13 @@
 import React, { useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth-context';
 import { Colors } from '@/constants/theme';
 
 export default function AppEntryScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { isAuthenticated, isLoading } = useAuth();
 
   useEffect(() => {
@@ -19,7 +21,15 @@ export default function AppEntryScreen() {
   }, [isLoading, isAuthenticated, router]);
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: Math.max(insets.top, 24),
+          paddingBottom: Math.max(insets.bottom, 24),
+        },
+      ]}
+    >
       <View style={styles.logoBadge}>
         <Text style={styles.logoText}>SO</Text>
       </View>

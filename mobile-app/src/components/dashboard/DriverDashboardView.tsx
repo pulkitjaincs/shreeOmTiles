@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,14 +6,22 @@ import {
   StyleSheet,
   RefreshControl,
   TouchableOpacity,
+  Alert,
+  Linking,
 } from 'react-native';
 import { Colors } from '@/constants/theme';
 import { Header } from '@/components/ui/Header';
 import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
-import { StatusBadge } from '@/components/ui/StatusBadge';
-import { formatINR } from '@/lib/formatters';
+import { cleanPhoneNumber } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
+import { mobileApiRequest } from '@/lib/api';
+import { CollectCashModal } from '@/components/deliveries/CollectCashModal';
+
+// Driver Modular Components
+import { DriverTopStatusCards } from './driver/DriverTopStatusCards';
+import { DriverActiveCockpit } from './driver/DriverActiveCockpit';
+import { WarehousePickupChecklist } from './driver/WarehousePickupChecklist';
+import { QueuedAssignmentsList } from './driver/QueuedAssignmentsList';
 
 interface DriverDashboardViewProps {
   user: any;
@@ -34,21 +42,168 @@ export function DriverDashboardView({
   handleCall,
   handleMap,
 }: DriverDashboardViewProps) {
-  const activeDelivery = driverDeliveries.find(
-    (d) =>
-      d.status === 'ASSIGNED' ||
-      d.status === 'OUT_FOR_PICKUP' ||
-      d.status === 'PICKED_UP' ||
-      d.status === 'OUT_FOR_DELIVERY',
-  );
+  const [updatingIndex, setUpdatingIndex] = useState<number | null>(null);
+  const [statusUpdating, setStatusUpdating] = useState(false);
+  const [collectCashDelivery, setCollectCashDelivery] = useState<any | null>(null);
 
-  const unhandedCash = driverDeliveries
-    .filter((d) => d.cashCollected && !d.cashHandedOver)
-    .reduce((sum, d) => sum + Number(d.cashCollected || 0), 0);
+  // Active delivery: Currently in pickup, out for delivery, or awaiting cash collection
+  const activeDelivery = useMemo(() => {
+    return (
+      driverDeliveries.find(
+        (d) =>
+          d.status === 'OUT_FOR_PICKUP' ||
+          d.status === 'OUT_FOR_DELIVERY' ||
+          d.status === 'PICKED_UP' ||
+          (d.status === 'DELIVERED' &&
+            Number(d.amountToCollect || 0) > 0 &&
+            Number(d.cashCollected || 0) === 0),
+      ) ||
+      driverDeliveries.find((d) => d.status === 'ASSIGNED')
+    );
+  }, [driverDeliveries]);
+
+  // Other assigned deliveries waiting in queue
+  const pendingAssigned = useMemo(() => {
+    return driverDeliveries.filter(
+      (d) => d.status === 'ASSIGNED' && d.id !== activeDelivery?.id,
+    );
+  }, [driverDeliveries, activeDelivery]);
+
+  // Physical cash in hand awaiting office handover
+  const totalCashInCustody = useMemo(() => {
+    return driverDeliveries
+      .filter((d) => d.cashCollected && !d.cashHandedOver)
+      .reduce((sum, d) => sum + Number(d.cashCollected || 0), 0);
+  }, [driverDeliveries]);
+
+  // Group active items by warehouse for systematic warehouse-by-warehouse collection
+  const warehouseGroups = useMemo(() => {
+    if (!activeDelivery) return [];
+
+    const items =
+      activeDelivery.items && activeDelivery.items.length > 0
+        ? activeDelivery.items
+        : (activeDelivery.invoice?.items || []).map((it: any) => ({
+            invoiceItemId: it.id,
+            productId: it.productId,
+            productName: it.product?.name || 'Product',
+            unit: it.product?.unit || 'unit',
+            warehouseName: it.warehouse?.name || 'Main Warehouse',
+            warehouseAddress: it.warehouse?.address || '',
+            batchNo: it.batchNo,
+            qty: it.qty,
+            pickedUp: false,
+          }));
+
+    const groups: Record<
+      string,
+      {
+        warehouseName: string;
+        warehouseAddress: string;
+        items: { item: any; originalIndex: number }[];
+      }
+    > = {};
+
+    items.forEach((item: any, idx: number) => {
+      const whKey = item.warehouseName || 'Main Warehouse';
+      if (!groups[whKey]) {
+        groups[whKey] = {
+          warehouseName: whKey,
+          warehouseAddress: item.warehouseAddress || '',
+          items: [],
+        };
+      }
+      groups[whKey].items.push({ item, originalIndex: idx });
+    });
+
+    return Object.values(groups);
+  }, [activeDelivery]);
+
+  const allItemsList = useMemo(() => {
+    if (!activeDelivery) return [];
+    if (activeDelivery.items && activeDelivery.items.length > 0) {
+      return activeDelivery.items;
+    }
+    return (activeDelivery.invoice?.items || []).map((it: any) => ({
+      productId: it.productId,
+      productName: it.product?.name || 'Product',
+      unit: it.product?.unit || 'unit',
+      warehouseName: it.warehouse?.name || 'Main Warehouse',
+      warehouseAddress: it.warehouse?.address || '',
+      batchNo: it.batchNo,
+      qty: it.qty,
+      pickedUp: false,
+    }));
+  }, [activeDelivery]);
+
+  const pickedCount = allItemsList.filter((i: any) => i.pickedUp).length;
+  const totalItemsCount = allItemsList.length;
+  const allPickedUp = totalItemsCount > 0 && pickedCount === totalItemsCount;
+
+  // Toggle item pickup (locks once picked)
+  const handleToggleItemPickup = async (
+    itemIndex: number,
+    currentPicked: boolean,
+  ) => {
+    if (currentPicked || !activeDelivery) return;
+    setUpdatingIndex(itemIndex);
+    try {
+      await mobileApiRequest(`/delivery/${activeDelivery.id}/items/${itemIndex}/pickup`, {
+        method: 'PATCH',
+        body: JSON.stringify({ pickedUp: true }),
+      });
+      onRefresh();
+    } catch (err: any) {
+      Alert.alert('Update Failed', err.message || 'Failed to update item pickup status');
+    } finally {
+      setUpdatingIndex(null);
+    }
+  };
+
+  // Change delivery status
+  const handleStatusChange = async (deliveryId: string, newStatus: string) => {
+    setStatusUpdating(true);
+    try {
+      const updated = await mobileApiRequest(`/delivery/${deliveryId}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status: newStatus }),
+      });
+      onRefresh();
+
+      if (newStatus === 'DELIVERED') {
+        const target = driverDeliveries.find((d) => d.id === deliveryId) || updated;
+        if (Number(target.amountToCollect || 0) > 0) {
+          setCollectCashDelivery(target);
+        }
+      }
+    } catch (err: any) {
+      Alert.alert('Update Failed', err.message || 'Failed to update delivery status');
+    } finally {
+      setStatusUpdating(false);
+    }
+  };
+
+  // WhatsApp customer
+  const handleWhatsApp = (phone?: string, partyName?: string, invoiceNo?: string) => {
+    const clean = cleanPhoneNumber(phone);
+    if (clean) {
+      const msg = `Hello ${partyName || 'Customer'}, I am your delivery driver for Invoice #${invoiceNo || ''}. I am on my way to deliver your items.`;
+      Linking.openURL(`https://wa.me/91${clean}?text=${encodeURIComponent(msg)}`).catch(() => {
+        Alert.alert('Error', 'Unable to open WhatsApp');
+      });
+    }
+  };
 
   return (
     <View style={styles.screen}>
-      <Header title="Driver Portal" subtitle={`Driver: ${user?.name || 'Staff'}`} />
+      <Header
+        title="Driver Operations"
+        subtitle={`Driver: ${user?.name || 'Staff'}`}
+        rightAction={{
+          icon: 'refresh-outline',
+          onPress: () => onRefresh(),
+        }}
+      />
       <ScrollView
         style={styles.content}
         contentContainerStyle={styles.scrollContainer}
@@ -56,109 +211,66 @@ export function DriverDashboardView({
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />
         }
       >
-        {/* Physical Cash in Custody Hero Card */}
-        <Card elevated style={styles.heroCard}>
-          <View style={styles.heroRow}>
-            <View>
-              <Text style={styles.heroLabel}>Physical Cash in Hand</Text>
-              <Text style={styles.heroValue}>{formatINR(unhandedCash)}</Text>
-              <Text style={styles.heroSub}>
-                {unhandedCash > 0
-                  ? 'Hand over this cash to Owner/Admin when returning to office'
-                  : 'All collected cash has been handed over to office'}
-              </Text>
-            </View>
-            <View style={styles.heroIconBox}>
-              <Ionicons name="wallet-outline" size={28} color="#FFFFFF" />
-            </View>
-          </View>
-        </Card>
+        {/* 1. Top Status Cards (Pickup progress & Cash custody) */}
+        <DriverTopStatusCards
+          activeDelivery={activeDelivery}
+          pickedCount={pickedCount}
+          totalItemsCount={totalItemsCount}
+          allPickedUp={allPickedUp}
+          totalCashInCustody={totalCashInCustody}
+        />
 
-        {/* Active Assigned Delivery */}
-        <Text style={styles.sectionTitle}>Active Assigned Run</Text>
+        {/* 2. Active Mission Cockpit */}
         {activeDelivery ? (
-          <Card elevated style={styles.activeRunCard}>
-            <View style={styles.runHeader}>
-              <View>
-                <Text style={styles.runInvoiceNo}>
-                  Invoice #{activeDelivery.invoice?.invoiceNo}
-                </Text>
-                <Text style={styles.runPartyName}>
-                  {activeDelivery.invoice?.party?.name}
-                </Text>
-              </View>
-              <StatusBadge status={activeDelivery.status} />
-            </View>
-
-            {/* Amount to collect badge */}
-            {Number(activeDelivery.amountToCollect || 0) > 0 ? (
-              <View style={styles.amountCollectBox}>
-                <Text style={styles.amountCollectLabel}>Amount to Collect from Party:</Text>
-                <Text style={styles.amountCollectValue}>
-                  {formatINR(activeDelivery.amountToCollect)}
-                </Text>
-              </View>
-            ) : null}
-
-            {/* Address & Quick Actions */}
-            {activeDelivery.invoice?.party?.address ? (
-              <View style={styles.addressRow}>
-                <Ionicons name="location-outline" size={16} color={Colors.dark.textSecondary} />
-                <Text style={styles.addressText} numberOfLines={2}>
-                  {activeDelivery.invoice?.party?.address}
-                </Text>
-              </View>
-            ) : null}
-
-            <View style={styles.runActionsRow}>
-              <Button
-                title="Call Customer"
-                icon="call"
-                variant="secondary"
-                size="sm"
-                onPress={() => handleCall(activeDelivery.invoice?.party?.phone)}
-                style={{ flex: 1 }}
-              />
-              {activeDelivery.invoice?.party?.address ? (
-                <Button
-                  title="Navigate"
-                  icon="navigate"
-                  variant="secondary"
-                  size="sm"
-                  onPress={() => handleMap(activeDelivery.invoice?.party?.address)}
-                  style={{ flex: 1 }}
-                />
-              ) : null}
-            </View>
-
-            <Button
-              title="Open Run Details & Pickups"
-              variant="primary"
-              size="md"
-              onPress={() => router.push('/(tabs)/deliveries')}
-              style={{ marginTop: 10 }}
+          <>
+            <DriverActiveCockpit
+              activeDelivery={activeDelivery}
+              allPickedUp={allPickedUp}
+              pickedCount={pickedCount}
+              totalItemsCount={totalItemsCount}
+              statusUpdating={statusUpdating}
+              onStatusChange={handleStatusChange}
+              onOpenCollectCash={(delivery) => setCollectCashDelivery(delivery)}
+              onCall={handleCall}
+              onWhatsApp={handleWhatsApp}
+              onMap={handleMap}
             />
-          </Card>
+
+            {/* 3. Interactive Warehouse Pickup Checklist */}
+            <WarehousePickupChecklist
+              warehouseGroups={warehouseGroups}
+              pickedCount={pickedCount}
+              totalItemsCount={totalItemsCount}
+              updatingIndex={updatingIndex}
+              onTogglePickup={handleToggleItemPickup}
+            />
+          </>
         ) : (
           <Card style={styles.emptyCard}>
-            <Ionicons name="checkmark-done-circle-outline" size={36} color="#10B981" />
-            <Text style={styles.emptyTitle}>No Pending Runs</Text>
+            <Ionicons name="checkmark-done-circle-outline" size={40} color="#10B981" />
+            <Text style={styles.emptyTitle}>No Active Runs</Text>
             <Text style={styles.emptySub}>
-              You currently have no active deliveries assigned. Refresh or check back when the owner dispatches new orders.
+              You currently have no active deliveries. When the store owner dispatches new orders, they will appear here.
             </Text>
           </Card>
         )}
 
-        {/* Quick Shortcuts */}
-        <Text style={styles.sectionTitle}>Quick Tools</Text>
+        {/* 4. Queued Delivery Assignments */}
+        <QueuedAssignmentsList
+          pendingAssigned={pendingAssigned}
+          onStartPickup={(deliveryId) => handleStatusChange(deliveryId, 'OUT_FOR_PICKUP')}
+        />
+
+        {/* 5. Driver Quick Tools */}
+        <Text style={styles.sectionTitle}>Driver Tools</Text>
         <View style={styles.shortcutsGrid}>
           <TouchableOpacity
             style={styles.shortcutCard}
             onPress={() => router.push('/(tabs)/deliveries')}
             activeOpacity={0.75}
           >
-            <Ionicons name="bicycle-outline" size={22} color="#FFFFFF" />
-            <Text style={styles.shortcutText}>All Deliveries</Text>
+            <Ionicons name="bicycle-outline" size={20} color="#FFFFFF" />
+            <Text style={styles.shortcutText}>Deliveries Panel</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -166,10 +278,23 @@ export function DriverDashboardView({
             onPress={() => router.push('/(tabs)/stock')}
             activeOpacity={0.75}
           >
-            <Ionicons name="cube-outline" size={22} color="#FFFFFF" />
-            <Text style={styles.shortcutText}>Live Stock</Text>
+            <Ionicons name="cube-outline" size={20} color="#FFFFFF" />
+            <Text style={styles.shortcutText}>Live Stock Catalog</Text>
           </TouchableOpacity>
         </View>
+
+        {/* 6. Collect Cash Bottom Sheet Modal */}
+        {collectCashDelivery && (
+          <CollectCashModal
+            delivery={collectCashDelivery}
+            visible={Boolean(collectCashDelivery)}
+            onClose={() => setCollectCashDelivery(null)}
+            onSuccess={() => {
+              setCollectCashDelivery(null);
+              onRefresh();
+            }}
+          />
+        )}
       </ScrollView>
     </View>
   );
@@ -188,118 +313,41 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '800',
     color: '#FFFFFF',
     marginTop: 18,
-    marginBottom: 10,
+    marginBottom: 8,
     letterSpacing: -0.2,
   },
-  heroCard: {
-    padding: 20,
-    borderRadius: 16,
-    backgroundColor: '#16161A',
-  },
-  heroRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  heroLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.dark.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  heroValue: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    marginVertical: 4,
-    letterSpacing: -0.5,
-  },
-  heroSub: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    maxWidth: 240,
-    lineHeight: 16,
-  },
-  heroIconBox: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: Colors.dark.cardElevated,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-  },
-  activeRunCard: {
-    padding: 16,
-    borderRadius: 16,
-  },
-  runHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
-  },
-  runInvoiceNo: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  runPartyName: {
-    fontSize: 13,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  amountCollectBox: {
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.25)',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  amountCollectLabel: {
-    fontSize: 12,
-    color: '#FCD34D',
-    fontWeight: '600',
-  },
-  amountCollectValue: {
-    fontSize: 15,
-    color: '#FFFFFF',
-    fontWeight: '800',
-  },
-  addressRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 14,
-  },
-  addressText: {
-    fontSize: 12.5,
-    color: Colors.dark.textSecondary,
-    flex: 1,
-  },
-  runActionsRow: {
+  shortcutsGrid: {
     flexDirection: 'row',
     gap: 10,
-    marginBottom: 6,
+  },
+  shortcutCard: {
+    flex: 1,
+    backgroundColor: Colors.dark.card,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    borderRadius: 14,
+    padding: 14,
+    alignItems: 'center',
+    gap: 6,
+  },
+  shortcutText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   emptyCard: {
-    padding: 24,
+    padding: 28,
     alignItems: 'center',
     justifyContent: 'center',
+    marginVertical: 10,
   },
   emptyTitle: {
     fontSize: 15,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#FFFFFF',
     marginTop: 10,
     marginBottom: 4,
@@ -308,25 +356,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.dark.textSecondary,
     textAlign: 'center',
-    lineHeight: 17,
-  },
-  shortcutsGrid: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  shortcutCard: {
-    flex: 1,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    borderRadius: 14,
-    padding: 16,
-    alignItems: 'center',
-    gap: 8,
-  },
-  shortcutText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    lineHeight: 16,
   },
 });

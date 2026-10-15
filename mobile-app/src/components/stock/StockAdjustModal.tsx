@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, Alert, StyleSheet, TouchableOpacity } from 'react-native';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import { Colors } from '@/constants/theme';
 import { mobileApiRequest } from '@/lib/api';
-import { Product, Warehouse } from './types';
+import { Ionicons } from '@expo/vector-icons';
+import { Product, Warehouse, StockItem } from './types';
 
 interface StockAdjustModalProps {
   visible: boolean;
@@ -13,6 +15,8 @@ interface StockAdjustModalProps {
   onSuccess: () => void;
   products: Product[];
   warehouses: Warehouse[];
+  stocks?: StockItem[];
+  initialStockItem?: StockItem | null;
 }
 
 export function StockAdjustModal({
@@ -21,25 +25,83 @@ export function StockAdjustModal({
   onSuccess,
   products,
   warehouses,
+  stocks = [],
+  initialStockItem,
 }: StockAdjustModalProps) {
   const [selectedProductId, setSelectedProductId] = useState('');
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
-  const [batchNo, setBatchNo] = useState('');
+  const [selectedLocationKey, setSelectedLocationKey] = useState('');
   const [quantity, setQuantity] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Initialize or reset on open
   useEffect(() => {
     if (visible) {
-      setSelectedProductId(products[0]?.id || '');
-      setSelectedWarehouseId(warehouses[0]?.id || '');
-      setBatchNo('');
-      setQuantity('');
+      if (initialStockItem) {
+        setSelectedProductId(initialStockItem.productId);
+        setSelectedLocationKey(`${initialStockItem.warehouseId}:::${initialStockItem.batchNo || ''}`);
+        setQuantity(String(initialStockItem.quantity));
+      } else {
+        const initialProdId = products[0]?.id || '';
+        setSelectedProductId(initialProdId);
+
+        const prodStocks = stocks.filter((s) => s.productId === initialProdId);
+        if (prodStocks.length > 0) {
+          setSelectedLocationKey(`${prodStocks[0].warehouseId}:::${prodStocks[0].batchNo || ''}`);
+          setQuantity(String(prodStocks[0].quantity));
+        } else {
+          const firstWhId = warehouses[0]?.id || '';
+          setSelectedLocationKey(`${firstWhId}:::`);
+          setQuantity('0');
+        }
+      }
     }
-  }, [visible, products, warehouses]);
+  }, [visible, products, warehouses, stocks, initialStockItem]);
+
+  // When product changes, re-select location
+  const handleProductChange = (prodId: string) => {
+    setSelectedProductId(prodId);
+    const prodStocks = stocks.filter((s) => s.productId === prodId);
+    if (prodStocks.length > 0) {
+      setSelectedLocationKey(`${prodStocks[0].warehouseId}:::${prodStocks[0].batchNo || ''}`);
+      setQuantity(String(prodStocks[0].quantity));
+    } else {
+      const firstWhId = warehouses[0]?.id || '';
+      setSelectedLocationKey(`${firstWhId}:::`);
+      setQuantity('0');
+    }
+  };
+
+  const [warehouseId, batchNo] = selectedLocationKey ? selectedLocationKey.split(':::') : ['', ''];
+
+  const selectedProduct = products.find((p) => p.id === selectedProductId);
+  const matchingStock = stocks.find(
+    (s) =>
+      s.productId === selectedProductId &&
+      s.warehouseId === warehouseId &&
+      (batchNo ? s.batchNo === batchNo : !s.batchNo),
+  );
+  const currentQty = matchingStock?.quantity || 0;
+
+  // Locations dropdown options
+  const productStocks = stocks.filter((s) => s.productId === selectedProductId);
+  const locationOptions =
+    productStocks.length > 0
+      ? productStocks.map((s) => ({
+          value: `${s.warehouseId}:::${s.batchNo || ''}`,
+          label: `${s.warehouse?.name || 'Warehouse'}${s.batchNo ? ` [Batch: ${s.batchNo}]` : ''}`,
+          subLabel: `Current Stock: ${s.quantity} ${s.product?.unit || 'units'} • ${s.warehouse?.type || 'Godown'}`,
+          badge: `${s.quantity} units`,
+        }))
+      : warehouses.map((wh) => ({
+          value: `${wh.id}:::`,
+          label: wh.name,
+          subLabel: `Current Stock: 0 units • ${wh.address || wh.type || ''}`,
+          badge: '0 units',
+        }));
 
   const handleAdjust = async () => {
-    if (!selectedProductId || !selectedWarehouseId || quantity === '') {
-      Alert.alert('Required Fields', 'Please select product, warehouse, and target count');
+    if (!selectedProductId || !warehouseId || quantity === '') {
+      Alert.alert('Required Fields', 'Please select product, location, and verified count');
       return;
     }
     const qtyNum = parseInt(quantity, 10);
@@ -54,14 +116,14 @@ export function StockAdjustModal({
         method: 'POST',
         body: JSON.stringify({
           productId: selectedProductId,
-          warehouseId: selectedWarehouseId,
-          batchNo: batchNo.trim() || undefined,
+          warehouseId,
+          batchNo: batchNo?.trim() || undefined,
           quantity: qtyNum,
           mode: 'SET',
         }),
       });
 
-      Alert.alert('Success', `Inventory adjusted to ${qtyNum} units!`);
+      Alert.alert('Success', `Physical count adjusted to ${qtyNum} ${selectedProduct?.unit || 'units'}!`);
       onClose();
       onSuccess();
     } catch (err: any) {
@@ -75,55 +137,70 @@ export function StockAdjustModal({
     <BottomSheetModal
       visible={visible}
       onClose={onClose}
-      title="Stock Adjustment"
-      subtitle="Correct physical stock discrepancies (Audit Reason)"
+      title="Audit Physical Count"
+      subtitle="Select product & location to verify or correct physical inventory"
     >
       <View>
-        <Text style={styles.fieldLabel}>Select Product</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 6 }}>
-          {products.map((p) => {
-            const isSelected = selectedProductId === p.id;
-            return (
-              <TouchableOpacity
-                key={p.id}
-                onPress={() => setSelectedProductId(p.id)}
-                style={[styles.smallChip, isSelected && styles.smallChipActive]}
-              >
-                <Text style={[styles.smallChipText, isSelected && styles.smallChipTextActive]}>
-                  {p.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-
-        <Text style={styles.fieldLabel}>Warehouse</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 6 }}>
-          {warehouses.map((wh) => {
-            const isSelected = selectedWarehouseId === wh.id;
-            return (
-              <TouchableOpacity
-                key={wh.id}
-                onPress={() => setSelectedWarehouseId(wh.id)}
-                style={[styles.smallChip, isSelected && styles.smallChipActive]}
-              >
-                <Text style={[styles.smallChipText, isSelected && styles.smallChipTextActive]}>
-                  {wh.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-
-        <Input
-          label="Batch Number (Optional)"
-          placeholder="e.g. B-2026-A"
-          value={batchNo}
-          onChangeText={setBatchNo}
+        {/* Product Search & Selector */}
+        <Select
+          label="Select Product"
+          placeholder="Search and choose product..."
+          value={selectedProductId}
+          onChange={handleProductChange}
+          searchable
+          searchPlaceholder="Search product by name or category..."
+          icon="cube-outline"
+          options={products.map((p) => ({
+            value: p.id,
+            label: p.name,
+            subLabel: `${p.category || 'Standard'} • Unit: ${p.unit}`,
+          }))}
         />
 
+        {/* Location Dropdown */}
+        <Select
+          label="Location / Warehouse to Adjust"
+          placeholder="Choose location..."
+          value={selectedLocationKey}
+          onChange={(val) => {
+            setSelectedLocationKey(val);
+            const [wId, bNo] = val.split(':::');
+            const match = stocks.find(
+              (s) =>
+                s.productId === selectedProductId &&
+                s.warehouseId === wId &&
+                (bNo ? s.batchNo === bNo : !s.batchNo),
+            );
+            setQuantity(String(match?.quantity || 0));
+          }}
+          icon="business-outline"
+          options={locationOptions}
+        />
+
+        {/* Original Amount Display & Quick Zero */}
+        <View style={styles.currentStockBox}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.currentStockLabel}>Original / System Count</Text>
+            <Text style={styles.currentStockVal}>
+              {currentQty}{' '}
+              <Text style={{ fontSize: 13, fontWeight: '500', color: Colors.dark.textSecondary }}>
+                {selectedProduct?.unit || 'units'}
+              </Text>
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.zeroBtn}
+            onPress={() => setQuantity('0')}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="refresh-outline" size={13} color="#F59E0B" />
+            <Text style={styles.zeroBtnText}>Set to 0</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Verified Physical Count Input */}
         <Input
-          label="New Total Physical Quantity"
+          label="Verified Physical Quantity *"
           placeholder="e.g. 80"
           value={quantity}
           onChangeText={setQuantity}
@@ -131,7 +208,7 @@ export function StockAdjustModal({
         />
 
         <Button
-          title={submitting ? 'Adjusting...' : 'Save Stock Adjustment'}
+          title={submitting ? 'Saving Adjustment...' : 'Save Stock Adjustment'}
           onPress={handleAdjust}
           loading={submitting}
           variant="primary"
@@ -144,34 +221,46 @@ export function StockAdjustModal({
 }
 
 const styles = StyleSheet.create({
-  fieldLabel: {
+  currentStockBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(56, 189, 248, 0.08)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.2)',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginVertical: 10,
+  },
+  currentStockLabel: {
+    fontSize: 11,
+    color: '#38BDF8',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  currentStockVal: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    marginTop: 2,
+    fontFamily: 'monospace',
+  },
+  zeroBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  zeroBtnText: {
     fontSize: 12,
     fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    marginBottom: 4,
-    marginTop: 8,
-    textTransform: 'uppercase',
-  },
-  smallChip: {
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    marginRight: 6,
-  },
-  smallChipActive: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
-  },
-  smallChipText: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    fontWeight: '600',
-  },
-  smallChipTextActive: {
-    color: '#09090B',
-    fontWeight: '800',
+    color: '#F59E0B',
   },
 });

@@ -7,26 +7,28 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
-  Linking,
 } from 'react-native';
 import { useAuth } from '@/lib/auth-context';
 import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
 import { Colors } from '@/constants/theme';
 import { Header } from '@/components/ui/Header';
-import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
 import { SearchBar } from '@/components/ui/SearchBar';
-import { FilterPills } from '@/components/ui/FilterPills';
-import { StatusBadge } from '@/components/ui/StatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { formatINR, cleanPhoneNumber } from '@/lib/formatters';
-import { Ionicons } from '@expo/vector-icons';
 
-import { Delivery, DriverUser } from '@/components/deliveries/types';
-import { PushDeliveryModal } from '@/components/deliveries/PushDeliveryModal';
-import { DeliveryRunModal } from '@/components/deliveries/DeliveryRunModal';
-import { CollectCashModal } from '@/components/deliveries/CollectCashModal';
-import { AddTripModal } from '@/components/deliveries/AddTripModal';
+import {
+  Delivery,
+  DriverUser,
+  FilterTab,
+  DeliveryCounts,
+  PushSuccessDialogData,
+  DeliveryCard,
+  DeliveryFilterTabs,
+  PushDeliveryModal,
+  PushSuccessModal,
+  DeliveryRunModal,
+  CollectCashModal,
+  AddTripModal,
+} from '@/components/deliveries';
 
 export default function DeliveriesScreen() {
   const { user } = useAuth();
@@ -40,11 +42,12 @@ export default function DeliveriesScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [activeFilter, setActiveFilter] = useState<FilterTab>('ALL');
 
   // Modals state
   const [activeDeliveryModal, setActiveDeliveryModal] = useState<Delivery | null>(null);
   const [pushModalDelivery, setPushModalDelivery] = useState<Delivery | null>(null);
+  const [pushSuccessData, setPushSuccessData] = useState<PushSuccessDialogData | null>(null);
   const [collectCashDelivery, setCollectCashDelivery] = useState<Delivery | null>(null);
   const [addTripDelivery, setAddTripDelivery] = useState<Delivery | null>(null);
 
@@ -89,26 +92,55 @@ export default function DeliveriesScreen() {
     loadData(true);
   };
 
-  // Customer phone call
-  const handleCall = (phone?: string) => {
-    const clean = cleanPhoneNumber(phone);
-    if (clean) {
-      Linking.openURL(`tel:${clean}`).catch(() => {
-        Alert.alert('Error', 'Unable to initiate phone call');
-      });
-    }
-  };
+  // Live filter counts matching web-dashboard
+  const counts: DeliveryCounts = useMemo(() => {
+    const total = deliveries.length;
+    const pending = deliveries.filter(
+      (d) => d.status === 'PENDING' || d.status === 'ASSIGNED',
+    ).length;
+    const outForPickup = deliveries.filter((d) => d.status === 'OUT_FOR_PICKUP').length;
+    const outForDelivery = deliveries.filter(
+      (d) => d.status === 'OUT_FOR_DELIVERY' || d.status === 'PICKED_UP',
+    ).length;
+    const delivered = deliveries.filter((d) => d.status === 'DELIVERED').length;
+    const cancelled = deliveries.filter((d) => d.status === 'CANCELLED').length;
+    return { total, pending, outForPickup, outForDelivery, delivered, cancelled };
+  }, [deliveries]);
 
-  // Google Maps
-  const handleMap = (address?: string) => {
-    if (address) {
-      Linking.openURL(
-        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`,
-      ).catch(() => {
-        Alert.alert('Error', 'Unable to launch Google Maps');
-      });
-    }
-  };
+  // Filtered deliveries matching web-dashboard logic
+  const filteredDeliveries = useMemo(() => {
+    return deliveries.filter((d) => {
+      if (activeFilter === 'PENDING') {
+        if (d.status !== 'PENDING' && d.status !== 'ASSIGNED') return false;
+      } else if (activeFilter === 'OUT_FOR_PICKUP') {
+        if (d.status !== 'OUT_FOR_PICKUP') return false;
+      } else if (activeFilter === 'OUT_FOR_DELIVERY') {
+        if (d.status !== 'OUT_FOR_DELIVERY' && d.status !== 'PICKED_UP') return false;
+      } else if (activeFilter === 'DELIVERED') {
+        if (d.status !== 'DELIVERED') return false;
+      } else if (activeFilter === 'CANCELLED') {
+        if (d.status !== 'CANCELLED') return false;
+      }
+
+      if (search.trim()) {
+        const q = search.toLowerCase().trim();
+        const invNo = d.invoice?.invoiceNo?.toLowerCase() || '';
+        const partyName = d.invoice?.party?.name?.toLowerCase() || '';
+        const partyPhone = d.invoice?.party?.phone || '';
+        const partyAddr = d.invoice?.party?.address?.toLowerCase() || '';
+        const driverName = d.driver?.name?.toLowerCase() || '';
+        return (
+          invNo.includes(q) ||
+          partyName.includes(q) ||
+          partyPhone.includes(q) ||
+          partyAddr.includes(q) ||
+          driverName.includes(q)
+        );
+      }
+
+      return true;
+    });
+  }, [deliveries, activeFilter, search]);
 
   // Update Status
   const handleUpdateStatus = async (deliveryId: string, status: string) => {
@@ -210,20 +242,6 @@ export default function DeliveriesScreen() {
     }
   };
 
-  // Filtered deliveries
-  const filteredDeliveries = useMemo(() => {
-    return deliveries.filter((d) => {
-      const partyName = d.invoice?.party?.name?.toLowerCase() || '';
-      const invoiceNo = d.invoice?.invoiceNo?.toLowerCase() || '';
-      const driverName = d.driver?.name?.toLowerCase() || '';
-      const s = search.toLowerCase();
-
-      const matchesSearch = partyName.includes(s) || invoiceNo.includes(s) || driverName.includes(s);
-      const matchesFilter = statusFilter === 'ALL' || d.status === statusFilter;
-      return matchesSearch && matchesFilter;
-    });
-  }, [deliveries, search, statusFilter]);
-
   return (
     <View style={styles.screen}>
       <Header
@@ -237,18 +255,12 @@ export default function DeliveriesScreen() {
         placeholder="Search invoice #, customer, driver..."
       />
 
-      {/* Filter Status Chips */}
-      <FilterPills
-        options={[
-          { label: 'All Orders', value: 'ALL', count: deliveries.length },
-          { label: 'Pending', value: 'PENDING' },
-          { label: 'Assigned', value: 'ASSIGNED' },
-          { label: 'Out for Pickup', value: 'OUT_FOR_PICKUP' },
-          { label: 'Out for Delivery', value: 'OUT_FOR_DELIVERY' },
-          { label: 'Delivered', value: 'DELIVERED' },
-        ]}
-        selected={statusFilter}
-        onSelect={setStatusFilter}
+      {/* Filter Status Chips matching Web Dashboard */}
+      <DeliveryFilterTabs
+        activeFilter={activeFilter}
+        onSelectFilter={setActiveFilter}
+        counts={counts}
+        isDriver={isDriver}
       />
 
       {loading && !refreshing ? (
@@ -271,174 +283,21 @@ export default function DeliveriesScreen() {
               description="No dispatch runs match your search or filter."
             />
           }
-          renderItem={({ item }) => {
-            const itemsList = item.items || [];
-            const pickedCount = itemsList.filter((it) => it.pickedUp).length;
-            const totalCount = itemsList.length;
-
-            return (
-              <Card elevated style={styles.deliveryCard}>
-                {/* Header */}
-                <View style={styles.cardHeader}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.invoiceNo}>
-                      Invoice #{item.invoice?.invoiceNo}
-                    </Text>
-                    <Text style={styles.partyName}>{item.invoice?.party?.name}</Text>
-                  </View>
-                  <StatusBadge status={item.status} size="sm" />
-                </View>
-
-                {/* Driver & Cash Custody Banner */}
-                <View style={styles.infoRow}>
-                  <View style={styles.driverTag}>
-                    <Ionicons name="person-outline" size={13} color="#A1A1AA" />
-                    <Text style={styles.driverText}>
-                      {item.driver?.name ? `Driver: ${item.driver.name}` : 'Unassigned'}
-                    </Text>
-                  </View>
-
-                  {Number(item.amountToCollect || 0) > 0 ? (
-                    <Text style={styles.collectText}>
-                      Collect: {formatINR(item.amountToCollect)}
-                    </Text>
-                  ) : null}
-                </View>
-
-                {/* Warehouse Item Pickup Progress */}
-                {totalCount > 0 ? (
-                  <View style={styles.pickupProgressBar}>
-                    <View style={styles.progressHeader}>
-                      <Text style={styles.progressLabel}>Warehouse Item Pickups</Text>
-                      <Text style={styles.progressCount}>
-                        {pickedCount} / {totalCount} items picked
-                      </Text>
-                    </View>
-                    <View style={styles.progressTrack}>
-                      <View
-                        style={[
-                          styles.progressFill,
-                          {
-                            width: `${totalCount > 0 ? (pickedCount / totalCount) * 100 : 0}%`,
-                          },
-                        ]}
-                      />
-                    </View>
-                  </View>
-                ) : null}
-
-                {/* Address & Quick Actions */}
-                {item.invoice?.party?.address ? (
-                  <View style={styles.addressBox}>
-                    <Ionicons name="location-outline" size={14} color="#A1A1AA" />
-                    <Text style={styles.addressText} numberOfLines={2}>
-                      {item.invoice?.party?.address}
-                    </Text>
-                  </View>
-                ) : null}
-
-                {/* Handover Notice for Owner */}
-                {item.cashCollected && !item.cashHandedOver ? (
-                  <View style={styles.handoverBanner}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.handoverBannerTitle}>
-                        Cash in Driver Hand: {formatINR(item.cashCollected)}
-                      </Text>
-                      <Text style={styles.handoverBannerSub}>
-                        Driver has not handed over this cash at the office yet
-                      </Text>
-                    </View>
-                    {isOwnerOrAdmin ? (
-                      <Button
-                        title="Verify"
-                        size="sm"
-                        variant="primary"
-                        loading={handoverInProgress === item.id}
-                        onPress={() => handleHandoverCash(item.id)}
-                      />
-                    ) : null}
-                  </View>
-                ) : null}
-
-                {/* Action Buttons */}
-                <View style={styles.cardActions}>
-                  <Button
-                    title="Call"
-                    icon="call"
-                    size="sm"
-                    variant="secondary"
-                    onPress={() => handleCall(item.invoice?.party?.phone)}
-                    style={{ flex: 1 }}
-                  />
-
-                  {item.invoice?.party?.address ? (
-                    <Button
-                      title="Maps"
-                      icon="navigate"
-                      size="sm"
-                      variant="secondary"
-                      onPress={() => handleMap(item.invoice?.party?.address)}
-                      style={{ flex: 1 }}
-                    />
-                  ) : null}
-
-                  <Button
-                    title="Run Details"
-                    size="sm"
-                    variant="outline"
-                    onPress={() => setActiveDeliveryModal(item)}
-                    style={{ flex: 1.2 }}
-                  />
-                </View>
-
-                {/* Owner: Push Dispatch & Counter Pickup Buttons */}
-                {isOwnerOrAdmin && item.status === 'PENDING' ? (
-                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-                    <Button
-                      title="Dispatch Order"
-                      icon="paper-plane-outline"
-                      variant="primary"
-                      size="md"
-                      onPress={() => setPushModalDelivery(item)}
-                      style={{ flex: 1.3 }}
-                    />
-                    <Button
-                      title="Counter Pickup"
-                      icon="bag-check-outline"
-                      variant="outline"
-                      size="md"
-                      onPress={() => handleCustomerPickedUp(item.id)}
-                      style={{ flex: 1.1 }}
-                    />
-                  </View>
-                ) : null}
-
-                {/* Driver: Collect Cash Button */}
-                {isDriver &&
-                (item.status === 'OUT_FOR_DELIVERY' || item.status === 'PICKED_UP') ? (
-                  Number(item.amountToCollect || 0) > 0 ? (
-                    <Button
-                      title="Mark Delivered & Collect Cash"
-                      icon="checkmark-circle-outline"
-                      variant="primary"
-                      size="md"
-                      onPress={() => setCollectCashDelivery(item)}
-                      style={{ marginTop: 8 }}
-                    />
-                  ) : (
-                    <Button
-                      title="Mark as Delivered"
-                      icon="checkmark-circle-outline"
-                      variant="primary"
-                      size="md"
-                      onPress={() => handleUpdateStatus(item.id, 'DELIVERED')}
-                      style={{ marginTop: 8 }}
-                    />
-                  )
-                ) : null}
-              </Card>
-            );
-          }}
+          renderItem={({ item }) => (
+            <DeliveryCard
+              delivery={item}
+              isOwnerOrAdmin={isOwnerOrAdmin}
+              isDriver={isDriver}
+              handoverInProgress={handoverInProgress}
+              onOpenRunDetails={(d) => setActiveDeliveryModal(d)}
+              onOpenPushModal={(d) => setPushModalDelivery(d)}
+              onOpenCollectCash={(d) => setCollectCashDelivery(d)}
+              onOpenAddTrip={(d) => setAddTripDelivery(d)}
+              onCustomerPickedUp={handleCustomerPickedUp}
+              onHandoverCash={handleHandoverCash}
+              onUpdateStatus={handleUpdateStatus}
+            />
+          )}
         />
       )}
 
@@ -447,8 +306,20 @@ export default function DeliveriesScreen() {
         delivery={pushModalDelivery}
         visible={Boolean(pushModalDelivery)}
         onClose={() => setPushModalDelivery(null)}
-        onSuccess={() => loadData(true)}
+        onSuccess={(dialogData) => {
+          setPushModalDelivery(null);
+          loadData(true);
+          if (dialogData) {
+            setPushSuccessData(dialogData);
+          }
+        }}
         drivers={drivers}
+      />
+
+      <PushSuccessModal
+        data={pushSuccessData}
+        visible={Boolean(pushSuccessData)}
+        onClose={() => setPushSuccessData(null)}
       />
 
       <DeliveryRunModal
@@ -484,7 +355,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.dark.background,
   },
   listContent: {
-    padding: 16,
+    paddingVertical: 8,
     paddingBottom: 90,
   },
   center: {
@@ -496,128 +367,6 @@ const styles = StyleSheet.create({
   loadingText: {
     color: Colors.dark.textSecondary,
     fontSize: 12,
-    marginTop: 10,
-  },
-  deliveryCard: {
-    padding: 16,
-    marginBottom: 12,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  invoiceNo: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.2,
-  },
-  partyName: {
-    fontSize: 13,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-    fontWeight: '500',
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginVertical: 6,
-  },
-  driverTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.dark.cardElevated,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  driverText: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    fontWeight: '600',
-  },
-  collectText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    fontFamily: 'monospace',
-  },
-  pickupProgressBar: {
-    marginVertical: 8,
-    padding: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderRadius: 8,
-  },
-  progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  progressLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  progressCount: {
-    fontSize: 11,
-    color: '#10B981',
-    fontWeight: '700',
-  },
-  progressTrack: {
-    height: 4,
-    backgroundColor: Colors.dark.border,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#10B981',
-    borderRadius: 2,
-  },
-  addressBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 6,
-    marginVertical: 6,
-    padding: 8,
-    backgroundColor: Colors.dark.cardElevated,
-    borderRadius: 8,
-  },
-  addressText: {
-    fontSize: 11.5,
-    color: Colors.dark.textSecondary,
-    flex: 1,
-    lineHeight: 16,
-  },
-  handoverBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 10,
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
-    marginVertical: 6,
-  },
-  handoverBannerTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#F59E0B',
-  },
-  handoverBannerSub: {
-    fontSize: 10,
-    color: Colors.dark.textTertiary,
-    marginTop: 1,
-  },
-  cardActions: {
-    flexDirection: 'row',
-    gap: 8,
     marginTop: 10,
   },
 });

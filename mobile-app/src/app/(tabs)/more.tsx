@@ -1,13 +1,11 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   Alert,
-  Linking,
 } from 'react-native';
 import { useAuth } from '@/lib/auth-context';
 import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
@@ -15,26 +13,26 @@ import { Colors } from '@/constants/theme';
 import { Header } from '@/components/ui/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { SearchBar } from '@/components/ui/SearchBar';
-import { StatusBadge } from '@/components/ui/StatusBadge';
-import { cleanPhoneNumber, getInitials } from '@/lib/formatters';
+import { getInitials } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 
-import { Party } from '@/components/parties/types';
-import { PartyFormModal } from '@/components/parties/PartyFormModal';
-import { PartyStatementDrawer } from '@/components/parties/PartyStatementDrawer';
+import { Party, PartiesDirectoryView } from '@/components/parties';
+import { Warehouse, WarehousesDirectoryView } from '@/components/warehouses';
+import { StockItem } from '@/components/stock/types';
 
-import { Warehouse } from '@/components/warehouses/types';
-import { WarehouseFormModal } from '@/components/warehouses/WarehouseFormModal';
-
-import { StaffUser } from '@/components/settings/types';
-import { StaffFormModal } from '@/components/settings/StaffFormModal';
-import { ResetPasswordModal } from '@/components/settings/ResetPasswordModal';
-import { AddUpiModal } from '@/components/settings/AddUpiModal';
+import {
+  StaffUser,
+  StaffFormModal,
+  ResetPasswordModal,
+  AddUpiModal,
+  StaffDirectoryView,
+  CompanySettingsView,
+} from '@/components/settings';
+import { testLocalNotification, setupPushNotifications } from '@/lib/notifications';
 
 export default function MoreScreen() {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const router = useRouter();
   const isOwner = user?.role === 'OWNER';
   const isAdmin = user?.role === 'ADMIN';
@@ -46,22 +44,17 @@ export default function MoreScreen() {
   // Parties State
   const [parties, setParties] = useState<Party[]>([]);
   const [partiesLoading, setPartiesLoading] = useState(false);
-  const [partySearch, setPartySearch] = useState('');
-  const [partyModalOpen, setPartyModalOpen] = useState(false);
-  const [statementParty, setStatementParty] = useState<Party | null>(null);
 
   // Warehouses State
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [stocks, setStocks] = useState<StockItem[]>([]);
   const [warehousesLoading, setWarehousesLoading] = useState(false);
-  const [warehouseModalOpen, setWarehouseModalOpen] = useState(false);
-  const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(null);
-  const [zeroOutLoading, setZeroOutLoading] = useState<string | null>(null);
-  const [deleteWhLoading, setDeleteWhLoading] = useState<string | null>(null);
 
   // Staff State
   const [staffList, setStaffList] = useState<StaffUser[]>([]);
   const [staffLoading, setStaffLoading] = useState(false);
   const [staffModalOpen, setStaffModalOpen] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<StaffUser | null>(null);
   const [resetModalUser, setResetModalUser] = useState<StaffUser | null>(null);
 
   // Settings State
@@ -85,15 +78,26 @@ export default function MoreScreen() {
     }
   }, []);
 
-  // Load Warehouses
+  // Load Warehouses & Live Stock
   const loadWarehouses = useCallback(async (force = false) => {
     setWarehousesLoading(true);
     try {
-      const data = await cachedMobileApiRequest<Warehouse[]>('/warehouses', {
-        forceRefresh: force,
-        onRevalidate: (fresh) => setWarehouses(fresh || []),
-      });
-      setWarehouses(data || []);
+      const [whData, stockData] = await Promise.all([
+        cachedMobileApiRequest<Warehouse[]>('/warehouses', {
+          forceRefresh: force,
+          onRevalidate: (fresh) => setWarehouses(fresh || []),
+        }),
+        cachedMobileApiRequest<any[]>('/stock', {
+          forceRefresh: force,
+          onRevalidate: (fresh) => {
+            const list = Array.isArray(fresh) ? fresh : (fresh as any)?.data || [];
+            setStocks(list);
+          },
+        }),
+      ]);
+      setWarehouses(whData || []);
+      const stockList = Array.isArray(stockData) ? stockData : (stockData as any)?.data || [];
+      setStocks(stockList);
     } catch (err: any) {
       console.warn('Warehouses load failed', err.message);
     } finally {
@@ -103,20 +107,61 @@ export default function MoreScreen() {
 
   // Load Staff
   const loadStaff = useCallback(async (force = false) => {
-    if (!isOwner && !isAdmin) return;
+    if (!isOwner) return;
     setStaffLoading(true);
     try {
       const data = await cachedMobileApiRequest<StaffUser[]>('/users', {
         forceRefresh: force,
-        onRevalidate: (fresh) => setStaffList(fresh || []),
+        onRevalidate: (fresh) =>
+          setStaffList(
+            (fresh || []).map((entry: any) => ({
+              ...entry,
+              active: entry.isActive ?? entry.active ?? true,
+            })),
+          ),
       });
-      setStaffList(data || []);
+      setStaffList(
+        (data || []).map((entry: any) => ({
+          ...entry,
+          active: entry.isActive ?? entry.active ?? true,
+        })),
+      );
     } catch (err: any) {
       console.warn('Staff load failed', err.message);
     } finally {
       setStaffLoading(false);
     }
-  }, [isOwner, isAdmin]);
+  }, [isOwner]);
+
+  const handleToggleStaff = async (staff: StaffUser) => {
+    try {
+      await mobileApiRequest(`/users/${staff.id}/status`, {
+        method: 'PATCH',
+        body: JSON.stringify({ isActive: !staff.active }),
+      });
+      await loadStaff(true);
+    } catch (error: any) {
+      Alert.alert('Could Not Update Staff', error.message || 'Please try again.');
+    }
+  };
+
+  const handleDeleteStaff = (staff: StaffUser) => {
+    Alert.alert('Delete Staff Member', `Permanently remove ${staff.name}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await mobileApiRequest(`/users/${staff.id}`, { method: 'DELETE' });
+            await loadStaff(true);
+          } catch (error: any) {
+            Alert.alert('Could Not Delete Staff', error.message || 'Please try again.');
+          }
+        },
+      },
+    ]);
+  };
 
   // Load Settings
   const loadSettings = useCallback(async (force = false) => {
@@ -140,97 +185,6 @@ export default function MoreScreen() {
     if (activeSection === 'STAFF') loadStaff();
     if (activeSection === 'SETTINGS') loadSettings();
   }, [activeSection, loadParties, loadWarehouses, loadStaff, loadSettings]);
-
-  // Logout handler
-  const handleLogout = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out from Dhra ERP?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Out',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await logout();
-            router.replace('/login');
-          } catch (e: any) {
-            console.error('Logout error:', e);
-          }
-        },
-      },
-    ]);
-  };
-
-  // WhatsApp Payment Reminder
-  const handleSendPaymentReminder = (party: Party) => {
-    const phone = cleanPhoneNumber(party.phone);
-    const msg = `Dear ${party.name},\nGreetings from Shree Om Tiles & Sanitaryware.\nThis is a gentle reminder regarding your outstanding ledger balance. Kindly arrange payment via UPI or visit our showroom.\nThank you!`;
-    const url = phone
-      ? `https://wa.me/91${phone}?text=${encodeURIComponent(msg)}`
-      : `https://wa.me/?text=${encodeURIComponent(msg)}`;
-
-    Linking.openURL(url).catch(() => {
-      Alert.alert('Error', 'Unable to open WhatsApp');
-    });
-  };
-
-  // Zero-Out Warehouse Stock
-  const handleZeroOutWarehouse = (wh: Warehouse) => {
-    Alert.alert(
-      'Zero-Out Stock',
-      `DANGER: Are you sure you want to reset all inventory quantities in "${wh.name}" to 0? This action will be audited.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reset to Zero',
-          style: 'destructive',
-          onPress: async () => {
-            setZeroOutLoading(wh.id);
-            try {
-              await mobileApiRequest('/stock/zero-out', {
-                method: 'POST',
-                body: JSON.stringify({ warehouseId: wh.id }),
-              });
-              Alert.alert('Stock Reset', `All stock in "${wh.name}" has been cleared to 0.`);
-              loadWarehouses(true);
-            } catch (err: any) {
-              Alert.alert('Error', err.message || 'Could not zero-out stock');
-            } finally {
-              setZeroOutLoading(null);
-            }
-          },
-        },
-      ],
-    );
-  };
-
-  // Delete Warehouse
-  const handleDeleteWarehouse = (wh: Warehouse) => {
-    Alert.alert(
-      'Delete Warehouse',
-      `Are you sure you want to delete "${wh.name}"? This warehouse must have 0 stock and no active delivery trips.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setDeleteWhLoading(wh.id);
-            try {
-              await mobileApiRequest(`/warehouses/${wh.id}`, {
-                method: 'DELETE',
-              });
-              Alert.alert('Success', `Warehouse "${wh.name}" deleted.`);
-              loadWarehouses(true);
-            } catch (err: any) {
-              Alert.alert('Cannot Delete Warehouse', err.message || 'Warehouse has inventory or active trips.');
-            } finally {
-              setDeleteWhLoading(null);
-            }
-          },
-        },
-      ],
-    );
-  };
 
   // Set Primary UPI Account
   const handleSetPrimaryUpi = async (upiAccId: string) => {
@@ -271,37 +225,44 @@ export default function MoreScreen() {
     );
   };
 
-  // Filtered parties
-  const filteredParties = useMemo(() => {
-    const q = partySearch.toLowerCase();
-    return parties.filter((p) => {
-      return (
-        p.name?.toLowerCase().includes(q) ||
-        p.phone?.includes(partySearch) ||
-        (p.address && p.address.toLowerCase().includes(q))
-      );
-    });
-  }, [parties, partySearch]);
+  // Logout handler
+  const handleLogout = () => {
+    Alert.alert('Sign Out', 'Are you sure you want to sign out from Dhra ERP?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Sign Out',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await logout();
+            router.replace('/login');
+          } catch (e: any) {
+            console.error('Logout error:', e);
+          }
+        },
+      },
+    ]);
+  };
 
-  const defaultUpiId =
-    settings?.upiId ||
-    settings?.upiAccounts?.find((a: any) => a.isPrimary)?.upiId ||
-    'Not Configured';
+  const getSectionTitle = () => {
+    switch (activeSection) {
+      case 'PARTIES':
+        return 'Customer Parties';
+      case 'STAFF':
+        return 'Staff Roster & Roles';
+      case 'WAREHOUSES':
+        return 'Warehouses & Showrooms';
+      case 'SETTINGS':
+        return 'Store & UPI Settings';
+      default:
+        return 'Management Hub';
+    }
+  };
 
   return (
     <View style={styles.screen}>
       <Header
-        title={
-          activeSection === 'MENU'
-            ? 'Management Hub'
-            : activeSection === 'PARTIES'
-            ? 'Customer Parties'
-            : activeSection === 'STAFF'
-            ? 'Staff Roster'
-            : activeSection === 'WAREHOUSES'
-            ? 'Warehouses & Showrooms'
-            : 'Company Settings'
-        }
+        title={getSectionTitle()}
         subtitle="Tools, Directory & Permissions"
         rightAction={
           activeSection !== 'MENU'
@@ -376,8 +337,8 @@ export default function MoreScreen() {
               </TouchableOpacity>
             ) : null}
 
-            {/* 3. Staff Management (Owner/Admin only) */}
-            {isOwner || isAdmin ? (
+            {/* 3. Staff Management (Owner only) */}
+            {isOwner ? (
               <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => setActiveSection('STAFF')}
@@ -416,6 +377,46 @@ export default function MoreScreen() {
               </TouchableOpacity>
             ) : null}
 
+            {/* 5. Device Push Notifications Card */}
+            <View style={styles.notificationCard}>
+              <View style={styles.notificationHeader}>
+                <View style={styles.notificationIconWrap}>
+                  <Ionicons name="notifications" size={18} color="#D97706" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.notificationTitle}>Device Push Notifications</Text>
+                  <Text style={styles.notificationSub}>
+                    Instant alerts for deliveries, cash collection & invoices
+                  </Text>
+                </View>
+              </View>
+              <View style={styles.notificationActionRow}>
+                <TouchableOpacity
+                  style={styles.testAlertBtn}
+                  onPress={async () => {
+                    const ok = await testLocalNotification();
+                    if (!ok) {
+                      Alert.alert(
+                        'Notification Permission',
+                        'Push alerts require notification permission on a physical device. Requesting permission now...',
+                        [
+                          {
+                            text: 'Enable Alerts',
+                            onPress: () => setupPushNotifications(),
+                          },
+                          { text: 'Cancel', style: 'cancel' },
+                        ],
+                      );
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="flash-outline" size={14} color="#D97706" />
+                  <Text style={styles.testAlertBtnText}>Send Test Alert</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
             {/* Sign Out Button */}
             <Button
               title="Sign Out of ERP"
@@ -423,7 +424,7 @@ export default function MoreScreen() {
               variant="danger"
               size="lg"
               onPress={handleLogout}
-              style={{ marginTop: 28 }}
+              style={{ marginTop: 20 }}
             />
           </View>
         ) : null}
@@ -432,305 +433,76 @@ export default function MoreScreen() {
         {/* VIEW 2: PARTIES DIRECTORY                                                 */}
         {/* ========================================================================= */}
         {activeSection === 'PARTIES' ? (
-          <View>
-            <View style={styles.actionHeaderRow}>
-              <Text style={styles.sectionTitle}>Customer Directory ({parties.length})</Text>
-              <Button
-                title="+ Add Party"
-                size="sm"
-                variant="primary"
-                onPress={() => setPartyModalOpen(true)}
-              />
-            </View>
-
-            <SearchBar
-              value={partySearch}
-              onChangeText={setPartySearch}
-              placeholder="Search customer by name, phone, address..."
-              style={{ marginHorizontal: 0, marginBottom: 12 }}
-            />
-
-            {partiesLoading ? (
-              <ActivityIndicator size="small" color="#FFFFFF" style={{ marginTop: 24 }} />
-            ) : (
-              filteredParties.map((p) => (
-                <Card
-                  key={p.id}
-                  elevated
-                  style={styles.partyCard}
-                  onPress={() => setStatementParty(p)}
-                >
-                  <View style={styles.partyCardTop}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.partyName}>{p.name}</Text>
-                      <Text style={styles.partyPhoneText}>Phone: {p.phone}</Text>
-                      {p.gstin ? <Text style={styles.gstinText}>GSTIN: {p.gstin}</Text> : null}
-                      {p.address ? (
-                        <Text style={styles.partyAddressText} numberOfLines={2}>
-                          {p.address}
-                        </Text>
-                      ) : null}
-                    </View>
-                    <Ionicons name="chevron-forward" size={18} color={Colors.dark.textTertiary} />
-                  </View>
-
-                  <View style={styles.partyActionsRow}>
-                    <Button
-                      title="Call"
-                      icon="call"
-                      size="sm"
-                      variant="secondary"
-                      onPress={() => {
-                        const clean = cleanPhoneNumber(p.phone);
-                        if (clean) Linking.openURL(`tel:${clean}`);
-                      }}
-                      style={{ flex: 1 }}
-                    />
-                    <Button
-                      title="Statement"
-                      icon="document-text-outline"
-                      size="sm"
-                      variant="primary"
-                      onPress={() => setStatementParty(p)}
-                      style={{ flex: 1.2 }}
-                    />
-                    <Button
-                      title="Reminder"
-                      icon="logo-whatsapp"
-                      size="sm"
-                      variant="secondary"
-                      onPress={() => handleSendPaymentReminder(p)}
-                      style={{ flex: 1.2 }}
-                    />
-                  </View>
-                </Card>
-              ))
-            )}
-          </View>
+          <PartiesDirectoryView
+            parties={parties}
+            loading={partiesLoading}
+            onRefresh={() => loadParties(true)}
+            isOwnerOrAdmin={isOwner || isAdmin}
+            isSalesman={user?.role === 'SALESMAN'}
+          />
         ) : null}
 
         {/* ========================================================================= */}
         {/* VIEW 3: STAFF ROSTER                                                      */}
         {/* ========================================================================= */}
-        {activeSection === 'STAFF' ? (
-          <View>
-            <View style={styles.actionHeaderRow}>
-              <Text style={styles.sectionTitle}>Staff Accounts ({staffList.length})</Text>
-              <Button
-                title="+ Add Staff"
-                size="sm"
-                variant="primary"
-                onPress={() => setStaffModalOpen(true)}
-              />
-            </View>
-
-            {staffLoading ? (
-              <ActivityIndicator size="small" color="#FFFFFF" style={{ marginTop: 24 }} />
-            ) : (
-              staffList.map((st) => (
-                <Card key={st.id} elevated style={styles.staffCard}>
-                  <View style={styles.staffRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.staffName}>{st.name}</Text>
-                      <Text style={styles.staffPhone}>{st.phone}</Text>
-                      <View style={{ flexDirection: 'row', gap: 6, marginTop: 4 }}>
-                        <View style={styles.roleBadge}>
-                          <Text style={styles.roleBadgeText}>{st.role}</Text>
-                        </View>
-                        <StatusBadge status={st.active ? 'ACTIVE' : 'INACTIVE'} size="sm" />
-                      </View>
-                    </View>
-
-                    <Button
-                      title="Reset Pass"
-                      size="sm"
-                      variant="outline"
-                      onPress={() => setResetModalUser(st)}
-                    />
-                  </View>
-                </Card>
-              ))
-            )}
-          </View>
+        {activeSection === 'STAFF' && isOwner ? (
+          <StaffDirectoryView
+            staffList={staffList}
+            loading={staffLoading}
+            onRefresh={() => loadStaff(true)}
+            onAddStaff={() => {
+              setEditingStaff(null);
+              setStaffModalOpen(true);
+            }}
+            onEditStaff={(st) => {
+              setEditingStaff(st);
+              setStaffModalOpen(true);
+            }}
+            onResetPassword={(st) => setResetModalUser(st)}
+            onToggleStatus={handleToggleStaff}
+            onDeleteStaff={handleDeleteStaff}
+          />
         ) : null}
 
         {/* ========================================================================= */}
         {/* VIEW 4: WAREHOUSES & SHOWROOMS                                            */}
         {/* ========================================================================= */}
         {activeSection === 'WAREHOUSES' ? (
-          <View>
-            <View style={styles.actionHeaderRow}>
-              <Text style={styles.sectionTitle}>Warehouses & Showrooms ({warehouses.length})</Text>
-              <Button
-                title="+ Add Location"
-                size="sm"
-                variant="primary"
-                onPress={() => {
-                  setEditingWarehouse(null);
-                  setWarehouseModalOpen(true);
-                }}
-              />
-            </View>
-
-            {warehousesLoading ? (
-              <ActivityIndicator size="small" color="#FFFFFF" style={{ marginTop: 24 }} />
-            ) : (
-              warehouses.map((wh) => (
-                <Card key={wh.id} elevated style={styles.warehouseCard}>
-                  <View style={styles.warehouseHeaderRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.warehouseName}>{wh.name}</Text>
-                      {wh.address ? (
-                        <Text style={styles.warehouseAddress}>{wh.address}</Text>
-                      ) : null}
-                    </View>
-                    <View
-                      style={
-                        wh.type === 'SHOWROOM' ? styles.showroomBadge : styles.warehouseBadge
-                      }
-                    >
-                      <Text style={styles.typeBadgeText}>{wh.type}</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.warehouseActionsRow}>
-                    <Button
-                      title="Edit"
-                      icon="create-outline"
-                      size="sm"
-                      variant="outline"
-                      onPress={() => {
-                        setEditingWarehouse(wh);
-                        setWarehouseModalOpen(true);
-                      }}
-                      style={{ flex: 1 }}
-                    />
-                    <Button
-                      title="Zero-Out"
-                      icon="warning-outline"
-                      size="sm"
-                      variant="secondary"
-                      loading={zeroOutLoading === wh.id}
-                      onPress={() => handleZeroOutWarehouse(wh)}
-                      style={{ flex: 1.1 }}
-                    />
-                    <Button
-                      title="Delete"
-                      icon="trash-outline"
-                      size="sm"
-                      variant="danger"
-                      loading={deleteWhLoading === wh.id}
-                      onPress={() => handleDeleteWarehouse(wh)}
-                      style={{ flex: 1 }}
-                    />
-                  </View>
-                </Card>
-              ))
-            )}
-          </View>
+          <WarehousesDirectoryView
+            warehouses={warehouses}
+            stocks={stocks}
+            loading={warehousesLoading}
+            onRefresh={() => loadWarehouses(true)}
+            isOwnerOrAdmin={isOwner || isAdmin}
+          />
         ) : null}
 
         {/* ========================================================================= */}
         {/* VIEW 5: SETTINGS                                                          */}
         {/* ========================================================================= */}
         {activeSection === 'SETTINGS' ? (
-          settingsLoading ? (
-            <ActivityIndicator size="small" color="#FFFFFF" style={{ marginTop: 24 }} />
-          ) : (
-            <View>
-              <Card elevated style={styles.settingsCard}>
-                <Text style={styles.settingsHeader}>Active Merchant Profile</Text>
-                <View style={styles.settingItem}>
-                  <Text style={styles.settingLabel}>Merchant Name</Text>
-                  <Text style={styles.settingVal}>
-                    {settings?.merchantName || 'Shree Om Tiles'}
-                  </Text>
-                </View>
-                <View style={styles.settingItem}>
-                  <Text style={styles.settingLabel}>Default QR UPI ID</Text>
-                  <Text style={styles.settingVal}>
-                    {defaultUpiId}
-                  </Text>
-                </View>
-              </Card>
-
-              <View style={styles.actionHeaderRow}>
-                <Text style={styles.sectionTitle}>Linked UPI Accounts</Text>
-                <Button
-                  title="+ Add UPI ID"
-                  size="sm"
-                  variant="primary"
-                  onPress={() => setUpiAccountModalOpen(true)}
-                />
-              </View>
-
-              {(settings?.upiAccounts || []).map((acc: any, idx: number) => (
-                <Card key={acc.id || idx} style={styles.upiCard}>
-                  <View style={styles.summaryRow}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.upiTitle}>{acc.merchantName || 'Bank Account'}</Text>
-                      <Text style={styles.upiSub}>{acc.upiId}</Text>
-                    </View>
-                    {acc.isPrimary ? (
-                      <View style={styles.primaryUpiBadge}>
-                        <Text style={styles.primaryUpiText}>PRIMARY</Text>
-                      </View>
-                    ) : null}
-                  </View>
-
-                  <View style={styles.upiActionsRow}>
-                    {!acc.isPrimary ? (
-                      <Button
-                        title="Set Primary"
-                        size="sm"
-                        variant="outline"
-                        onPress={() => handleSetPrimaryUpi(acc.id)}
-                        style={{ flex: 1 }}
-                      />
-                    ) : null}
-                    <Button
-                      title="Delete"
-                      icon="trash-outline"
-                      size="sm"
-                      variant="danger"
-                      onPress={() => handleDeleteUpi(acc.id, acc.upiId)}
-                      style={{ flex: acc.isPrimary ? 1 : 0.6 }}
-                    />
-                  </View>
-                </Card>
-              ))}
-            </View>
-          )
+          <CompanySettingsView
+            settings={settings}
+            loading={settingsLoading}
+            onRefresh={() => loadSettings(true)}
+            user={user}
+            onUpdateUser={updateUser}
+            onOpenAddUpi={() => setUpiAccountModalOpen(true)}
+            onSetPrimaryUpi={handleSetPrimaryUpi}
+            onDeleteUpi={handleDeleteUpi}
+          />
         ) : null}
       </ScrollView>
 
-      {/* MODALS */}
-      <PartyFormModal
-        visible={partyModalOpen}
-        onClose={() => setPartyModalOpen(false)}
-        onSuccess={() => loadParties(true)}
-      />
-
-      <PartyStatementDrawer
-        party={statementParty}
-        onClose={() => setStatementParty(null)}
-        onPartyDeleted={() => loadParties(true)}
-      />
-
-      <WarehouseFormModal
-        visible={warehouseModalOpen}
-        onClose={() => {
-          setWarehouseModalOpen(false);
-          setEditingWarehouse(null);
-        }}
-        onSuccess={() => loadWarehouses(true)}
-        warehouse={editingWarehouse}
-      />
-
+      {/* Settings & Staff Modals */}
       <StaffFormModal
         visible={staffModalOpen}
-        onClose={() => setStaffModalOpen(false)}
+        onClose={() => {
+          setStaffModalOpen(false);
+          setEditingStaff(null);
+        }}
         onSuccess={() => loadStaff(true)}
+        staff={editingStaff}
       />
 
       <ResetPasswordModal
@@ -842,199 +614,57 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
     marginTop: 2,
   },
-  actionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  partyCard: {
-    padding: 14,
-    marginBottom: 10,
-  },
-  partyCardTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  partyName: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  partyPhoneText: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  gstinText: {
-    fontSize: 11,
-    color: Colors.dark.textTertiary,
-    marginTop: 1,
-    fontFamily: 'monospace',
-  },
-  partyAddressText: {
-    fontSize: 11.5,
-    color: Colors.dark.textSecondary,
-    marginTop: 3,
-  },
-  partyActionsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: Colors.dark.border,
-  },
-  staffCard: {
-    padding: 14,
-    marginBottom: 10,
-  },
-  staffRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  staffName: {
-    fontSize: 14.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  staffPhone: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  roleBadge: {
-    backgroundColor: Colors.dark.secondary,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  roleBadgeText: {
-    fontSize: 9.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  warehouseCard: {
-    padding: 14,
-    marginBottom: 10,
-  },
-  warehouseHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  warehouseName: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  warehouseAddress: {
-    fontSize: 11.5,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  showroomBadge: {
-    backgroundColor: 'rgba(56, 189, 248, 0.15)',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.3)',
-  },
-  warehouseBadge: {
-    backgroundColor: Colors.dark.secondary,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  typeBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  warehouseActionsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: Colors.dark.border,
-  },
-  settingsCard: {
+  notificationCard: {
+    backgroundColor: '#18181B',
+    borderRadius: 14,
     padding: 16,
-    marginBottom: 16,
-    backgroundColor: '#16161A',
+    borderWidth: 1,
+    borderColor: '#27272A',
+    marginTop: 4,
+    marginBottom: 4,
   },
-  settingsHeader: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 10,
-  },
-  settingItem: {
+  notificationHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.dark.border,
-  },
-  settingLabel: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-  },
-  settingVal: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  upiCard: {
-    padding: 14,
-    marginBottom: 10,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 12,
   },
-  upiTitle: {
-    fontSize: 14,
+  notificationIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(217, 119, 6, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationTitle: {
+    fontSize: 13.5,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  upiSub: {
-    fontSize: 12,
+  notificationSub: {
+    fontSize: 11,
     color: Colors.dark.textSecondary,
     marginTop: 2,
-    fontFamily: 'monospace',
   },
-  primaryUpiBadge: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    paddingHorizontal: 6,
-    paddingVertical: 2.5,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-  },
-  primaryUpiText: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: '#10B981',
-  },
-  upiActionsRow: {
+  notificationActionRow: {
+    marginTop: 12,
     flexDirection: 'row',
-    gap: 8,
-    marginTop: 10,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: Colors.dark.border,
+    justifyContent: 'flex-end',
+  },
+  testAlertBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(217, 119, 6, 0.12)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(217, 119, 6, 0.3)',
+  },
+  testAlertBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#D97706',
   },
 });

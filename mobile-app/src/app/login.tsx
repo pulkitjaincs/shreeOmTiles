@@ -9,6 +9,7 @@ import {
   StatusBar,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { mobileApiRequest } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { Colors } from '@/constants/theme';
@@ -22,6 +23,7 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { login } = useAuth();
 
   const handleLogin = async () => {
@@ -61,7 +63,13 @@ export default function LoginScreen() {
     >
       <StatusBar barStyle="light-content" />
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: Math.max(insets.top + 16, 36),
+            paddingBottom: Math.max(insets.bottom + 16, 32),
+          },
+        ]}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.brandSection}>

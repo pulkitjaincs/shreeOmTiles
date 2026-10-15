@@ -21,12 +21,16 @@ interface PartyStatementDrawerProps {
   party: Party | null;
   onClose: () => void;
   onPartyDeleted: () => void;
+  canDelete?: boolean;
+  onEdit?: (party: Party) => void;
 }
 
 export function PartyStatementDrawer({
   party,
   onClose,
   onPartyDeleted,
+  canDelete = false,
+  onEdit,
 }: PartyStatementDrawerProps) {
   const [statementData, setStatementData] = useState<{
     invoices: StatementInvoice[];
@@ -193,6 +197,14 @@ export function PartyStatementDrawer({
 
           {/* Action Buttons Row */}
           <View style={styles.actionsRow}>
+            {onEdit ? <Button
+              title="Edit Party"
+              icon="create-outline"
+              variant="outline"
+              size="md"
+              onPress={() => onEdit(party)}
+              style={{ flex: 1 }}
+            /> : null}
             <Button
               title="WhatsApp Statement"
               icon="logo-whatsapp"
@@ -201,7 +213,7 @@ export function PartyStatementDrawer({
               onPress={handleShareStatement}
               style={{ flex: 1.4 }}
             />
-            <Button
+            {canDelete ? <Button
               title="Delete"
               icon="trash-outline"
               variant="danger"
@@ -209,7 +221,7 @@ export function PartyStatementDrawer({
               loading={deleting}
               onPress={handleDelete}
               style={{ flex: 0.8 }}
-            />
+            /> : null}
           </View>
 
           {/* Tabs: Orders vs Credit Ledgers */}

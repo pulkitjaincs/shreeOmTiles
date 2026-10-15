@@ -8,62 +8,106 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
-  ScrollView,
 } from 'react-native';
 import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
 import { Colors } from '@/constants/theme';
 import { Header } from '@/components/ui/Header';
-import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { FilterPills } from '@/components/ui/FilterPills';
-import { StatusBadge } from '@/components/ui/StatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { formatINR, formatDate, formatDateTime } from '@/lib/formatters';
+import { formatINR } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
-import { Party, PaymentRecord } from '@/components/payments/types';
-import { RecordSettlementModal } from '@/components/payments/RecordSettlementModal';
+import {
+  Party,
+  PaymentRecord,
+  CreditLedgerRecord,
+  PendingItem,
+  PendingCreditLedger,
+  FinancialStats,
+  ActiveTabType,
+  PaymentStatsRow,
+  TransactionTabsBar,
+  CustomerDuesCard,
+  StorePayablesCard,
+  TransactionHistoryCard,
+  CreditLedgerCard,
+  RecordSettlementModal,
+  RecordCreditModal,
+} from '@/components/payments';
+
+type TransactionListItem = PendingItem | PaymentRecord | CreditLedgerRecord;
 
 export default function TransactionsScreen() {
-  const [activeTab, setActiveTab] = useState<'PAYMENTS' | 'CREDITS'>('PAYMENTS');
+  const [activeTab, setActiveTab] = useState<ActiveTabType>('dues');
 
+  // Data states matching web-dashboard
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
-  const [credits, setCredits] = useState<any[]>([]);
-  const [stats, setStats] = useState<any>(null);
+  const [creditLedgers, setCreditLedgers] = useState<CreditLedgerRecord[]>([]);
+  const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
+  const [stats, setStats] = useState<FinancialStats>({
+    totalSales: 0,
+    totalCollected: 0,
+    totalPaidOut: 0,
+    cashCollected: 0,
+    upiCollected: 0,
+    pendingReceivables: 0,
+    creditsOwed: 0,
+  });
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [modeFilter, setModeFilter] = useState('ALL');
 
-  // Settlement Modal State
+  // Modal States
   const [settleModalOpen, setSettleModalOpen] = useState(false);
   const [settleDirection, setSettleDirection] = useState<'COLLECT' | 'PAY'>('COLLECT');
   const [selectedPartyId, setSelectedPartyId] = useState('');
   const [settleAmount, setSettleAmount] = useState('');
+  const [settleNotes, setSettleNotes] = useState('');
+  const [settleInvoiceId, setSettleInvoiceId] = useState('');
 
-  // Confirming state
+  const [creditModalOpen, setCreditModalOpen] = useState(false);
+  const [creditPartyId, setCreditPartyId] = useState('');
+
+  // Confirming state for pending payments
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
+  // Load all data matching web-dashboard loadData()
   const loadData = useCallback(async (force = false) => {
     try {
-      const [paymentsData, creditsData, statsData, partiesData] = await Promise.all([
-        cachedMobileApiRequest<any[]>('/payments', {
+      const [paymentsData, statsData, pendingData, creditsData, partiesData] = await Promise.all([
+        cachedMobileApiRequest<PaymentRecord[]>('/payments', {
           forceRefresh: force,
           onRevalidate: (fresh) => {
-            const pList = Array.isArray(fresh) ? fresh : (fresh as any)?.data || [];
-            setPayments(pList);
+            const list = Array.isArray(fresh) ? fresh : (fresh as any)?.data || [];
+            setPayments(list);
           },
-        }),
-        cachedMobileApiRequest<any[]>('/payments/credits', {
-          forceRefresh: force,
-          onRevalidate: (fresh) => setCredits(fresh || []),
         }).catch(() => []),
-        cachedMobileApiRequest<any>('/payments/stats', {
+        cachedMobileApiRequest<FinancialStats>('/payments/stats', {
           forceRefresh: force,
           onRevalidate: (fresh) => setStats(fresh),
-        }).catch(() => null),
+        }).catch(() => ({
+          totalSales: 0,
+          totalCollected: 0,
+          totalPaidOut: 0,
+          cashCollected: 0,
+          upiCollected: 0,
+          pendingReceivables: 0,
+          creditsOwed: 0,
+        })),
+        cachedMobileApiRequest<{ invoices: PendingItem[]; ledgers: PendingCreditLedger[] }>(
+          '/payments/pending',
+          { forceRefresh: force },
+        ).catch(() => ({
+          invoices: [],
+          ledgers: [],
+        })),
+        cachedMobileApiRequest<CreditLedgerRecord[]>('/payments/credits', {
+          forceRefresh: force,
+          onRevalidate: (fresh) => setCreditLedgers(fresh || []),
+        }).catch(() => []),
         cachedMobileApiRequest<Party[]>('/parties', {
           forceRefresh: force,
           onRevalidate: (fresh) => setParties(fresh || []),
@@ -72,11 +116,53 @@ export default function TransactionsScreen() {
 
       const pList = Array.isArray(paymentsData) ? paymentsData : (paymentsData as any)?.data || [];
       setPayments(pList);
-      setCredits(creditsData || []);
       setStats(statsData);
+      setCreditLedgers(creditsData || []);
       setParties(partiesData || []);
+
+      // Unify pending items: pending invoices + unsettled credit ledgers
+      const formattedPending: PendingItem[] = [
+        ...(pendingData?.invoices || []).map((inv) => ({
+          id: inv.id,
+          invoiceNo: inv.invoiceNo,
+          partyId: inv.partyId,
+          partyName: inv.partyName,
+          partyPhone: inv.partyPhone,
+          total: inv.total,
+          paid: inv.paid,
+          remainingDue: inv.remainingDue,
+          createdAt: inv.createdAt,
+          status: inv.status,
+          isCreditLedger: false,
+          creditType: 'RECEIVABLE' as const,
+        })),
+        ...(pendingData?.ledgers || [])
+          .filter(
+            (cl) =>
+              cl.type === 'PAYABLE' ||
+              (!cl.invoiceId &&
+                !(pendingData?.invoices || []).some(
+                  (inv) => inv.id === cl.invoiceId || (cl.invoiceNo && inv.invoiceNo === cl.invoiceNo),
+                )),
+          )
+          .map((cl) => ({
+            id: cl.id,
+            invoiceNo: cl.invoiceNo || (cl.type === 'PAYABLE' ? 'Store Payable' : 'Direct Party Credit'),
+            partyId: cl.partyId,
+            partyName: cl.partyName || 'Party',
+            partyPhone: cl.partyPhone || '',
+            total: cl.amountDue,
+            paid: 0,
+            remainingDue: cl.amountDue,
+            createdAt: cl.createdAt,
+            status: cl.status,
+            isCreditLedger: true,
+            creditType: cl.type as 'RECEIVABLE' | 'PAYABLE',
+          })),
+      ];
+      setPendingItems(formattedPending);
     } catch (err: any) {
-      console.warn('Transactions load error', err.message);
+      console.warn('Transactions load error:', err.message);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -108,298 +194,351 @@ export default function TransactionsScreen() {
     }
   };
 
-  // Filtered payments
-  const filteredPayments = useMemo(() => {
-    return payments.filter((p) => {
-      const q = search.toLowerCase();
-      const matchesSearch =
-        p.party?.name?.toLowerCase().includes(q) ||
-        p.invoice?.invoiceNo?.toLowerCase().includes(q) ||
-        (p.upiTxnRef && p.upiTxnRef.toLowerCase().includes(q)) ||
-        (p.upiUtr && p.upiUtr.toLowerCase().includes(q));
+  // Open Modal from a Pending Due or Payable Row
+  const handleOpenActionForPending = (item: PendingItem) => {
+    const isPayable = item.creditType === 'PAYABLE';
+    setSettleDirection(isPayable ? 'PAY' : 'COLLECT');
+    setSelectedPartyId(item.partyId);
+    setSettleInvoiceId(item.isCreditLedger ? '' : item.id);
+    setSettleAmount(item.remainingDue.toFixed(2));
+    setSettleNotes(
+      isPayable
+        ? `Payment made to ${item.partyName} to settle payable debt`
+        : item.invoiceNo
+        ? `Payment received for ${item.invoiceNo}`
+        : `Payment received from ${item.partyName}`,
+    );
+    setSettleModalOpen(true);
+  };
 
+  // Open Collect Modal from Header (Customer paying store)
+  const handleOpenGeneralCollect = () => {
+    setSettleDirection('COLLECT');
+    setSelectedPartyId(parties[0]?.id || '');
+    setSettleInvoiceId('');
+    setSettleAmount('');
+    setSettleNotes('');
+    setSettleModalOpen(true);
+  };
+
+  // Open Pay Modal from Header (Store paying vendor/party)
+  const handleOpenGeneralPay = () => {
+    setSettleDirection('PAY');
+    setSelectedPartyId(parties[0]?.id || '');
+    setSettleInvoiceId('');
+    setSettleAmount('');
+    setSettleNotes('');
+    setSettleModalOpen(true);
+  };
+
+  // Open Record Credit Modal
+  const handleOpenRecordCredit = (partyId?: string) => {
+    setCreditPartyId(partyId || parties[0]?.id || '');
+    setCreditModalOpen(true);
+  };
+
+  // Separated Dues vs Payables
+  const customerDues = useMemo(
+    () => pendingItems.filter((item) => item.creditType === 'RECEIVABLE'),
+    [pendingItems],
+  );
+  const storePayables = useMemo(
+    () => pendingItems.filter((item) => item.creditType === 'PAYABLE'),
+    [pendingItems],
+  );
+
+  const filteredDues = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    return customerDues.filter(
+      (item) =>
+        item.partyName.toLowerCase().includes(q) ||
+        item.partyPhone.includes(q) ||
+        (item.invoiceNo && item.invoiceNo.toLowerCase().includes(q)),
+    );
+  }, [customerDues, search]);
+
+  const filteredPayables = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    return storePayables.filter(
+      (item) =>
+        item.partyName.toLowerCase().includes(q) ||
+        item.partyPhone.includes(q) ||
+        (item.invoiceNo && item.invoiceNo.toLowerCase().includes(q)),
+    );
+  }, [storePayables, search]);
+
+  const filteredPayments = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    return payments.filter((p) => {
+      const partyName = p.invoice?.party?.name || p.party?.name || '';
+      const invNo = p.invoice?.invoiceNo || '';
+      const utr = p.upiUtr || p.upiTxnRef || '';
+      const matchesSearch =
+        partyName.toLowerCase().includes(q) || invNo.toLowerCase().includes(q) || utr.toLowerCase().includes(q);
       const matchesMode = modeFilter === 'ALL' || p.mode === modeFilter;
       return matchesSearch && matchesMode;
     });
   }, [payments, search, modeFilter]);
 
-  // Filtered credits
+  const filteredInflows = useMemo(() => {
+    return filteredPayments.filter(
+      (p) => p.status === 'CONFIRMED' && p.type !== 'OUTFLOW',
+    );
+  }, [filteredPayments]);
+
   const filteredCredits = useMemo(() => {
-    return credits.filter((c) => {
-      const q = search.toLowerCase();
-      return (
-        c.party?.name?.toLowerCase().includes(q) ||
-        c.invoice?.invoiceNo?.toLowerCase().includes(q) ||
-        c.partyName?.toLowerCase().includes(q)
-      );
+    const q = search.toLowerCase().trim();
+    return creditLedgers.filter((cl) => {
+      const partyName = cl.party?.name || '';
+      const invNo = cl.invoice?.invoiceNo || '';
+      const notes = cl.notes || '';
+      return partyName.toLowerCase().includes(q) || invNo.toLowerCase().includes(q) || notes.toLowerCase().includes(q);
     });
-  }, [credits, search]);
+  }, [creditLedgers, search]);
 
   return (
     <View style={styles.screen}>
       <Header
         title="Transactions & Ledger"
-        subtitle="Cashflow, UPI Inflows & Credit Ledger"
+        subtitle="Sales, Dues, Store Payables & UPI Inflows"
         rightAction={{
-          icon: 'add',
-          onPress: () => {
-            setSelectedPartyId(parties[0]?.id || '');
-            setSettleAmount('');
-            setSettleDirection('COLLECT');
-            setSettleModalOpen(true);
-          },
+          icon: 'wallet-outline',
+          onPress: handleOpenGeneralCollect,
         }}
       />
 
-      {/* Financial Summary Cards */}
-      {stats ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.statsScroll}>
-          <Card style={styles.statMiniCard}>
-            <Text style={styles.statMiniLabel}>Total Collected</Text>
-            <Text style={styles.statMiniVal}>{formatINR(stats.totalCollected || stats.todayInflow || 0)}</Text>
-            <Text style={styles.statMiniSub}>Lifetime Inflows</Text>
-          </Card>
-
-          <Card style={styles.statMiniCard}>
-            <Text style={styles.statMiniLabel}>Credit Receivables</Text>
-            <Text style={[styles.statMiniVal, { color: '#F59E0B' }]}>
-              {formatINR(stats.creditReceivables || stats.totalOutstandingCredit || 0)}
-            </Text>
-            <Text style={styles.statMiniSub}>Due from Customers</Text>
-          </Card>
-
-          <Card style={styles.statMiniCard}>
-            <Text style={styles.statMiniLabel}>Pending UPI</Text>
-            <Text style={[styles.statMiniVal, { color: '#38BDF8' }]}>
-              {stats.pendingUpiCount || 0}
-            </Text>
-            <Text style={styles.statMiniSub}>Awaiting UTR check</Text>
-          </Card>
-
-          <Card style={styles.statMiniCard}>
-            <Text style={styles.statMiniLabel}>Supplier Payables</Text>
-            <Text style={[styles.statMiniVal, { color: '#EF4444' }]}>
-              {formatINR(stats.creditPayables || stats.todayOutflow || 0)}
-            </Text>
-            <Text style={styles.statMiniSub}>Outflows owed</Text>
-          </Card>
-        </ScrollView>
-      ) : null}
-
-      {/* View Switcher */}
-      <View style={styles.viewToggleBar}>
-        <TouchableOpacity
-          style={[styles.toggleTab, activeTab === 'PAYMENTS' && styles.toggleTabActive]}
-          onPress={() => setActiveTab('PAYMENTS')}
-        >
-          <Ionicons
-            name="swap-horizontal"
-            size={16}
-            color={activeTab === 'PAYMENTS' ? '#09090B' : Colors.dark.textSecondary}
-          />
-          <Text
-            style={[styles.toggleTabText, activeTab === 'PAYMENTS' && styles.toggleTabTextActive]}
-          >
-            Payments Stream ({payments.length})
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.toggleTab, activeTab === 'CREDITS' && styles.toggleTabActive]}
-          onPress={() => setActiveTab('CREDITS')}
-        >
-          <Ionicons
-            name="book-outline"
-            size={16}
-            color={activeTab === 'CREDITS' ? '#09090B' : Colors.dark.textSecondary}
-          />
-          <Text
-            style={[styles.toggleTabText, activeTab === 'CREDITS' && styles.toggleTabTextActive]}
-          >
-            Credit Ledger ({credits.length})
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <SearchBar
-        value={search}
-        onChangeText={setSearch}
-        placeholder={
-          activeTab === 'PAYMENTS'
-            ? 'Search party, invoice #, UTR ref...'
-            : 'Search customer name in ledger...'
+      <FlatList<TransactionListItem>
+        data={
+          activeTab === 'dues'
+            ? filteredDues
+            : activeTab === 'payables'
+            ? filteredPayables
+            : activeTab === 'all'
+            ? filteredPayments
+            : activeTab === 'inflows'
+            ? filteredInflows
+            : filteredCredits
         }
-      />
+        keyExtractor={(item, idx) => item.id || String(idx)}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />
+        }
+        contentContainerStyle={styles.listContent}
+        ListHeaderComponent={
+          <View>
+            {/* Quick Action Buttons Row (Matching Web Actions) */}
+            <View style={styles.headerActionRow}>
+              <TouchableOpacity
+                style={styles.headerBtnCollect}
+                onPress={handleOpenGeneralCollect}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="cash-outline" size={15} color="#FFFFFF" />
+                <Text style={styles.headerBtnText}>Collect</Text>
+              </TouchableOpacity>
 
-      {activeTab === 'PAYMENTS' ? (
-        <FilterPills
-          options={[
-            { label: 'All Modes', value: 'ALL' },
-            { label: 'UPI', value: 'UPI' },
-            { label: 'Cash', value: 'CASH' },
-            { label: 'Credit', value: 'CREDIT' },
-          ]}
-          selected={modeFilter}
-          onSelect={setModeFilter}
-        />
-      ) : null}
+              <TouchableOpacity
+                style={styles.headerBtnPay}
+                onPress={handleOpenGeneralPay}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="arrow-up-circle-outline" size={15} color="#FFFFFF" />
+                <Text style={styles.headerBtnText}>Pay Party</Text>
+              </TouchableOpacity>
 
-      {loading && !refreshing ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="small" color="#FFFFFF" />
-          <Text style={styles.loadingText}>Loading transactions...</Text>
-        </View>
-      ) : activeTab === 'PAYMENTS' ? (
-        <FlatList
-          data={filteredPayments}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />
-          }
-          ListEmptyComponent={
-            <EmptyState
-              icon="swap-horizontal-outline"
-              title="No Payments Found"
-              description="No transaction records found matching your filter."
+              <TouchableOpacity
+                style={styles.headerBtnCredit}
+                onPress={() => handleOpenRecordCredit()}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="card-outline" size={15} color="#F59E0B" />
+                <Text style={styles.headerBtnCreditText}>Record Credit</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Financial KPI Summary Cards (6 Cards matching PaymentStatsGrid) */}
+            <PaymentStatsRow
+              stats={stats}
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
             />
-          }
-          renderItem={({ item }) => {
-            const isInflow = item.type !== 'OUTFLOW';
-            return (
-              <Card elevated style={styles.paymentCard}>
-                <View style={styles.cardTop}>
-                  <View style={{ flex: 1 }}>
-                    <View style={styles.typeBadgeRow}>
-                      <View
-                        style={[
-                          styles.typeBadge,
-                          isInflow ? styles.typeInflow : styles.typeOutflow,
-                        ]}
-                      >
-                        <Ionicons
-                          name={isInflow ? 'arrow-down-outline' : 'arrow-up-outline'}
-                          size={12}
-                          color={isInflow ? '#10B981' : '#EF4444'}
-                        />
-                        <Text
-                          style={[
-                            styles.typeText,
-                            { color: isInflow ? '#10B981' : '#EF4444' },
-                          ]}
-                        >
-                          {isInflow ? 'INFLOW' : 'OUTFLOW'}
-                        </Text>
-                      </View>
-                      <View style={styles.modeBadge}>
-                        <Text style={styles.modeBadgeText}>{item.mode}</Text>
-                      </View>
-                    </View>
 
-                    <Text style={styles.partyTitle}>{item.party?.name || 'Counter Customer'}</Text>
-                    {item.invoice ? (
-                      <Text style={styles.invoiceRef}>Invoice #{item.invoice.invoiceNo}</Text>
-                    ) : null}
-                    <Text style={styles.timestamp}>{formatDateTime(item.createdAt)}</Text>
-                  </View>
+            {/* 5-Tab Navigation Bar matching Web Dashboard */}
+            <TransactionTabsBar
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              duesCount={customerDues.length}
+              payablesCount={storePayables.length}
+              allCount={payments.length}
+              inflowsCount={filteredInflows.length}
+              creditsCount={creditLedgers.length}
+            />
 
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text
-                      style={[
-                        styles.paymentAmount,
-                        { color: isInflow ? '#FFFFFF' : '#EF4444' },
-                      ]}
-                    >
-                      {isInflow ? `+${formatINR(item.amount)}` : `-${formatINR(item.amount)}`}
-                    </Text>
-                    <StatusBadge status={item.status} size="sm" />
-                  </View>
-                </View>
+            {/* Search Input */}
+            <View style={styles.searchContainer}>
+              <SearchBar
+                value={search}
+                onChangeText={setSearch}
+                placeholder={
+                  activeTab === 'dues'
+                    ? 'Search customer dues by name or phone...'
+                    : activeTab === 'payables'
+                    ? 'Search store payables by party...'
+                    : activeTab === 'credits'
+                    ? 'Search party in credit ledger...'
+                    : 'Search party, invoice #, UTR ref...'
+                }
+              />
+            </View>
 
-                {item.upiTxnRef || item.upiUtr ? (
-                  <View style={styles.utrBox}>
-                    <Text style={styles.utrText}>UPI Ref / UTR: {item.upiTxnRef || item.upiUtr}</Text>
-                  </View>
-                ) : null}
+            {/* Mode Filter Pills (Only on All Transactions tab) */}
+            {activeTab === 'all' ? (
+              <View style={styles.filterPillsContainer}>
+                <FilterPills
+                  options={[
+                    { label: 'All Modes', value: 'ALL' },
+                    { label: 'UPI', value: 'UPI' },
+                    { label: 'Cash', value: 'CASH' },
+                    { label: 'Credit', value: 'CREDIT' },
+                    { label: 'Cheque', value: 'CHEQUE' },
+                  ]}
+                  selected={modeFilter}
+                  onSelect={setModeFilter}
+                />
+              </View>
+            ) : null}
 
-                {item.status === 'PENDING' ? (
-                  <Button
-                    title="Confirm Receipt"
-                    size="sm"
-                    variant="primary"
-                    loading={confirmingId === item.id}
-                    onPress={() => handleConfirmPayment(item.id)}
-                    style={{ marginTop: 10 }}
-                  />
-                ) : null}
-              </Card>
-            );
-          }}
-        />
-      ) : (
-        <FlatList
-          data={filteredCredits}
-          keyExtractor={(item, index) => item.id || item.partyId || String(index)}
-          contentContainerStyle={styles.listContent}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />
-          }
-          ListEmptyComponent={
+            {/* Total Balance Banner for Customer Dues */}
+            {activeTab === 'dues' && filteredDues.length > 0 ? (
+              <View style={styles.duesHeaderBanner}>
+                <Ionicons name="time" size={16} color="#EF4444" />
+                <Text style={styles.duesBannerText}>
+                  Total Pending to Collect:{' '}
+                  <Text style={styles.duesAmountHighlight}>
+                    {formatINR(filteredDues.reduce((s, i) => s + (i.remainingDue || 0), 0))}
+                  </Text>
+                </Text>
+              </View>
+            ) : null}
+
+            {/* Total Balance Banner for Store Payables */}
+            {activeTab === 'payables' && filteredPayables.length > 0 ? (
+              <View style={styles.payablesHeaderBanner}>
+                <Ionicons name="arrow-up-circle" size={16} color="#F59E0B" />
+                <Text style={styles.payablesBannerText}>
+                  Total Store Debts Owed:{' '}
+                  <Text style={styles.payablesAmountHighlight}>
+                    {formatINR(filteredPayables.reduce((s, i) => s + (i.remainingDue || 0), 0))}
+                  </Text>
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        }
+        ListEmptyComponent={
+          loading && !refreshing ? (
+            <View style={styles.center}>
+              <ActivityIndicator size="small" color="#FFFFFF" />
+              <Text style={styles.loadingText}>Loading transactions data...</Text>
+            </View>
+          ) : activeTab === 'dues' ? (
+            <EmptyState
+              icon="checkmark-circle-outline"
+              title="Zero Customer Dues"
+              description="All customer invoices and credit ledgers are fully cleared!"
+            />
+          ) : activeTab === 'payables' ? (
+            <EmptyState
+              icon="shield-checkmark-outline"
+              title="Zero Store Payables"
+              description="No outstanding debts owed by the business to any vendors."
+            />
+          ) : activeTab === 'inflows' ? (
+            <EmptyState
+              icon="cash-outline"
+              title="No Inflows Found"
+              description="No settled payments found matching your filter."
+            />
+          ) : activeTab === 'credits' ? (
             <EmptyState
               icon="book-outline"
               title="Clean Ledger"
-              description="No outstanding customer credit balances found."
+              description="No party credit ledger entries recorded."
             />
+          ) : (
+            <EmptyState
+              icon="swap-horizontal-outline"
+              title="No Transactions Found"
+              description="No transaction records found matching your search."
+            />
+          )
+        }
+        renderItem={({ item }) => {
+          if (activeTab === 'dues') {
+            return (
+              <CustomerDuesCard
+                item={item as PendingItem}
+                onCollect={handleOpenActionForPending}
+              />
+            );
           }
-          renderItem={({ item }) => (
-            <Card elevated style={styles.creditCard}>
-              <View style={styles.cardTop}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.partyTitle}>{item.party?.name || item.partyName}</Text>
-                  <Text style={styles.invoiceRef}>
-                    Ref: {item.invoice?.invoiceNo ? `Invoice #${item.invoice.invoiceNo}` : 'Credit Balance'}
-                  </Text>
-                  <Text style={styles.timestamp}>
-                    {item.dueDate ? `Due Date: ${formatDate(item.dueDate)}` : `Invoices: ${item.invoiceCount || 1}`}
-                  </Text>
-                </View>
 
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={[styles.creditDueAmount, { color: '#F59E0B' }]}>
-                    {formatINR(item.amountDue || item.totalDue || 0)}
-                  </Text>
-                  <StatusBadge status={item.status || 'UNPAID'} size="sm" />
-                </View>
-              </View>
+          if (activeTab === 'payables') {
+            return (
+              <StorePayablesCard
+                item={item as PendingItem}
+                onPay={handleOpenActionForPending}
+              />
+            );
+          }
 
-              <View style={styles.cardActionsRow}>
-                <Button
-                  title="Settle Credit"
-                  size="sm"
-                  variant="primary"
-                  onPress={() => {
-                    setSelectedPartyId(item.partyId || item.party?.id);
-                    setSettleAmount(String(item.amountDue || item.totalDue || ''));
-                    setSettleDirection(item.type === 'PAYABLE' ? 'PAY' : 'COLLECT');
-                    setSettleModalOpen(true);
-                  }}
-                  style={{ flex: 1 }}
-                />
-              </View>
-            </Card>
-          )}
-        />
-      )}
+          if (activeTab === 'all' || activeTab === 'inflows') {
+            return (
+              <TransactionHistoryCard
+                payment={item as PaymentRecord}
+                confirmingId={confirmingId}
+                onConfirm={handleConfirmPayment}
+              />
+            );
+          }
 
-      {/* RECORD SETTLEMENT MODAL */}
+          return (
+            <CreditLedgerCard
+              credit={item as CreditLedgerRecord}
+              onSettle={handleOpenActionForPending}
+            />
+          );
+        }}
+      />
+
+      {/* Settlement / Disbursement Modal (Inflow & Outflow) */}
       <RecordSettlementModal
         visible={settleModalOpen}
         onClose={() => setSettleModalOpen(false)}
-        onSuccess={() => loadData(true)}
+        onSuccess={() => {
+          setSettleModalOpen(false);
+          loadData(true);
+        }}
         parties={parties}
+        onPartyCreated={(newParty) => setParties((prev) => [newParty, ...prev])}
         initialDirection={settleDirection}
         initialPartyId={selectedPartyId}
         initialAmount={settleAmount}
+        initialNotes={settleNotes}
+        initialInvoiceId={settleInvoiceId}
+      />
+
+      {/* Credit / Advance Ledger Modal */}
+      <RecordCreditModal
+        visible={creditModalOpen}
+        onClose={() => setCreditModalOpen(false)}
+        onSuccess={() => {
+          setCreditModalOpen(false);
+          loadData(true);
+        }}
+        parties={parties}
+        onPartyCreated={(newParty) => setParties((prev) => [newParty, ...prev])}
+        defaultPartyId={creditPartyId}
       />
     </View>
   );
@@ -410,167 +549,118 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.dark.background,
   },
-  statsScroll: {
-    paddingHorizontal: 16,
-    marginTop: 10,
-    marginBottom: 4,
-  },
-  statMiniCard: {
-    padding: 12,
-    marginRight: 10,
-    minWidth: 130,
-    borderRadius: 12,
-  },
-  statMiniLabel: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    textTransform: 'uppercase',
-  },
-  statMiniVal: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    marginVertical: 4,
-  },
-  statMiniSub: {
-    fontSize: 10,
-    color: Colors.dark.textTertiary,
-  },
-  viewToggleBar: {
-    flexDirection: 'row',
-    backgroundColor: Colors.dark.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    padding: 3,
-    marginHorizontal: 16,
-    marginTop: 6,
-    marginBottom: 4,
-  },
-  toggleTab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 9,
-    borderRadius: 10,
-  },
-  toggleTabActive: {
-    backgroundColor: '#FFFFFF',
-  },
-  toggleTabText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  toggleTabTextActive: {
-    color: '#09090B',
-  },
   listContent: {
-    padding: 16,
     paddingBottom: 40,
   },
-  center: {
-    flex: 1,
+  headerActionRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 6,
+    gap: 8,
+  },
+  headerBtnCollect: {
+    flex: 1.1,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
+    backgroundColor: '#10B981',
+    borderRadius: 11,
+    paddingVertical: 10,
+    gap: 5,
   },
-  loadingText: {
-    color: Colors.dark.textSecondary,
+  headerBtnPay: {
+    flex: 1.1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F59E0B',
+    borderRadius: 11,
+    paddingVertical: 10,
+    gap: 5,
+  },
+  headerBtnCredit: {
+    flex: 1.2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.35)',
+    borderRadius: 11,
+    paddingVertical: 10,
+    gap: 5,
+  },
+  headerBtnText: {
     fontSize: 12,
-    marginTop: 10,
-  },
-  paymentCard: {
-    padding: 14,
-    marginBottom: 10,
-  },
-  creditCard: {
-    padding: 14,
-    marginBottom: 10,
-  },
-  cardTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  typeBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 6,
-  },
-  typeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2.5,
-    borderRadius: 4,
-  },
-  typeInflow: {
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-  },
-  typeOutflow: {
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-  },
-  typeText: {
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  modeBadge: {
-    backgroundColor: Colors.dark.secondary,
-    paddingHorizontal: 6,
-    paddingVertical: 2.5,
-    borderRadius: 4,
-  },
-  modeBadgeText: {
-    fontSize: 10,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  partyTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
+  headerBtnCreditText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#F59E0B',
   },
-  invoiceRef: {
-    fontSize: 11.5,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  timestamp: {
-    fontSize: 10.5,
-    color: Colors.dark.textTertiary,
-    marginTop: 4,
-  },
-  paymentAmount: {
-    fontSize: 16,
-    fontWeight: '900',
-    marginBottom: 4,
-  },
-  creditDueAmount: {
-    fontSize: 18,
-    fontWeight: '900',
-    marginBottom: 4,
-  },
-  utrBox: {
-    backgroundColor: '#16161A',
-    borderRadius: 6,
-    padding: 8,
+  searchContainer: {
+    paddingHorizontal: 16,
     marginTop: 8,
   },
-  utrText: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    fontFamily: 'monospace',
+  filterPillsContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 6,
   },
-  cardActionsRow: {
-    marginTop: 10,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: Colors.dark.border,
+  duesHeaderBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.25)',
+    marginHorizontal: 16,
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  duesBannerText: {
+    fontSize: 12,
+    color: Colors.dark.text,
+    fontWeight: '600',
+  },
+  duesAmountHighlight: {
+    fontWeight: '900',
+    color: '#EF4444',
+  },
+  payablesHeaderBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.25)',
+    marginHorizontal: 16,
+    marginBottom: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  payablesBannerText: {
+    fontSize: 12,
+    color: Colors.dark.text,
+    fontWeight: '600',
+  },
+  payablesAmountHighlight: {
+    fontWeight: '900',
+    color: '#F59E0B',
+  },
+  center: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 50,
+  },
+  loadingText: {
+    fontSize: 12,
+    color: Colors.dark.textSecondary,
+    marginTop: 8,
   },
 });
