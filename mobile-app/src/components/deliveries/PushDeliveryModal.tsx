@@ -97,8 +97,8 @@ export function PushDeliveryModal({
         method: 'POST',
         body: JSON.stringify({
           driverId: selectedDriverId,
-          vehicleNo: vehicle.trim() || undefined,
-          transportCost: transportCost ? Number(transportCost) : undefined,
+          vehicle: vehicle.trim() || undefined,
+          transportCost: transportCost ? Number(transportCost) : 0,
           amountToCollect: dispatchAmountToCollect ? Number(dispatchAmountToCollect) : undefined,
           notes: dispatchNotes.trim() || undefined,
           items: itemsToDispatch,

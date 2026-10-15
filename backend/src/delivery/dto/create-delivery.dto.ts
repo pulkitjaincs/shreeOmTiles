@@ -95,12 +95,17 @@ export class PushDeliveryDto {
   driverId?: string;
 
   @IsNumber()
+  @IsOptional()
   @Min(0)
-  transportCost: number;
+  transportCost?: number;
 
   @IsString()
   @IsOptional()
   vehicle?: string;
+
+  @IsString()
+  @IsOptional()
+  vehicleNo?: string;
 
   @IsString()
   @IsOptional()

@@ -26,6 +26,7 @@ export class InvoicesController {
   constructor(private readonly invoicesService: InvoicesService) {}
 
   @Post()
+  @Roles(Role.SALESMAN, Role.ADMIN)
   create(
     @Request() req: RequestWithUser,
     @Body() createInvoiceDto: CreateInvoiceDto,

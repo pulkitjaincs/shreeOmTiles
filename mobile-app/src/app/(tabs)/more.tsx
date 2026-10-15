@@ -151,7 +151,7 @@ export default function MoreScreen() {
         onPress: async () => {
           try {
             await logout();
-            router.replace('/(auth)/login');
+            router.replace('/login');
           } catch (e: any) {
             console.error('Logout error:', e);
           }

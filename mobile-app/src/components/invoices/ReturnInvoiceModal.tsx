@@ -47,14 +47,25 @@ export function ReturnInvoiceModal({
       return;
     }
 
+    const itemsToReturn = validItems.map((v) => {
+      const originalItem = (invoice.items || []).find((it: any) => it.id === v.invoiceItemId);
+      return {
+        productId: originalItem?.productId || originalItem?.product?.id,
+        warehouseId: originalItem?.warehouseId || originalItem?.warehouse?.id,
+        batchNo: originalItem?.batchNo || undefined,
+        qty: v.qty,
+        unitPrice: Number(originalItem?.unitPrice || 0),
+      };
+    });
+
     setSubmittingReturn(true);
     try {
       await mobileApiRequest(`/invoices/${invoice.id}/return`, {
         method: 'POST',
         body: JSON.stringify({
-          mode: returnMode,
+          refundMode: returnMode,
           reason: returnReason.trim() || undefined,
-          items: validItems,
+          items: itemsToReturn,
         }),
       });
 

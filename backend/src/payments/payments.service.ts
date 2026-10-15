@@ -105,7 +105,10 @@ export class PaymentsService {
           }
 
           // Auto-sync any active deliveries for this invoice with the newly reduced remaining balance
-          const remainingInvoiceBalance = Math.max(0, Number(inv?.total || 0) - totalPaid);
+          const remainingInvoiceBalance = Math.max(
+            0,
+            Number(inv?.total || 0) - totalPaid,
+          );
           await tx.delivery.updateMany({
             where: {
               invoiceId: data.invoiceId,
@@ -120,7 +123,9 @@ export class PaymentsService {
               },
             },
             data: {
-              amountToCollect: new Prisma.Decimal(remainingInvoiceBalance.toFixed(2)),
+              amountToCollect: new Prisma.Decimal(
+                remainingInvoiceBalance.toFixed(2),
+              ),
             },
           });
         } else if (partyId) {
@@ -132,7 +137,8 @@ export class PaymentsService {
             paymentType === PaymentType.OUTFLOW
               ? CreditType.PAYABLE
               : CreditType.RECEIVABLE;
-          const creditEntry = await tx.creditLedger.findFirst({
+          let remainingPayment = Number(data.amount);
+          const creditEntries = await tx.creditLedger.findMany({
             where: {
               partyId,
               type: targetCreditType,
@@ -140,11 +146,11 @@ export class PaymentsService {
             },
             orderBy: { createdAt: 'asc' },
           });
-          if (creditEntry) {
-            const remainingDue = Math.max(
-              0,
-              Number(creditEntry.amountDue) - Number(data.amount),
-            );
+          for (const creditEntry of creditEntries) {
+            if (remainingPayment <= 0.001) break;
+            const currentDue = Number(creditEntry.amountDue);
+            const deduct = Math.min(currentDue, remainingPayment);
+            const remainingDue = Math.max(0, currentDue - deduct);
             await tx.creditLedger.update({
               where: { id: creditEntry.id },
               data: {
@@ -152,6 +158,7 @@ export class PaymentsService {
                 status: remainingDue === 0 ? 'SETTLED' : 'PARTIAL',
               },
             });
+            remainingPayment -= deduct;
           }
         }
 
@@ -314,7 +321,8 @@ export class PaymentsService {
           payment.type === PaymentType.OUTFLOW
             ? CreditType.PAYABLE
             : CreditType.RECEIVABLE;
-        const creditEntry = await tx.creditLedger.findFirst({
+        let remainingPayment = Number(payment.amount);
+        const creditEntries = await tx.creditLedger.findMany({
           where: {
             partyId: payment.partyId,
             type: targetCreditType,
@@ -322,11 +330,11 @@ export class PaymentsService {
           },
           orderBy: { createdAt: 'asc' },
         });
-        if (creditEntry) {
-          const remainingDue = Math.max(
-            0,
-            Number(creditEntry.amountDue) - Number(payment.amount),
-          );
+        for (const creditEntry of creditEntries) {
+          if (remainingPayment <= 0.001) break;
+          const currentDue = Number(creditEntry.amountDue);
+          const deduct = Math.min(currentDue, remainingPayment);
+          const remainingDue = Math.max(0, currentDue - deduct);
           await tx.creditLedger.update({
             where: { id: creditEntry.id },
             data: {
@@ -334,6 +342,7 @@ export class PaymentsService {
               status: remainingDue === 0 ? 'SETTLED' : 'PARTIAL',
             },
           });
+          remainingPayment -= deduct;
         }
       }
 

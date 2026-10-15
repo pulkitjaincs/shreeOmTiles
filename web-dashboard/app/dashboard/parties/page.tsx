@@ -63,11 +63,14 @@ export default function PartiesPage() {
     loadParties();
   }, [loadParties]);
 
-  // Helper to compute party dues
+  // Helper to compute party dues (RECEIVABLE - PAYABLE store credit)
   const getPartyTotalDue = (party: Party) => {
     return (party.creditLedgers || [])
       .filter((c) => c.status !== 'SETTLED')
-      .reduce((sum, c) => sum + Number(c.amountDue || 0), 0);
+      .reduce((sum, c) => {
+        const amt = Number(c.amountDue || 0);
+        return c.type === 'RECEIVABLE' ? sum + amt : sum - amt;
+      }, 0);
   };
 
   // Search Filter
@@ -78,7 +81,7 @@ export default function PartiesPage() {
       (p.gstin && p.gstin.toLowerCase().includes(search.toLowerCase()))
   );
 
-  // Ageing Buckets Calculation
+  // Ageing Buckets Calculation (Only un-settled RECEIVABLES)
   const [now] = useState(() => Date.now());
   let totalReceivables = 0;
   let b0to15 = 0;
@@ -88,7 +91,7 @@ export default function PartiesPage() {
 
   for (const p of parties) {
     for (const cl of p.creditLedgers || []) {
-      if (cl.status !== 'SETTLED') {
+      if (cl.status !== 'SETTLED' && cl.type === 'RECEIVABLE') {
         const amt = Number(cl.amountDue || 0);
         totalReceivables += amt;
         const dueTime = cl.dueDate ? new Date(cl.dueDate).getTime() : now;

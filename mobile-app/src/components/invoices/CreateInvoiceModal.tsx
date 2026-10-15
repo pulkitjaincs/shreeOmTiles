@@ -45,6 +45,8 @@ export function CreateInvoiceModal({
   const [newPartyName, setNewPartyName] = useState('');
   const [newPartyPhone, setNewPartyPhone] = useState('');
   const [newPartyAddress, setNewPartyAddress] = useState('');
+  const [newPartyGstin, setNewPartyGstin] = useState('');
+  const [partySearch, setPartySearch] = useState('');
 
   const [items, setItems] = useState<InvoiceLineItem[]>([
     {
@@ -117,6 +119,8 @@ export function CreateInvoiceModal({
     setNewPartyName('');
     setNewPartyPhone('');
     setNewPartyAddress('');
+    setNewPartyGstin('');
+    setPartySearch('');
     setItems([
       {
         productId: products[0]?.id || '',
@@ -209,6 +213,7 @@ export function CreateInvoiceModal({
           name: newPartyName.trim(),
           phone: newPartyPhone.trim(),
           address: newPartyAddress.trim() || undefined,
+          gstin: newPartyGstin.trim() ? newPartyGstin.trim().toUpperCase() : undefined,
           isSaved: true,
         };
       }
@@ -260,22 +265,35 @@ export function CreateInvoiceModal({
       {partyType === 'existing' ? (
         <View style={{ marginBottom: 14 }}>
           <Text style={styles.fieldLabel}>Select Customer</Text>
+          <Input
+            placeholder="Search customer name or phone..."
+            value={partySearch}
+            onChangeText={setPartySearch}
+            icon="search-outline"
+          />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 6 }}>
-            {parties.map((p) => {
-              const isSelected = selectedPartyId === p.id;
-              return (
-                <TouchableOpacity
-                  key={p.id}
-                  onPress={() => setSelectedPartyId(p.id)}
-                  style={[styles.partyChip, isSelected && styles.partyChipActive]}
-                >
-                  <Text style={[styles.partyChipTitle, isSelected && styles.partyChipTitleActive]}>
-                    {p.name}
-                  </Text>
-                  <Text style={styles.partyChipPhone}>{p.phone}</Text>
-                </TouchableOpacity>
-              );
-            })}
+            {parties
+              .filter(
+                (p) =>
+                  !partySearch ||
+                  p.name.toLowerCase().includes(partySearch.toLowerCase()) ||
+                  p.phone.includes(partySearch)
+              )
+              .map((p) => {
+                const isSelected = selectedPartyId === p.id;
+                return (
+                  <TouchableOpacity
+                    key={p.id}
+                    onPress={() => setSelectedPartyId(p.id)}
+                    style={[styles.partyChip, isSelected && styles.partyChipActive]}
+                  >
+                    <Text style={[styles.partyChipTitle, isSelected && styles.partyChipTitleActive]}>
+                      {p.name}
+                    </Text>
+                    <Text style={styles.partyChipPhone}>{p.phone}</Text>
+                  </TouchableOpacity>
+                );
+              })}
           </ScrollView>
         </View>
       ) : (
@@ -293,6 +311,14 @@ export function CreateInvoiceModal({
             onChangeText={(t) => setNewPartyPhone(t.replace(/\D/g, '').slice(0, 10))}
             keyboardType="phone-pad"
             maxLength={10}
+          />
+          <Input
+            label="GSTIN (Optional)"
+            placeholder="e.g. 07AAAAA0000A1Z5"
+            value={newPartyGstin}
+            onChangeText={(t) => setNewPartyGstin(t.toUpperCase())}
+            autoCapitalize="characters"
+            maxLength={15}
           />
           <Input
             label="Delivery Address (Optional)"

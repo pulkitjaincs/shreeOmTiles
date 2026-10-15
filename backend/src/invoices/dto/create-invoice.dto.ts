@@ -56,6 +56,10 @@ export class CreateNewPartyDto {
   @IsOptional()
   address?: string;
 
+  @IsString()
+  @IsOptional()
+  gstin?: string;
+
   @IsOptional()
   isSaved?: boolean;
 }

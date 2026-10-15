@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Card } from '@/components/ui/Card';
@@ -6,12 +6,14 @@ import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Colors } from '@/constants/theme';
 import { formatINR, formatDate } from '@/lib/formatters';
+import { downloadAndSharePdf } from '@/lib/pdf';
 
 interface InvoiceDetailsModalProps {
   invoice: any | null;
   visible: boolean;
   onClose: () => void;
   onShareWhatsApp: (invoice: any) => void;
+  onInitiateReturn?: (invoice: any) => void;
 }
 
 export function InvoiceDetailsModal({
@@ -19,8 +21,19 @@ export function InvoiceDetailsModal({
   visible,
   onClose,
   onShareWhatsApp,
+  onInitiateReturn,
 }: InvoiceDetailsModalProps) {
+  const [downloading, setDownloading] = useState(false);
   if (!invoice) return null;
+
+  const handleDownloadPdf = async () => {
+    try {
+      setDownloading(true);
+      await downloadAndSharePdf(`invoices/${invoice.id}/pdf`, invoice.invoiceNo || `Invoice_${invoice.id}`);
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <BottomSheetModal
@@ -74,13 +87,33 @@ export function InvoiceDetailsModal({
           ) : null}
         </Card>
 
-        <Button
-          title="Share on WhatsApp"
-          icon="logo-whatsapp"
-          variant="secondary"
-          onPress={() => onShareWhatsApp(invoice)}
-          style={{ marginTop: 14 }}
-        />
+        <View style={{ gap: 10, marginTop: 16 }}>
+          <Button
+            title={downloading ? 'Downloading PDF...' : 'Download Official PDF'}
+            icon="document-text-outline"
+            variant="primary"
+            loading={downloading}
+            disabled={downloading}
+            onPress={handleDownloadPdf}
+          />
+          <Button
+            title="Share on WhatsApp"
+            icon="logo-whatsapp"
+            variant="secondary"
+            onPress={() => onShareWhatsApp(invoice)}
+          />
+          {invoice.status !== 'CANCELLED' && onInitiateReturn && (
+            <Button
+              title="Return Items / Credit Note"
+              icon="return-up-back-outline"
+              variant="outline"
+              onPress={() => {
+                onClose();
+                onInitiateReturn(invoice);
+              }}
+            />
+          )}
+        </View>
       </View>
     </BottomSheetModal>
   );

@@ -1,13 +1,16 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+const rawApiUrl = process.env.EXPO_PUBLIC_API_URL;
 export const API_BASE =
-  process.env.EXPO_PUBLIC_API_URL ||
-  Platform.select({
-    android: 'http://10.0.2.2:3001',
-    ios: 'http://localhost:3001',
-    default: 'http://localhost:3001',
-  });
+  rawApiUrl && Platform.OS === 'android' && rawApiUrl.includes('localhost')
+    ? rawApiUrl.replace('localhost', '10.0.2.2')
+    : rawApiUrl ||
+      Platform.select({
+        android: 'http://10.0.2.2:3001',
+        ios: 'http://localhost:3001',
+        default: 'http://localhost:3001',
+      });
 
 const CACHE_PREFIX = 'dhra_mobile_cache:';
 let memToken: string | null = null;

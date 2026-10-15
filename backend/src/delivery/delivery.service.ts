@@ -421,7 +421,7 @@ export class DeliveryService {
         data: {
           deliveryId: id,
           tripNo: delivery.trips.length + 1,
-          vehicle: dto.vehicle || undefined,
+          vehicle: dto.vehicle || dto.vehicleNo || undefined,
           cost: new Prisma.Decimal((dto.transportCost || 0).toFixed(2)),
           notes:
             dto.notes || 'Internal transport pricing recorded on dispatch push',

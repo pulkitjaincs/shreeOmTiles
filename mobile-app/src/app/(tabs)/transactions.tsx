@@ -114,7 +114,7 @@ export default function TransactionsScreen() {
       const q = search.toLowerCase();
       const matchesSearch =
         p.party?.name?.toLowerCase().includes(q) ||
-        p.invoice?.invoiceNumber?.toLowerCase().includes(q) ||
+        p.invoice?.invoiceNo?.toLowerCase().includes(q) ||
         (p.upiTxnRef && p.upiTxnRef.toLowerCase().includes(q)) ||
         (p.upiUtr && p.upiUtr.toLowerCase().includes(q));
 
@@ -298,7 +298,7 @@ export default function TransactionsScreen() {
 
                     <Text style={styles.partyTitle}>{item.party?.name || 'Counter Customer'}</Text>
                     {item.invoice ? (
-                      <Text style={styles.invoiceRef}>Invoice #{item.invoice.invoiceNumber}</Text>
+                      <Text style={styles.invoiceRef}>Invoice #{item.invoice.invoiceNo}</Text>
                     ) : null}
                     <Text style={styles.timestamp}>{formatDateTime(item.createdAt)}</Text>
                   </View>

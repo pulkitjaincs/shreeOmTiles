@@ -75,13 +75,19 @@ export function PartyStatementDrawer({
 
   const totalDues = (partyData?.creditLedgers || [])
     .filter((cl) => cl.status !== 'SETTLED')
-    .reduce((sum, cl) => sum + Number(cl.amountDue || 0), 0);
+    .reduce((sum, cl) => {
+      const amt = Number(cl.amountDue || 0);
+      return cl.type === 'RECEIVABLE' ? sum + amt : sum - amt;
+    }, 0);
 
   // WhatsApp Reminder handler
   const handleSendReminder = () => {
     const cleanPhone = party.phone.replace(/[^0-9]/g, '');
-    const formattedDue = `₹${totalDues.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
-    const message = `Dear ${party.name}, this is a friendly reminder from Shree Om Tiles regarding your outstanding balance of ${formattedDue}. Please clear the payment at your earliest convenience. Thank you!`;
+    const formattedDue = `₹${Math.abs(totalDues).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+    const message =
+      totalDues > 0
+        ? `Dear ${party.name}, this is a friendly reminder from Shree Om Tiles regarding your outstanding balance of ${formattedDue}. Please clear the payment at your earliest convenience. Thank you!`
+        : `Dear ${party.name}, this is an account statement from Shree Om Tiles. You currently have an advance store credit balance of ${formattedDue} available with us. Thank you!`;
     const url = `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(message)}`;
     window.open(url, '_blank');
   };
@@ -420,6 +426,11 @@ export function PartyStatementDrawer({
               <MessageSquare className="h-3.5 w-3.5" />
               Send WhatsApp Reminder (₹{totalDues.toLocaleString('en-IN', { maximumFractionDigits: 2 })})
             </button>
+          ) : totalDues < 0 ? (
+            <span className="text-xs text-blue-500 flex items-center gap-1.5 font-medium">
+              <CheckCircle2 className="h-4 w-4 text-blue-500" />
+              Store Credit Balance: ₹{Math.abs(totalDues).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+            </span>
           ) : (
             <span className="text-xs text-muted-foreground flex items-center gap-1.5">
               <CheckCircle2 className="h-4 w-4 text-emerald-500" />

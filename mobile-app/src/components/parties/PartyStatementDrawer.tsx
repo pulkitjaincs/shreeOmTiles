@@ -71,7 +71,10 @@ export function PartyStatementDrawer({
   }, 0);
   const totalDues = ledgers
     .filter((cl) => cl.status !== 'SETTLED')
-    .reduce((sum, cl) => sum + Number(cl.amountDue || 0), 0);
+    .reduce((sum, cl) => {
+      const amt = Number(cl.amountDue || 0);
+      return cl.type === 'RECEIVABLE' ? sum + amt : sum - amt;
+    }, 0);
 
   const handleShareStatement = () => {
     const clean = cleanPhoneNumber(party.phone);
@@ -83,10 +86,16 @@ export function PartyStatementDrawer({
       `\n*Financial Summary:*\n` +
       `• Lifetime Billing: ${formatINR(lifetimeTotal)}\n` +
       `• Total Received: ${formatINR(settledPayments)}\n` +
-      `• *Current Balance Due: ${formatINR(totalDues)}*\n` +
+      (totalDues > 0
+        ? `• *Current Balance Due: ${formatINR(totalDues)}*\n`
+        : totalDues < 0
+        ? `• *Store Credit Available: ${formatINR(Math.abs(totalDues))}*\n`
+        : `• *Account Balance: ₹0.00 (All Clear)*\n`) +
       `• Total Orders: ${invoices.length}\n\n` +
       (totalDues > 0
         ? `Kindly arrange payment clearance of ${formatINR(totalDues)} at your earliest convenience.\n\n`
+        : totalDues < 0
+        ? `You have an advance store credit balance of ${formatINR(Math.abs(totalDues))} available.\n\n`
         : `All accounts are currently in clear standing!\n\n`) +
       `Shree Om Tiles & Sanitaryware`;
 
@@ -165,17 +174,19 @@ export function PartyStatementDrawer({
                 totalDues > 0 ? styles.kpiDueCard : null,
               ]}
             >
-              <Text style={styles.kpiLabel}>Outstanding Dues</Text>
+              <Text style={styles.kpiLabel}>
+                {totalDues < 0 ? 'Store Credit' : 'Outstanding Dues'}
+              </Text>
               <Text
                 style={[
                   styles.kpiValue,
-                  { color: totalDues > 0 ? '#EF4444' : '#10B981' },
+                  { color: totalDues > 0 ? '#EF4444' : totalDues < 0 ? '#3B82F6' : '#10B981' },
                 ]}
               >
-                {formatINR(totalDues)}
+                {formatINR(Math.abs(totalDues))}
               </Text>
               <Text style={styles.kpiSub}>
-                {totalDues > 0 ? 'Pending collection' : 'All clear'}
+                {totalDues > 0 ? 'Pending collection' : totalDues < 0 ? 'Advance credit' : 'All clear'}
               </Text>
             </Card>
           </View>

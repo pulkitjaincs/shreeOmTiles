@@ -22,6 +22,7 @@ export interface StatementCreditLedger {
   id: string;
   amountDue: number;
   status: string;
+  type?: 'RECEIVABLE' | 'PAYABLE';
   dueDate?: string;
   invoice?: {
     invoiceNo: string;

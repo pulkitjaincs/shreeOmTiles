@@ -66,6 +66,7 @@ export class InvoicesService {
           name: data.newParty.name,
           phone: data.newParty.phone,
           address: data.newParty.address,
+          gstin: data.newParty.gstin,
           isSaved: data.newParty.isSaved ?? true,
         },
       });

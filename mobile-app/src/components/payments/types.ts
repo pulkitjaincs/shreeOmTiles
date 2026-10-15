@@ -36,7 +36,7 @@ export interface PaymentRecord {
   party?: Party;
   invoice?: {
     id: string;
-    invoiceNumber: string;
+    invoiceNo: string;
   };
 }
 

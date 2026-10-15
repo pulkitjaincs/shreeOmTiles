@@ -887,7 +887,8 @@ export class AnalyticsService {
           id: p.id,
           invoiceId: p.invoiceId,
           invoiceNo: p.invoice?.invoiceNo || 'Direct',
-          partyName: p.invoice?.party?.name || (p as any).party?.name || 'Party / Vendor',
+          partyName:
+            p.invoice?.party?.name || p.party?.name || 'Party / Vendor',
           mode: p.mode,
           type: p.type,
           amount: Number(p.amount),

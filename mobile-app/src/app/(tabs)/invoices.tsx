@@ -20,6 +20,7 @@ import { FilterPills } from '@/components/ui/FilterPills';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { formatINR, formatDate, cleanPhoneNumber } from '@/lib/formatters';
+import { downloadAndSharePdf } from '@/lib/pdf';
 import { Ionicons } from '@expo/vector-icons';
 
 import { Product, Warehouse, Party, StockLedger, UpiModalData } from '@/components/invoices/types';
@@ -237,6 +238,14 @@ export default function InvoicesScreen() {
                 <View style={styles.actionsRow}>
                   <TouchableOpacity
                     style={styles.actionIconBtn}
+                    onPress={() => downloadAndSharePdf(`invoices/${item.id}/pdf`, item.invoiceNo || `Invoice_${item.id}`)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="document-text-outline" size={18} color="#3B82F6" />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.actionIconBtn}
                     onPress={() => handleOpenUpiQr(item)}
                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
@@ -292,6 +301,7 @@ export default function InvoicesScreen() {
         visible={Boolean(detailsInvoice)}
         onClose={() => setDetailsInvoice(null)}
         onShareWhatsApp={handleShareWhatsApp}
+        onInitiateReturn={(inv) => setReturnInvoice(inv)}
       />
 
       <ReturnInvoiceModal
