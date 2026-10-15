@@ -263,6 +263,15 @@ To generate an installable `.apk` file that does not require Expo Go:
 
 3. Trigger cloud APK build:
    ```bash
-   npx eas build -p android --profile preview
+   eas build -p android --profile preview
    ```
    *EAS will compile the Android APK in the cloud and provide a direct download link and QR code to install on any Android phone.*
+
+---
+
+### 📥 Direct APK Download Link (Latest Build)
+
+- **Direct APK Download**: [Download Shree Om Tiles ERP APK](https://expo.dev/artifacts/eas/8EdkHQxJxtFpi21Mt2bpcDghLc3LpkVtUoBnfkZmZHU.apk)
+- **EAS Build Page**: [Build #b03448bf Details](https://expo.dev/accounts/sogani.pulkit.jain/projects/shree-om-tiles-erp/builds/b03448bf-a6b8-4a5d-9172-08eea4b34b3b)
+- **Package**: `com.shreeomtiles.erp` (Version 1.0.0, Build 1)
+- **Target Backend**: `http://192.168.1.8:3001`
