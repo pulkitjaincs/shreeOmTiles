@@ -23,8 +23,11 @@ export function DeletePartyModal({
   if (!party) return null;
 
   const totalDue = (party.creditLedgers || [])
-    .filter((cl) => cl.status === 'PENDING')
-    .reduce((sum, cl) => sum + Number(cl.amountDue || 0), 0);
+    .filter((cl) => cl.status !== 'SETTLED')
+    .reduce((sum, cl) => {
+      const amt = Number(cl.amountDue || 0);
+      return cl.type === 'RECEIVABLE' ? sum + amt : sum - amt;
+    }, 0);
   const hasPendingDues = totalDue > 0.01;
 
   const handleDeleteParty = async () => {

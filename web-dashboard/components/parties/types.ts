@@ -45,6 +45,7 @@ export interface PartyInvoice {
 export interface PartyCreditLedger {
   id: string;
   amountDue: number;
+  type?: 'RECEIVABLE' | 'PAYABLE';
   dueDate?: string;
   status: string;
   remindersSent: number;
@@ -78,6 +79,7 @@ export interface Party {
   creditLedgers?: {
     id?: string;
     amountDue: number;
+    type?: 'RECEIVABLE' | 'PAYABLE';
     status: string;
     dueDate?: string;
   }[];
