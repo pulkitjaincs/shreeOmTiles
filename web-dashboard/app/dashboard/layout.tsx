@@ -16,9 +16,12 @@ import {
   X,
   Settings,
   ArrowLeftRight,
+  RefreshCw,
 } from 'lucide-react';
 import { OwnerSettingsModal } from '@/components/settings/owner-settings-modal';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { startTopReload, stopTopReload } from '@/components/top-reload-bar';
+import { invalidateApiCache } from '@/lib/api';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
@@ -26,6 +29,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleQuickRefresh = () => {
+    setIsRefreshing(true);
+    startTopReload();
+    invalidateApiCache();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('app:refresh-active-page'));
+    }
+    router.refresh();
+    setTimeout(() => {
+      stopTopReload();
+      setIsRefreshing(false);
+    }, 650);
+  };
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -80,6 +98,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         <div className="flex items-center gap-1.5">
+          <button
+            onClick={handleQuickRefresh}
+            title="Refresh current page"
+            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-xl transition cursor-pointer"
+            aria-label="Refresh current screen data"
+          >
+            <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
+          </button>
           <ThemeToggle variant="compact" />
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -166,6 +192,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
             </div>
             <div className="flex items-center gap-1 shrink-0">
+              <button
+                onClick={handleQuickRefresh}
+                title="Refresh Page Data"
+                className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition cursor-pointer"
+                aria-label="Refresh data"
+              >
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
+              </button>
               <button
                 onClick={() => setIsSettingsOpen(true)}
                 title="Store Settings & Profile"

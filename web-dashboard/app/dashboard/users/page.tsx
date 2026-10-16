@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { StaffUser } from '@/components/users/types';
 import { UserStatsGrid } from '@/components/users/user-stats-grid';
+import { startTopReload } from '@/components/top-reload-bar';
 
 // Lazy-loaded modal components
 const UserFormModal = dynamic(
@@ -165,13 +166,14 @@ export default function UsersPage() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => {
+              startTopReload();
               setRefreshing(true);
               loadUsers();
             }}
             disabled={refreshing}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-card/80 hover:bg-muted text-foreground text-xs font-semibold border border-border/80 shadow-sm transition"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-card/80 hover:bg-muted text-foreground text-xs font-semibold border border-border/80 shadow-sm transition cursor-pointer disabled:opacity-50"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin text-blue-600' : ''}`} />
             Refresh
           </button>
           <button

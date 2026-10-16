@@ -17,6 +17,7 @@ import {
   Sparkles,
   ShieldAlert,
 } from 'lucide-react';
+import { startTopReload } from '@/components/top-reload-bar';
 
 export interface SalesmanRecentInvoice {
   id: string;
@@ -197,12 +198,15 @@ export default function SalesmanDashboard({
 
           {/* Action Buttons */}
           <button
-            onClick={() => loadDashboard()}
+            onClick={() => {
+              startTopReload();
+              loadDashboard();
+            }}
             disabled={loading}
             title="Refresh analytics data"
-            className="p-2 rounded-[0.75rem] bg-card hover:bg-muted text-foreground border border-border transition shadow-2xs"
+            className="p-2 rounded-[0.75rem] bg-card hover:bg-muted text-foreground border border-border transition shadow-2xs cursor-pointer disabled:opacity-50"
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin text-primary' : ''}`} />
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin text-blue-600' : ''}`} />
           </button>
 
           <Link

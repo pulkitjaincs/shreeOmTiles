@@ -19,6 +19,7 @@ import {
   Wallet,
   AlertCircle,
 } from 'lucide-react';
+import { startTopReload } from '@/components/top-reload-bar';
 
 interface DispatchedItem {
   invoiceItemId?: string;
@@ -308,13 +309,14 @@ export default function DriverDashboard({ userName }: { userName?: string }) {
         <div className="flex items-center gap-2">
           <button
             onClick={() => {
+              startTopReload();
               setRefreshing(true);
               loadDeliveries();
             }}
             disabled={refreshing}
-            className="px-3.5 py-2 rounded-[0.75rem] text-[0.75rem] font-semibold bg-card hover:bg-muted text-foreground transition inline-flex items-center gap-2 border border-border shadow-2xs"
+            className="px-3.5 py-2 rounded-[0.75rem] text-[0.75rem] font-semibold bg-card hover:bg-muted text-foreground transition inline-flex items-center gap-2 border border-border shadow-2xs cursor-pointer disabled:opacity-50"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin text-blue-600' : ''}`} />
             Refresh
           </button>
         </div>

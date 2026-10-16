@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/components/auth-provider";
 import { ThemeProvider } from "@/components/theme-provider";
+import { TopReloadBar } from "@/components/top-reload-bar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -50,6 +51,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-dvh flex flex-col bg-background text-foreground">
+        <TopReloadBar />
         <ThemeProvider>
           <AuthProvider>
             {children}

@@ -15,7 +15,9 @@ import {
   CheckCircle2,
   Loader2,
   Check,
+  RefreshCw,
 } from 'lucide-react';
+import { startTopReload } from '@/components/top-reload-bar';
 import { PaymentStatsGrid } from '@/components/payments/payment-stats-grid';
 import { 
   PendingItem, 
@@ -276,6 +278,20 @@ export default function TransactionsPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => {
+              startTopReload();
+              loadData(true);
+            }}
+            disabled={loading}
+            title="Refresh transactions, dues, and stats"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-[0.75rem] border border-border/80 bg-card hover:bg-muted text-xs font-semibold text-foreground transition shadow-2xs cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin text-blue-600' : ''}`} />
+            <span>Refresh</span>
+          </button>
+
           <Button
             variant="outline"
             onClick={() => {

@@ -21,6 +21,7 @@ import { SalesmenPerformanceTable } from '@/components/analytics/salesmen-perfor
 import { PaymentCategoryBreakdown } from '@/components/analytics/payment-category-breakdown';
 import { ReceivablesHealthCard } from '@/components/analytics/receivables-health-card';
 import { RecentTransactionsStream } from '@/components/analytics/recent-transactions-stream';
+import { startTopReload } from '@/components/top-reload-bar';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -210,12 +211,15 @@ export default function DashboardPage() {
 
           {/* Action Buttons */}
           <button
-            onClick={() => loadDashboard()}
+            onClick={() => {
+              startTopReload();
+              loadDashboard();
+            }}
             disabled={loading}
             title="Refresh analytics data"
-            className="p-2.5 rounded-xl bg-card border border-border/80 hover:bg-muted text-foreground transition active:scale-95 shadow-xs"
+            className="p-2.5 rounded-xl bg-card border border-border/80 hover:bg-muted text-foreground transition active:scale-95 shadow-xs cursor-pointer disabled:opacity-50"
           >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin text-blue-600' : ''}`} />
           </button>
           <Link
             href="/dashboard/invoices"

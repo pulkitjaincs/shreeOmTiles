@@ -15,8 +15,10 @@ import {
   RotateCcw,
   Pencil,
   Loader2,
+  RefreshCw,
 } from 'lucide-react';
 import { Product, Warehouse } from '@/components/products/types';
+import { startTopReload } from '@/components/top-reload-bar';
 
 // Lazy-loaded modal components
 const ProductFormModal = dynamic(
@@ -92,6 +94,19 @@ export default function ProductsPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              startTopReload();
+              loadData(true);
+            }}
+            disabled={loading}
+            title="Refresh products & warehouse stock"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-[0.75rem] border border-border/80 bg-card hover:bg-muted text-xs font-semibold text-foreground transition shadow-2xs cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin text-blue-600' : ''}`} />
+            <span>Refresh</span>
+          </button>
           <Link
             href="/dashboard/warehouses"
             className="inline-flex items-center gap-2 bg-muted/50 hover:bg-muted text-foreground font-medium px-4 py-2 rounded-[0.75rem] border border-border/60 transition-all text-xs sm:text-sm active:scale-98 shadow-2xs"
