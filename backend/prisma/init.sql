@@ -64,6 +64,7 @@ CREATE TABLE "Product" (
     "attributes" JSONB NOT NULL DEFAULT '{}',
     "hsnCode" TEXT,
     "unit" TEXT NOT NULL DEFAULT 'box',
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -292,10 +293,16 @@ CREATE UNIQUE INDEX "User_phone_key" ON "User"("phone");
 CREATE INDEX "User_role_isActive_idx" ON "User"("role", "isActive");
 
 -- CreateIndex
+CREATE INDEX "User_createdAt_idx" ON "User"("createdAt");
+
+-- CreateIndex
 CREATE INDEX "Product_category_idx" ON "Product"("category");
 
 -- CreateIndex
 CREATE INDEX "Product_name_idx" ON "Product"("name");
+
+-- CreateIndex
+CREATE INDEX "Product_isActive_idx" ON "Product"("isActive");
 
 -- CreateIndex
 CREATE INDEX "StockLedger_productId_idx" ON "StockLedger"("productId");
@@ -311,6 +318,9 @@ CREATE INDEX "Party_phone_idx" ON "Party"("phone");
 
 -- CreateIndex
 CREATE INDEX "Party_name_idx" ON "Party"("name");
+
+-- CreateIndex
+CREATE INDEX "Party_isSaved_name_idx" ON "Party"("isSaved", "name");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "InvoiceSequence_financialYear_key" ON "InvoiceSequence"("financialYear");
@@ -355,6 +365,9 @@ CREATE INDEX "Payment_status_type_paidAt_idx" ON "Payment"("status", "type", "pa
 CREATE INDEX "Payment_confirmedById_idx" ON "Payment"("confirmedById");
 
 -- CreateIndex
+CREATE INDEX "Payment_createdAt_idx" ON "Payment"("createdAt");
+
+-- CreateIndex
 CREATE INDEX "CreditLedger_partyId_idx" ON "CreditLedger"("partyId");
 
 -- CreateIndex
@@ -377,6 +390,9 @@ CREATE INDEX "Delivery_driverId_status_idx" ON "Delivery"("driverId", "status");
 
 -- CreateIndex
 CREATE INDEX "Delivery_cashHandedOver_cashCollected_idx" ON "Delivery"("cashHandedOver", "cashCollected");
+
+-- CreateIndex
+CREATE INDEX "Delivery_createdAt_idx" ON "Delivery"("createdAt");
 
 -- CreateIndex
 CREATE INDEX "DeliveryTrip_deliveryId_idx" ON "DeliveryTrip"("deliveryId");
