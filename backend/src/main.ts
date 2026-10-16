@@ -19,6 +19,14 @@ async function bootstrap() {
     credentials: true,
   });
 
+  // Normalize multiple leading slashes in incoming requests (e.g. //auth/login -> /auth/login)
+  app.use((req: { url?: string }, _res: unknown, next: () => void) => {
+    if (req.url && req.url.startsWith('//')) {
+      req.url = req.url.replace(/^\/+/, '/');
+    }
+    next();
+  });
+
   // Enable Global Validation with automatic payload transformation
   app.useGlobalPipes(
     new ValidationPipe({
