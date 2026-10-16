@@ -11,12 +11,18 @@
     "preview": {
       "distribution": "internal",
       "environment": "preview",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://shreeomtiles-backend.onrender.com"
+      },
       "android": {
         "buildType": "apk"
       }
     },
     "production": {
       "environment": "production",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://shreeomtiles-backend.onrender.com"
+      },
       "android": {
         "buildType": "apk"
       }
