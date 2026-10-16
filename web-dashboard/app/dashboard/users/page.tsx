@@ -12,7 +12,6 @@ import {
   Pencil,
   CheckCircle,
   Search,
-  RefreshCw,
   X,
   AlertTriangle,
   Phone,
@@ -24,7 +23,6 @@ import {
 } from 'lucide-react';
 import { StaffUser } from '@/components/users/types';
 import { UserStatsGrid } from '@/components/users/user-stats-grid';
-import { startTopReload } from '@/components/top-reload-bar';
 
 // Lazy-loaded modal components
 const UserFormModal = dynamic(
@@ -74,6 +72,11 @@ export default function UsersPage() {
 
   useEffect(() => {
     loadUsers();
+    const handleRefresh = () => {
+      loadUsers(true);
+    };
+    window.addEventListener('app:refresh-active-page', handleRefresh);
+    return () => window.removeEventListener('app:refresh-active-page', handleRefresh);
   }, [loadUsers]);
 
   // Toggle Active / Inactive Status
@@ -164,18 +167,6 @@ export default function UsersPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => {
-              startTopReload();
-              setRefreshing(true);
-              loadUsers();
-            }}
-            disabled={refreshing}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-card/80 hover:bg-muted text-foreground text-xs font-semibold border border-border/80 shadow-sm transition cursor-pointer disabled:opacity-50"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin text-blue-600' : ''}`} />
-            Refresh
-          </button>
           <button
             onClick={() => setIsAddOpen(true)}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold rounded-xl transition shadow-lg shadow-primary/20 hover:scale-[1.01] active:scale-[0.99]"

@@ -6,7 +6,6 @@ import { useAuth } from '@/components/auth-provider';
 import { apiRequest, cachedApiRequest } from '@/lib/api';
 import {
   Plus,
-  RefreshCw,
   X,
   Calendar,
   CheckCircle,
@@ -21,7 +20,6 @@ import { SalesmenPerformanceTable } from '@/components/analytics/salesmen-perfor
 import { PaymentCategoryBreakdown } from '@/components/analytics/payment-category-breakdown';
 import { ReceivablesHealthCard } from '@/components/analytics/receivables-health-card';
 import { RecentTransactionsStream } from '@/components/analytics/recent-transactions-stream';
-import { startTopReload } from '@/components/top-reload-bar';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -100,6 +98,14 @@ export default function DashboardPage() {
     if (isDriver) return;
     void loadDashboard(preset);
   }, [isDriver, preset, loadDashboard]);
+
+  useEffect(() => {
+    const handleRefresh = () => {
+      void loadDashboard(preset, undefined, true);
+    };
+    window.addEventListener('app:refresh-active-page', handleRefresh);
+    return () => window.removeEventListener('app:refresh-active-page', handleRefresh);
+  }, [preset, loadDashboard]);
 
   const handleApplyCustomDate = () => {
     if (!customFrom || !customTo) {
@@ -210,17 +216,6 @@ export default function DashboardPage() {
           </div>
 
           {/* Action Buttons */}
-          <button
-            onClick={() => {
-              startTopReload();
-              loadDashboard();
-            }}
-            disabled={loading}
-            title="Refresh analytics data"
-            className="p-2.5 rounded-xl bg-card border border-border/80 hover:bg-muted text-foreground transition active:scale-95 shadow-xs cursor-pointer disabled:opacity-50"
-          >
-            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin text-blue-600' : ''}`} />
-          </button>
           <Link
             href="/dashboard/invoices"
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold transition-all shadow-md active:scale-95"

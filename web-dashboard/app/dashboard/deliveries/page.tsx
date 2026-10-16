@@ -19,12 +19,10 @@ import {
   Boxes, 
   Wallet, 
   Clock,
-  RefreshCw,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/components/auth-provider';
 import { useRouter } from 'next/navigation';
-import { startTopReload } from '@/components/top-reload-bar';
 
 import { 
   Delivery, 
@@ -62,6 +60,12 @@ export default function DeliveriesPage() {
     if (!isDriver) {
       loadDrivers();
     }
+    const handleRefresh = () => {
+      loadDeliveries(true);
+      if (!isDriver) loadDrivers();
+    };
+    window.addEventListener('app:refresh-active-page', handleRefresh);
+    return () => window.removeEventListener('app:refresh-active-page', handleRefresh);
   }, [isDriver]);
 
   async function loadDeliveries(force = false) {
@@ -288,30 +292,14 @@ ${itemsList}
               : 'Assign delivery drivers, push pickup assignments, track multi-warehouse collection progress, and manage customer collections.'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => {
-              startTopReload();
-              loadDeliveries(true);
-              if (!isDriver) loadDrivers();
-            }}
-            disabled={loading}
-            title="Refresh deliveries"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-[0.75rem] border border-border bg-card hover:bg-muted/70 text-xs font-semibold text-foreground transition shadow-2xs cursor-pointer disabled:opacity-50"
+        {isDriver && (
+          <Link
+            href="/dashboard"
+            className="px-4 py-2 rounded-[0.75rem] bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm active:scale-98"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin text-blue-600' : ''}`} />
-            <span>Refresh</span>
-          </button>
-          {isDriver && (
-            <Link
-              href="/dashboard"
-              className="px-4 py-2 rounded-[0.75rem] bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm active:scale-98"
-            >
-              Go to Active Dashboard <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          )}
-        </div>
+            Go to Active Dashboard <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        )}
       </div>
 
       {/* Filter Tabs & Search Bar Panel */}

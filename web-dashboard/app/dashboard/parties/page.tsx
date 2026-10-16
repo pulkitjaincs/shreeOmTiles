@@ -14,10 +14,8 @@ import {
   Loader2,
   Phone,
   ShoppingBag,
-  RefreshCw,
 } from 'lucide-react';
 import { Party } from '@/components/parties/types';
-import { startTopReload } from '@/components/top-reload-bar';
 
 // Lazy-loaded modal components
 const PartyFormModal = dynamic(
@@ -63,6 +61,11 @@ export default function PartiesPage() {
 
   useEffect(() => {
     loadParties();
+    const handleRefresh = () => {
+      loadParties(true);
+    };
+    window.addEventListener('app:refresh-active-page', handleRefresh);
+    return () => window.removeEventListener('app:refresh-active-page', handleRefresh);
   }, [loadParties]);
 
   // Helper to compute party dues (RECEIVABLE - PAYABLE store credit)
@@ -118,33 +121,18 @@ export default function PartiesPage() {
             Manage customer accounts, inspect historical order/credit ledgers, update profile details, and enforce zero-due deletion safeguards.
           </p>
         </div>
-        <div className="flex items-center gap-2.5">
-          <button
-            type="button"
+        {!isSalesman && (
+          <Button
             onClick={() => {
-              startTopReload();
-              loadParties(true);
+              setPartyToEdit(null);
+              setFormModalOpen(true);
             }}
-            disabled={loading}
-            title="Refresh parties & credit ledger"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-border/80 bg-card hover:bg-muted text-xs font-semibold text-foreground transition shadow-2xs cursor-pointer disabled:opacity-50"
+            className="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-4 py-2.5 rounded-xl shadow-lg shadow-primary/20 transition-all hover:scale-[1.01] active:scale-[0.99]"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin text-blue-600' : ''}`} />
-            <span>Refresh</span>
-          </button>
-          {!isSalesman && (
-            <Button
-              onClick={() => {
-                setPartyToEdit(null);
-                setFormModalOpen(true);
-              }}
-              className="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-4 py-2.5 rounded-xl shadow-lg shadow-primary/20 transition-all hover:scale-[1.01] active:scale-[0.99]"
-            >
-              <Plus className="h-4 w-4" />
-              Add Customer
-            </Button>
-          )}
-        </div>
+            <Plus className="h-4 w-4" />
+            Add Customer
+          </Button>
+        )}
       </div>
 
       {/* Credit Ageing Buckets Cards */}

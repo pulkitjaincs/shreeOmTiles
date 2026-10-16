@@ -142,12 +142,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <span className="text-[11px] text-muted-foreground">Tiles & Sanitaryware</span>
               </div>
             </div>
-            <button
-              onClick={() => setIsMobileMenuOpen(false)}
-              className="md:hidden p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl"
-            >
-              <X className="h-4 w-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handleQuickRefresh}
+                title="Refresh dashboard data"
+                className="hidden md:flex p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-xl transition cursor-pointer"
+                aria-label="Refresh dashboard data"
+              >
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
+              </button>
+              <button
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="md:hidden p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
 
           <nav className="p-3.5 space-y-1 overflow-y-auto flex-1">

@@ -7,6 +7,7 @@ const EVENT_START = 'app:reload:start';
 const EVENT_STOP = 'app:reload:stop';
 
 let activeRequestsCount = 0;
+let hardSafetyTimer: NodeJS.Timeout | null = null;
 
 /**
  * Triggers the top reload progress bar to start.
@@ -16,6 +17,15 @@ export function startTopReload(): void {
   if (typeof window === 'undefined') return;
   activeRequestsCount++;
   window.dispatchEvent(new CustomEvent(EVENT_START));
+
+  // Hard safety timeout: Ensures the bar can NEVER get stuck on screen
+  if (hardSafetyTimer) clearTimeout(hardSafetyTimer);
+  hardSafetyTimer = setTimeout(() => {
+    activeRequestsCount = 0;
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent(EVENT_STOP));
+    }
+  }, 3500);
 }
 
 /**
@@ -26,8 +36,25 @@ export function stopTopReload(): void {
   if (typeof window === 'undefined') return;
   activeRequestsCount = Math.max(0, activeRequestsCount - 1);
   if (activeRequestsCount === 0) {
+    if (hardSafetyTimer) {
+      clearTimeout(hardSafetyTimer);
+      hardSafetyTimer = null;
+    }
     window.dispatchEvent(new CustomEvent(EVENT_STOP));
   }
+}
+
+/**
+ * Immediately forces the reload bar to complete and disappear.
+ */
+export function resetTopReload(): void {
+  if (typeof window === 'undefined') return;
+  activeRequestsCount = 0;
+  if (hardSafetyTimer) {
+    clearTimeout(hardSafetyTimer);
+    hardSafetyTimer = null;
+  }
+  window.dispatchEvent(new CustomEvent(EVENT_STOP));
 }
 
 /**
@@ -64,17 +91,17 @@ export function TopReloadBar() {
       startTimeRef.current = Date.now();
       setFade(false);
       setVisible(true);
-      setProgress((prev) => (prev > 0 && prev < 90 ? prev : 15));
+      setProgress((prev) => (prev > 0 && prev < 85 ? prev : 20));
 
       // Trickle progress up to ~85% while waiting
       trickleTimerRef.current = setInterval(() => {
         setProgress((curr) => {
           if (curr >= 85) return curr;
           const remaining = 85 - curr;
-          const step = Math.max(1, Math.floor(remaining * 0.15));
+          const step = Math.max(2, Math.floor(remaining * 0.2));
           return Math.min(85, curr + step);
         });
-      }, 200);
+      }, 180);
     };
 
     const handleStop = () => {
@@ -84,8 +111,8 @@ export function TopReloadBar() {
       }
 
       const elapsed = Date.now() - startTimeRef.current;
-      // Ensure the bar is visible for at least 450ms so user gets clear visual confirmation
-      const minDisplayDuration = 450;
+      // Ensure the bar is visible for at least 400ms so user gets clear visual confirmation
+      const minDisplayDuration = 400;
       const delay = Math.max(0, minDisplayDuration - elapsed);
 
       finishTimerRef.current = setTimeout(() => {
@@ -129,7 +156,7 @@ export function TopReloadBar() {
       className="fixed top-0 inset-x-0 z-[999999] pointer-events-none select-none transition-opacity duration-300 ease-out"
       style={{ opacity: fade ? 0 : 1 }}
     >
-      {/* 3px Height Track */}
+      {/* 3.5px Height Track */}
       <div className="h-[3.5px] w-full bg-blue-950/20 dark:bg-blue-900/30 overflow-hidden relative backdrop-blur-xs">
         {/* Animated Blue Gradient Progress Bar */}
         <div

@@ -1,5 +1,3 @@
-import { startTopReload, stopTopReload } from '@/components/top-reload-bar';
-
 const RAW_API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 const API_BASE = RAW_API_BASE.replace(/\/+$/, '');
 const CACHE_PREFIX = 'shreeom_cache:';
@@ -257,16 +255,5 @@ export async function cachedApiRequest<T = unknown>(
     }
   }
 
-  if (forceRefresh) {
-    startTopReload();
-  }
-
-  const promise = fetchAndCache<T>(endpoint, options, cacheKey);
-  if (forceRefresh) {
-    promise.finally(() => {
-      stopTopReload();
-    });
-  }
-
-  return promise;
+  return fetchAndCache<T>(endpoint, options, cacheKey);
 }

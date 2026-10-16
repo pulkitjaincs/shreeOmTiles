@@ -18,10 +18,8 @@ import {
   Loader2, 
   MessageCircle,
   ChevronDown,
-  RefreshCw,
 } from 'lucide-react';
 import { ThemedSelect } from '@/components/ui/themed-select';
-import { startTopReload } from '@/components/top-reload-bar';
 
 import {
   Invoice,
@@ -110,6 +108,11 @@ export default function InvoicesPage() {
 
   useEffect(() => {
     loadInitialData();
+    const handleRefresh = () => {
+      loadInitialData(true);
+    };
+    window.addEventListener('app:refresh-active-page', handleRefresh);
+    return () => window.removeEventListener('app:refresh-active-page', handleRefresh);
   }, [loadInitialData]);
 
   const refreshStock = async () => {
@@ -324,19 +327,6 @@ export default function InvoicesPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={() => {
-              startTopReload();
-              loadInitialData(true);
-            }}
-            disabled={loading}
-            title="Refresh invoices and stock data"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-[0.75rem] border border-border bg-card hover:bg-muted/70 text-xs font-semibold text-foreground transition shadow-2xs cursor-pointer disabled:opacity-50"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin text-blue-600' : ''}`} />
-            <span>Refresh</span>
-          </button>
           {warehouses.length > 0 && (
             <div className="relative">
               <button
