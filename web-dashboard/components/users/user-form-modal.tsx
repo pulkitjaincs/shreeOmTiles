@@ -25,6 +25,7 @@ export function UserFormModal({
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('SALESMAN');
   const [scope, setScope] = useState('');
+  const [warehouses, setWarehouses] = useState<Array<{ id: string; name: string }>>([]);
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -45,6 +46,10 @@ export function UserFormModal({
       }
       setShowPassword(false);
       setError('');
+
+      void apiRequest<Array<{ id: string; name: string }>>('/warehouses')
+        .then((data) => setWarehouses(data || []))
+        .catch(() => {});
     }
   }, [isOpen, user]);
 
@@ -201,24 +206,49 @@ export function UserFormModal({
               >
                 <option value="SALESMAN" className="bg-card text-foreground">Salesman (Billing & Catalog)</option>
                 <option value="DRIVER" className="bg-card text-foreground">Delivery Driver (Route Cockpit & Pickups)</option>
+                <option value="SUPERVISOR" className="bg-card text-foreground">Warehouse Supervisor (Stock, Dispatch & Pickups)</option>
                 <option value="WAREHOUSE" className="bg-card text-foreground">Warehouse Staff (Stock Ledger)</option>
                 <option value="ADMIN" className="bg-card text-foreground">Admin (Full Operations)</option>
               </select>
             )}
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-muted-foreground mb-1">
-              Scope / Location (Optional)
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. Main Showroom / Warehouse A"
-              value={scope}
-              onChange={(e) => setScope(e.target.value)}
-              className="w-full rounded-xl border border-border/80 bg-muted/50 px-3.5 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
-            />
-          </div>
+          {role === 'SUPERVISOR' ? (
+            <div>
+              <label className="block text-xs font-semibold text-foreground mb-1">
+                Assigned Warehouse / Godown <span className="text-rose-500">*</span>
+              </label>
+              <select
+                required
+                value={scope}
+                onChange={(e) => setScope(e.target.value)}
+                className="w-full rounded-xl border border-border/80 bg-muted/50 px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition font-medium"
+              >
+                <option value="">Select a warehouse...</option>
+                {warehouses.map((wh) => (
+                  <option key={wh.id} value={wh.id} className="bg-card text-foreground">
+                    {wh.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[0.6875rem] text-muted-foreground mt-1">
+                The supervisor manages stock and verifies physical pickups for this warehouse.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">
+                Scope / Location (Optional)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Main Showroom / Warehouse A"
+                value={scope}
+                onChange={(e) => setScope(e.target.value)}
+                className="w-full rounded-xl border border-border/80 bg-muted/50 px-3.5 py-2 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
+              />
+            </div>
+          )}
 
           {error && (
             <div className="rounded-xl bg-destructive/10 border border-destructive/30 p-2.5 text-xs text-destructive">

@@ -34,7 +34,6 @@ export function PushDeliveryModal({
 }: PushDeliveryModalProps) {
   const [selectedDriverId, setSelectedDriverId] = useState('');
   const [vehicle, setVehicle] = useState('');
-  const [transportCost, setTransportCost] = useState('');
   const [dispatchAmountToCollect, setDispatchAmountToCollect] = useState('');
   const [dispatchNotes, setDispatchNotes] = useState('');
   const [dispatchItems, setDispatchItems] = useState<DispatchSelectionItem[]>([]);
@@ -44,7 +43,6 @@ export function PushDeliveryModal({
     if (visible && delivery) {
       setSelectedDriverId(drivers[0]?.id || '');
       setVehicle('');
-      setTransportCost('');
       setDispatchAmountToCollect(String(delivery.amountToCollect || 0));
       setDispatchNotes('');
 
@@ -94,7 +92,6 @@ export function PushDeliveryModal({
 
     setSubmittingPush(true);
     try {
-      const costNum = transportCost ? Number(transportCost) : 0;
       const toCollectNum = dispatchAmountToCollect ? Number(dispatchAmountToCollect) : Number(delivery.amountToCollect || 0);
 
       await mobileApiRequest(`/delivery/${delivery.id}/push`, {
@@ -102,7 +99,6 @@ export function PushDeliveryModal({
         body: JSON.stringify({
           driverId: selectedDriverId,
           vehicle: vehicle.trim() || undefined,
-          transportCost: costNum,
           amountToCollect: dispatchAmountToCollect ? Number(dispatchAmountToCollect) : undefined,
           notes: dispatchNotes.trim() || undefined,
           items: itemsToDispatch,
@@ -123,7 +119,7 @@ export function PushDeliveryModal({
         driverPhone: targetDriver?.phone || '',
         itemsCount: itemsToDispatch.length,
         amountToCollect: toCollectNum,
-        transportCost: costNum,
+        transportCost: 0,
         hasRemaining: itemsToDispatch.length < dispatchItems.length,
         waUrl,
       };
@@ -256,14 +252,6 @@ export function PushDeliveryModal({
           placeholder="e.g. Tata Ace (DL 1L A 1234)"
           value={vehicle}
           onChangeText={setVehicle}
-        />
-
-        <Input
-          label="Transport Cost (Internal Pricing ₹)"
-          placeholder="0"
-          value={transportCost}
-          onChangeText={setTransportCost}
-          keyboardType="numeric"
         />
 
         <Input

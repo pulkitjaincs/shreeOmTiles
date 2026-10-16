@@ -57,6 +57,8 @@ export function CreateInvoiceModal({
   const [paymentMode, setPaymentMode] = useState('UPI');
   const [amountPaidNowInput, setAmountPaidNowInput] = useState<string>('');
   const [taxRate, setTaxRate] = useState<number | ''>(18);
+  const [transportCost, setTransportCost] = useState<number | ''>('');
+  const [transportGstRate, setTransportGstRate] = useState<number>(0);
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<FormLineItem[]>([]);
   const [openProductDropdownIdx, setOpenProductDropdownIdx] = useState<number | null>(null);
@@ -75,17 +77,32 @@ export function CreateInvoiceModal({
     (prodId: string, currentStock: StockLedgerRecord[]): StockOptionAllocation[] => {
       if (!prodId) return [];
       const available = currentStock.filter((s) => s.productId === prodId && s.quantity > 0);
-      return available.map((s, index) => ({
+      return available.map((s) => ({
         stockLedgerId: s.id,
         warehouseId: s.warehouseId,
         warehouseName: s.warehouse?.name || 'Warehouse',
         warehouseCode: s.warehouse?.code,
         batchNo: s.batchNo,
         availableQty: s.quantity,
-        takeQty: index === 0 ? Math.min(1, s.quantity) : 0,
+        takeQty: 0,
       }));
     },
     [],
+  );
+
+  const resolveProductPrice = useCallback(
+    (prod: Product | undefined, currentPartyId?: string) => {
+      if (!prod?.attributes || typeof prod.attributes !== 'object') return 0;
+      const attrs = prod.attributes as Record<string, unknown>;
+      const targetPartyId = currentPartyId || partyId;
+      const party = parties.find((p) => p.id === targetPartyId);
+      const isWholesale = party?.category === 'WHOLESALER' || party?.category === 'CONTRACTOR';
+      if (isWholesale && attrs.wholesalePrice !== undefined && Number(attrs.wholesalePrice) > 0) {
+        return Number(attrs.wholesalePrice);
+      }
+      return attrs.price !== undefined ? Number(attrs.price) : 0;
+    },
+    [parties, partyId],
   );
 
   // Initialize or reset form whenever modal opens
@@ -97,21 +114,14 @@ export function CreateInvoiceModal({
     }
 
     const initItems = async () => {
-      const stock = await onRefreshStock().catch(() => allStock);
-      const initialProd = products[0];
-      const initialProdId = initialProd?.id || '';
-      const initialOptions = getProductStockOptions(initialProdId, stock);
-      const defaultPrice =
-        initialProd?.attributes && typeof initialProd.attributes === 'object'
-          ? Number((initialProd.attributes as Record<string, unknown>).price || 0)
-          : 0;
+      await onRefreshStock().catch(() => allStock);
 
       setItems([
         {
-          productId: initialProdId,
-          unitPrice: defaultPrice,
+          productId: '',
+          unitPrice: 0,
           discount: 0,
-          options: initialOptions,
+          options: [],
         },
       ]);
       setFormError('');
@@ -146,26 +156,24 @@ export function CreateInvoiceModal({
 
   const handleAddItem = () => {
     setFormError('');
-    const usedProductIds = new Set(items.map((it) => it.productId));
-    const nextProd = products.find((p) => !usedProductIds.has(p.id));
-    if (!nextProd) {
+    const usedProductIds = new Set(items.map((it) => it.productId).filter(Boolean));
+    if (products.length > 0 && usedProductIds.size >= products.length) {
       setFormError('All available products in your catalog are already added to this invoice.');
       return;
     }
-    const nextProdId = nextProd.id;
-    const newOptions = getProductStockOptions(nextProdId, allStock);
-    const defaultPrice =
-      nextProd?.attributes && typeof nextProd.attributes === 'object'
-        ? Number((nextProd.attributes as Record<string, unknown>).price || 0)
-        : 0;
+    const hasEmptyItem = items.some((it) => !it.productId);
+    if (hasEmptyItem) {
+      setFormError('Please select a product for the empty item before adding another.');
+      return;
+    }
 
     setItems([
       ...items,
       {
-        productId: nextProdId,
-        unitPrice: defaultPrice,
+        productId: '',
+        unitPrice: 0,
         discount: 0,
-        options: newOptions,
+        options: [],
       },
     ]);
   };
@@ -173,10 +181,34 @@ export function CreateInvoiceModal({
   const handleRemoveItem = (index: number) => {
     if (items.length === 1) return;
     setItems(items.filter((_, i) => i !== index));
+    setProductSearchTerms((prev) => {
+      const next: Record<number, string> = {};
+      let nextIdx = 0;
+      for (let i = 0; i < items.length; i++) {
+        if (i === index) continue;
+        if (prev[i] !== undefined) {
+          next[nextIdx] = prev[i];
+        }
+        nextIdx++;
+      }
+      return next;
+    });
   };
 
   const handleProductChange = (index: number, newProdId: string) => {
     setFormError('');
+    if (!newProdId) {
+      const newItems = [...items];
+      newItems[index] = {
+        ...newItems[index],
+        productId: '',
+        unitPrice: 0,
+        discount: 0,
+        options: [],
+      };
+      setItems(newItems);
+      return;
+    }
     if (items.some((it, i) => i !== index && it.productId === newProdId)) {
       const existingProd = products.find((p) => p.id === newProdId);
       setFormError(`"${existingProd?.name || 'This product'}" is already added. Each product can only appear once.`);
@@ -185,15 +217,12 @@ export function CreateInvoiceModal({
     const newItems = [...items];
     const newOptions = getProductStockOptions(newProdId, allStock);
     const selectedProd = products.find((p) => p.id === newProdId);
-    const defaultPrice =
-      selectedProd?.attributes && typeof selectedProd.attributes === 'object'
-        ? Number((selectedProd.attributes as Record<string, unknown>).price || 0)
-        : 0;
+    const defaultPrice = resolveProductPrice(selectedProd, partyId);
 
     newItems[index] = {
       ...newItems[index],
       productId: newProdId,
-      unitPrice: defaultPrice > 0 ? defaultPrice : newItems[index].unitPrice,
+      unitPrice: defaultPrice > 0 ? defaultPrice : 0,
       options: newOptions,
     };
     setItems(newItems);
@@ -233,8 +262,10 @@ export function CreateInvoiceModal({
     return sum + (itemTotalQty * item.unitPrice - (item.discount || 0));
   }, 0);
   const activeTaxRate = taxRate === '' ? 0 : Number(taxRate);
-  const taxAmount = (subtotal * activeTaxRate) / 100;
-  const grandTotal = subtotal + taxAmount;
+  const itemsTax = (subtotal * activeTaxRate) / 100;
+  const numTransportCost = transportCost === '' ? 0 : Number(transportCost);
+  const transportTax = (numTransportCost * transportGstRate) / 100;
+  const grandTotal = subtotal + itemsTax + numTransportCost + transportTax;
 
   // Upfront Payment & Credit Calculations
   const calculatedGrandTotal = Math.max(0, Number(grandTotal.toFixed(2)));
@@ -317,6 +348,8 @@ export function CreateInvoiceModal({
       paymentMode,
       amountPaidNow: effectivePaidNow,
       taxRate: activeTaxRate,
+      transportCost: numTransportCost,
+      transportGstRate: transportGstRate,
       notes: notes || undefined,
       items: invoicePayloadItems,
     };
@@ -511,7 +544,12 @@ export function CreateInvoiceModal({
 
                   {/* Customer Dropdown Popover */}
                   {isCustomerDropdownOpen && (
-                    <div className="absolute left-0 right-0 top-full mt-1.5 z-40 max-h-56 overflow-y-auto rounded-xl border border-border bg-card/98 backdrop-blur-2xl shadow-2xl divide-y divide-border/60">
+                    <>
+                      <div
+                        className="fixed inset-0 z-30"
+                        onClick={() => setIsCustomerDropdownOpen(false)}
+                      />
+                      <div className="absolute left-0 right-0 top-full mt-1.5 z-40 max-h-56 overflow-y-auto rounded-xl border border-border bg-card/98 backdrop-blur-2xl shadow-2xl divide-y divide-border/60">
                       {parties.filter((p) => {
                         if (!customerSearch.trim()) return true;
                         const q = customerSearch.toLowerCase();
@@ -545,6 +583,13 @@ export function CreateInvoiceModal({
                                   setPartyId(p.id);
                                   setCustomerSearch(`${p.name} (${p.phone})`);
                                   setIsCustomerDropdownOpen(false);
+                                  setItems((current) =>
+                                    current.map((item) => {
+                                      const prod = products.find((pr) => pr.id === item.productId);
+                                      const effective = resolveProductPrice(prod, p.id);
+                                      return effective > 0 ? { ...item, unitPrice: effective } : item;
+                                    }),
+                                  );
                                 }}
                                 className={`w-full text-left p-2.5 hover:bg-muted/70 transition flex items-center justify-between text-xs ${
                                   isSelected ? 'bg-primary/10 text-primary font-semibold' : 'text-foreground'
@@ -567,6 +612,7 @@ export function CreateInvoiceModal({
                           })
                       )}
                     </div>
+                    </>
                   )}
                 </div>
               )}
@@ -621,8 +667,8 @@ export function CreateInvoiceModal({
               )}
             </div>
 
-            {/* Payment & Tax Controls */}
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-muted/30 p-4 rounded-[1rem] border border-border">
+            {/* Payment, Tax & Transport Controls */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3 bg-muted/30 p-4 rounded-[1rem] border border-border">
               <div>
                 <label className="block text-[0.75rem] font-medium text-foreground mb-1">Payment Method</label>
                 <ThemedSelect
@@ -653,7 +699,7 @@ export function CreateInvoiceModal({
                       onClick={() => setAmountPaidNowInput(calculatedGrandTotal.toFixed(2))}
                       className="text-[0.625rem] text-primary hover:underline font-semibold"
                     >
-                      Full Pay (₹{calculatedGrandTotal.toFixed(2)})
+                      Full Pay
                     </button>
                   )}
                 </div>
@@ -668,55 +714,63 @@ export function CreateInvoiceModal({
                   className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-[0.8125rem] text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
                 <span className="text-[0.625rem] text-muted-foreground block mt-1">
-                  {balanceCredit > 0 ? `Remaining Due: ₹${balanceCredit.toFixed(2)}` : 'Fully Settled'}
+                  {balanceCredit > 0 ? `Due: ₹${balanceCredit.toFixed(2)}` : 'Settled'}
                 </span>
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-[0.75rem] font-medium text-foreground">GST Tax Rate (%)</label>
-                  <span className="text-[0.625rem] text-muted-foreground">Custom %</span>
+                  <label className="text-[0.75rem] font-medium text-foreground">Items GST (%)</label>
+                  <span className="text-[0.625rem] text-muted-foreground">{activeTaxRate}%</span>
                 </div>
-                <div className="relative">
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.01"
-                    placeholder="18"
-                    value={taxRate === '' ? '' : taxRate}
-                    onChange={(e) => setTaxRate(e.target.value === '' ? '' : (parseFloat(e.target.value) || 0))}
-                    className="w-full rounded-[0.75rem] border border-input bg-background pl-3 pr-7 py-2 text-[0.8125rem] text-foreground font-mono focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">%</span>
-                </div>
-                <div className="flex items-center gap-1 mt-1 text-[0.625rem] text-muted-foreground">
-                  <span>Presets:</span>
-                  {[0, 5, 12, 18, 28].map((rate) => (
-                    <button
-                      key={rate}
-                      type="button"
-                      onClick={() => setTaxRate(rate)}
-                      className={`px-1.5 py-0.5 rounded transition ${
-                        taxRate === rate
-                          ? 'bg-primary text-primary-foreground font-bold'
-                          : 'bg-muted hover:text-foreground'
-                      }`}
-                    >
-                      {rate}%
-                    </button>
-                  ))}
-                </div>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  placeholder="18"
+                  value={taxRate === '' ? '' : taxRate}
+                  onChange={(e) => setTaxRate(e.target.value === '' ? '' : (parseFloat(e.target.value) || 0))}
+                  className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-[0.8125rem] text-foreground font-mono focus:border-primary focus:outline-none"
+                />
               </div>
 
               <div>
-                <label className="block text-[0.75rem] font-medium text-foreground mb-1">Invoice Notes / Instructions</label>
+                <label className="block text-[0.75rem] font-medium text-foreground mb-1">Cartage / Transport (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="0"
+                  value={transportCost === '' ? '' : transportCost}
+                  onChange={(e) => setTransportCost(e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value) || 0))}
+                  className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-[0.8125rem] text-foreground font-mono focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[0.75rem] font-medium text-foreground mb-1">Transport GST (%)</label>
+                <ThemedSelect
+                  value={String(transportGstRate)}
+                  onChange={(v) => setTransportGstRate(Number(v))}
+                  options={[
+                    { value: '0', label: '0% (Exempt)' },
+                    { value: '5', label: '5% (GTA)' },
+                    { value: '12', label: '12%' },
+                    { value: '18', label: '18%' },
+                    { value: '28', label: '28%' },
+                  ]}
+                />
+              </div>
+
+              <div>
+                <label className="block text-[0.75rem] font-medium text-foreground mb-1">Invoice Notes</label>
                 <input
                   type="text"
-                  placeholder="e.g. Counter delivery, check lot"
+                  placeholder="e.g. Counter delivery"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-[0.8125rem] text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-[0.8125rem] text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
                 />
               </div>
             </div>
@@ -806,68 +860,81 @@ export function CreateInvoiceModal({
 
                           {/* Product Dropdown Popover */}
                           {openProductDropdownIdx === idx && (
-                            <div className="absolute left-0 right-0 top-full mt-1 z-30 max-h-52 overflow-y-auto rounded-xl border border-border bg-card/98 backdrop-blur-2xl shadow-xl divide-y divide-border/60">
-                              {products.filter((p) => {
-                                const term = (productSearchTerms[idx] || '').toLowerCase().trim();
-                                if (!term) return true;
-                                return (
-                                  p.name.toLowerCase().includes(term) ||
-                                  (p.category || '').toLowerCase().includes(term)
-                                );
-                              }).length === 0 ? (
-                                <div className="p-3 text-center text-xs text-muted-foreground">
-                                  No products matched your search.
-                                </div>
-                              ) : (
-                                products
-                                  .filter((p) => {
-                                    const term = (productSearchTerms[idx] || '').toLowerCase().trim();
-                                    if (!term) return true;
-                                    return (
-                                      p.name.toLowerCase().includes(term) ||
-                                      (p.category || '').toLowerCase().includes(term)
-                                    );
-                                  })
-                                  .map((p) => {
-                                    const isAlreadyAdded = items.some((it, i) => i !== idx && it.productId === p.id);
-                                    const isSelected = item.productId === p.id;
-                                    return (
-                                      <button
-                                        key={p.id}
-                                        type="button"
-                                        disabled={isAlreadyAdded}
-                                        onClick={() => {
-                                          handleProductChange(idx, p.id);
-                                          setProductSearchTerms((prev) => ({ ...prev, [idx]: `${p.name} (${p.unit})` }));
-                                          setOpenProductDropdownIdx(null);
-                                        }}
-                                        className={`w-full text-left p-2.5 hover:bg-muted/70 transition flex items-center justify-between text-xs ${
-                                          isAlreadyAdded
-                                            ? 'opacity-40 cursor-not-allowed bg-muted/20'
-                                            : isSelected
-                                            ? 'bg-primary/10 text-primary font-semibold'
-                                            : 'text-foreground'
-                                        }`}
-                                      >
-                                        <div className="truncate pr-2">
-                                          <span className="font-semibold">{p.name}</span>
-                                          <span className="text-[10px] text-muted-foreground ml-1.5 font-mono">
-                                            [{p.unit}] {p.category ? `• ${p.category}` : ''}
-                                          </span>
-                                        </div>
-                                        {isAlreadyAdded && (
-                                          <span className="text-[10px] text-muted-foreground shrink-0 font-medium">
-                                            [Already added]
-                                          </span>
-                                        )}
-                                        {isSelected && (
-                                          <Check className="h-4 w-4 text-primary shrink-0" />
-                                        )}
-                                      </button>
-                                    );
-                                  })
-                              )}
-                            </div>
+                            <>
+                              <div
+                                className="fixed inset-0 z-20"
+                                onClick={() => {
+                                  setOpenProductDropdownIdx(null);
+                                  setProductSearchTerms((prev) => {
+                                    const next = { ...prev };
+                                    delete next[idx];
+                                    return next;
+                                  });
+                                }}
+                              />
+                              <div className="absolute left-0 right-0 top-full mt-1 z-30 max-h-52 overflow-y-auto rounded-xl border border-border bg-card/98 backdrop-blur-2xl shadow-xl divide-y divide-border/60">
+                                {products.filter((p) => {
+                                  const term = (productSearchTerms[idx] || '').toLowerCase().trim();
+                                  if (!term) return true;
+                                  return (
+                                    p.name.toLowerCase().includes(term) ||
+                                    (p.category || '').toLowerCase().includes(term)
+                                  );
+                                }).length === 0 ? (
+                                  <div className="p-3 text-center text-xs text-muted-foreground">
+                                    No products matched your search.
+                                  </div>
+                                ) : (
+                                  products
+                                    .filter((p) => {
+                                      const term = (productSearchTerms[idx] || '').toLowerCase().trim();
+                                      if (!term) return true;
+                                      return (
+                                        p.name.toLowerCase().includes(term) ||
+                                        (p.category || '').toLowerCase().includes(term)
+                                      );
+                                    })
+                                    .map((p) => {
+                                      const isAlreadyAdded = items.some((it, i) => i !== idx && it.productId === p.id);
+                                      const isSelected = item.productId === p.id;
+                                      return (
+                                        <button
+                                          key={p.id}
+                                          type="button"
+                                          disabled={isAlreadyAdded}
+                                          onClick={() => {
+                                            handleProductChange(idx, p.id);
+                                            setProductSearchTerms((prev) => ({ ...prev, [idx]: `${p.name} (${p.unit})` }));
+                                            setOpenProductDropdownIdx(null);
+                                          }}
+                                          className={`w-full text-left p-2.5 hover:bg-muted/70 transition flex items-center justify-between text-xs ${
+                                            isAlreadyAdded
+                                              ? 'opacity-40 cursor-not-allowed bg-muted/20'
+                                              : isSelected
+                                              ? 'bg-primary/10 text-primary font-semibold'
+                                              : 'text-foreground'
+                                          }`}
+                                        >
+                                          <div className="truncate pr-2">
+                                            <span className="font-semibold">{p.name}</span>
+                                            <span className="text-[10px] text-muted-foreground ml-1.5 font-mono">
+                                              [{p.unit}] {p.category ? `• ${p.category}` : ''}
+                                            </span>
+                                          </div>
+                                          {isAlreadyAdded && (
+                                            <span className="text-[10px] text-muted-foreground shrink-0 font-medium">
+                                              [Already added]
+                                            </span>
+                                          )}
+                                          {isSelected && (
+                                            <Check className="h-4 w-4 text-primary shrink-0" />
+                                          )}
+                                        </button>
+                                      );
+                                    })
+                                )}
+                              </div>
+                            </>
                           )}
                         </div>
 
@@ -931,16 +998,25 @@ export function CreateInvoiceModal({
                           </div>
                           <span
                             className={`text-[0.6875rem] font-medium px-2 py-0.5 rounded-full ${
-                              totalAllocatedQty > 0
+                              !item.productId
+                                ? 'bg-muted text-muted-foreground border border-border'
+                                : totalAllocatedQty > 0
                                 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
                                 : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
                             }`}
                           >
-                            Total Selected: {totalAllocatedQty} {selectedProd?.unit || 'units'}
+                            {!item.productId
+                              ? 'No product selected'
+                              : `Total Selected: ${totalAllocatedQty} ${selectedProd?.unit || 'units'}`}
                           </span>
                         </div>
 
-                        {item.options.length === 0 ? (
+                        {!item.productId ? (
+                          <div className="p-3 text-center text-[0.75rem] text-muted-foreground bg-muted/20 rounded-[0.5rem] border border-dashed border-border flex items-center justify-center gap-2">
+                            <Search className="h-3.5 w-3.5 text-muted-foreground" />
+                            <span>Select a product above to view warehouse stock & batch allocations.</span>
+                          </div>
+                        ) : item.options.length === 0 ? (
                           <div className="p-3 text-center text-[0.75rem] text-amber-700 dark:text-amber-300 bg-amber-500/10 rounded-[0.5rem] border border-amber-500/20">
                             ⚠️ No available stock found across any showroom or godown for this product.
                           </div>
@@ -992,17 +1068,45 @@ export function CreateInvoiceModal({
             {/* Total Summary */}
             <div className="bg-muted/40 p-4 rounded-[1rem] space-y-2 border border-border text-foreground">
               <div className="flex justify-between text-[0.75rem] text-muted-foreground">
-                <span>Subtotal:</span>
+                <span>Items Subtotal:</span>
                 <span>₹{subtotal.toFixed(2)}</span>
               </div>
-              <div className="flex justify-between text-[0.75rem] text-muted-foreground">
-                <span>GST ({taxRate}%):</span>
-                <span>₹{taxAmount.toFixed(2)}</span>
-              </div>
+              {activeTaxRate > 0 && (
+                <div className="flex justify-between text-[0.75rem] text-muted-foreground">
+                  <span>Items GST ({activeTaxRate}%):</span>
+                  <span>₹{itemsTax.toFixed(2)}</span>
+                </div>
+              )}
+              {numTransportCost > 0 && (
+                <>
+                  <div className="flex justify-between text-[0.75rem] text-muted-foreground">
+                    <span>Cartage / Transport:</span>
+                    <span>₹{numTransportCost.toFixed(2)}</span>
+                  </div>
+                  {transportGstRate > 0 && (
+                    <div className="flex justify-between text-[0.75rem] text-muted-foreground">
+                      <span>Transport GST ({transportGstRate}%):</span>
+                      <span>₹{transportTax.toFixed(2)}</span>
+                    </div>
+                  )}
+                </>
+              )}
               <div className="flex justify-between text-[1rem] font-bold text-foreground border-t border-border pt-2">
                 <span>Grand Total:</span>
                 <span className="text-primary">₹{grandTotal.toFixed(2)}</span>
               </div>
+              {effectivePaidNow > 0 && (
+                <div className="flex justify-between text-[0.75rem] text-emerald-600 dark:text-emerald-400 font-medium">
+                  <span>Amount Paid Now ({paymentMode}):</span>
+                  <span>₹{effectivePaidNow.toFixed(2)}</span>
+                </div>
+              )}
+              {balanceCredit > 0 && (
+                <div className="flex justify-between text-[0.75rem] text-amber-600 dark:text-amber-400 font-medium">
+                  <span>Balance Credit / Due:</span>
+                  <span>₹{balanceCredit.toFixed(2)}</span>
+                </div>
+              )}
             </div>
 
             {formError && (

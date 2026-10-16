@@ -35,7 +35,9 @@ export default function DeliveriesScreen() {
   const role = user?.role || 'DRIVER';
 
   const isDriver = role === 'DRIVER';
+  const isSupervisor = role === 'SUPERVISOR';
   const isOwnerOrAdmin = role === 'OWNER' || role === 'ADMIN';
+  const userWarehouseId = user?.scope;
 
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [drivers, setDrivers] = useState<DriverUser[]>([]);
@@ -252,6 +254,20 @@ export default function DeliveriesScreen() {
     }
   };
 
+  // Supervisor item pickup confirmation
+  const handleSupervisorConfirmPick = async (deliveryId: string, itemIdx: number) => {
+    try {
+      await mobileApiRequest(`/delivery/${deliveryId}/items/${itemIdx}/pickup`, {
+        method: 'PATCH',
+        body: JSON.stringify({ pickedUp: true }),
+      });
+      Alert.alert('Item Picked', 'Item verified and marked as picked!');
+      loadData(true);
+    } catch (err: any) {
+      Alert.alert('Pickup Failed', err.message || 'Could not verify item pickup');
+    }
+  };
+
   return (
     <View style={styles.screen}>
       <Header
@@ -326,6 +342,8 @@ export default function DeliveriesScreen() {
               delivery={item}
               isOwnerOrAdmin={isOwnerOrAdmin}
               isDriver={isDriver}
+              isSupervisor={isSupervisor}
+              userWarehouseId={userWarehouseId}
               handoverInProgress={handoverInProgress}
               onOpenRunDetails={(d) => setActiveDeliveryModal(d)}
               onOpenPushModal={(d) => setPushModalDelivery(d)}
@@ -333,6 +351,7 @@ export default function DeliveriesScreen() {
               onCustomerPickedUp={handleCustomerPickedUp}
               onHandoverCash={handleHandoverCash}
               onUpdateStatus={handleUpdateStatus}
+              onSupervisorConfirmPick={handleSupervisorConfirmPick}
             />
           )}
         />

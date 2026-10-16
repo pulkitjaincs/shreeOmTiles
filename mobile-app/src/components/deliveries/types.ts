@@ -4,12 +4,15 @@ export interface DispatchedItem {
   productId: string;
   productName: string;
   unit: string;
+  warehouseId?: string;
   warehouseName?: string;
   warehouseAddress?: string;
   batchNo?: string;
   qty: number;
   pickedUp?: boolean;
   pickedUpAt?: string;
+  pickedUpByName?: string;
+  pickedUpById?: string;
 }
 
 export interface DispatchSelectionItem {

@@ -26,7 +26,7 @@ export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Post()
-  @Roles(Role.ADMIN)
+  @Roles(Role.OWNER, Role.ADMIN, Role.ACCOUNTANT)
   create(
     @Request() req: RequestWithUser,
     @Body() createProductDto: CreateProductDto,
@@ -35,9 +35,16 @@ export class ProductsController {
   }
 
   @Get()
-  @Roles(Role.ADMIN, Role.SALESMAN)
+  @Roles(
+    Role.OWNER,
+    Role.ADMIN,
+    Role.SALESMAN,
+    Role.ACCOUNTANT,
+    Role.SUPERVISOR,
+  )
   @Header('Cache-Control', 'private, max-age=60, stale-while-revalidate=300')
   findAll(
+    @Request() req: RequestWithUser,
     @Query('category') category?: string,
     @Query('search') search?: string,
     @Query('page') page?: string,
@@ -45,28 +52,37 @@ export class ProductsController {
   ) {
     const pageNum = page ? parseInt(page, 10) : undefined;
     const limitNum = limit ? parseInt(limit, 10) : undefined;
-    return this.productsService.findAll({
-      category,
-      search,
-      page: pageNum,
-      limit: limitNum,
-    });
+    return this.productsService.findAll(
+      {
+        category,
+        search,
+        page: pageNum,
+        limit: limitNum,
+      },
+      req.user,
+    );
   }
 
   @Get(':id')
-  @Roles(Role.ADMIN, Role.SALESMAN)
-  findOne(@Param('id') id: string) {
-    return this.productsService.findOne(id);
+  @Roles(
+    Role.OWNER,
+    Role.ADMIN,
+    Role.SALESMAN,
+    Role.ACCOUNTANT,
+    Role.SUPERVISOR,
+  )
+  findOne(@Param('id') id: string, @Request() req: RequestWithUser) {
+    return this.productsService.findOne(id, req.user);
   }
 
   @Patch(':id')
-  @Roles(Role.ADMIN)
+  @Roles(Role.OWNER, Role.ADMIN, Role.ACCOUNTANT)
   update(@Param('id') id: string, @Body() updateProductDto: UpdateProductDto) {
     return this.productsService.update(id, updateProductDto);
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN)
+  @Roles(Role.OWNER, Role.ADMIN)
   remove(@Param('id') id: string) {
     return this.productsService.remove(id);
   }

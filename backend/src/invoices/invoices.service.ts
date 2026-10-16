@@ -61,7 +61,9 @@ export class InvoicesService {
     }
 
     const companyState = process.env.COMPANY_STATE_CODE || '07';
-    const taxRate = data.taxRate !== undefined ? data.taxRate : 18; // Default 18% GST
+    const taxRate = data.taxRate !== undefined ? Math.max(0, data.taxRate) : 18;
+    const transportCost = Math.max(0, data.transportCost || 0);
+    const transportGstRate = Math.max(0, data.transportGstRate || 0);
 
     // Pre-calculate line items and subtotal
     let subtotal = 0;
@@ -76,8 +78,13 @@ export class InvoicesService {
       };
     });
 
-    const taxAmount = (subtotal * taxRate) / 100;
-    const totalAmount = subtotal + taxAmount;
+    const itemsTax = Math.round(((subtotal * taxRate) / 100) * 100) / 100;
+    const transportTax =
+      Math.round(((transportCost * transportGstRate) / 100) * 100) / 100;
+    const taxAmount = Math.round((itemsTax + transportTax) * 100) / 100;
+    const totalAmount =
+      Math.round((subtotal + itemsTax + transportCost + transportTax) * 100) /
+      100;
 
     const fy = this.getFinancialYear();
 
@@ -112,15 +119,30 @@ export class InvoicesService {
           ? party.gstin.slice(0, 2) !== companyState
           : false;
 
-      const taxBreakup = isInterState
-        ? { rate: taxRate, igst: taxAmount, cgst: 0, sgst: 0, isInterState: true }
-        : {
-            rate: taxRate,
-            igst: 0,
-            cgst: taxAmount / 2,
-            sgst: taxAmount / 2,
-            isInterState: false,
-          };
+      const taxBreakup = {
+        rate: taxRate,
+        isInterState,
+        totalTax: taxAmount,
+        cgst: isInterState ? 0 : taxAmount / 2,
+        sgst: isInterState ? 0 : taxAmount / 2,
+        igst: isInterState ? taxAmount : 0,
+        items: {
+          rate: taxRate,
+          taxable: subtotal,
+          cgst: isInterState ? 0 : itemsTax / 2,
+          sgst: isInterState ? 0 : itemsTax / 2,
+          igst: isInterState ? itemsTax : 0,
+          totalTax: itemsTax,
+        },
+        transport: {
+          rate: transportGstRate,
+          taxable: transportCost,
+          cgst: isInterState ? 0 : transportTax / 2,
+          sgst: isInterState ? 0 : transportTax / 2,
+          igst: isInterState ? transportTax : 0,
+          totalTax: transportTax,
+        },
+      };
 
       // 2. Validate & Decrement Stock for all line items
       const allocatedInvoiceItems: Prisma.InvoiceItemUncheckedCreateWithoutInvoiceInput[] =
@@ -308,8 +330,14 @@ export class InvoicesService {
           paymentMode: data.paymentMode,
           status: initialStatus,
           notes: data.notes,
+          quotationId: data.quotationId || null,
           subtotal: new Prisma.Decimal(subtotal.toFixed(2)),
           tax: new Prisma.Decimal(taxAmount.toFixed(2)),
+          taxRate: new Prisma.Decimal(taxRate.toFixed(2)),
+          transportCost: new Prisma.Decimal(transportCost.toFixed(2)),
+          transportGstRate: new Prisma.Decimal(transportGstRate.toFixed(2)),
+          transportTax: new Prisma.Decimal(transportTax.toFixed(2)),
+          itemsTax: new Prisma.Decimal(itemsTax.toFixed(2)),
           total: new Prisma.Decimal(totalAmount.toFixed(2)),
           taxBreakup: taxBreakup,
           items: {
@@ -324,6 +352,13 @@ export class InvoicesService {
           },
         },
       });
+
+      if (data.quotationId) {
+        await tx.quotation.update({
+          where: { id: data.quotationId },
+          data: { status: 'CONVERTED' },
+        });
+      }
 
       // 4. If any amount was paid upfront (Cash, UPI, etc.), record a confirmed payment immediately
       if (upfrontAmount > 0) {
@@ -465,8 +500,13 @@ export class InvoicesService {
         this.prisma.invoice.count({ where }),
       ]);
 
+      const sanitizedData =
+        user.role === Role.SUPERVISOR
+          ? data.map((inv) => this.sanitizeInvoiceForSupervisor(inv))
+          : data;
+
       return {
-        data,
+        data: sanitizedData,
         total,
         page,
         limit,
@@ -474,15 +514,56 @@ export class InvoicesService {
       };
     }
 
-    return this.prisma.invoice.findMany({
+    const invoices = await this.prisma.invoice.findMany({
       where,
       include: includeRelations,
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
+
+    return user.role === Role.SUPERVISOR
+      ? invoices.map((inv) => this.sanitizeInvoiceForSupervisor(inv))
+      : invoices;
   }
 
-  async findOne(id: string) {
+  private sanitizeInvoiceForSupervisor<T extends Record<string, unknown>>(
+    inv: T,
+  ): T {
+    const refundInvoices = Array.isArray(inv.refundInvoices)
+      ? (inv.refundInvoices as Array<Record<string, unknown>>).map((rf) => ({
+          ...rf,
+          total: new Prisma.Decimal(0),
+        }))
+      : [];
+
+    const items = Array.isArray(inv.items)
+      ? (inv.items as Array<Record<string, unknown>>).map((it) => ({
+          ...it,
+          unitPrice: new Prisma.Decimal(0),
+          discount: new Prisma.Decimal(0),
+          total: new Prisma.Decimal(0),
+        }))
+      : [];
+
+    return {
+      ...inv,
+      subtotal: new Prisma.Decimal(0),
+      tax: new Prisma.Decimal(0),
+      taxRate: new Prisma.Decimal(0),
+      transportCost: new Prisma.Decimal(0),
+      transportGstRate: new Prisma.Decimal(0),
+      transportTax: new Prisma.Decimal(0),
+      itemsTax: new Prisma.Decimal(0),
+      total: new Prisma.Decimal(0),
+      taxBreakup: {},
+      payments: [],
+      creditLedgers: [],
+      refundInvoices,
+      items,
+    };
+  }
+
+  async findOne(id: string, user?: { id: string; role: Role }) {
     const invoice = await this.prisma.invoice.findUnique({
       where: { id },
       include: {
@@ -502,6 +583,11 @@ export class InvoicesService {
       },
     });
     if (!invoice) throw new NotFoundException(`Invoice ${id} not found`);
+
+    if (user?.role === Role.SUPERVISOR) {
+      return this.sanitizeInvoiceForSupervisor(invoice);
+    }
+
     return invoice;
   }
 
@@ -1015,7 +1101,9 @@ export class InvoicesService {
     });
 
     // Notify Owner & Admin about credit note / sales return
-    const formattedRefund = Math.round(result.totalRefund).toLocaleString('en-IN');
+    const formattedRefund = Math.round(result.totalRefund).toLocaleString(
+      'en-IN',
+    );
     void this.notifications.notifyAdmins(
       'Credit Note Issued',
       `₹${formattedRefund} refunded/credited for Invoice #${result.invoiceNo} (${customerName}).`,
@@ -1032,9 +1120,195 @@ export class InvoicesService {
   /**
    * High-precision, elegant PDF invoice generation with compact spacing and return QR code
    */
+  /**
+   * High-precision, elegant PDF invoice generation with compact spacing and return QR code
+   */
   async generatePdf(id: string): Promise<GeneratedPdfResult> {
     const invoice = await this.findOne(id);
-    return generateInvoicePdf(invoice);
+    const prevCreditLedgers = await this.prisma.creditLedger.findMany({
+      where: {
+        partyId: invoice.partyId,
+        type: CreditType.RECEIVABLE,
+        status: { not: CreditStatus.SETTLED },
+        createdAt: { lt: invoice.createdAt },
+      },
+    });
+    const previousBalance = prevCreditLedgers.reduce(
+      (sum, item) => sum + Number(item.amountDue || 0),
+      0,
+    );
+
+    return generateInvoicePdf({
+      ...invoice,
+      previousBalance,
+    });
+  }
+
+  /**
+   * Safe transactional invoice deletion restricted to OWNER and ADMIN
+   */
+  async deleteInvoice(
+    id: string,
+    actorId: string,
+    forceDelivered: boolean = false,
+  ) {
+    const actor = await this.prisma.user.findUnique({
+      where: { id: actorId },
+    });
+    if (!actor || (actor.role !== Role.OWNER && actor.role !== Role.ADMIN)) {
+      throw new ForbiddenException(
+        'Strictly restricted: Only OWNER and ADMIN can delete invoices and restore inventory',
+      );
+    }
+
+    const invoice = await this.prisma.invoice.findUnique({
+      where: { id },
+      include: {
+        items: true,
+        refundInvoices: true,
+        deliveries: true,
+        payments: true,
+        creditLedgers: true,
+      },
+    });
+
+    if (!invoice) {
+      throw new NotFoundException(`Invoice with ID ${id} not found`);
+    }
+
+    if (invoice.refundInvoices && invoice.refundInvoices.length > 0) {
+      throw new BadRequestException(
+        'Cannot delete invoice with processed returns. Revert refunds first.',
+      );
+    }
+
+    const hasDelivered = invoice.deliveries?.some(
+      (d) => d.status === DeliveryStatus.DELIVERED,
+    );
+    if (hasDelivered && !forceDelivered) {
+      throw new BadRequestException(
+        'Order has already been delivered. Acknowledge return of physical goods to proceed.',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Atomically restore inventory to StockLedger with row-level locks
+      for (const item of invoice.items) {
+        if (!item.productId || !item.warehouseId) continue;
+
+        let stock = await tx.stockLedger.findFirst({
+          where: {
+            productId: item.productId,
+            warehouseId: item.warehouseId,
+            batchNo: item.batchNo ?? null,
+          },
+        });
+
+        if (stock) {
+          await tx.$queryRawUnsafe(
+            `SELECT id, quantity FROM "StockLedger" WHERE id = $1 FOR UPDATE`,
+            stock.id,
+          );
+          const previousQty = stock.quantity;
+          const newQty = previousQty + item.qty;
+          await tx.stockLedger.update({
+            where: { id: stock.id },
+            data: { quantity: newQty },
+          });
+
+          await tx.auditLog.create({
+            data: {
+              actorId,
+              action: 'INVOICE_DELETE_RESTORE_STOCK',
+              entity: 'StockLedger',
+              entityId: stock.id,
+              diff: {
+                invoiceNo: invoice.invoiceNo,
+                restoredQty: item.qty,
+                previousQuantity: previousQty,
+                newQuantity: newQty,
+              },
+            },
+          });
+        } else {
+          stock = await tx.stockLedger.create({
+            data: {
+              productId: item.productId,
+              warehouseId: item.warehouseId,
+              batchNo: item.batchNo ?? null,
+              quantity: item.qty,
+            },
+          });
+
+          await tx.auditLog.create({
+            data: {
+              actorId,
+              action: 'INVOICE_DELETE_RESTORE_STOCK',
+              entity: 'StockLedger',
+              entityId: stock.id,
+              diff: {
+                invoiceNo: invoice.invoiceNo,
+                restoredQty: item.qty,
+                previousQuantity: 0,
+                newQuantity: item.qty,
+              },
+            },
+          });
+        }
+      }
+
+      // 2. Delete Delivery Trips and Deliveries
+      for (const delivery of invoice.deliveries) {
+        await tx.deliveryTrip.deleteMany({
+          where: { deliveryId: delivery.id },
+        });
+      }
+      await tx.delivery.deleteMany({
+        where: { invoiceId: invoice.id },
+      });
+
+      // 3. Delete Payments
+      await tx.payment.deleteMany({
+        where: { invoiceId: invoice.id },
+      });
+
+      // 4. Delete Credit Ledgers
+      await tx.creditLedger.deleteMany({
+        where: { invoiceId: invoice.id },
+      });
+
+      // 5. Delete Invoice Items
+      await tx.invoiceItem.deleteMany({
+        where: { invoiceId: invoice.id },
+      });
+
+      // 6. Delete Invoice
+      await tx.invoice.delete({
+        where: { id: invoice.id },
+      });
+
+      // 7. Audit Log for invoice deletion
+      await tx.auditLog.create({
+        data: {
+          actorId,
+          action: 'DELETE_INVOICE',
+          entity: 'Invoice',
+          entityId: invoice.id,
+          diff: {
+            invoiceNo: invoice.invoiceNo,
+            total: Number(invoice.total),
+            subtotal: Number(invoice.subtotal),
+            partyId: invoice.partyId,
+            forceDelivered,
+          },
+        },
+      });
+
+      return {
+        success: true,
+        message: `Invoice #${invoice.invoiceNo} successfully deleted. Inventory restored.`,
+      };
+    });
   }
 
   /**

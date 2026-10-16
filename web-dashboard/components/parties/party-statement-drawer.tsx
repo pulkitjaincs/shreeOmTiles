@@ -16,6 +16,7 @@ import {
   Calendar,
   CheckCircle2,
   MessageSquare,
+  Download,
 } from 'lucide-react';
 import { Party, PartyDetail } from './types';
 
@@ -34,7 +35,28 @@ export function PartyStatementDrawer({
 }: PartyStatementDrawerProps) {
   const [partyData, setPartyData] = useState<PartyDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [activeTab, setActiveTab] = useState<'orders' | 'credits'>('orders');
+
+  const handleDownloadStatementPdf = async () => {
+    if (!party) return;
+    setDownloadingPdf(true);
+    try {
+      const blob = await apiRequest<Blob>(`/parties/${party.id}/statement-pdf`);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Statement-${party.name.replace(/\s+/g, '_')}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      alert((err as Error).message || 'Failed to download statement PDF');
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
 
   const fetchParty360 = useCallback(async (partyId: string) => {
     setLoading(true);
@@ -127,6 +149,20 @@ export function PartyStatementDrawer({
           </div>
 
           <div className="flex items-center gap-2">
+            <Button
+              onClick={handleDownloadStatementPdf}
+              disabled={downloadingPdf}
+              variant="outline"
+              className="bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 text-xs px-3 py-1.5 rounded-xl inline-flex items-center gap-1.5 active:scale-98"
+              title="Download Ledger Statement PDF (A4 360)"
+            >
+              {downloadingPdf ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+              ) : (
+                <Download className="h-3.5 w-3.5 text-primary" />
+              )}
+              <span>Statement PDF</span>
+            </Button>
             <Button
               onClick={() => {
                 onClose();

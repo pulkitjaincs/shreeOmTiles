@@ -20,7 +20,7 @@ export interface AuthUser {
   id: string;
   name: string;
   phone: string;
-  role: 'OWNER' | 'ADMIN' | 'SALESMAN' | 'DRIVER';
+  role: 'OWNER' | 'ADMIN' | 'ACCOUNTANT' | 'SALESMAN' | 'DRIVER' | 'SUPERVISOR';
   scope?: string | null;
 }
 

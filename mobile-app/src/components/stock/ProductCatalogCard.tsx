@@ -11,6 +11,7 @@ interface ProductCatalogCardProps {
   item: Product;
   stocks: StockItem[];
   isOwnerOrAdmin: boolean;
+  isSupervisor?: boolean;
   onInward: (productId: string) => void;
   onEdit: (product: Product) => void;
   onZeroOut: (productId: string, productName: string) => void;
@@ -21,6 +22,7 @@ export function ProductCatalogCard({
   item,
   stocks,
   isOwnerOrAdmin,
+  isSupervisor = false,
   onInward,
   onEdit,
   onZeroOut,
@@ -32,12 +34,19 @@ export function ProductCatalogCard({
 
   const attrs = (item.attributes as Record<string, unknown>) || {};
   const priceVal =
-    attrs.price !== undefined && attrs.price !== null && attrs.price !== ''
+    !isSupervisor && (attrs.price !== undefined && attrs.price !== null && attrs.price !== ''
       ? Number(attrs.price)
-      : item.price;
+      : item.price);
 
   const specs = Object.entries(attrs)
-    .filter(([k, v]) => k !== 'price' && k !== 'purchasePrice' && Boolean(v))
+    .filter(([k, v]) =>
+      k !== 'price' &&
+      k !== 'purchasePrice' &&
+      k !== 'cost' &&
+      k !== 'rate' &&
+      k !== 'sellingPrice' &&
+      Boolean(v),
+    )
     .map(([k, v]) => `${k}: ${v}`)
     .join(' • ');
 

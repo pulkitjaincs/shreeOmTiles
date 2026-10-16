@@ -12,16 +12,14 @@ interface WarehousePickupChecklistProps {
   }>;
   pickedCount: number;
   totalItemsCount: number;
-  updatingIndex: number | null;
-  onTogglePickup: (itemIndex: number, currentPicked: boolean) => void;
+  updatingIndex?: number | null;
+  onTogglePickup?: (itemIndex: number, currentPicked: boolean) => void;
 }
 
 export function WarehousePickupChecklist({
   warehouseGroups,
   pickedCount,
   totalItemsCount,
-  updatingIndex,
-  onTogglePickup,
 }: WarehousePickupChecklistProps) {
   if (warehouseGroups.length === 0) return null;
 
@@ -37,7 +35,7 @@ export function WarehousePickupChecklist({
         </Text>
       </View>
       <Text style={styles.sub}>
-        Visit each warehouse and tap &quot;Pick Up&quot; to verify and load items.
+        Go to each godown. The warehouse supervisor will inspect items and mark them as picked.
       </Text>
 
       {warehouseGroups.map((group, gIdx) => (
@@ -58,7 +56,6 @@ export function WarehousePickupChecklist({
           {/* Items in this warehouse */}
           <View style={styles.itemsList}>
             {group.items.map(({ item, originalIndex }) => {
-              const isUpdating = updatingIndex === originalIndex;
               const isPicked = Boolean(item.pickedUp);
 
               return (
@@ -83,28 +80,20 @@ export function WarehousePickupChecklist({
                     ) : null}
                   </View>
 
-                  {/* Pickup Action Button - LOCKED once picked */}
+                  {/* Pickup Status - Supervisor Verification only */}
                   <View>
                     {isPicked ? (
                       <View style={styles.pickedBadgeLocked}>
-                        <Ionicons name="checkmark" size={13} color="#10B981" />
-                        <Text style={styles.pickedText}>Picked</Text>
+                        <Ionicons name="checkmark-circle" size={13} color="#10B981" />
+                        <Text style={styles.pickedText}>
+                          {item.pickedUpByName ? `Picked (${item.pickedUpByName})` : 'Picked by Supervisor'}
+                        </Text>
                       </View>
                     ) : (
-                      <TouchableOpacity
-                        style={styles.pickBtn}
-                        disabled={isUpdating}
-                        onPress={() => onTogglePickup(originalIndex, false)}
-                      >
-                        {isUpdating ? (
-                          <ActivityIndicator size="small" color="#09090B" />
-                        ) : (
-                          <>
-                            <Ionicons name="cube-outline" size={12} color="#09090B" />
-                            <Text style={styles.pickBtnText}>Pick Up</Text>
-                          </>
-                        )}
-                      </TouchableOpacity>
+                      <View style={styles.awaitingBadge}>
+                        <Ionicons name="time-outline" size={12} color="#F59E0B" />
+                        <Text style={styles.awaitingText}>Awaiting Supervisor</Text>
+                      </View>
                     )}
                   </View>
                 </View>
@@ -233,7 +222,7 @@ const styles = StyleSheet.create({
   pickedBadgeLocked: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
+    gap: 4,
     backgroundColor: 'rgba(16, 185, 129, 0.12)',
     paddingHorizontal: 8,
     paddingVertical: 5,
@@ -245,5 +234,21 @@ const styles = StyleSheet.create({
     color: '#10B981',
     fontSize: 10.5,
     fontWeight: '800',
+  },
+  awaitingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.25)',
+  },
+  awaitingText: {
+    color: '#F59E0B',
+    fontSize: 10.5,
+    fontWeight: '700',
   },
 });

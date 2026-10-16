@@ -18,6 +18,7 @@ import {
   Loader2, 
   MessageCircle,
   ChevronDown,
+  Trash2,
 } from 'lucide-react';
 import { ThemedSelect } from '@/components/ui/themed-select';
 
@@ -36,11 +37,14 @@ import { CreateInvoiceModal } from '@/components/invoices/create-invoice-modal';
 import { ReturnInvoiceModal } from '@/components/invoices/return-invoice-modal';
 import { InvoiceDetailsDrawer } from '@/components/invoices/invoice-details-drawer';
 import { ShareInvoiceModal } from '@/components/invoices/share-invoice-modal';
+import { DeleteInvoiceModal } from '@/components/invoices/delete-invoice-modal';
 import { formatINR, formatDate, cleanPhoneNumber } from '@/lib/formatters';
 
 export default function InvoicesPage() {
   const { user } = useAuth();
   const isSalesman = user?.role === 'SALESMAN';
+  const isSupervisor = user?.role === 'SUPERVISOR';
+  const canDeleteInvoice = !isSupervisor && (user?.role === 'OWNER' || user?.role === 'ADMIN');
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -61,6 +65,7 @@ export default function InvoicesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+  const [deletingInvoice, setDeletingInvoice] = useState<Invoice | null>(null);
   const [createdInvoiceSuccess, setCreatedInvoiceSuccess] = useState<Invoice | null>(null);
   const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
 
@@ -369,7 +374,7 @@ export default function InvoicesPage() {
               )}
             </div>
           )}
-          {!isSalesman && (
+          {!isSalesman && !isSupervisor && (
             <Button
               onClick={() => setShowReturnModal(true)}
               className="flex items-center gap-2 bg-card hover:bg-muted text-foreground border border-border shadow-2xs"
@@ -378,13 +383,15 @@ export default function InvoicesPage() {
               Process Return / Scan QR
             </Button>
           )}
-          <Button
-            onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20"
-          >
-            <Plus className="h-4 w-4" />
-            Create New Invoice
-          </Button>
+          {!isSupervisor && (
+            <Button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground shadow-md shadow-primary/20"
+            >
+              <Plus className="h-4 w-4" />
+              Create New Invoice
+            </Button>
+          )}
         </div>
       </div>
 
@@ -524,8 +531,14 @@ export default function InvoicesPage() {
                 <th className="py-3 px-3.5">Invoice #</th>
                 <th className="py-3 px-3.5">Customer</th>
                 <th className="py-3 px-3.5">Date</th>
-                <th className="py-3 px-3.5">Payment</th>
-                <th className="py-3 px-3.5">Total</th>
+                {isSupervisor ? (
+                  <th className="py-3 px-3.5">Items</th>
+                ) : (
+                  <>
+                    <th className="py-3 px-3.5">Payment</th>
+                    <th className="py-3 px-3.5">Total</th>
+                  </>
+                )}
                 <th className="py-3 px-3.5">Status</th>
                 <th className="py-3 px-3.5 text-right">Invoice</th>
               </tr>
@@ -533,14 +546,14 @@ export default function InvoicesPage() {
             <tbody className="divide-y divide-border/60">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-10 text-muted-foreground">
+                  <td colSpan={isSupervisor ? 6 : 7} className="text-center py-10 text-muted-foreground">
                     Loading invoices...
                   </td>
                 </tr>
               ) : filteredInvoices.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-10 text-muted-foreground">
-                    No invoices found. Click &quot;Create New Invoice&quot; to start counter billing.
+                  <td colSpan={isSupervisor ? 6 : 7} className="text-center py-10 text-muted-foreground">
+                    No invoices found.
                   </td>
                 </tr>
               ) : (
@@ -563,19 +576,27 @@ export default function InvoicesPage() {
                     <td className="py-3 px-3.5 text-muted-foreground">
                       {formatDate(inv.createdAt)}
                     </td>
-                    <td className="py-3 px-3.5">
-                      <span className="px-2 py-0.5 rounded text-[0.6875rem] font-medium bg-muted text-muted-foreground border border-border">
-                        {inv.paymentMode || 'CASH'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3.5 font-bold text-foreground">
-                      <div>{formatINR(inv.total)}</div>
-                      {inv.refundInvoices && inv.refundInvoices.length > 0 && (
-                        <div className="text-[0.625rem] text-rose-600 dark:text-rose-400 font-normal">
-                          -{formatINR(inv.refundInvoices.reduce((s, r) => s + Number(r.total || 0), 0))} refunded
-                        </div>
-                      )}
-                    </td>
+                    {isSupervisor ? (
+                      <td className="py-3 px-3.5 text-foreground font-semibold">
+                        {inv.items?.length || 0} line items
+                      </td>
+                    ) : (
+                      <>
+                        <td className="py-3 px-3.5">
+                          <span className="px-2 py-0.5 rounded text-[0.6875rem] font-medium bg-muted text-muted-foreground border border-border">
+                            {inv.paymentMode || 'CASH'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-3.5 font-bold text-foreground">
+                          <div>{formatINR(inv.total)}</div>
+                          {inv.refundInvoices && inv.refundInvoices.length > 0 && (
+                            <div className="text-[0.625rem] text-rose-600 dark:text-rose-400 font-normal">
+                              -{formatINR(inv.refundInvoices.reduce((s, r) => s + Number(r.total || 0), 0))} refunded
+                            </div>
+                          )}
+                        </td>
+                      </>
+                    )}
                     <td className="py-3 px-3.5">
                       <div className="flex flex-col gap-1 items-start">
                         <span
@@ -609,33 +630,48 @@ export default function InvoicesPage() {
                         <span>View</span>
                       </button>
 
-                      <button
-                        onClick={() => handleShareOnWhatsAppWithPdf(inv)}
-                        disabled={sharingId === inv.id}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[0.5rem] text-[0.75rem] font-semibold bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-xs disabled:opacity-50 transition active:scale-95"
-                        title="Generate PDF and Share via WhatsApp"
-                      >
-                        {sharingId === inv.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <MessageCircle className="h-3.5 w-3.5" />
-                        )}
-                        <span>{sharingId === inv.id ? 'Generating...' : 'WhatsApp'}</span>
-                      </button>
+                      {!isSupervisor && (
+                        <>
+                          <button
+                            onClick={() => handleShareOnWhatsAppWithPdf(inv)}
+                            disabled={sharingId === inv.id}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[0.5rem] text-[0.75rem] font-semibold bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-xs disabled:opacity-50 transition active:scale-95"
+                            title="Generate PDF and Share via WhatsApp"
+                          >
+                            {sharingId === inv.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <MessageCircle className="h-3.5 w-3.5" />
+                            )}
+                            <span>{sharingId === inv.id ? 'Generating...' : 'WhatsApp'}</span>
+                          </button>
 
-                      <button
-                        onClick={() => handleDownloadPdf(inv.id, inv.invoiceNo)}
-                        disabled={downloadingId === inv.id}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[0.5rem] text-[0.75rem] font-medium text-foreground bg-card hover:bg-muted border border-border disabled:opacity-50 transition active:scale-95 shadow-2xs"
-                        title="Download PDF Invoice"
-                      >
-                        {downloadingId === inv.id ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                        ) : (
-                          <Download className="h-3.5 w-3.5 text-primary" />
-                        )}
-                        <span>PDF</span>
-                      </button>
+                          <button
+                            onClick={() => handleDownloadPdf(inv.id, inv.invoiceNo)}
+                            disabled={downloadingId === inv.id}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[0.5rem] text-[0.75rem] font-medium text-foreground bg-card hover:bg-muted border border-border disabled:opacity-50 transition active:scale-95 shadow-2xs"
+                            title="Download PDF Invoice"
+                          >
+                            {downloadingId === inv.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                            ) : (
+                              <Download className="h-3.5 w-3.5 text-primary" />
+                            )}
+                            <span>PDF</span>
+                          </button>
+
+                          {canDeleteInvoice && (
+                            <button
+                              onClick={() => setDeletingInvoice(inv)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-[0.5rem] text-[0.75rem] font-medium text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 shadow-2xs transition active:scale-95"
+                              title="Delete Invoice and Restore Stock"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              <span>Delete</span>
+                            </button>
+                          )}
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -675,9 +711,25 @@ export default function InvoicesPage() {
         onShareWhatsApp={handleShareOnWhatsAppWithPdf}
         onDownloadPdf={handleDownloadPdf}
         onDownloadRefundPdf={handleDownloadRefundPdf}
+        canDelete={canDeleteInvoice}
+        onDelete={(inv) => {
+          setViewingInvoice(null);
+          setDeletingInvoice(inv);
+        }}
         sharingId={sharingId}
         downloadingId={downloadingId}
         downloadingRefundId={downloadingRefundId}
+      />
+
+      <DeleteInvoiceModal
+        invoice={deletingInvoice}
+        isOpen={Boolean(deletingInvoice)}
+        onClose={() => setDeletingInvoice(null)}
+        onSuccess={async () => {
+          setDeletingInvoice(null);
+          setToastMsg('Invoice deleted and stock restored successfully.');
+          await loadInitialData(true);
+        }}
       />
 
       <ShareInvoiceModal

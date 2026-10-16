@@ -11,3 +11,4 @@ export * from './CounterUpiModal';
 export * from './CustomerSelector';
 export * from './InvoiceLineItemCard';
 export * from './filterInvoiceList';
+export * from './DeleteInvoiceModal';

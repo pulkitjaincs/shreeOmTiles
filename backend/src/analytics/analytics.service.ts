@@ -662,10 +662,10 @@ export class AnalyticsService {
     ]);
 
     // Extract consolidated counts
-    const periodInvoicesCount = (revenueAgg as any)._count?.id || 0;
-    const prevInvoicesCount = (prevRevenueAgg as any)._count?.id || 0;
-    const receivablesCount = (receivablesAgg as any)._count?.id || 0;
-    const payablesCount = (payablesAgg as any)._count?.id || 0;
+    const periodInvoicesCount: number = Number(revenueAgg?._count?.id ?? 0);
+    const prevInvoicesCount: number = Number(prevRevenueAgg?._count?.id ?? 0);
+    const receivablesCount: number = Number(receivablesAgg?._count?.id ?? 0);
+    const payablesCount: number = Number(payablesAgg?._count?.id ?? 0);
 
     // Format driver cash
     const cashToBeCollectedFromDrivers = driverCashDeliveries.reduce(
@@ -870,6 +870,270 @@ export class AnalyticsService {
         paymentMode: inv.paymentMode,
         createdAt: inv.createdAt,
       })),
+    };
+  }
+
+  async getDayBook(dateStr?: string) {
+    const targetDate = dateStr ? new Date(dateStr) : new Date();
+    const startOfDay = new Date(targetDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(targetDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // 1. Calculate opening cash in hand before this day
+    const [prevCashIn, prevCashOut, prevExpenses] = await Promise.all([
+      this.prisma.payment.aggregate({
+        where: {
+          mode: PaymentMode.CASH,
+          status: PaymentStatus.CONFIRMED,
+          type: PaymentType.INFLOW,
+          createdAt: { lt: startOfDay },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.payment.aggregate({
+        where: {
+          mode: PaymentMode.CASH,
+          status: PaymentStatus.CONFIRMED,
+          type: PaymentType.OUTFLOW,
+          createdAt: { lt: startOfDay },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.expense.aggregate({
+        where: {
+          paymentMode: PaymentMode.CASH,
+          expenseDate: { lt: startOfDay },
+        },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const openingCash =
+      Number(prevCashIn._sum.amount || 0) -
+      Number(prevCashOut._sum.amount || 0) -
+      Number(prevExpenses._sum.amount || 0);
+
+    // 2. Today's Transactions
+    const [todayPayments, todayExpenses, todayPurchases] = await Promise.all([
+      this.prisma.payment.findMany({
+        where: {
+          status: PaymentStatus.CONFIRMED,
+          createdAt: { gte: startOfDay, lte: endOfDay },
+        },
+        include: {
+          invoice: { include: { party: true } },
+          party: true,
+          confirmedBy: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.expense.findMany({
+        where: {
+          expenseDate: { gte: startOfDay, lte: endOfDay },
+        },
+        include: {
+          createdBy: { select: { id: true, name: true } },
+        },
+        orderBy: { expenseDate: 'asc' },
+      }),
+      this.prisma.purchase.findMany({
+        where: {
+          createdAt: { gte: startOfDay, lte: endOfDay },
+        },
+        include: {
+          party: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+    ]);
+
+    // Breakdowns
+    let cashIn = 0;
+    let cashOut = 0;
+    let upiIn = 0;
+    let bankIn = 0;
+    let expenseCash = 0;
+
+    for (const p of todayPayments) {
+      const amt = Number(p.amount);
+      if (p.mode === PaymentMode.CASH) {
+        if (p.type === PaymentType.INFLOW) {
+          cashIn += amt;
+        } else {
+          cashOut += amt;
+        }
+      } else if (p.mode === PaymentMode.UPI) {
+        if (p.type === PaymentType.INFLOW) upiIn += amt;
+      } else if (p.mode === PaymentMode.BANK_TRANSFER) {
+        if (p.type === PaymentType.INFLOW) bankIn += amt;
+      }
+    }
+
+    for (const exp of todayExpenses) {
+      const amt = Number(exp.amount);
+      if (exp.paymentMode === PaymentMode.CASH) {
+        expenseCash += amt;
+      }
+    }
+
+    const netCashFlow = cashIn - (cashOut + expenseCash);
+    const closingCash = openingCash + netCashFlow;
+
+    return {
+      date: startOfDay.toISOString().slice(0, 10),
+      summary: {
+        openingCash,
+        cashIn,
+        cashOut,
+        expenseCash,
+        netCashFlow,
+        closingCash,
+        digital: {
+          upiIn,
+          bankIn,
+          totalDigital: upiIn + bankIn,
+        },
+      },
+      transactions: {
+        payments: todayPayments.map((p) => ({
+          id: p.id,
+          type: p.type,
+          mode: p.mode,
+          amount: Number(p.amount),
+          partyName: p.invoice?.party?.name || p.party?.name || 'Customer',
+          refNo: p.invoice?.invoiceNo || p.upiTxnRef || 'Direct',
+          time: p.createdAt,
+          notes: p.notes,
+        })),
+        expenses: todayExpenses.map((e) => ({
+          id: e.id,
+          expenseNo: e.expenseNo,
+          category: e.category,
+          amount: Number(e.amount),
+          paymentMode: e.paymentMode,
+          paidTo: e.paidTo,
+          time: e.expenseDate,
+          notes: e.notes,
+        })),
+        purchases: todayPurchases.map((pu) => ({
+          id: pu.id,
+          purchaseNo: pu.purchaseNo,
+          supplierName: pu.party?.name,
+          amount: Number(pu.total),
+          paymentMode: pu.paymentMode,
+          time: pu.createdAt,
+        })),
+      },
+    };
+  }
+
+  async getGstReports(month?: number, year?: number) {
+    const now = new Date();
+    const targetYear = year || now.getFullYear();
+    const targetMonth = month ? month - 1 : now.getMonth();
+
+    const startOfMonth = new Date(targetYear, targetMonth, 1);
+    const endOfMonth = new Date(
+      targetYear,
+      targetMonth + 1,
+      0,
+      23,
+      59,
+      59,
+      999,
+    );
+
+    const [invoices, purchases] = await Promise.all([
+      this.prisma.invoice.findMany({
+        where: {
+          createdAt: { gte: startOfMonth, lte: endOfMonth },
+          status: { not: InvoiceStatus.CANCELLED },
+        },
+        include: { party: true },
+      }),
+      this.prisma.purchase.findMany({
+        where: {
+          createdAt: { gte: startOfMonth, lte: endOfMonth },
+        },
+        include: { party: true },
+      }),
+    ]);
+
+    let b2bTaxable = 0;
+    let b2bTax = 0;
+    let b2cTaxable = 0;
+    let b2cTax = 0;
+
+    let totalCgst = 0;
+    let totalSgst = 0;
+    let totalIgst = 0;
+
+    for (const inv of invoices) {
+      const taxable = Number(inv.subtotal) + Number(inv.transportCost);
+      const tax = Number(inv.tax);
+      const tb =
+        (inv.taxBreakup as {
+          cgst?: number;
+          sgst?: number;
+          igst?: number;
+        } | null) || {};
+
+      if (inv.party?.gstin && inv.party.gstin.trim().length >= 10) {
+        b2bTaxable += taxable;
+        b2bTax += tax;
+      } else {
+        b2cTaxable += taxable;
+        b2cTax += tax;
+      }
+
+      totalCgst += Number(tb.cgst || 0);
+      totalSgst += Number(tb.sgst || 0);
+      totalIgst += Number(tb.igst || 0);
+    }
+
+    let purchaseTaxable = 0;
+    let purchaseTax = 0;
+    for (const pu of purchases) {
+      purchaseTaxable += Number(pu.subtotal);
+      purchaseTax += Number(pu.tax);
+    }
+
+    const netTaxPayable = Math.max(0, b2bTax + b2cTax - purchaseTax);
+
+    return {
+      period: {
+        month: targetMonth + 1,
+        year: targetYear,
+        startDate: startOfMonth.toISOString().slice(0, 10),
+        endDate: endOfMonth.toISOString().slice(0, 10),
+      },
+      gstr1: {
+        b2b: {
+          count: invoices.filter((i) => i.party?.gstin).length,
+          taxableValue: b2bTaxable,
+          taxAmount: b2bTax,
+        },
+        b2c: {
+          count: invoices.filter((i) => !i.party?.gstin).length,
+          taxableValue: b2cTaxable,
+          taxAmount: b2cTax,
+        },
+        totalTaxable: b2bTaxable + b2cTaxable,
+        totalTax: b2bTax + b2cTax,
+        taxBreakup: {
+          cgst: totalCgst,
+          sgst: totalSgst,
+          igst: totalIgst,
+        },
+      },
+      gstr3b: {
+        outwardTaxableSupplies: b2bTaxable + b2cTaxable,
+        outwardTax: b2bTax + b2cTax,
+        inwardTaxable: purchaseTaxable,
+        inwardEligibleItc: purchaseTax,
+        netTaxPayable,
+      },
     };
   }
 }

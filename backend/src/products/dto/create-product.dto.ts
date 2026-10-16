@@ -43,4 +43,8 @@ export class CreateProductDto {
   @IsString()
   @IsOptional()
   initialBatchNo?: string;
+
+  @IsInt()
+  @IsOptional()
+  minStockAlert?: number;
 }

@@ -7,12 +7,15 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Colors } from '@/constants/theme';
 import { formatINR, formatDate, cleanPhoneNumber } from '@/lib/formatters';
 import { buildFullDeliveryManifestShareUrl } from '@/lib/whatsapp';
+import { downloadAndSharePdf } from '@/lib/pdf';
 import { Delivery } from './types';
 
 interface DeliveryCardProps {
   delivery: Delivery;
   isOwnerOrAdmin: boolean;
   isDriver: boolean;
+  isSupervisor?: boolean;
+  userWarehouseId?: string | null;
   handoverInProgress: string | null;
   onOpenRunDetails: (delivery: Delivery) => void;
   onOpenPushModal: (delivery: Delivery) => void;
@@ -20,12 +23,15 @@ interface DeliveryCardProps {
   onCustomerPickedUp: (deliveryId: string) => void;
   onHandoverCash: (deliveryId: string) => void;
   onUpdateStatus: (deliveryId: string, status: string) => void;
+  onSupervisorConfirmPick?: (deliveryId: string, itemIdx: number) => void;
 }
 
 export const DeliveryCard = React.memo(function DeliveryCard({
   delivery,
   isOwnerOrAdmin,
   isDriver,
+  isSupervisor = false,
+  userWarehouseId,
   handoverInProgress,
   onOpenRunDetails,
   onOpenPushModal,
@@ -33,6 +39,7 @@ export const DeliveryCard = React.memo(function DeliveryCard({
   onCustomerPickedUp,
   onHandoverCash,
   onUpdateStatus,
+  onSupervisorConfirmPick,
 }: DeliveryCardProps) {
   const partyPhone = delivery.invoice?.party?.phone;
   const partyAddress = delivery.invoice?.party?.address;
@@ -108,7 +115,22 @@ export const DeliveryCard = React.memo(function DeliveryCard({
           </Text>
         </View>
 
-        <StatusBadge status={delivery.status} size="sm" />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <TouchableOpacity
+            style={styles.challanIconBtn}
+            onPress={() =>
+              downloadAndSharePdf(
+                `delivery/${delivery.id}/challan-pdf`,
+                `Challan_${delivery.invoice?.invoiceNo || delivery.id}`,
+              )
+            }
+            activeOpacity={0.7}
+          >
+            <Ionicons name="document-text-outline" size={12} color="#38BDF8" />
+            <Text style={styles.challanIconText}>Challan</Text>
+          </TouchableOpacity>
+          <StatusBadge status={delivery.status} size="sm" />
+        </View>
       </View>
 
       {/* Destination & Phone */}
@@ -161,33 +183,39 @@ export const DeliveryCard = React.memo(function DeliveryCard({
           ) : null}
         </View>
 
-        {/* Amount / Collection Tag */}
-        {cashCollectedNum > 0 ? (
-          delivery.cashHandedOver ? (
-            <View style={styles.settledBadge}>
-              <Ionicons name="checkmark-circle" size={11} color="#10B981" />
-              <Text style={styles.settledBadgeText}>
-                Received {formatINR(delivery.cashCollected)}
+        {/* Amount / Collection Tag - Masked for supervisor */}
+        {!isSupervisor ? (
+          cashCollectedNum > 0 ? (
+            delivery.cashHandedOver ? (
+              <View style={styles.settledBadge}>
+                <Ionicons name="checkmark-circle" size={11} color="#10B981" />
+                <Text style={styles.settledBadgeText}>
+                  Received {formatINR(delivery.cashCollected)}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.inDriverHandBadge}>
+                <Ionicons name="wallet" size={11} color="#F59E0B" />
+                <Text style={styles.inDriverHandText}>
+                  {formatINR(delivery.cashCollected)} with Driver
+                </Text>
+              </View>
+            )
+          ) : Number(delivery.amountToCollect || 0) > 0 ? (
+            <View style={styles.toCollectBadge}>
+              <Ionicons name="cash-outline" size={11} color="#F59E0B" />
+              <Text style={styles.toCollectText}>
+                Collect {formatINR(delivery.amountToCollect)}
               </Text>
             </View>
           ) : (
-            <View style={styles.inDriverHandBadge}>
-              <Ionicons name="wallet" size={11} color="#F59E0B" />
-              <Text style={styles.inDriverHandText}>
-                {formatINR(delivery.cashCollected)} with Driver
-              </Text>
+            <View style={styles.prepaidBadge}>
+              <Text style={styles.prepaidText}>Prepaid / ₹0</Text>
             </View>
           )
-        ) : Number(delivery.amountToCollect || 0) > 0 ? (
-          <View style={styles.toCollectBadge}>
-            <Ionicons name="cash-outline" size={11} color="#F59E0B" />
-            <Text style={styles.toCollectText}>
-              Collect {formatINR(delivery.amountToCollect)}
-            </Text>
-          </View>
         ) : (
           <View style={styles.prepaidBadge}>
-            <Text style={styles.prepaidText}>Prepaid / ₹0</Text>
+            <Text style={styles.prepaidText}>{totalCount} Items</Text>
           </View>
         )}
       </View>
@@ -213,8 +241,43 @@ export const DeliveryCard = React.memo(function DeliveryCard({
         </View>
       ) : null}
 
-      {/* Handover Notice / Verification for Owner: shown strictly if cashCollected > 0 & !cashHandedOver */}
-      {cashCollectedNum > 0 && !delivery.cashHandedOver ? (
+      {/* Supervisor In-Line Warehouse Pickup Quick Actions */}
+      {isSupervisor && (isAssignedToDriver || isOutForPickup) && userWarehouseId ? (
+        <View style={styles.supervisorItemsBox}>
+          <Text style={styles.supervisorBoxTitle}>Warehouse Items Verification</Text>
+          {(delivery.items || [])
+            .map((it, idx) => ({ it, idx }))
+            .filter(({ it }) => it.warehouseId === userWarehouseId)
+            .map(({ it, idx }) => (
+              <View key={it.invoiceItemId || idx} style={styles.supervisorItemRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.supervisorItemName}>{it.productName}</Text>
+                  <Text style={styles.supervisorItemSub}>
+                    {it.qty} {it.unit} {it.batchNo ? `• Lot: ${it.batchNo}` : ''}
+                  </Text>
+                </View>
+                {it.pickedUp ? (
+                  <View style={styles.supervisorPickedPill}>
+                    <Ionicons name="checkmark-circle" size={12} color="#10B981" />
+                    <Text style={styles.supervisorPickedText}>
+                      {it.pickedUpByName ? `Picked (${it.pickedUpByName})` : 'Picked'}
+                    </Text>
+                  </View>
+                ) : (
+                  <Button
+                    title="Confirm Pick"
+                    size="sm"
+                    variant="primary"
+                    onPress={() => onSupervisorConfirmPick && onSupervisorConfirmPick(delivery.id, idx)}
+                  />
+                )}
+              </View>
+            ))}
+        </View>
+      ) : null}
+
+      {/* Handover Notice / Verification for Owner: shown strictly if cashCollected > 0 & !cashHandedOver and NOT supervisor */}
+      {!isSupervisor && cashCollectedNum > 0 && !delivery.cashHandedOver ? (
         <View style={styles.handoverBanner}>
           <View style={{ flex: 1 }}>
             <Text style={styles.handoverBannerTitle} numberOfLines={1}>
@@ -615,5 +678,72 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     marginTop: 8,
+  },
+  challanIconBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+    borderRadius: 6,
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.25)',
+  },
+  challanIconText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#38BDF8',
+  },
+  supervisorItemsBox: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: 'rgba(168, 85, 247, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(168, 85, 247, 0.25)',
+    gap: 8,
+  },
+  supervisorBoxTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#C084FC',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  supervisorItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    paddingVertical: 4,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  supervisorItemName: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  supervisorItemSub: {
+    fontSize: 10,
+    color: Colors.dark.textTertiary,
+    marginTop: 1,
+  },
+  supervisorPickedPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.25)',
+  },
+  supervisorPickedText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#10B981',
   },
 });

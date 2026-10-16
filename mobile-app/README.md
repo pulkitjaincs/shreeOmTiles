@@ -1,6 +1,6 @@
 # Shree Om Tiles ERP - Mobile Application 📱
 
-> Native cross-platform mobile application engineered for field sales reps, warehouse drivers, and business owners. Built with Expo SDK 57, React Native 0.86, React 19, Expo Router, native push notifications, and filesystem sharing.
+> Native cross-platform mobile application engineered for field sales reps, warehouse drivers, godown supervisors, accountants, and business owners. Built with Expo SDK 57, React Native 0.86, React 19, Expo Router, native push notifications, and filesystem sharing.
 
 ---
 
@@ -9,26 +9,30 @@
 2. [Tech Stack](#tech-stack)
 3. [App Architecture & Navigation](#app-architecture--navigation)
 4. [Componentized Directory Structure](#componentized-directory-structure)
-5. [Role-Adaptive Dashboard Engines](#role-adaptive-dashboard-engines)
-6. [Real-Time Push Notifications Infrastructure](#real-time-push-notifications-infrastructure)
-7. [Native Device Integrations & WhatsApp Sharing](#native-device-integrations--whatsapp-sharing)
-8. [Offline Caching & Network Fallback](#offline-caching--network-fallback)
-9. [Environment Configuration](#environment-configuration)
-10. [Running & Testing on a Physical Smartphone](#running--testing-on-a-physical-smartphone)
-11. [Building a Standalone Android APK (EAS Build)](#building-a-standalone-android-apk-eas-build)
+5. [Role-Adaptive Dashboard Engines & Cockpits](#role-adaptive-dashboard-engines--cockpits)
+6. [Daily Till Book, Procurement & Estimates](#daily-till-book-procurement--estimates)
+7. [Supervisor Godown Verification & Logistics](#supervisor-godown-verification--logistics)
+8. [Real-Time Push Notifications Infrastructure](#real-time-push-notifications-infrastructure)
+9. [Native Document Generation & WhatsApp Sharing](#native-document-generation--whatsapp-sharing)
+10. [Offline Caching & Network Configuration](#offline-caching--network-configuration)
+11. [Running & Testing on a Physical Smartphone](#running--testing-on-a-physical-smartphone)
+12. [Building a Standalone Android APK (EAS Build)](#building-a-standalone-android-apk-eas-build)
 
 ---
 
 ## ✨ Key Features
 
 - **Full Parity with Web ERP**: Complete feature set matching the desktop web dashboard including billing, inventory inward/transfer, payments, customer dues, and driver manifests.
-- **Dynamic Role-Adaptive Cockpit**: The home tab instantly switches between specialized dashboards for `OWNER`, `SALESMAN`, and `DRIVER`.
-- **Driver Trip Manifest & Route Navigation**: Touch-friendly card views with 1-tap phone dialing to customers, Google Maps driving navigation launch, and on-site cash/UPI collection.
-- **Counter Sales Invoicing with Upfront UPI QR**: Salesmen can calculate tile boxes to sq. ft. on the go, issue tax invoices, and present high-contrast NPCI UPI QR codes directly to walk-in customers.
-- **Real-Time Push Notifications**: Receives instant push notifications for new invoices, payments, credit notes, low stock warnings, and delivery assignments.
-- **Native PDF Invoices & WhatsApp Sharing**: Download GST invoices directly to the device and share immediately via WhatsApp, Email, Bluetooth, AirDrop, or Print.
-- **Double-Entry Party Ledgers & Statements**: Search customers, check real-time overdue amounts vs. advance store credits, and review chronological ledgers in the field.
-- **Multi-Warehouse Stock Management**: View live stock across godowns and showrooms, record inward stock, and execute inter-godown transfers.
+- **Dynamic Role-Adaptive Cockpits**: Home tab dynamically switches between specialized dashboards for `OWNER`, `SALESMAN`, `DRIVER`, and `SUPERVISOR`.
+- **Daily Till Book (Day Book)**: Track opening till cash, cash in/out, daily expenses, digital collections, and closing cash directly on mobile with instant date switching.
+- **Price Estimates & 1-Click Invoicing**: Issue formal quotations on the go, download/share estimate PDFs, and convert quotes to active sales invoices with a single tap.
+- **Inward Purchases & Overhead Expenses**: Monitor vendor purchase orders and record categorized daily expenses (fuel, hamali, rent, utilities).
+- **Supervisor Loading Verification**: Dedicated godown supervisor cockpit with **price-masked inventory** to verify and lock loaded items before driver departure.
+- **Logistics Delivery Challans**: 1-tap download and sharing of unpriced official Delivery Challans for drivers and warehouse dispatchers.
+- **Safe Transactional Invoice Deletion**: Owner/Admin modal to safely delete an invoice with automatic inventory replenishment back into the godown.
+- **Counter Sales Invoicing with Upfront UPI QR**: Salesmen calculate tile boxes to sq. ft. on the go, issue tax invoices, and present high-contrast NPCI UPI QR codes directly to walk-in customers.
+- **Real-Time Push Notifications**: Instant heads-up alerts for new invoices, payments, credit notes, low stock warnings, and delivery assignments.
+- **Native Document Sharing & WhatsApp**: Download GST invoices, challans, quotes, and party statements directly to device storage and share via WhatsApp or print.
 
 ---
 
@@ -42,7 +46,7 @@
 - **Gestures & Animations**: `react-native-reanimated` + `react-native-gesture-handler`
 - **Native APIs**:
   - `expo-file-system/legacy`: Low-latency binary PDF file downloads.
-  - `expo-sharing`: Native OS share dialog integration.
+  - `expo-sharing`: Native OS share dialog integration (WhatsApp, AirDrop, Bluetooth, Print).
   - `expo-linking`: Direct phone call (`tel:`) and GPS map navigation (`geo:`).
 
 ---
@@ -59,11 +63,11 @@ mobile-app/
 │   │   └── (tabs)/
 │   │       ├── _layout.tsx           # Role-aware bottom tab bar with dynamic tab visibility
 │   │       ├── index.tsx             # Home dashboard delegating to role-specific views
-│   │       ├── invoices.tsx          # Invoices list, creation modal, PDF viewer & returns
+│   │       ├── invoices.tsx          # Invoices list, creation modal, PDF viewer, deletion & returns
 │   │       ├── transactions.tsx      # Payment receipts, collection logs, settlements
 │   │       ├── stock.tsx             # Warehouse inventory search, box/sqft calculator
-│   │       ├── deliveries.tsx        # Driver routes, dispatch tracking, vehicle allocation
-│   │       └── more.tsx              # Party directory, statements, staff, warehouses, settings
+│   │       ├── deliveries.tsx        # Driver routes, dispatch tracking, challans, supervisor checks
+│   │       └── more.tsx              # Day Book, Quotations, Purchases, Expenses, Parties, Staff, Settings
 │   │
 │   ├── components/                   # Modular domain components (see breakdown below)
 │   └── lib/
@@ -83,62 +87,99 @@ mobile-app/
 
 ## 🧩 Componentized Directory Structure
 
-The mobile app has been componentized into modular domain packages:
-
 ```
 src/components/
 ├── dashboard/
-│   ├── owner/                        # ExecutiveKpiGrid, ReceivablesHealthCard, DriverCashHandoverQueue,
-│   │                                 # PaymentCategoryBreakdown, RecentTransactionsStream, SalesStaffPerformance
-│   ├── driver/                       # DriverActiveCockpit, DriverTopStatusCards, QueuedAssignmentsList,
-│   │                                 # WarehousePickupChecklist
+│   ├── owner/                        # ExecutiveKpiGrid, ReceivablesHealthCard, DriverCashHandoverQueue
+│   ├── driver/                       # DriverActiveCockpit, DriverTopStatusCards, WarehousePickupChecklist
 │   ├── salesman/                     # SalesmanDashboardView (rapid counter billing, UPI modal)
+│   ├── SupervisorDashboardView.tsx   # Warehouse supervisor cockpit with price masking & pickup verification
 │   └── shared/                       # CategorySplitCard, DateFilterBar, SalesTimelineCard
 │
-├── deliveries/                       # DeliveryCard, DeliveryFilterTabs, PushDeliveryModal, PushSuccessModal
-├── invoices/                         # InvoiceListCard, InvoiceListFilters, filterInvoiceList,
-│                                     # InvoiceLineItemCard, CreateInvoiceModal, InvoiceDetailsModal,
-│                                     # ReturnInvoiceModal, ShareInvoiceModal, CounterUpiModal,
-│                                     # CustomerSelector, ActiveLocationsModal
-├── parties/                          # PartiesDirectoryView, PartyCard, PartyFormModal,
-│                                     # PartyStatementDrawer, CreditAgeingRow, DeletePartyModal
-├── payments/                         # PaymentStatsRow, TransactionTabsBar, TransactionHistoryCard,
-│                                     # CustomerDuesCard, StorePayablesCard, CreditLedgerCard,
-│                                     # RecordSettlementModal, RecordCreditModal
+├── day-book/
+│   └── DayBookView.tsx               # Daily Till Book with date switching & cash stream
+├── quotations/
+│   └── QuotationsView.tsx            # Estimates directory, PDF preview & 1-click invoice conversion
+├── purchases/
+│   └── PurchasesView.tsx             # Vendor bills, inward inventory increment & debit notes
+├── expenses/
+│   ├── ExpensesView.tsx              # Categorized business expenses directory & totals
+│   └── CreateExpenseModal.tsx        # Modal to log overhead expense with category and mode
+│
+├── deliveries/                       # DeliveryCard (with Challan button & Supervisor actions),
+│                                     # PushDeliveryModal (partial dispatch), DeliveryRunModal
+├── invoices/                         # InvoiceListCard, InvoiceLineItemCard, CreateInvoiceModal,
+│                                     # DeleteInvoiceModal, InvoiceDetailsModal, ReturnInvoiceModal
+├── parties/                          # PartiesDirectoryView, PartyCard, PartyFormModal (with categories),
+│                                     # PartyStatementDrawer (with date range & PDF export)
+├── payments/                         # PaymentStatsRow, TransactionTabsBar, CustomerDuesCard
 ├── settings/                         # CompanySettingsView, StaffDirectoryView, StaffCard,
-│                                     # StaffFormModal, UpiAccountCard, AddUpiModal
-├── stock/                            # StockTabBar, StockActionsBar, ProductCatalogCard,
-│                                     # WarehouseStockCard, AddProductModal, InwardStockModal,
-│                                     # StockAdjustModal, StockTransferModal
+│                                     # StaffFormModal (Accountant/Supervisor roles & warehouse scope)
+├── stock/                            # StockTabBar, ProductCatalogCard, WarehouseStockCard, Inward/Transfer modals
 ├── warehouses/                       # WarehousesDirectoryView, WarehouseCard, WarehouseDangerModals
 └── ui/                               # BottomSheetModal, Header, custom Select dropdown, badges, buttons
 ```
 
 ---
 
-## 👥 Role-Adaptive Dashboard Engines
+## 👥 Role-Adaptive Dashboard Engines & Cockpits
 
-The home tab `src/app/(tabs)/index.tsx` dynamically evaluates the logged-in user's role and renders one of three dedicated dashboard architectures:
+The home tab `src/app/(tabs)/index.tsx` dynamically evaluates the logged-in user's role and renders one of four dedicated dashboard architectures:
 
-### 1. `DriverDashboardView` (For Drivers)
-- Active cockpit displaying only trips assigned to the driver's vehicle.
+### 1. `SupervisorDashboardView` (For Warehouse Supervisors)
+- **Scoped to Assigned Godown**: Shows active deliveries that include items originating from the supervisor's physical warehouse (`user.scope`).
+- **Loading Checklist**: Inspect and confirm item pickup with a single tap. Records supervisor's identity (`pickedUpByName`) and permanently locks the state.
+- **Price Masking**: Tile purchase rates, selling prices, and invoice margins are completely hidden.
+
+### 2. `DriverDashboardView` (For Drivers)
+- Active road cockpit displaying only trips assigned to the driver.
 - Status cards (`ASSIGNED` ➔ `IN_TRANSIT` ➔ `DELIVERED`).
 - Shortcuts to:
   - 📞 Call Customer directly via system dialer.
   - 🗺️ Open Google Maps / Apple Maps navigation to the shipping address.
+  - 📋 View the **Warehouse Pickup Checklist** (awaiting supervisor confirmation).
   - 💵 Log Cash or UPI collection on delivery.
-  - ✍️ Mark trip complete with customer signature / confirmation.
+  - 📄 1-tap download of the **Delivery Challan PDF**.
 
-### 2. `SalesmanDashboardView` (For Sales Reps)
+### 3. `SalesmanDashboardView` (For Sales Reps)
 - Fast counter-billing layout.
 - Quick search for tile designs, sizes, and stock availability.
 - Dynamic box-to-square-feet rate converter.
 - Upfront NPCI UPI QR code generation to present to customers at point of sale.
 
-### 3. `OwnerDashboardView` (For Administrators)
+### 4. `OwnerDashboardView` (For Administrators & Owners)
 - Executive financial KPIs (Today's Sales, Month-to-Date Collections, Total Receivables).
 - Prominent **Pending Delivery Settlements** notification banner with 1-click review modal.
 - Live recent transactions stream and staff performance metrics.
+
+---
+
+## 💼 Daily Till Book, Procurement & Estimates
+
+The `More` tab exposes comprehensive business tools:
+
+- **Daily Till Book (`DayBookView.tsx`)**:
+  - Review **Opening Cash**, **Cash In**, **Cash Out**, **Daily Expenses**, and **Net Closing Cash**.
+  - Review digital totals (UPI & Bank).
+  - Select any past date to inspect historical reconciliations.
+- **Price Estimates (`QuotationsView.tsx`)**:
+  - Browse quotes, preview details, download estimate PDFs, or convert directly into an active sales invoice.
+- **Inward Purchases (`PurchasesView.tsx`)**:
+  - Track supplier bills, view inward stock additions, and check vendor payables.
+- **Business Expenses (`ExpensesView.tsx`)**:
+  - Record operational expenses on the go with category selection and receipt notes.
+
+---
+
+## 🚚 Supervisor Godown Verification & Logistics
+
+1. **Warehouse Pickup Protocol**:
+   - Drivers cannot mark items as picked.
+   - When a driver arrives at a godown, the warehouse supervisor inspects the stock, taps **Confirm Pick**, and locks the status with an immutable supervisor timestamp.
+2. **Delivery Challan Sharing**:
+   - Drivers and warehouse staff can download and share unpriced official Delivery Challans directly from the delivery card.
+3. **Split Delivery Dispatch**:
+   - Dispatch partial quantities for an invoice, automatically retaining remaining items in the pending queue.
 
 ---
 
@@ -168,35 +209,37 @@ Implemented in `src/lib/notifications.ts` and initialized in `src/app/_layout.ts
 
 ---
 
-## 📲 Native Device Integrations & WhatsApp Sharing
+## 📲 Native Document Generation & WhatsApp Sharing
 
-### PDF Download & System Share (`src/lib/pdf.ts`)
+### Multi-Document PDF Download & System Share (`src/lib/pdf.ts`)
 ```typescript
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 
-export async function downloadAndSharePdf(invoiceId: string, invoiceNumber: string) {
-  const fileUri = `${FileSystem.documentDirectory}${invoiceNumber}.pdf`;
+export async function downloadAndSharePdf(endpoint: string, fileName: string) {
+  const fileUri = `${FileSystem.documentDirectory}${fileName}.pdf`;
   const downloadRes = await FileSystem.downloadAsync(
-    `${API_BASE}/invoices/${invoiceId}/pdf`,
+    `${API_BASE}/${endpoint}`,
     fileUri,
     { headers: { Authorization: `Bearer ${token}` } }
   );
   await Sharing.shareAsync(downloadRes.uri, {
     mimeType: 'application/pdf',
-    dialogTitle: `Share Invoice ${invoiceNumber}`,
+    dialogTitle: `Share ${fileName}`,
     UTI: 'com.adobe.pdf',
   });
 }
 ```
 
-### WhatsApp Invoice Sharing (`src/lib/whatsapp.ts`)
-- Prepares formatted billing summaries with invoice number, itemized totals, and deep links.
-- Launches the official WhatsApp client using `Linking.openURL('whatsapp://send?phone=...&text=...')`.
+Supports 1-click download and share for:
+- 📄 **GST Tax Invoices** (`invoices/:id/pdf`)
+- 📋 **Delivery Challans** (`delivery/:id/challan-pdf`)
+- 📑 **Price Estimates** (`quotations/:id/pdf`)
+- 📊 **Party Statements** (`parties/:id/statement-pdf`)
 
 ---
 
-## 🌐 Offline Caching & Network Fallback
+## 🌐 Offline Caching & Network Configuration
 
 In `src/lib/api.ts`:
 - **Android Emulator**: Automatically rewrites `localhost` to `10.0.2.2:3001`.
@@ -218,39 +261,11 @@ EXPO_PUBLIC_API_URL=http://<YOUR_PC_LAN_IP>:3001
 
 ## 📱 Running & Testing on a Physical Smartphone
 
-### Step 1: Install Expo Go on your Phone
-- **Android**: Install **Expo Go** from Google Play Store.
-- **iOS**: Install **Expo Go** from Apple App Store.
-
-### Step 2: Ensure Phone & PC are on the Same Wi-Fi Network
-Make sure your smartphone and your development computer are connected to the **same Wi-Fi router**.
-
-### Step 3: Find your PC's Local IP Address
-In PowerShell run:
-```powershell
-ipconfig
-```
-Find the **IPv4 Address** under your active Wi-Fi adapter (e.g. `192.168.1.15`).
-
-### Step 4: Configure `mobile-app/.env`
-```env
-EXPO_PUBLIC_API_URL=http://192.168.1.15:3001
-```
-
-> **Windows Firewall Note**: If the app fails to connect, allow port `3001` in PowerShell as Administrator:
-> ```powershell
-> New-NetFirewallRule -DisplayName "DhraERP Backend 3001" -Direction Inbound -LocalPort 3001 -Protocol TCP -Action Allow
-> ```
-
-### Step 5: Start Metro Bundler
 ```bash
 cd mobile-app
 npx expo start -c
 ```
-
-### Step 6: Connect your Phone
-- **Android**: Open Expo Go, tap **Scan QR code**, scan the terminal QR code.
-- **iOS**: Open Camera app, point at the terminal QR code, tap **Open in Expo Go**.
+*Scan the terminal QR code with Expo Go (Android) or the Camera app (iOS).*
 
 ---
 
@@ -258,16 +273,9 @@ npx expo start -c
 
 The project includes an optimized EAS build configuration in `eas.json` with `arm64-v8a` compilation:
 
-1. Configure EAS CLI:
-   ```bash
-   npx eas login
-   ```
-
-2. Trigger Android Preview APK build:
-   ```bash
-   eas build -p android --profile preview
-   ```
-   *EAS will compile the Android APK in the cloud and provide a direct download link and QR code to install on any Android phone.*
+```bash
+eas build -p android --profile preview
+```
 
 - **Package**: `com.shreeomtiles.erp` (Version 1.0.0)
 - **Uses Cleartext Traffic**: Enabled via `expo-build-properties` to allow local HTTP backend communication.

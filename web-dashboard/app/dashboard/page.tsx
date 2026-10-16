@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import DriverDashboard from '@/components/driver-dashboard';
 import SalesmanDashboard from '@/components/salesman-dashboard';
+import SupervisorDashboard from '@/components/supervisor-dashboard';
 import { DashboardData, DatePreset } from '@/components/analytics/types';
 import { AnalyticsKpiGrid } from '@/components/analytics/analytics-kpi-grid';
 import { DriverCashCollectionQueue } from '@/components/analytics/driver-cash-collection-queue';
@@ -32,6 +33,7 @@ export default function DashboardPage() {
   const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
   const isDriver = user?.role === 'DRIVER';
+  const isSupervisor = user?.role === 'SUPERVISOR';
 
   const loadDashboard = useCallback(
     async (
@@ -95,9 +97,9 @@ export default function DashboardPage() {
   );
 
   useEffect(() => {
-    if (isDriver) return;
+    if (isDriver || isSupervisor) return;
     void loadDashboard(preset);
-  }, [isDriver, preset, loadDashboard]);
+  }, [isDriver, isSupervisor, preset, loadDashboard]);
 
   useEffect(() => {
     const handleRefresh = () => {
@@ -141,6 +143,10 @@ export default function DashboardPage() {
 
   if (user?.role === 'DRIVER') {
     return <DriverDashboard userName={user.name || user.phone} />;
+  }
+
+  if (user?.role === 'SUPERVISOR') {
+    return <SupervisorDashboard user={user} />;
   }
 
   if (user?.role === 'SALESMAN' || data?.role === 'SALESMAN') {

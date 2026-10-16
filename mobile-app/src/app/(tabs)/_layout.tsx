@@ -14,6 +14,8 @@ export default function TabsLayout() {
 
   const isDriver = role === 'DRIVER';
   const isSalesman = role === 'SALESMAN';
+  const isAccountant = role === 'ACCOUNTANT';
+  const isSupervisor = role === 'SUPERVISOR';
   const isOwnerOrAdmin = role === 'OWNER' || role === 'ADMIN';
 
   useEffect(() => {
@@ -52,8 +54,8 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: isDriver ? 'My Run' : isSalesman ? 'My Sales' : 'Analytics',
-          tabBarLabel: isDriver ? 'My Run' : 'Home',
+          title: isDriver ? 'My Run' : isSupervisor ? 'Godown Cockpit' : isSalesman ? 'My Sales' : isAccountant ? 'Accounts' : 'Analytics',
+          tabBarLabel: isDriver ? 'My Run' : isSupervisor ? 'Godown' : 'Home',
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
               name={focused ? 'grid' : 'grid-outline'}
@@ -81,11 +83,10 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* 3. Deliveries & Dispatch Tab */}
+      {/* 3. Deliveries & Dispatch Tab (Drivers, Salesman view-only, Accountant, Owners) */}
       <Tabs.Screen
         name="deliveries"
         options={{
-          href: isSalesman ? null : undefined,
           title: isDriver ? 'Deliveries' : 'Dispatch',
           tabBarLabel: 'Deliveries',
           tabBarIcon: ({ color, size, focused }) => (
@@ -115,11 +116,11 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* 5. Transactions Tab (Owner/Admin) */}
+      {/* 5. Transactions Tab (Owner/Admin/Accountant) */}
       <Tabs.Screen
         name="transactions"
         options={{
-          href: isOwnerOrAdmin ? undefined : null,
+          href: (isOwnerOrAdmin || isAccountant) ? undefined : null,
           title: 'Transactions',
           tabBarLabel: 'Payments',
           tabBarIcon: ({ color, size, focused }) => (

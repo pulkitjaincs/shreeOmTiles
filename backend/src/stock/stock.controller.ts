@@ -25,8 +25,9 @@ export class StockController {
   constructor(private readonly stockService: StockService) {}
 
   @Get()
-  @Roles(Role.ADMIN, Role.SALESMAN)
+  @Roles(Role.ADMIN, Role.SALESMAN, Role.SUPERVISOR)
   findAll(
+    @Request() req: RequestWithUser,
     @Query('productId') productId?: string,
     @Query('warehouseId') warehouseId?: string,
     @Query('page') page?: string,
@@ -34,32 +35,35 @@ export class StockController {
   ) {
     const pageNum = page ? parseInt(page, 10) : undefined;
     const limitNum = limit ? parseInt(limit, 10) : undefined;
-    return this.stockService.findAll({
-      productId,
-      warehouseId,
-      page: pageNum,
-      limit: limitNum,
-    });
+    return this.stockService.findAll(
+      {
+        productId,
+        warehouseId,
+        page: pageNum,
+        limit: limitNum,
+      },
+      req.user,
+    );
   }
 
   @Post('adjust')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERVISOR)
   adjustStock(@Request() req: RequestWithUser, @Body() dto: AdjustStockDto) {
-    return this.stockService.adjustStock(dto, req.user.id);
+    return this.stockService.adjustStock(dto, req.user.id, req.user);
   }
 
   @Post('transfer')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERVISOR)
   transferStock(
     @Request() req: RequestWithUser,
     @Body() dto: TransferStockDto,
   ) {
-    return this.stockService.transferStock(dto, req.user.id);
+    return this.stockService.transferStock(dto, req.user.id, req.user);
   }
 
   @Post('zero-out')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERVISOR)
   zeroOutStock(@Request() req: RequestWithUser, @Body() dto: ZeroOutStockDto) {
-    return this.stockService.zeroOutStock(dto, req.user.id);
+    return this.stockService.zeroOutStock(dto, req.user.id, req.user);
   }
 }

@@ -7,6 +7,8 @@ import { CreateWarehouseDto } from './dto/create-warehouse.dto';
 import { UpdateWarehouseDto } from './dto/update-warehouse.dto';
 import { PrismaService } from '../prisma/prisma.service';
 
+import { Role } from '@prisma/client';
+
 @Injectable()
 export class WarehousesService {
   constructor(private readonly prisma: PrismaService) {}
@@ -15,8 +17,8 @@ export class WarehousesService {
     return this.prisma.warehouse.create({ data });
   }
 
-  async findAll() {
-    return this.prisma.warehouse.findMany({
+  async findAll(user?: { id: string; role: Role }) {
+    const list = await this.prisma.warehouse.findMany({
       include: {
         stockLedgers: {
           include: { product: true },
@@ -24,9 +26,14 @@ export class WarehousesService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    if (user?.role === Role.SUPERVISOR) {
+      return list.map((wh) => this.sanitizeWarehouseForSupervisor(wh));
+    }
+    return list;
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user?: { id: string; role: Role }) {
     const warehouse = await this.prisma.warehouse.findUnique({
       where: { id },
       include: {
@@ -36,7 +43,48 @@ export class WarehousesService {
       },
     });
     if (!warehouse) throw new NotFoundException(`Warehouse ${id} not found`);
+
+    if (user?.role === Role.SUPERVISOR) {
+      return this.sanitizeWarehouseForSupervisor(warehouse);
+    }
     return warehouse;
+  }
+
+  private sanitizeWarehouseForSupervisor<T extends Record<string, unknown>>(
+    wh: T,
+  ): T {
+    if (!wh) return wh;
+    const rawStock = Array.isArray(wh.stockLedgers)
+      ? (wh.stockLedgers as Array<Record<string, unknown>>)
+      : [];
+
+    const stockLedgers = rawStock.map((sl) => {
+      const rawProd =
+        sl.product && typeof sl.product === 'object'
+          ? (sl.product as Record<string, unknown>)
+          : null;
+
+      let cleanAttrs = rawProd?.attributes;
+      if (cleanAttrs && typeof cleanAttrs === 'object') {
+        const copy = { ...(cleanAttrs as Record<string, unknown>) };
+        delete copy.price;
+        delete copy.sellingPrice;
+        delete copy.purchasePrice;
+        delete copy.cost;
+        delete copy.rate;
+        cleanAttrs = copy;
+      }
+
+      return {
+        ...sl,
+        product: rawProd ? { ...rawProd, attributes: cleanAttrs } : null,
+      };
+    });
+
+    return {
+      ...wh,
+      stockLedgers,
+    };
   }
 
   async update(id: string, data: UpdateWarehouseDto) {

@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button';
 import { 
   X, 
   Send, 
-  Lock, 
   CircleDollarSign, 
   Package, 
   CheckSquare, 
@@ -27,7 +26,6 @@ interface PushDeliveryModalProps {
 
 export function PushDeliveryModal({ delivery, onClose, onSuccess }: PushDeliveryModalProps) {
   const [selectedItems, setSelectedItems] = useState<DispatchSelectionItem[]>([]);
-  const [transportCost, setTransportCost] = useState<number | ''>('');
   const [amountToCollect, setAmountToCollect] = useState<number | ''>(0);
   const [vehicle, setVehicle] = useState('');
   const [notes, setNotes] = useState('');
@@ -36,8 +34,7 @@ export function PushDeliveryModal({ delivery, onClose, onSuccess }: PushDelivery
   useEffect(() => {
     if (!delivery) return;
 
-    setTransportCost('');
-    setAmountToCollect(0);
+    setAmountToCollect(delivery.amountToCollect ?? 0);
     setVehicle('');
     setNotes('');
 
@@ -138,11 +135,6 @@ ${itemsList}
   const handleConfirmPush = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (transportCost === '' || Number(transportCost) < 0) {
-      alert('Please enter a valid internal transport pricing/cost (can be 0 or greater).');
-      return;
-    }
-
     const itemsToDispatch: DispatchedItem[] = selectedItems
       .filter((it) => it.selected && it.dispatchQty > 0)
       .map((it) => ({
@@ -169,7 +161,6 @@ ${itemsList}
       await apiRequest(`/delivery/${delivery.id}/push`, {
         method: 'POST',
         body: JSON.stringify({
-          transportCost: Number(transportCost),
           amountToCollect: amountCollectNum,
           vehicle: vehicle || undefined,
           notes: notes || undefined,
@@ -193,7 +184,7 @@ ${itemsList}
         driverPhone: delivery.driver?.phone || '',
         itemsCount: itemsToDispatch.length,
         amountToCollect: amountCollectNum,
-        transportCost: Number(transportCost),
+        transportCost: 0,
         hasRemaining,
         waUrl,
       });
@@ -226,17 +217,6 @@ ${itemsList}
         </div>
 
         <form onSubmit={handleConfirmPush} className="space-y-4">
-          {/* Internal Transport Pricing Warning Banner */}
-          <div className="p-3.5 rounded-[0.875rem] bg-amber-500/10 border border-amber-500/25 flex items-start gap-2.5 text-xs text-amber-800 dark:text-amber-300">
-            <Lock className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-            <div>
-              <div className="font-semibold text-foreground">Internal Transport Pricing (Confidential)</div>
-              <div>
-                This transport cost is recorded solely for company logistics and accounting records.{' '}
-                <strong>It will NEVER be shown or sent to the driver.</strong>
-              </div>
-            </div>
-          </div>
 
           {/* Cash/Payment Collection from Customer */}
           <div className="p-3.5 rounded-[0.875rem] bg-primary/5 border border-primary/20 space-y-2">
@@ -390,31 +370,8 @@ ${itemsList}
             </div>
           </div>
 
-          {/* Internal Logistics Pricing & Vehicle */}
+          {/* Vehicle & Trip Notes */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-foreground mb-1">
-                Internal Transport Cost / Pricing (₹) *
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
-                  ₹
-                </span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  required
-                  placeholder="e.g. 350.00"
-                  value={transportCost}
-                  onChange={(e) =>
-                    setTransportCost(e.target.value === '' ? '' : Number(e.target.value))
-                  }
-                  className="w-full rounded-[0.75rem] border border-input bg-background pl-7 pr-3 py-2 text-sm font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                />
-              </div>
-            </div>
-
             <div>
               <label className="block text-xs font-semibold text-foreground mb-1">
                 Vehicle / Truck Info (Optional)
@@ -428,7 +385,7 @@ ${itemsList}
               />
             </div>
 
-            <div className="col-span-full">
+            <div>
               <label className="block text-xs font-semibold text-foreground mb-1">
                 Internal Trip Notes (Optional)
               </label>
@@ -437,7 +394,7 @@ ${itemsList}
                 placeholder="e.g. Driver allowance + toll charges"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
           </div>

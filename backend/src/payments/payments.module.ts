@@ -9,4 +9,3 @@ import { NotificationsModule } from '../notifications/notifications.module';
   providers: [PaymentsService],
 })
 export class PaymentsModule {}
-

@@ -8,6 +8,10 @@ import { UpdatePartyDto } from './dto/update-party.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 import { PaginationParams } from '../common/interfaces/pagination.interface';
+import {
+  generatePartyStatementPdf,
+  LedgerEntry,
+} from './pdf/party-statement-pdf.generator';
 
 @Injectable()
 export class PartiesService {
@@ -20,6 +24,7 @@ export class PartiesService {
         phone: data.phone,
         address: data.address,
         gstin: data.gstin,
+        category: data.category,
       },
     });
   }
@@ -217,5 +222,174 @@ export class PartiesService {
         message: `Customer '${party.name}' removed from directory.`,
       };
     }
+  }
+
+  async generateStatementPdf(id: string, startDate?: string, endDate?: string) {
+    const party = await this.prisma.party.findUnique({
+      where: { id },
+      include: {
+        invoices: {
+          include: { items: { include: { product: true } }, payments: true },
+          orderBy: { createdAt: 'asc' },
+        },
+        refundInvoices: {
+          include: { items: { include: { product: true } } },
+          orderBy: { createdAt: 'asc' },
+        },
+        payments: {
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+
+    if (!party) throw new NotFoundException(`Party ${id} not found`);
+
+    const start = startDate ? new Date(startDate) : new Date(0);
+    const end = endDate ? new Date(endDate) : new Date();
+
+    // Opening Balance prior to start
+    let runningBal = 0;
+    for (const inv of party.invoices) {
+      if (new Date(inv.createdAt) < start) {
+        runningBal += Number(inv.total);
+      }
+    }
+    for (const p of party.payments) {
+      if (p.status === 'CONFIRMED' && new Date(p.createdAt) < start) {
+        runningBal -= Number(p.amount);
+      }
+    }
+    for (const r of party.refundInvoices) {
+      if (new Date(r.createdAt) < start) {
+        runningBal -= Number(r.total);
+      }
+    }
+
+    const openingBalance = runningBal;
+    const entries: LedgerEntry[] = [];
+
+    if (startDate) {
+      entries.push({
+        date: start,
+        voucherType: 'Opening Balance',
+        refNo: 'B/F',
+        particulars: 'Balance Brought Forward',
+        debit: openingBalance > 0 ? openingBalance : 0,
+        credit: openingBalance < 0 ? Math.abs(openingBalance) : 0,
+        balance: openingBalance,
+      });
+    }
+
+    // Collect transactions between start and end
+    interface RawTx {
+      date: Date;
+      type: 'INVOICE' | 'PAYMENT' | 'REFUND';
+      refNo: string;
+      particulars: string;
+      amount: number;
+    }
+    const rawTxs: RawTx[] = [];
+
+    for (const inv of party.invoices) {
+      const d = new Date(inv.createdAt);
+      if (d >= start && d <= end) {
+        const itemNames =
+          inv.items
+            .map((i) => i.product?.name)
+            .filter(Boolean)
+            .join(', ') || 'Goods sale';
+        rawTxs.push({
+          date: d,
+          type: 'INVOICE',
+          refNo: inv.invoiceNo,
+          particulars: itemNames.slice(0, 30),
+          amount: Number(inv.total),
+        });
+      }
+    }
+
+    for (const p of party.payments) {
+      const d = new Date(p.createdAt);
+      if (p.status === 'CONFIRMED' && d >= start && d <= end) {
+        rawTxs.push({
+          date: d,
+          type: 'PAYMENT',
+          refNo: p.upiTxnRef || `PAY-${p.id.slice(0, 6)}`,
+          particulars: `Payment (${p.mode})`,
+          amount: Number(p.amount),
+        });
+      }
+    }
+
+    for (const r of party.refundInvoices) {
+      const d = new Date(r.createdAt);
+      if (d >= start && d <= end) {
+        rawTxs.push({
+          date: d,
+          type: 'REFUND',
+          refNo: r.refundNo,
+          particulars: r.reason || 'Goods Return',
+          amount: Number(r.total),
+        });
+      }
+    }
+
+    rawTxs.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    let totalBilled = 0;
+    let totalPaid = 0;
+    let totalReturns = 0;
+
+    for (const tx of rawTxs) {
+      if (tx.type === 'INVOICE') {
+        runningBal += tx.amount;
+        totalBilled += tx.amount;
+        entries.push({
+          date: tx.date,
+          voucherType: 'Tax Invoice',
+          refNo: tx.refNo,
+          particulars: tx.particulars,
+          debit: tx.amount,
+          credit: 0,
+          balance: runningBal,
+        });
+      } else if (tx.type === 'PAYMENT') {
+        runningBal -= tx.amount;
+        totalPaid += tx.amount;
+        entries.push({
+          date: tx.date,
+          voucherType: 'Payment Received',
+          refNo: tx.refNo,
+          particulars: tx.particulars,
+          debit: 0,
+          credit: tx.amount,
+          balance: runningBal,
+        });
+      } else if (tx.type === 'REFUND') {
+        runningBal -= tx.amount;
+        totalReturns += tx.amount;
+        entries.push({
+          date: tx.date,
+          voucherType: 'Credit Note',
+          refNo: tx.refNo,
+          particulars: tx.particulars,
+          debit: 0,
+          credit: tx.amount,
+          balance: runningBal,
+        });
+      }
+    }
+
+    return generatePartyStatementPdf({
+      party,
+      startDate,
+      endDate,
+      openingBalance,
+      totalBilled,
+      totalPaid,
+      totalReturns,
+      closingBalance: runningBal,
+      entries,
+    });
   }
 }

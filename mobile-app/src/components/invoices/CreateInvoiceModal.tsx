@@ -51,15 +51,18 @@ export function CreateInvoiceModal({
 
   const [items, setItems] = useState<InvoiceLineItem[]>([
     {
-      productId: products[0]?.id || '',
+      productId: '',
       warehouseId: '',
-      qty: 1,
+      allocations: [],
+      qty: 0,
       unitPrice: 0,
       discount: 0,
     },
   ]);
 
   const [taxRate, setTaxRate] = useState<number>(18);
+  const [transportCost, setTransportCost] = useState<string>('0');
+  const [transportGstRate, setTransportGstRate] = useState<number>(0);
   const [paymentMode, setPaymentMode] = useState<'UPI' | 'CASH' | 'CREDIT' | 'CHEQUE'>('UPI');
   const [amountPaidNow, setAmountPaidNow] = useState<string>('0');
   const [notes, setNotes] = useState('');
@@ -93,7 +96,8 @@ export function CreateInvoiceModal({
     [warehouses, currentStockList],
   );
 
-  const getStockAllocations = useCallback((productId: string, initialQty = 1, sourceStock = currentStockList) => {
+  const getStockAllocations = useCallback((productId: string, initialQty = 0, sourceStock = currentStockList) => {
+    if (!productId) return [];
     const rows = sourceStock.filter((stock) => stock.productId === productId && Number(stock.quantity) > 0);
     return rows.map((stock, index) => ({
       warehouseId: stock.warehouseId,
@@ -102,6 +106,33 @@ export function CreateInvoiceModal({
       qty: index === 0 ? Math.min(initialQty, Number(stock.quantity)) : 0,
     }));
   }, [currentStockList]);
+
+  const resolveProductPrice = useCallback(
+    (prod: Product | undefined, currentPartyId?: string) => {
+      if (!prod?.attributes || typeof prod.attributes !== 'object') return 0;
+      const attrs = prod.attributes as Record<string, any>;
+      const targetPartyId = currentPartyId || selectedPartyId;
+      const party = parties.find((p) => p.id === targetPartyId);
+      const isWholesale = party?.category === 'WHOLESALER' || party?.category === 'CONTRACTOR';
+      if (isWholesale && attrs.wholesalePrice !== undefined && Number(attrs.wholesalePrice) > 0) {
+        return Number(attrs.wholesalePrice);
+      }
+      return attrs.price !== undefined ? Number(attrs.price) : 0;
+    },
+    [parties, selectedPartyId],
+  );
+
+  const handleSelectedPartyChange = (partyId: string) => {
+    setSelectedPartyId(partyId);
+    setItems((current) =>
+      current.map((item) => {
+        if (!item.productId) return item;
+        const prod = products.find((pr) => pr.id === item.productId);
+        const effective = resolveProductPrice(prod, partyId);
+        return effective > 0 ? { ...item, unitPrice: effective } : item;
+      }),
+    );
+  };
 
   // Reset or initialize modal
   useEffect(() => {
@@ -113,7 +144,6 @@ export function CreateInvoiceModal({
     wasVisible.current = true;
     let cancelled = false;
     setRefreshingStock(true);
-    const initialProd = products[0]?.id || '';
     const initializeForm = async () => {
       let freshStock = stockList;
       try {
@@ -123,20 +153,16 @@ export function CreateInvoiceModal({
       }
       if (cancelled) return;
       setCurrentStockList(freshStock);
-      const avail = getAvailableWarehouses(initialProd, freshStock);
-      const initialAllocations = getStockAllocations(initialProd, 1, freshStock);
-      const defaultPrice = products[0] && typeof products[0].attributes === 'object'
-        ? Number(products[0].attributes?.price || 0)
-        : 0;
+      const initialPartyId = parties[0]?.id || '';
       setItems([{
-        productId: initialProd,
-        warehouseId: avail[0]?.id || '',
-        allocations: initialAllocations,
-        qty: initialAllocations.reduce((sum, allocation) => sum + allocation.qty, 0),
-        unitPrice: defaultPrice,
+        productId: '',
+        warehouseId: '',
+        allocations: [],
+        qty: 0,
+        unitPrice: 0,
         discount: 0,
       }]);
-      setSelectedPartyId(parties[0]?.id || '');
+      setSelectedPartyId(initialPartyId);
       setCustomerMode('existing');
       setNewPartyName('');
       setNewPartyPhone('');
@@ -144,6 +170,8 @@ export function CreateInvoiceModal({
       setNewPartyGstin('');
       setSaveNewParty(true);
       setTaxRate(18);
+      setTransportCost('0');
+      setTransportGstRate(0);
       setPaymentMode('UPI');
       setAmountPaidNow('0');
       setNotes('');
@@ -165,40 +193,45 @@ export function CreateInvoiceModal({
         console.warn('Failed to load UPI accounts:', err.message);
       });
     return () => { cancelled = true; };
-  }, [visible, products, parties, stockList, onRefreshStock, getAvailableWarehouses, getStockAllocations]);
+  }, [visible, products, parties, stockList, onRefreshStock, getAvailableWarehouses, getStockAllocations, resolveProductPrice]);
 
   useEffect(() => setCurrentStockList(stockList), [stockList]);
 
   useEffect(() => {
     if (!visible) return;
-    if (!items[0]?.productId && products[0]) {
-      const allocations = getStockAllocations(products[0].id);
-      setItems((current) => current[0]?.productId ? current : [{
-        ...current[0],
-        productId: products[0].id,
-        warehouseId: allocations[0]?.warehouseId || '',
-        allocations,
-        qty: allocations.reduce((sum, allocation) => sum + allocation.qty, 0),
-        unitPrice: Number(products[0].attributes?.price || 0),
-      }]);
-    }
     if (customerMode === 'existing' && !selectedPartyId && parties[0]) {
       setSelectedPartyId(parties[0].id);
     }
-  }, [visible, products, parties, stockList, items, customerMode, selectedPartyId, getStockAllocations]);
+  }, [visible, parties, customerMode, selectedPartyId]);
 
   const handleProductChange = (index: number, newProductId: string) => {
+    if (!newProductId) {
+      setItems((prev) =>
+        prev.map((item, i) =>
+          i === index
+            ? {
+                ...item,
+                productId: '',
+                warehouseId: '',
+                allocations: [],
+                batchNo: undefined,
+                qty: 0,
+                unitPrice: 0,
+                discount: 0,
+              }
+            : item,
+        ),
+      );
+      return;
+    }
     if (items.some((item, itemIndex) => itemIndex !== index && item.productId === newProductId)) {
       Alert.alert('Duplicate Product', 'Each product can be added only once to an invoice.');
       return;
     }
     const availWh = getAvailableWarehouses(newProductId);
-    const allocations = getStockAllocations(newProductId);
+    const allocations = getStockAllocations(newProductId, 0);
     const selectedProd = products.find((p) => p.id === newProductId);
-    const defaultPrice =
-      selectedProd && (selectedProd as any).attributes && typeof (selectedProd as any).attributes === 'object'
-        ? Number(((selectedProd as any).attributes as any).price || 0)
-        : 0;
+    const defaultPrice = resolveProductPrice(selectedProd, selectedPartyId);
 
     setItems((prev) =>
       prev.map((item, i) =>
@@ -215,7 +248,7 @@ export function CreateInvoiceModal({
                 );
                 return batches.length === 1 ? batches[0].batchNo : undefined;
               })(),
-              unitPrice: defaultPrice > 0 ? defaultPrice : item.unitPrice,
+              unitPrice: defaultPrice > 0 ? defaultPrice : 0,
             }
           : item,
       ),
@@ -223,28 +256,24 @@ export function CreateInvoiceModal({
   };
 
   const handleAddItem = () => {
-    const used = new Set(items.map((item) => item.productId));
-    const selected = products.find((product) => !used.has(product.id));
-    if (!selected) {
-      Alert.alert('All Products Added', 'Each product can be added only once to an invoice.');
+    const used = new Set(items.map((item) => item.productId).filter(Boolean));
+    if (products.length > 0 && used.size >= products.length) {
+      Alert.alert('All Products Added', 'All available products in your catalog are already added.');
       return;
     }
-    const initialProd = selected.id;
-    const avail = getAvailableWarehouses(initialProd);
-    const defaultPrice = Number(selected.attributes?.price || 0);
-    const batches = stockList.filter(
-      (s) => s.productId === initialProd && s.warehouseId === avail[0]?.id && Number(s.quantity) > 0,
-    );
-    const allocations = getStockAllocations(initialProd);
+    const hasEmptyItem = items.some((item) => !item.productId);
+    if (hasEmptyItem) {
+      Alert.alert('Select Product', 'Please select a product for the empty item before adding another.');
+      return;
+    }
     setItems((prev) => [
       ...prev,
       {
-        productId: initialProd,
-        warehouseId: avail[0]?.id || '',
-        allocations,
-        batchNo: batches.length === 1 ? batches[0].batchNo : undefined,
-        qty: allocations.reduce((sum, allocation) => sum + allocation.qty, 0),
-        unitPrice: defaultPrice,
+        productId: '',
+        warehouseId: '',
+        allocations: [],
+        qty: 0,
+        unitPrice: 0,
         discount: 0,
       },
     ]);
@@ -280,18 +309,22 @@ export function CreateInvoiceModal({
     );
   };
 
-  const { subtotal, taxAmount, grandTotal } = useMemo(() => {
+  const { subtotal, itemsTax, numTransportCost, transportTax, grandTotal } = useMemo(() => {
     const rawSub = items.reduce((acc, it) => {
       const lineTotal = (Number(it.qty) || 0) * (Number(it.unitPrice) || 0) - (Number(it.discount) || 0);
       return acc + Math.max(0, lineTotal);
     }, 0);
     const tax = Math.round((rawSub * (taxRate / 100)) * 100) / 100;
+    const tCost = Math.max(0, Number(transportCost) || 0);
+    const tTax = Math.round((tCost * (transportGstRate / 100)) * 100) / 100;
     return {
       subtotal: rawSub,
-      taxAmount: tax,
-      grandTotal: rawSub + tax,
+      itemsTax: tax,
+      numTransportCost: tCost,
+      transportTax: tTax,
+      grandTotal: rawSub + tax + tCost + tTax,
     };
-  }, [items, taxRate]);
+  }, [items, taxRate, transportCost, transportGstRate]);
 
   const parsedPaid = amountPaidNow === '' ? 0 : Number(amountPaidNow);
   const effectivePaidNow = paymentMode !== 'CREDIT' && Number.isFinite(parsedPaid)
@@ -306,14 +339,12 @@ export function CreateInvoiceModal({
     setNewPartyPhone('');
     setNewPartyAddress('');
     setNewPartyGstin('');
-    const initialProduct = products[0];
-    const initialAllocations = getStockAllocations(initialProduct?.id || '');
     setItems([{
-      productId: initialProduct?.id || '',
-      warehouseId: initialAllocations[0]?.warehouseId || '',
-      allocations: initialAllocations,
-      qty: initialAllocations.reduce((sum, allocation) => sum + allocation.qty, 0),
-      unitPrice: Number(initialProduct?.attributes?.price || 0),
+      productId: '',
+      warehouseId: '',
+      allocations: [],
+      qty: 0,
+      unitPrice: 0,
       discount: 0,
     }]);
     setTaxRate(18);
@@ -401,6 +432,8 @@ export function CreateInvoiceModal({
     try {
       const payload: any = {
         taxRate,
+        transportCost: numTransportCost,
+        transportGstRate,
         paymentMode: finalMode,
         notes: notes.trim() || undefined,
         items: items.flatMap((it) => {
@@ -467,7 +500,7 @@ export function CreateInvoiceModal({
           onCustomerModeChange={setCustomerMode}
           parties={parties}
           selectedPartyId={selectedPartyId}
-          onSelectedPartyChange={setSelectedPartyId}
+          onSelectedPartyChange={handleSelectedPartyChange}
           newPartyName={newPartyName}
           onNewPartyNameChange={setNewPartyName}
           newPartyPhone={newPartyPhone}
@@ -526,6 +559,32 @@ export function CreateInvoiceModal({
           keyboardType="decimal-pad"
         />
 
+        <Input
+          label="Cartage / Transport Cost (₹)"
+          placeholder="0.00"
+          value={transportCost}
+          onChangeText={setTransportCost}
+          keyboardType="decimal-pad"
+        />
+
+        <Text style={styles.fieldLabel}>Transport GST Rate</Text>
+        <View style={styles.tabToggle}>
+          {([0, 5, 12, 18, 28] as const).map((rate) => {
+            const isSelected = transportGstRate === rate;
+            return (
+              <TouchableOpacity
+                key={rate}
+                onPress={() => setTransportGstRate(rate)}
+                style={[styles.toggleBtn, isSelected && styles.toggleBtnActive]}
+              >
+                <Text style={[styles.toggleText, isSelected && styles.toggleTextActive]}>
+                  {rate}%
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
         <Text style={styles.fieldLabel}>Payment Mode</Text>
         <View style={styles.tabToggle}>
           {(['UPI', 'CASH', 'CHEQUE', 'CREDIT'] as const).map((mode) => {
@@ -576,13 +635,29 @@ export function CreateInvoiceModal({
         {/* Calculation Summary Box */}
         <Card elevated style={styles.summaryBox}>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Subtotal</Text>
+            <Text style={styles.summaryLabel}>Items Subtotal</Text>
             <Text style={styles.summaryVal}>{formatINR(subtotal)}</Text>
           </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Tax ({taxRate}%)</Text>
-            <Text style={styles.summaryVal}>{formatINR(taxAmount)}</Text>
-          </View>
+          {taxRate > 0 && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Items GST ({taxRate}%)</Text>
+              <Text style={styles.summaryVal}>{formatINR(itemsTax)}</Text>
+            </View>
+          )}
+          {numTransportCost > 0 && (
+            <>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Cartage / Transport</Text>
+                <Text style={styles.summaryVal}>{formatINR(numTransportCost)}</Text>
+              </View>
+              {transportGstRate > 0 && (
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Transport GST ({transportGstRate}%)</Text>
+                  <Text style={styles.summaryVal}>{formatINR(transportTax)}</Text>
+                </View>
+              )}
+            </>
+          )}
           <View style={[styles.summaryRow, styles.grandTotalRow]}>
             <Text style={styles.grandTotalLabel}>Grand Total</Text>
             <Text style={styles.grandTotalVal}>{formatINR(grandTotal)}</Text>

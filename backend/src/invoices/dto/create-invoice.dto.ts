@@ -86,6 +86,20 @@ export class CreateInvoiceDto {
   @IsOptional()
   taxRate?: number; // e.g. 18 for 18% GST
 
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  transportCost?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  transportGstRate?: number;
+
+  @IsString()
+  @IsOptional()
+  quotationId?: string;
+
   @IsString()
   @IsOptional()
   notes?: string;

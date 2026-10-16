@@ -172,7 +172,9 @@ export class PaymentsService {
       // Notify Owner & Admin about payment / settlement
       const partyName =
         payment.party?.name || payment.invoice?.party?.name || 'Party';
-      const formattedAmount = Math.round(Number(payment.amount)).toLocaleString('en-IN');
+      const formattedAmount = Math.round(Number(payment.amount)).toLocaleString(
+        'en-IN',
+      );
       const modeText = payment.mode ? `via ${payment.mode}` : '';
       const isOutflow = payment.type === PaymentType.OUTFLOW;
 
@@ -378,7 +380,9 @@ export class PaymentsService {
     // Notify Owner & Admin about confirmed payment
     const partyName =
       result.party?.name || result.invoice?.party?.name || 'Party';
-    const formattedAmount = Math.round(Number(result.amount)).toLocaleString('en-IN');
+    const formattedAmount = Math.round(Number(result.amount)).toLocaleString(
+      'en-IN',
+    );
     const modeText = result.mode ? `via ${result.mode}` : '';
 
     void this.notifications.notifyAdmins(

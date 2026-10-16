@@ -42,7 +42,6 @@ export function DriverDashboardView({
   handleCall,
   handleMap,
 }: DriverDashboardViewProps) {
-  const [updatingIndex, setUpdatingIndex] = useState<number | null>(null);
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [collectCashDelivery, setCollectCashDelivery] = useState<any | null>(null);
 
@@ -140,26 +139,6 @@ export function DriverDashboardView({
   const totalItemsCount = allItemsList.length;
   const allPickedUp = totalItemsCount > 0 && pickedCount === totalItemsCount;
 
-  // Toggle item pickup (locks once picked)
-  const handleToggleItemPickup = async (
-    itemIndex: number,
-    currentPicked: boolean,
-  ) => {
-    if (currentPicked || !activeDelivery) return;
-    setUpdatingIndex(itemIndex);
-    try {
-      await mobileApiRequest(`/delivery/${activeDelivery.id}/items/${itemIndex}/pickup`, {
-        method: 'PATCH',
-        body: JSON.stringify({ pickedUp: true }),
-      });
-      onRefresh();
-    } catch (err: any) {
-      Alert.alert('Update Failed', err.message || 'Failed to update item pickup status');
-    } finally {
-      setUpdatingIndex(null);
-    }
-  };
-
   // Change delivery status
   const handleStatusChange = async (deliveryId: string, newStatus: string) => {
     setStatusUpdating(true);
@@ -241,8 +220,6 @@ export function DriverDashboardView({
               warehouseGroups={warehouseGroups}
               pickedCount={pickedCount}
               totalItemsCount={totalItemsCount}
-              updatingIndex={updatingIndex}
-              onTogglePickup={handleToggleItemPickup}
             />
           </>
         ) : (

@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -18,10 +19,15 @@ import {
   CreditStatus,
   CreditType,
   PaymentType,
+  Role,
 } from '@prisma/client';
 import { PaginationParams } from '../common/interfaces/pagination.interface';
 
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  generateDeliveryChallanPdf,
+  DeliveryChallanPayload,
+} from './pdf/delivery-challan-pdf.generator';
 
 interface DeliveryItemPayload {
   invoiceItemId?: string;
@@ -29,11 +35,30 @@ interface DeliveryItemPayload {
   productName?: string;
   unit?: string;
   warehouseId?: string;
+  warehouseName?: string;
+  warehouseAddress?: string;
   batchNo?: string;
   qty?: number;
   pickedUp?: boolean;
   pickedUpAt?: string;
+  pickedUpByName?: string;
+  pickedUpById?: string;
 }
+
+export type DeliveryDetailResult = Prisma.DeliveryGetPayload<{
+  include: {
+    invoice: {
+      include: {
+        party: true;
+        items: { include: { product: true; warehouse: true } };
+      };
+    };
+    driver: { select: { id: true; name: true; phone: true } };
+    trips: true;
+  };
+}> & {
+  items: DeliveryItemPayload[];
+};
 
 @Injectable()
 export class DeliveryService {
@@ -102,6 +127,7 @@ export class DeliveryService {
     driverId?: string,
     isDriverRole: boolean = false,
     pagination?: PaginationParams,
+    requestingUser?: { id: string; role: Role; scope?: string | null },
   ): Promise<any> {
     const where: Prisma.DeliveryWhereInput = {};
     if (driverId) {
@@ -112,6 +138,16 @@ export class DeliveryService {
     if (isDriverRole) {
       where.status = {
         notIn: [DeliveryStatus.PENDING],
+      };
+    }
+
+    // Supervisor rule: only view deliveries containing items belonging to supervisor's warehouse
+    const isSupervisor = requestingUser?.role === Role.SUPERVISOR;
+    if (isSupervisor && requestingUser?.scope) {
+      where.invoice = {
+        items: {
+          some: { warehouseId: requestingUser.scope },
+        },
       };
     }
 
@@ -154,6 +190,54 @@ export class DeliveryService {
       include: typeof includeRelations;
     }>;
 
+    const sanitizeForSupervisor = <T extends Record<string, unknown>>(
+      d: T,
+    ): T => {
+      const rawTrips = Array.isArray(d.trips)
+        ? (d.trips as Array<Record<string, unknown>>)
+        : [];
+      const trips = rawTrips.map((t) => ({
+        ...t,
+        cost: new Prisma.Decimal(0),
+      }));
+
+      const rawInvoice =
+        d.invoice && typeof d.invoice === 'object'
+          ? (d.invoice as Record<string, unknown>)
+          : null;
+      let invoice = rawInvoice;
+      if (rawInvoice) {
+        const rawItems = Array.isArray(rawInvoice.items)
+          ? (rawInvoice.items as Array<Record<string, unknown>>)
+          : [];
+        const items = rawItems.map((it) => ({
+          ...it,
+          unitPrice: new Prisma.Decimal(0),
+          discount: new Prisma.Decimal(0),
+          total: new Prisma.Decimal(0),
+        }));
+        invoice = {
+          ...rawInvoice,
+          subtotal: new Prisma.Decimal(0),
+          tax: new Prisma.Decimal(0),
+          total: new Prisma.Decimal(0),
+          transportCost: new Prisma.Decimal(0),
+          transportTax: new Prisma.Decimal(0),
+          itemsTax: new Prisma.Decimal(0),
+          taxBreakup: {},
+          items,
+        };
+      }
+
+      return {
+        ...d,
+        amountToCollect: new Prisma.Decimal(0),
+        cashCollected: new Prisma.Decimal(0),
+        trips,
+        invoice,
+      };
+    };
+
     const normalizeItems = (deliveries: DeliveryWithRelations[]) =>
       deliveries.map((d) => {
         const rawItems = Array.isArray(d.items)
@@ -174,10 +258,11 @@ export class DeliveryService {
                 qty: it.qty,
                 pickedUp: false,
               }));
-        return {
+        const normalized = {
           ...d,
           items: parsedItems,
         };
+        return isSupervisor ? sanitizeForSupervisor(normalized) : normalized;
       });
 
     if (pagination?.page !== undefined || pagination?.limit !== undefined) {
@@ -216,7 +301,10 @@ export class DeliveryService {
     return normalizeItems(deliveries);
   }
 
-  async findOne(id: string) {
+  async findOne(
+    id: string,
+    requestingUser?: { id: string; role: Role; scope?: string | null },
+  ): Promise<DeliveryDetailResult> {
     const delivery = await this.prisma.delivery.findUnique({
       where: { id },
       include: {
@@ -232,9 +320,13 @@ export class DeliveryService {
     });
     if (!delivery) throw new NotFoundException(`Delivery ${id} not found`);
 
-    const parsedItems =
-      Array.isArray(delivery.items) && (delivery.items as any[]).length > 0
-        ? (delivery.items as any[])
+    const rawDeliveryItems = Array.isArray(delivery.items)
+      ? (delivery.items as DeliveryItemPayload[])
+      : [];
+
+    const parsedItems: DeliveryItemPayload[] =
+      rawDeliveryItems.length > 0
+        ? rawDeliveryItems
         : delivery.invoice.items.map((it) => ({
             invoiceItemId: it.id,
             productId: it.productId,
@@ -248,10 +340,42 @@ export class DeliveryService {
             pickedUp: false,
           }));
 
-    return {
+    const result = {
       ...delivery,
       items: parsedItems,
     };
+
+    if (requestingUser?.role === Role.SUPERVISOR) {
+      return {
+        ...result,
+        amountToCollect: new Prisma.Decimal(0),
+        cashCollected: new Prisma.Decimal(0),
+        trips: (result.trips || []).map((t) => ({
+          ...t,
+          cost: new Prisma.Decimal(0),
+        })),
+        invoice: result.invoice
+          ? {
+              ...result.invoice,
+              subtotal: new Prisma.Decimal(0),
+              tax: new Prisma.Decimal(0),
+              total: new Prisma.Decimal(0),
+              transportCost: new Prisma.Decimal(0),
+              transportTax: new Prisma.Decimal(0),
+              itemsTax: new Prisma.Decimal(0),
+              taxBreakup: {},
+              items: (result.invoice.items || []).map((it) => ({
+                ...it,
+                unitPrice: new Prisma.Decimal(0),
+                discount: new Prisma.Decimal(0),
+                total: new Prisma.Decimal(0),
+              })),
+            }
+          : result.invoice,
+      } as unknown as DeliveryDetailResult;
+    }
+
+    return result as DeliveryDetailResult;
   }
 
   private isCustomerPickedUp(delivery: {
@@ -293,15 +417,13 @@ export class DeliveryService {
     }
 
     // When customer picks up, mark all items as pickedUp: true and disassociate any driver
-    let updatedItems = delivery.items;
+    let updatedItems: DeliveryItemPayload[] = delivery.items || [];
     if (isMarkingCustomerPickup && Array.isArray(delivery.items)) {
-      updatedItems = (delivery.items as unknown as DeliveryItemPayload[]).map(
-        (it) => ({
-          ...it,
-          pickedUp: true,
-          pickedUpAt: it.pickedUpAt || new Date().toISOString(),
-        }),
-      );
+      updatedItems = delivery.items.map((it) => ({
+        ...it,
+        pickedUp: true,
+        pickedUpAt: it.pickedUpAt || new Date().toISOString(),
+      }));
     }
 
     const updated = await this.prisma.delivery.update({
@@ -309,7 +431,10 @@ export class DeliveryService {
       data: {
         status,
         ...(isMarkingCustomerPickup
-          ? { driverId: null, items: updatedItems }
+          ? {
+              driverId: null,
+              items: updatedItems as unknown as Prisma.InputJsonValue,
+            }
           : {}),
         ...(notes !== undefined ? { notes } : {}),
       },
@@ -326,7 +451,11 @@ export class DeliveryService {
       void this.notifications.notifyAdmins(
         'Delivery Completed',
         `Invoice #${invoiceNo} for ${customerName} delivered (${byWhom}).`,
-        { type: 'DELIVERY_COMPLETED', deliveryId: id, invoiceId: updated.invoiceId },
+        {
+          type: 'DELIVERY_COMPLETED',
+          deliveryId: id,
+          invoiceId: updated.invoiceId,
+        },
       );
     } else if (status === DeliveryStatus.CANCELLED) {
       const customerName = updated.invoice?.party?.name || 'Customer';
@@ -336,7 +465,11 @@ export class DeliveryService {
       void this.notifications.notifyAdmins(
         'Delivery Cancelled',
         `Delivery for Invoice #${invoiceNo} (${customerName}) was cancelled.${reasonText}`,
-        { type: 'DELIVERY_CANCELLED', deliveryId: id, invoiceId: updated.invoiceId },
+        {
+          type: 'DELIVERY_CANCELLED',
+          deliveryId: id,
+          invoiceId: updated.invoiceId,
+        },
       );
     }
 
@@ -442,17 +575,18 @@ export class DeliveryService {
 
     // 2. Execute all dispatch modifications atomically inside a transaction
     const result = await this.prisma.$transaction(async (tx) => {
-      // Record internal transport pricing as a trip
-      await tx.deliveryTrip.create({
-        data: {
-          deliveryId: id,
-          tripNo: delivery.trips.length + 1,
-          vehicle: dto.vehicle || dto.vehicleNo || undefined,
-          cost: new Prisma.Decimal((dto.transportCost || 0).toFixed(2)),
-          notes:
-            dto.notes || 'Internal transport pricing recorded on dispatch push',
-        },
-      });
+      // If vehicle is specified, record vehicle trip info without auto-creating transport pricing
+      if (dto.vehicle || dto.vehicleNo) {
+        await tx.deliveryTrip.create({
+          data: {
+            deliveryId: id,
+            tripNo: delivery.trips.length + 1,
+            vehicle: dto.vehicle || dto.vehicleNo || undefined,
+            cost: new Prisma.Decimal(0),
+            notes: dto.notes || 'Dispatch vehicle recorded on push',
+          },
+        });
+      }
 
       // Transition this delivery status to ASSIGNED with amountToCollect and dispatched items
       const updatedDelivery = await tx.delivery.update({
@@ -508,8 +642,7 @@ export class DeliveryService {
         }
       }
 
-      // Determine what quantities are still left to be dispatched
-      const remainingItems: any[] = [];
+      const remainingItems: DeliveryItemPayload[] = [];
       for (const invItem of delivery.invoice.items) {
         const keyWithId = invItem.id;
         const keyFallback = `${invItem.productId}-${invItem.warehouseId || ''}-${invItem.batchNo || ''}`;
@@ -583,29 +716,50 @@ export class DeliveryService {
     return result;
   }
 
-  async updateItemPickup(id: string, itemIndex: number, pickedUp: boolean) {
+  async updateItemPickup(
+    id: string,
+    itemIndex: number,
+    pickedUp: boolean,
+    actor?: { id: string; role: Role; name?: string; scope?: string | null },
+  ) {
+    if (actor?.role === Role.DRIVER) {
+      throw new ForbiddenException(
+        'Drivers are not permitted to mark items as picked. The warehouse supervisor must confirm pickup.',
+      );
+    }
+
     const delivery = await this.findOne(id);
     const rawItems = Array.isArray(delivery.items) ? delivery.items : [];
-    const itemsList: DeliveryItemPayload[] = [
-      ...(rawItems as unknown as DeliveryItemPayload[]),
-    ];
+    const itemsList: DeliveryItemPayload[] = [...rawItems];
 
     if (itemIndex < 0 || itemIndex >= itemsList.length) {
       throw new BadRequestException('Invalid item index for pickup');
     }
 
+    const currentItem = itemsList[itemIndex];
+
+    // If supervisor, check that the item is assigned to their warehouse
+    if (actor?.role === Role.SUPERVISOR && actor.scope) {
+      if (currentItem.warehouseId && currentItem.warehouseId !== actor.scope) {
+        throw new ForbiddenException(
+          'You can only confirm pickups for items originating from your assigned warehouse.',
+        );
+      }
+    }
+
     // Requirement: Once they have picked up the item they cannot mark it as not picked (option locked)
-    if (itemsList[itemIndex].pickedUp && !pickedUp) {
+    if (currentItem.pickedUp && !pickedUp) {
       throw new BadRequestException(
         'This item has already been picked up and is locked. It cannot be marked as not picked.',
       );
     }
 
-    const currentItem = itemsList[itemIndex];
     itemsList[itemIndex] = {
       ...currentItem,
       pickedUp: true,
       pickedUpAt: currentItem.pickedUpAt || new Date().toISOString(),
+      pickedUpByName: actor?.name || 'Supervisor',
+      pickedUpById: actor?.id,
     };
 
     // Status remains OUT_FOR_PICKUP (or current status); driver must explicitly click Out for Delivery once all items are picked up
@@ -838,5 +992,12 @@ export class DeliveryService {
     }
 
     return result;
+  }
+
+  async generateChallanPdf(id: string) {
+    const delivery = await this.findOne(id);
+    return generateDeliveryChallanPdf(
+      delivery as unknown as DeliveryChallanPayload,
+    );
   }
 }

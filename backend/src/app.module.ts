@@ -16,6 +16,10 @@ import { SettingsModule } from './settings/settings.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { NotificationsModule } from './notifications/notifications.module';
 
+import { PurchasesModule } from './purchases/purchases.module';
+import { QuotationsModule } from './quotations/quotations.module';
+import { ExpensesModule } from './expenses/expenses.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -28,6 +32,9 @@ import { NotificationsModule } from './notifications/notifications.module';
     PartiesModule,
     StockModule,
     InvoicesModule,
+    PurchasesModule,
+    QuotationsModule,
+    ExpensesModule,
     PaymentsModule,
     DeliveryModule,
     AnalyticsModule,

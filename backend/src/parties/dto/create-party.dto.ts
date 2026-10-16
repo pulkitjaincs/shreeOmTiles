@@ -1,4 +1,11 @@
-import { IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
+import {
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+} from 'class-validator';
+import { PartyCategory } from '@prisma/client';
 
 export class CreatePartyDto {
   @IsString()
@@ -17,4 +24,8 @@ export class CreatePartyDto {
   @IsString()
   @IsOptional()
   gstin?: string;
+
+  @IsEnum(PartyCategory)
+  @IsOptional()
+  category?: PartyCategory;
 }

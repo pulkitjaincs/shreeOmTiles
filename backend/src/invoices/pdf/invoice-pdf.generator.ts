@@ -5,6 +5,7 @@ import {
   InvoicePdfPayload,
   safePdfText,
   TaxBreakupData,
+  numberToWordsIndian,
 } from './pdf-utils';
 
 interface CachedPdf {
@@ -26,705 +27,852 @@ export async function generateInvoicePdf(
 
   const doc = await PDFDocument.create();
   const page = doc.addPage([595.28, 841.89]); // A4 Standard
-  let currentPage = page;
   const { width, height } = page.getSize();
 
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
   const fontRegular = await doc.embedFont(StandardFonts.Helvetica);
 
-  // Elegant Design Palette
-  const primaryColor = rgb(0.08, 0.18, 0.42); // Deep Navy
-  const secondaryColor = rgb(0.18, 0.35, 0.65);
-  const textColor = rgb(0.12, 0.14, 0.18);
-  const grayColor = rgb(0.45, 0.48, 0.53);
-  const lightGray = rgb(0.94, 0.95, 0.97);
-  const lineGray = rgb(0.84, 0.87, 0.92);
-  const cardBg = rgb(0.98, 0.985, 0.995);
-  const cardBorder = rgb(0.85, 0.88, 0.93);
+  // Colors
+  const black = rgb(0.1, 0.1, 0.1);
+  const darkGray = rgb(0.3, 0.3, 0.3);
+  const lightBorder = rgb(0.7, 0.7, 0.7);
+  const brandRed = rgb(0.85, 0.12, 0.12);
+  const headerBg = rgb(0.95, 0.95, 0.95);
+  const lightBg = rgb(0.98, 0.98, 0.98);
 
-  const companyName = process.env.COMPANY_NAME || 'SHREE OM TILES';
-  const companyAddress =
-    process.env.COMPANY_ADDRESS ||
-    'Shop 1-3, Main Commercial Complex, Ring Road';
-  const companyGstin = process.env.COMPANY_GSTIN || '07AAAAA0000A1Z5';
-  const companyPhone = process.env.COMPANY_PHONE || '+91 9876543210';
+  const leftMargin = 36;
+  const rightMargin = width - 36; // 559.28
+  const contentWidth = rightMargin - leftMargin; // 523.28
 
-  // Compact Return QR payload
+  // Tax and amounts calculations
+  const itemsTax = Number(invoice.itemsTax || 0);
+  const transportCost = Number(invoice.transportCost || 0);
+  const transportGstRate = Number(invoice.transportGstRate || 0);
+  const transportTax = Number(invoice.transportTax || 0);
+  const subtotal = Number(invoice.subtotal || 0);
+  const totalAmount = Number(invoice.total || 0);
+  const taxRate = Number(invoice.taxRate || 0);
+
+  const taxBreakup = (invoice.taxBreakup as unknown as TaxBreakupData) || {};
+  const isInterState = Boolean(taxBreakup.isInterState);
+
+  // If both items tax and transport tax are 0, it's Bill of Supply, and NO tax labels/rows appear.
+  const hasTax = itemsTax > 0 || transportTax > 0;
+  const docTitle = hasTax ? 'Tax Invoice' : 'Bill of Supply';
+
+  const totalReceived = (invoice.payments || [])
+    .filter((p) => p.status === 'CONFIRMED')
+    .reduce((sum, p) => sum + Number(p.amount), 0);
+  const balance = Math.max(0, totalAmount - totalReceived);
+  const previousBalance = Number(invoice.previousBalance || 0);
+  const currentBalance = previousBalance + balance;
+
+  const createdAt = invoice.createdAt
+    ? new Date(invoice.createdAt)
+    : new Date();
+  const dateStr = createdAt.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+  const timeStr = createdAt.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+
+  // Return QR code
   const qrPayload = JSON.stringify({
     inv: invoice.invoiceNo,
     id: invoice.id,
-    date:
-      invoice.createdAt instanceof Date
-        ? invoice.createdAt.toISOString().slice(0, 10)
-        : String(invoice.createdAt).slice(0, 10),
-    total: Number(invoice.total),
-    action: 'shreeom://return',
+    date: dateStr,
+    total: totalAmount,
   });
   const qrBuffer = await QRCode.toBuffer(qrPayload, {
-    width: 140,
+    width: 120,
     margin: 1,
   });
   const qrImage = await doc.embedPng(qrBuffer);
 
-  const leftMargin = 40;
-  const rightMargin = width - 40; // 555.28
-  const contentWidth = rightMargin - leftMargin; // 515.28
+  let currentY = height - 28;
 
-  // 1. Header (Brand, Invoice Info, and Return QR)
-  const topY = height - 38;
-
-  // Company Brand Name & Subtitle
-  page.drawText(safePdfText(companyName), {
+  // 1. Top Document Title Header (Bordered box)
+  const titleBoxHeight = 22;
+  page.drawRectangle({
     x: leftMargin,
-    y: topY,
-    size: 16,
-    font: fontBold,
-    color: primaryColor,
+    y: currentY - titleBoxHeight,
+    width: contentWidth,
+    height: titleBoxHeight,
+    color: headerBg,
+    borderColor: lightBorder,
+    borderWidth: 1,
   });
-  page.drawText(safePdfText('Premium Tiles, Marbles & Sanitaryware'), {
+
+  const titleWidth = fontBold.widthOfTextAtSize(docTitle, 11);
+  page.drawText(docTitle, {
+    x: leftMargin + (contentWidth - titleWidth) / 2,
+    y: currentY - 15,
+    size: 11,
+    font: fontBold,
+    color: black,
+  });
+
+  currentY -= titleBoxHeight;
+
+  // 2. Company Details (Left) + Invoice Metadata (Right)
+  const shopBoxHeight = 74;
+  page.drawRectangle({
     x: leftMargin,
-    y: topY - 14,
-    size: 8,
-    font: fontBold,
-    color: secondaryColor,
-  });
-  page.drawText(safePdfText(companyAddress), {
-    x: leftMargin,
-    y: topY - 25,
-    size: 8,
-    font: fontRegular,
-    color: grayColor,
-  });
-  page.drawText(
-    safePdfText(`GSTIN: ${companyGstin}   |   Phone: ${companyPhone}`),
-    {
-      x: leftMargin,
-      y: topY - 36,
-      size: 8,
-      font: fontRegular,
-      color: grayColor,
-    },
-  );
-
-  // Tax Invoice Metadata Badge (Center-Right)
-  const metaX = 330;
-  page.drawText('TAX INVOICE', {
-    x: metaX,
-    y: topY,
-    size: 13,
-    font: fontBold,
-    color: primaryColor,
-  });
-  page.drawText(safePdfText(`Invoice #: ${invoice.invoiceNo}`), {
-    x: metaX,
-    y: topY - 14,
-    size: 9.5,
-    font: fontBold,
-    color: textColor,
-  });
-  const invDateStr =
-    invoice.createdAt instanceof Date
-      ? invoice.createdAt.toISOString().slice(0, 10)
-      : String(invoice.createdAt).slice(0, 10);
-  page.drawText(safePdfText(`Date: ${invDateStr}`), {
-    x: metaX,
-    y: topY - 26,
-    size: 8,
-    font: fontRegular,
-    color: grayColor,
-  });
-  page.drawText(safePdfText(`Place of Supply: Delhi (07)`), {
-    x: metaX,
-    y: topY - 37,
-    size: 8,
-    font: fontRegular,
-    color: grayColor,
+    y: currentY - shopBoxHeight,
+    width: contentWidth,
+    height: shopBoxHeight,
+    borderColor: lightBorder,
+    borderWidth: 1,
   });
 
-  // Verification & Return QR Box
-  const qrSize = 52;
-  const qrX = rightMargin - qrSize;
-  const qrY = topY - 44;
-  page.drawImage(qrImage, { x: qrX, y: qrY, width: qrSize, height: qrSize });
-  const qrLabel = 'Scan for Return';
-  const qrLabelW = fontRegular.widthOfTextAtSize(qrLabel, 6.5);
-  page.drawText(qrLabel, {
-    x: qrX + (qrSize - qrLabelW) / 2,
-    y: qrY - 8,
-    size: 6.5,
-    font: fontRegular,
-    color: grayColor,
-  });
-
-  // Header separator line
+  // Vertical divider between Shop & Invoice metadata
+  const shopColWidth = contentWidth * 0.65;
   page.drawLine({
-    start: { x: leftMargin, y: topY - 56 },
-    end: { x: rightMargin, y: topY - 56 },
-    thickness: 0.75,
-    color: lineGray,
+    start: { x: leftMargin + shopColWidth, y: currentY },
+    end: { x: leftMargin + shopColWidth, y: currentY - shopBoxHeight },
+    thickness: 1,
+    color: lightBorder,
   });
 
-  // 2. Structured Dual Metadata Cards (Spacious, No Overlaps)
-  const cardTopY = topY - 66;
-  const cardH = 72; // Generous height to prevent any line crowding
-  const cardW = (contentWidth - 14) / 2; // 250.64 each
+  // Shop details (Left side)
+  const shopTextX = leftMargin + 8;
+  page.drawText('DHRA ( A UNIT OF SHREE OM TILES )', {
+    x: shopTextX,
+    y: currentY - 16,
+    size: 11,
+    font: fontBold,
+    color: black,
+  });
+  page.drawText('Shop no 3, Ashok Vihar palam vihar Road Gurgaon', {
+    x: shopTextX,
+    y: currentY - 30,
+    size: 8,
+    font: fontRegular,
+    color: darkGray,
+  });
+  page.drawText('Phone no.: 9212953538', {
+    x: shopTextX,
+    y: currentY - 42,
+    size: 8,
+    font: fontRegular,
+    color: darkGray,
+  });
+  page.drawText('Email: shreeomtiles@gmail.com', {
+    x: shopTextX,
+    y: currentY - 54,
+    size: 8,
+    font: fontRegular,
+    color: darkGray,
+  });
+  page.drawText('State: 06-Haryana', {
+    x: shopTextX,
+    y: currentY - 66,
+    size: 8,
+    font: fontRegular,
+    color: darkGray,
+  });
 
-  // Buyer Details Box (Left)
+  // Invoice metadata (Right side)
+  const metaX = leftMargin + shopColWidth + 8;
+  page.drawText('Invoice No.', {
+    x: metaX,
+    y: currentY - 16,
+    size: 8.5,
+    font: fontBold,
+    color: darkGray,
+  });
+  page.drawText(safePdfText(invoice.invoiceNo), {
+    x: metaX,
+    y: currentY - 30,
+    size: 10,
+    font: fontBold,
+    color: black,
+  });
+
+  page.drawText('Date', {
+    x: metaX + 85,
+    y: currentY - 16,
+    size: 8.5,
+    font: fontBold,
+    color: darkGray,
+  });
+  page.drawText(`${dateStr},`, {
+    x: metaX + 85,
+    y: currentY - 30,
+    size: 8,
+    font: fontRegular,
+    color: black,
+  });
+  page.drawText(timeStr, {
+    x: metaX + 85,
+    y: currentY - 42,
+    size: 8,
+    font: fontRegular,
+    color: darkGray,
+  });
+
+  currentY -= shopBoxHeight;
+
+  // 3. Bill To / Ship To Grid
+  const partyBoxHeight = 58;
   page.drawRectangle({
     x: leftMargin,
-    y: cardTopY - cardH,
-    width: cardW,
-    height: cardH,
-    color: cardBg,
-    borderColor: cardBorder,
-    borderWidth: 0.75,
+    y: currentY - partyBoxHeight,
+    width: contentWidth,
+    height: partyBoxHeight,
+    borderColor: lightBorder,
+    borderWidth: 1,
   });
-  page.drawText('BILL TO (BUYER DETAILS)', {
-    x: leftMargin + 10,
-    y: cardTopY - 14,
-    size: 7.5,
-    font: fontBold,
-    color: primaryColor,
-  });
-  page.drawText(
-    safePdfText((invoice.party?.name || 'Walk-in Customer').slice(0, 36)),
-    {
-      x: leftMargin + 10,
-      y: cardTopY - 28,
-      size: 9,
-      font: fontBold,
-      color: textColor,
-    },
-  );
-  page.drawText(safePdfText(`Mobile: ${invoice.party?.phone || 'N/A'}`), {
-    x: leftMargin + 10,
-    y: cardTopY - 41,
-    size: 8,
-    font: fontRegular,
-    color: textColor,
-  });
-  const partyAddr = (invoice.party?.address || 'Counter Billing').slice(0, 38);
-  page.drawText(safePdfText(`Address: ${partyAddr}`), {
-    x: leftMargin + 10,
-    y: cardTopY - 54,
-    size: 7.5,
-    font: fontRegular,
-    color: grayColor,
-  });
-  if (invoice.party?.gstin) {
-    page.drawText(safePdfText(`GSTIN: ${invoice.party.gstin}`), {
-      x: leftMargin + 10,
-      y: cardTopY - 65,
-      size: 7,
-      font: fontRegular,
-      color: grayColor,
-    });
-  }
 
-  // Dispatch & Payment Details Box (Right)
-  const rightBoxX = leftMargin + cardW + 14;
-  page.drawRectangle({
-    x: rightBoxX,
-    y: cardTopY - cardH,
-    width: cardW,
-    height: cardH,
-    color: cardBg,
-    borderColor: cardBorder,
-    borderWidth: 0.75,
+  const halfWidth = contentWidth / 2;
+  page.drawLine({
+    start: { x: leftMargin + halfWidth, y: currentY },
+    end: { x: leftMargin + halfWidth, y: currentY - partyBoxHeight },
+    thickness: 1,
+    color: lightBorder,
   });
-  page.drawText('DISPATCH & PAYMENT DETAILS', {
-    x: rightBoxX + 10,
-    y: cardTopY - 14,
-    size: 7.5,
+
+  // Bill To (Left)
+  page.drawText('Bill To', {
+    x: leftMargin + 8,
+    y: currentY - 13,
+    size: 8.5,
     font: fontBold,
-    color: primaryColor,
-  });
-  page.drawText(
-    safePdfText(`Sales Advisor: ${invoice.salesman?.name || 'Store Cashier'}`),
-    {
-      x: rightBoxX + 10,
-      y: cardTopY - 28,
-      size: 8,
-      font: fontRegular,
-      color: textColor,
-    },
-  );
-  page.drawText(safePdfText(`Payment Mode: ${invoice.paymentMode || 'CASH'}`), {
-    x: rightBoxX + 10,
-    y: cardTopY - 41,
-    size: 8,
-    font: fontRegular,
-    color: textColor,
-  });
-  page.drawText(safePdfText(`Billing Status: ${invoice.status}`), {
-    x: rightBoxX + 10,
-    y: cardTopY - 54,
-    size: 8,
-    font: fontBold,
-    color: primaryColor,
+    color: black,
   });
   page.drawText(
     safePdfText(
-      `Notes: ${(invoice.notes || 'Goods dispatched in good condition').slice(0, 36)}`,
+      (invoice.party?.name || 'Cash Customer').toUpperCase().slice(0, 35),
     ),
     {
-      x: rightBoxX + 10,
-      y: cardTopY - 65,
-      size: 7,
-      font: fontRegular,
-      color: grayColor,
-    },
-  );
-
-  // 3. Line Items Table Header (Neat, Crisp & Well Spaced)
-  const tableHeaderY = cardTopY - cardH - 14;
-  const headerHeight = 20;
-  page.drawRectangle({
-    x: leftMargin,
-    y: tableHeaderY - headerHeight,
-    width: contentWidth,
-    height: headerHeight,
-    color: rgb(0.92, 0.94, 0.98),
-    borderColor: rgb(0.78, 0.83, 0.92),
-    borderWidth: 0.75,
-  });
-
-  const headerY = tableHeaderY - 13;
-  page.drawText('#', {
-    x: leftMargin + 6,
-    y: headerY,
-    size: 8,
-    font: fontBold,
-    color: primaryColor,
-  });
-  page.drawText('Item Description', {
-    x: leftMargin + 25,
-    y: headerY,
-    size: 8,
-    font: fontBold,
-    color: primaryColor,
-  });
-  page.drawText('HSN', {
-    x: leftMargin + 195,
-    y: headerY,
-    size: 8,
-    font: fontBold,
-    color: primaryColor,
-  });
-  page.drawText('Godown / Lot', {
-    x: leftMargin + 245,
-    y: headerY,
-    size: 8,
-    font: fontBold,
-    color: primaryColor,
-  });
-
-  const qtyHdr = 'Qty';
-  const qtyHdrW = fontBold.widthOfTextAtSize(qtyHdr, 8);
-  page.drawText(qtyHdr, {
-    x: leftMargin + 375 - qtyHdrW,
-    y: headerY,
-    size: 8,
-    font: fontBold,
-    color: primaryColor,
-  });
-
-  const rateHdr = 'Rate (Rs.)';
-  const rateHdrW = fontBold.widthOfTextAtSize(rateHdr, 8);
-  page.drawText(rateHdr, {
-    x: leftMargin + 445 - rateHdrW,
-    y: headerY,
-    size: 8,
-    font: fontBold,
-    color: primaryColor,
-  });
-
-  const totalHdr = 'Amount (Rs.)';
-  const totalHdrW = fontBold.widthOfTextAtSize(totalHdr, 8);
-  page.drawText(totalHdr, {
-    x: rightMargin - 8 - totalHdrW,
-    y: headerY,
-    size: 8,
-    font: fontBold,
-    color: primaryColor,
-  });
-
-  // 4. Line Items Rows (Spacious 22pt row height, Zero Overlaps)
-  let y = tableHeaderY - headerHeight - 16;
-  const rowHeight = 22;
-  let idx = 1;
-
-  for (const item of invoice.items || []) {
-    // Check if drawing this row would collide with the bottom footer
-    if (y - rowHeight < 140) {
-      currentPage = doc.addPage([595.28, 841.89]);
-      currentPage.drawText(
-        safePdfText(`${companyName} - Invoice #${invoice.invoiceNo} (Continued)`),
-        {
-          x: leftMargin,
-          y: height - 35,
-          size: 9,
-          font: fontBold,
-          color: primaryColor,
-        },
-      );
-
-      const contTableHeaderY = height - 55;
-      currentPage.drawRectangle({
-        x: leftMargin,
-        y: contTableHeaderY - headerHeight,
-        width: contentWidth,
-        height: headerHeight,
-        color: rgb(0.92, 0.94, 0.98),
-        borderColor: rgb(0.78, 0.83, 0.92),
-        borderWidth: 0.75,
-      });
-
-      const contHeaderY = contTableHeaderY - 13;
-      currentPage.drawText('#', {
-        x: leftMargin + 6,
-        y: contHeaderY,
-        size: 8,
-        font: fontBold,
-        color: primaryColor,
-      });
-      currentPage.drawText('Item Description', {
-        x: leftMargin + 25,
-        y: contHeaderY,
-        size: 8,
-        font: fontBold,
-        color: primaryColor,
-      });
-      currentPage.drawText('HSN', {
-        x: leftMargin + 195,
-        y: contHeaderY,
-        size: 8,
-        font: fontBold,
-        color: primaryColor,
-      });
-      currentPage.drawText('Godown / Lot', {
-        x: leftMargin + 245,
-        y: contHeaderY,
-        size: 8,
-        font: fontBold,
-        color: primaryColor,
-      });
-      currentPage.drawText(qtyHdr, {
-        x: leftMargin + 375 - qtyHdrW,
-        y: contHeaderY,
-        size: 8,
-        font: fontBold,
-        color: primaryColor,
-      });
-      currentPage.drawText(rateHdr, {
-        x: leftMargin + 445 - rateHdrW,
-        y: contHeaderY,
-        size: 8,
-        font: fontBold,
-        color: primaryColor,
-      });
-      currentPage.drawText(totalHdr, {
-        x: rightMargin - 8 - totalHdrW,
-        y: contHeaderY,
-        size: 8,
-        font: fontBold,
-        color: primaryColor,
-      });
-
-      y = contTableHeaderY - headerHeight - 16;
-    }
-
-    const idxStr = String(idx).padStart(2, '0');
-    const hsn = item.product?.hsnCode || '-';
-    const whBatch = `${item.warehouse?.name || 'Showroom'}${item.batchNo ? ` (${item.batchNo})` : ''}`;
-    const qtyStr = `${item.qty} ${item.product?.unit || 'unit'}`;
-    const rateStr = Number(item.unitPrice).toFixed(2);
-    const lineTotalStr = Number(item.total).toFixed(2);
-
-    currentPage.drawText(idxStr, {
-      x: leftMargin + 6,
-      y,
-      size: 7.5,
-      font: fontRegular,
-      color: grayColor,
-    });
-
-    currentPage.drawText(safePdfText((item.product?.name || 'Item').slice(0, 32)), {
-      x: leftMargin + 25,
-      y,
+      x: leftMargin + 8,
+      y: currentY - 26,
       size: 8.5,
       font: fontBold,
-      color: textColor,
-    });
-
-    currentPage.drawText(safePdfText(hsn), {
-      x: leftMargin + 195,
-      y,
-      size: 7.5,
-      font: fontRegular,
-      color: grayColor,
-    });
-
-    currentPage.drawText(safePdfText(whBatch.slice(0, 20)), {
-      x: leftMargin + 245,
-      y,
-      size: 7.5,
-      font: fontRegular,
-      color: grayColor,
-    });
-
-    // Right-aligned numerical columns
-    const qw = fontRegular.widthOfTextAtSize(qtyStr, 8);
-    currentPage.drawText(safePdfText(qtyStr), {
-      x: leftMargin + 375 - qw,
-      y,
+      color: black,
+    },
+  );
+  page.drawText(
+    safePdfText((invoice.party?.address || 'Counter Sale').slice(0, 42)),
+    {
+      x: leftMargin + 8,
+      y: currentY - 38,
       size: 8,
       font: fontRegular,
-      color: textColor,
-    });
-
-    const rw = fontRegular.widthOfTextAtSize(rateStr, 8.5);
-    currentPage.drawText(safePdfText(rateStr), {
-      x: leftMargin + 445 - rw,
-      y,
-      size: 8.5,
-      font: fontRegular,
-      color: textColor,
-    });
-
-    const tw = fontBold.widthOfTextAtSize(lineTotalStr, 8.5);
-    currentPage.drawText(safePdfText(lineTotalStr), {
-      x: rightMargin - 8 - tw,
-      y,
-      size: 8.5,
-      font: fontBold,
-      color: textColor,
-    });
-
-    // Subtle row divider line
-    currentPage.drawLine({
-      start: { x: leftMargin, y: y - 6 },
-      end: { x: rightMargin, y: y - 6 },
-      thickness: 0.5,
-      color: lightGray,
-    });
-
-    y -= rowHeight;
-    idx++;
-  }
-
-  y -= 8;
-
-  // Check if financial summary and footer fit on the current page
-  const footerY = 56;
-  if (y - 140 < footerY + 20) {
-    currentPage = doc.addPage([595.28, 841.89]);
-    currentPage.drawText(
-      safePdfText(`${companyName} - Invoice #${invoice.invoiceNo} (Summary)`),
-      {
-        x: leftMargin,
-        y: height - 35,
-        size: 9,
-        font: fontBold,
-        color: primaryColor,
-      },
-    );
-    y = height - 65;
-  }
-
-  // 5. Financial Summary Box (Explicit GST Tax Breakup & Grand Total)
-  const taxBreakup = (invoice.taxBreakup as unknown as TaxBreakupData) || {};
-  const subtotalStr = Number(invoice.subtotal).toFixed(2);
-  const taxStr = Number(invoice.tax).toFixed(2);
-  const totalStr = Number(invoice.total).toFixed(2);
-  const taxRate = taxBreakup.rate ?? 18;
-
-  const sumBoxW = 220;
-  const sumBoxX = rightMargin - sumBoxW;
-
-  // Subtotal line
-  currentPage.drawText('Subtotal (Taxable Value):', {
-    x: sumBoxX,
-    y,
-    size: 8.5,
+      color: darkGray,
+    },
+  );
+  page.drawText(safePdfText(`Contact No. : ${invoice.party?.phone || 'N/A'}`), {
+    x: leftMargin + 8,
+    y: currentY - 50,
+    size: 8,
     font: fontRegular,
-    color: grayColor,
+    color: darkGray,
   });
-  const subVal = `Rs. ${subtotalStr}`;
-  const subValW = fontRegular.widthOfTextAtSize(subVal, 8.5);
-  currentPage.drawText(subVal, {
-    x: rightMargin - subValW,
-    y,
+
+  // Ship To (Right)
+  page.drawText('Ship To', {
+    x: leftMargin + halfWidth + 8,
+    y: currentY - 13,
     size: 8.5,
-    font: fontRegular,
-    color: textColor,
+    font: fontBold,
+    color: black,
   });
-  y -= 14;
-
-  // Tax breakdown with explicit percentage
-  if (taxBreakup.isInterState) {
-    currentPage.drawText(`Integrated GST (IGST ${taxRate}%):`, {
-      x: sumBoxX,
-      y,
+  page.drawText(
+    safePdfText(
+      (
+        invoice.party?.address ||
+        invoice.party?.name ||
+        'Counter Delivery'
+      ).slice(0, 40),
+    ),
+    {
+      x: leftMargin + halfWidth + 8,
+      y: currentY - 26,
       size: 8.5,
       font: fontRegular,
-      color: grayColor,
-    });
-    const igstVal = `Rs. ${taxStr}`;
-    const igstValW = fontRegular.widthOfTextAtSize(igstVal, 8.5);
-    currentPage.drawText(igstVal, {
-      x: rightMargin - igstValW,
-      y,
-      size: 8.5,
+      color: black,
+    },
+  );
+  if (invoice.party?.gstin) {
+    page.drawText(safePdfText(`GSTIN: ${invoice.party.gstin}`), {
+      x: leftMargin + halfWidth + 8,
+      y: currentY - 38,
+      size: 8,
       font: fontRegular,
-      color: textColor,
+      color: darkGray,
     });
-    y -= 14;
-  } else {
-    const halfTax = (Number(invoice.tax) / 2).toFixed(2);
-    const halfRate = taxRate / 2;
-    currentPage.drawText(`Central GST (CGST ${halfRate}%):`, {
-      x: sumBoxX,
-      y,
-      size: 8.5,
-      font: fontRegular,
-      color: grayColor,
-    });
-    const cgstVal = `Rs. ${halfTax}`;
-    const cgstValW = fontRegular.widthOfTextAtSize(cgstVal, 8.5);
-    currentPage.drawText(cgstVal, {
-      x: rightMargin - cgstValW,
-      y,
-      size: 8.5,
-      font: fontRegular,
-      color: textColor,
-    });
-    y -= 14;
-
-    currentPage.drawText(`State GST (SGST ${halfRate}%):`, {
-      x: sumBoxX,
-      y,
-      size: 8.5,
-      font: fontRegular,
-      color: grayColor,
-    });
-    const sgstVal = `Rs. ${halfTax}`;
-    const sgstValW = fontRegular.widthOfTextAtSize(sgstVal, 8.5);
-    currentPage.drawText(sgstVal, {
-      x: rightMargin - sgstValW,
-      y,
-      size: 8.5,
-      font: fontRegular,
-      color: textColor,
-    });
-    y -= 14;
   }
 
-  // Grand Total Card Box
-  const grandBoxH = 24;
-  currentPage.drawRectangle({
-    x: sumBoxX - 8,
-    y: y - 6,
-    width: sumBoxW + 8,
-    height: grandBoxH,
-    color: rgb(0.92, 0.95, 0.99),
-    borderColor: rgb(0.72, 0.8, 0.92),
-    borderWidth: 0.75,
-  });
+  currentY -= partyBoxHeight;
 
-  currentPage.drawText('GRAND TOTAL:', {
-    x: sumBoxX,
-    y: y + 2,
-    size: 9.5,
-    font: fontBold,
-    color: primaryColor,
-  });
-  const totalVal = `Rs. ${totalStr}`;
-  const totalValW = fontBold.widthOfTextAtSize(totalVal, 10.5);
-  currentPage.drawText(totalVal, {
-    x: rightMargin - totalValW,
-    y: y + 2,
-    size: 10.5,
-    font: fontBold,
-    color: primaryColor,
-  });
-
-  // 6. Bottom Terms & Conditions & Signatory Section on Final Page
-  currentPage.drawLine({
-    start: { x: leftMargin, y: footerY + 16 },
-    end: { x: rightMargin, y: footerY + 16 },
-    thickness: 0.75,
-    color: lineGray,
-  });
-
-  currentPage.drawText('Terms & Conditions:', {
+  // 4. Items Table Header
+  const tableHeaderHeight = 20;
+  page.drawRectangle({
     x: leftMargin,
-    y: footerY + 5,
+    y: currentY - tableHeaderHeight,
+    width: contentWidth,
+    height: tableHeaderHeight,
+    color: headerBg,
+    borderColor: lightBorder,
+    borderWidth: 1,
+  });
+
+  // Columns:
+  // S.NO: 0 -> 36
+  // ITEM NAME: 36 -> 270
+  // Quantity: 270 -> 330
+  // Unit: 330 -> 380
+  // PRICE: 380 -> 445
+  // TOTAL AMOUNT: 445 -> contentWidth (523.28)
+  const colSNo = leftMargin;
+  const colItem = leftMargin + 36;
+  const colQty = leftMargin + 270;
+  const colUnit = leftMargin + 330;
+  const colPrice = leftMargin + 380;
+  const colTotal = leftMargin + 445;
+
+  const headerY = currentY - 14;
+  page.drawText('S.NO', {
+    x: colSNo + 4,
+    y: headerY,
     size: 7.5,
     font: fontBold,
-    color: primaryColor,
+    color: black,
   });
-  currentPage.drawText(
-    '1. Unbroken, undamaged full boxes returnable within 7 days with this invoice QR code.',
-    {
-      x: leftMargin,
-      y: footerY - 6,
-      size: 6.5,
-      font: fontRegular,
-      color: grayColor,
-    },
-  );
-  currentPage.drawText(
-    '2. Please inspect shade, size and batch lot prior to laying tiles. No claims accepted after installation.',
-    {
-      x: leftMargin,
-      y: footerY - 16,
-      size: 6.5,
-      font: fontRegular,
-      color: grayColor,
-    },
-  );
+  page.drawText('ITEM NAME', {
+    x: colItem + 6,
+    y: headerY,
+    size: 7.5,
+    font: fontBold,
+    color: black,
+  });
+  page.drawText('Quantity', {
+    x: colQty + 6,
+    y: headerY,
+    size: 7.5,
+    font: fontBold,
+    color: black,
+  });
+  page.drawText('Unit', {
+    x: colUnit + 6,
+    y: headerY,
+    size: 7.5,
+    font: fontBold,
+    color: black,
+  });
+  page.drawText('PRICE', {
+    x: colPrice + 6,
+    y: headerY,
+    size: 7.5,
+    font: fontBold,
+    color: black,
+  });
+  page.drawText('TOTAL AMOUNT', {
+    x: colTotal + 6,
+    y: headerY,
+    size: 7.5,
+    font: fontBold,
+    color: black,
+  });
 
-  // Signatory Box
-  const sigX = rightMargin - 160;
-  currentPage.drawText(`For ${companyName}`, {
-    x: sigX,
-    y: footerY + 5,
+  currentY -= tableHeaderHeight;
+
+  // Table Rows
+  const rowHeight = 20;
+  let totalQty = 0;
+  let sNo = 1;
+
+  for (const item of invoice.items || []) {
+    totalQty += item.qty;
+    const itemTotal = Number(item.total);
+    const itemPrice = Number(item.unitPrice);
+
+    page.drawRectangle({
+      x: leftMargin,
+      y: currentY - rowHeight,
+      width: contentWidth,
+      height: rowHeight,
+      borderColor: lightBorder,
+      borderWidth: 0.5,
+    });
+
+    const rowTextY = currentY - 14;
+    page.drawText(String(sNo), {
+      x: colSNo + 8,
+      y: rowTextY,
+      size: 8,
+      font: fontRegular,
+      color: black,
+    });
+    page.drawText(
+      safePdfText((item.product?.name || 'Item').toUpperCase().slice(0, 38)),
+      {
+        x: colItem + 6,
+        y: rowTextY,
+        size: 8,
+        font: fontBold,
+        color: black,
+      },
+    );
+    page.drawText(String(item.qty), {
+      x: colQty + 12,
+      y: rowTextY,
+      size: 8,
+      font: fontRegular,
+      color: black,
+    });
+    page.drawText(safePdfText(item.product?.unit || 'Bag'), {
+      x: colUnit + 6,
+      y: rowTextY,
+      size: 8,
+      font: fontRegular,
+      color: darkGray,
+    });
+
+    const priceStr = `Rs. ${itemPrice.toLocaleString('en-IN')}`;
+    page.drawText(priceStr, {
+      x: colPrice + 6,
+      y: rowTextY,
+      size: 8,
+      font: fontRegular,
+      color: black,
+    });
+
+    const totalStr = `Rs. ${itemTotal.toLocaleString('en-IN')}`;
+    page.drawText(totalStr, {
+      x: colTotal + 6,
+      y: rowTextY,
+      size: 8,
+      font: fontBold,
+      color: black,
+    });
+
+    currentY -= rowHeight;
+    sNo++;
+  }
+
+  // Items Total Row
+  const totalRowHeight = 20;
+  page.drawRectangle({
+    x: leftMargin,
+    y: currentY - totalRowHeight,
+    width: contentWidth,
+    height: totalRowHeight,
+    color: lightBg,
+    borderColor: lightBorder,
+    borderWidth: 1,
+  });
+
+  const totRowY = currentY - 14;
+  page.drawText('Total', {
+    x: colItem + 6,
+    y: totRowY,
+    size: 8.5,
+    font: fontBold,
+    color: black,
+  });
+  page.drawText(String(totalQty), {
+    x: colQty + 12,
+    y: totRowY,
+    size: 8.5,
+    font: fontBold,
+    color: black,
+  });
+  page.drawText(`Rs. ${subtotal.toLocaleString('en-IN')}`, {
+    x: colTotal + 6,
+    y: totRowY,
+    size: 8.5,
+    font: fontBold,
+    color: black,
+  });
+
+  currentY -= totalRowHeight;
+
+  // 5. Middle Financial Section (Amount in words on left, Amounts breakdown on right)
+  const amountsBoxHeight = 135;
+  page.drawRectangle({
+    x: leftMargin,
+    y: currentY - amountsBoxHeight,
+    width: contentWidth,
+    height: amountsBoxHeight,
+    borderColor: lightBorder,
+    borderWidth: 1,
+  });
+
+  const splitX = leftMargin + contentWidth * 0.58;
+  page.drawLine({
+    start: { x: splitX, y: currentY },
+    end: { x: splitX, y: currentY - amountsBoxHeight },
+    thickness: 1,
+    color: lightBorder,
+  });
+
+  // LEFT SIDE: Words & Payment Mode & QR
+  const wordsLeftX = leftMargin + 8;
+  page.drawText('Invoice Amount in Words:', {
+    x: wordsLeftX,
+    y: currentY - 14,
     size: 8,
     font: fontBold,
-    color: textColor,
-  });
-  currentPage.drawLine({
-    start: { x: sigX, y: footerY - 8 },
-    end: { x: rightMargin, y: footerY - 8 },
-    thickness: 0.5,
-    color: lineGray,
-  });
-  currentPage.drawText('[ Authorized Signatory ]', {
-    x: sigX + 18,
-    y: footerY - 18,
-    size: 6.5,
-    font: fontRegular,
-    color: grayColor,
+    color: darkGray,
   });
 
-  // Page Numbers across all pages
-  const totalPages = doc.getPageCount();
-  doc.getPages().forEach((p, i) => {
-    p.drawText(`Page ${i + 1} of ${totalPages}`, {
-      x: rightMargin - 45,
-      y: 18,
-      size: 7,
-      font: fontRegular,
-      color: grayColor,
+  const words = numberToWordsIndian(totalAmount);
+  // Split words if longer than 40 chars
+  const wordsLine1 = words.length > 42 ? words.slice(0, 42) : words;
+  const wordsLine2 = words.length > 42 ? words.slice(42) : '';
+
+  page.drawText(safePdfText(wordsLine1), {
+    x: wordsLeftX,
+    y: currentY - 26,
+    size: 8.5,
+    font: fontBold,
+    color: black,
+  });
+  if (wordsLine2) {
+    page.drawText(safePdfText(wordsLine2), {
+      x: wordsLeftX,
+      y: currentY - 37,
+      size: 8.5,
+      font: fontBold,
+      color: black,
     });
+  }
+
+  // Divider inside left box
+  page.drawLine({
+    start: { x: leftMargin, y: currentY - 50 },
+    end: { x: splitX, y: currentY - 50 },
+    thickness: 0.5,
+    color: lightBorder,
+  });
+
+  page.drawText('Payment mode', {
+    x: wordsLeftX,
+    y: currentY - 62,
+    size: 8,
+    font: fontRegular,
+    color: darkGray,
+  });
+  page.drawText(safePdfText(invoice.paymentMode || 'Credit'), {
+    x: wordsLeftX,
+    y: currentY - 74,
+    size: 8.5,
+    font: fontBold,
+    color: black,
+  });
+
+  // QR Code on bottom left
+  page.drawImage(qrImage, {
+    x: splitX - 58,
+    y: currentY - amountsBoxHeight + 8,
+    width: 50,
+    height: 50,
+  });
+
+  // RIGHT SIDE: Amounts Breakdown
+  const rightLabelsX = splitX + 8;
+  const rightValuesRightX = rightMargin - 8;
+
+  let amtY = currentY - 13;
+  const amtLineHeight = 12;
+
+  function drawAmountLine(
+    label: string,
+    value: string,
+    isBold: boolean = false,
+    isHighlight: boolean = false,
+  ) {
+    page.drawText(label, {
+      x: rightLabelsX,
+      y: amtY,
+      size: 7.5,
+      font: isBold ? fontBold : fontRegular,
+      color: isHighlight ? brandRed : isBold ? black : darkGray,
+    });
+    const valWidth = (isBold ? fontBold : fontRegular).widthOfTextAtSize(
+      value,
+      7.5,
+    );
+    page.drawText(value, {
+      x: rightValuesRightX - valWidth,
+      y: amtY,
+      size: 7.5,
+      font: isBold ? fontBold : fontRegular,
+      color: isHighlight ? brandRed : isBold ? black : darkGray,
+    });
+    amtY -= amtLineHeight;
+  }
+
+  drawAmountLine('Sub Total', `Rs. ${subtotal.toLocaleString('en-IN')}`);
+
+  if (transportCost > 0) {
+    drawAmountLine('CARTAGE:', `Rs. ${transportCost.toLocaleString('en-IN')}`);
+  }
+
+  // DYNAMIC TAX SUPPRESSION
+  if (itemsTax > 0) {
+    if (isInterState) {
+      drawAmountLine(
+        `IGST (${taxRate}%):`,
+        `Rs. ${itemsTax.toLocaleString('en-IN')}`,
+      );
+    } else {
+      const halfRate = taxRate / 2;
+      const halfTax = itemsTax / 2;
+      drawAmountLine(
+        `CGST (${halfRate}%):`,
+        `Rs. ${halfTax.toLocaleString('en-IN')}`,
+      );
+      drawAmountLine(
+        `SGST (${halfRate}%):`,
+        `Rs. ${halfTax.toLocaleString('en-IN')}`,
+      );
+    }
+  }
+
+  if (transportTax > 0) {
+    drawAmountLine(
+      `Cartage GST (${transportGstRate}%):`,
+      `Rs. ${transportTax.toLocaleString('en-IN')}`,
+    );
+  }
+
+  drawAmountLine('Total', `Rs. ${totalAmount.toLocaleString('en-IN')}`, true);
+  drawAmountLine('Received', `Rs. ${totalReceived.toLocaleString('en-IN')}`);
+  drawAmountLine('Balance', `Rs. ${balance.toLocaleString('en-IN')}`, true);
+  drawAmountLine(
+    'Previous Balance',
+    `Rs. ${previousBalance.toLocaleString('en-IN')}`,
+  );
+  drawAmountLine(
+    'Current Balance',
+    `Rs. ${currentBalance.toLocaleString('en-IN')}`,
+    true,
+    currentBalance > 0,
+  );
+
+  currentY -= amountsBoxHeight;
+
+  // 6. Terms & Conditions (Left) and Authorized Signatory (Right)
+  const footerBoxHeight = 70;
+  page.drawRectangle({
+    x: leftMargin,
+    y: currentY - footerBoxHeight,
+    width: contentWidth,
+    height: footerBoxHeight,
+    borderColor: lightBorder,
+    borderWidth: 1,
+  });
+
+  page.drawLine({
+    start: { x: splitX, y: currentY },
+    end: { x: splitX, y: currentY - footerBoxHeight },
+    thickness: 1,
+    color: lightBorder,
+  });
+
+  // Terms and conditions
+  const termsX = leftMargin + 8;
+  page.drawText('Terms and conditions', {
+    x: termsX,
+    y: currentY - 12,
+    size: 7.5,
+    font: fontBold,
+    color: black,
+  });
+  page.drawText('NO COMPANY WILL RESPONSIBLE AFTER LAYING OF TILE.', {
+    x: termsX,
+    y: currentY - 24,
+    size: 6.5,
+    font: fontRegular,
+    color: darkGray,
+  });
+  page.drawText('NO RETURN AFTER 1 WEEK.', {
+    x: termsX,
+    y: currentY - 34,
+    size: 6.5,
+    font: fontRegular,
+    color: darkGray,
+  });
+  page.drawText('2%-3% DAMAGE IN DELIVERY IS ACCEPTABLE.', {
+    x: termsX,
+    y: currentY - 44,
+    size: 6.5,
+    font: fontRegular,
+    color: darkGray,
+  });
+  page.drawText('RETURN TIMING AFTER 2:00 PM.', {
+    x: termsX,
+    y: currentY - 54,
+    size: 6.5,
+    font: fontRegular,
+    color: darkGray,
+  });
+
+  // Signatory Box
+  const sigX = splitX + 8;
+  page.drawText('For : DHRA ( A UNIT OF SHREE OM TILES )', {
+    x: sigX,
+    y: currentY - 14,
+    size: 7.5,
+    font: fontBold,
+    color: black,
+  });
+  page.drawText('Authorized Signatory', {
+    x: sigX + 45,
+    y: currentY - 58,
+    size: 7,
+    font: fontBold,
+    color: darkGray,
+  });
+
+  currentY -= footerBoxHeight;
+
+  // 7. Tear-off Perforated Acknowledgement Slip
+  currentY -= 14;
+
+  // Perforation dashed line
+  const dashWidth = 8;
+  const dashGap = 6;
+  let dashStartX = leftMargin;
+  while (dashStartX < rightMargin) {
+    const dashEndX = Math.min(dashStartX + dashWidth, rightMargin);
+    page.drawLine({
+      start: { x: dashStartX, y: currentY },
+      end: { x: dashEndX, y: currentY },
+      thickness: 0.75,
+      color: lightBorder,
+    });
+    dashStartX += dashWidth + dashGap;
+  }
+
+  currentY -= 12;
+
+  // Acknowledgement Box
+  const ackBoxHeight = 84;
+  page.drawRectangle({
+    x: leftMargin,
+    y: currentY - ackBoxHeight,
+    width: contentWidth,
+    height: ackBoxHeight,
+    borderColor: lightBorder,
+    borderWidth: 1,
+  });
+
+  // Centered Acknowledgement Heading
+  const ackTitle = 'Acknowledgement';
+  const ackW = fontBold.widthOfTextAtSize(ackTitle, 9.5);
+  page.drawText(ackTitle, {
+    x: leftMargin + (contentWidth - ackW) / 2,
+    y: currentY - 14,
+    size: 9.5,
+    font: fontBold,
+    color: black,
+  });
+
+  // Brand title in bold red
+  const ackBrand = 'DHRA ( A UNIT OF SHREE OM TILES )';
+  const ackBrandW = fontBold.widthOfTextAtSize(ackBrand, 9);
+  page.drawText(ackBrand, {
+    x: leftMargin + (contentWidth - ackBrandW) / 2,
+    y: currentY - 26,
+    size: 9,
+    font: fontBold,
+    color: brandRed,
+  });
+
+  // 3 Columns inside Acknowledgement
+  const ackCol1 = leftMargin + 10;
+  const ackCol2 = leftMargin + contentWidth * 0.4;
+  const ackCol3 = leftMargin + contentWidth * 0.72;
+
+  const ackContentY = currentY - 42;
+
+  // Column 1: Invoice To
+  page.drawText('Invoice To:', {
+    x: ackCol1,
+    y: ackContentY,
+    size: 8,
+    font: fontBold,
+    color: black,
+  });
+  page.drawText(
+    safePdfText(
+      (invoice.party?.name || 'Walk-in Customer').toUpperCase().slice(0, 28),
+    ),
+    {
+      x: ackCol1,
+      y: ackContentY - 12,
+      size: 8,
+      font: fontBold,
+      color: black,
+    },
+  );
+  page.drawText(safePdfText((invoice.party?.address || '').slice(0, 32)), {
+    x: ackCol1,
+    y: ackContentY - 24,
+    size: 7.5,
+    font: fontRegular,
+    color: darkGray,
+  });
+
+  // Column 2: Invoice Details
+  page.drawText('Invoice Details:', {
+    x: ackCol2,
+    y: ackContentY,
+    size: 8,
+    font: fontBold,
+    color: black,
+  });
+  page.drawText(`Invoice No. : ${invoice.invoiceNo}`, {
+    x: ackCol2,
+    y: ackContentY - 12,
+    size: 7.5,
+    font: fontRegular,
+    color: black,
+  });
+  page.drawText(`Invoice date : ${dateStr}`, {
+    x: ackCol2,
+    y: ackContentY - 22,
+    size: 7.5,
+    font: fontRegular,
+    color: black,
+  });
+  page.drawText(`Invoice Amount : Rs. ${totalAmount.toLocaleString('en-IN')}`, {
+    x: ackCol2,
+    y: ackContentY - 32,
+    size: 7.5,
+    font: fontBold,
+    color: black,
+  });
+
+  // Column 3: Receiver's Seal & Sign
+  page.drawLine({
+    start: { x: ackCol3, y: ackContentY - 16 },
+    end: { x: rightMargin - 15, y: ackContentY - 16 },
+    thickness: 0.75,
+    color: darkGray,
+  });
+  page.drawText("Receiver's Seal & Sign", {
+    x: ackCol3 + 8,
+    y: ackContentY - 28,
+    size: 7.5,
+    font: fontRegular,
+    color: darkGray,
   });
 
   const pdfBytes = await doc.save();
   const result: GeneratedPdfResult = { pdfBytes, invoiceNo: invoice.invoiceNo };
 
   if (pdfBufferCache.size >= MAX_PDF_CACHE_SIZE) {
-    const oldestKey = pdfBufferCache.keys().next().value;
+    const oldestKey = Array.from(pdfBufferCache.keys())[0];
     if (oldestKey) pdfBufferCache.delete(oldestKey);
   }
   pdfBufferCache.set(cacheKey, result);

@@ -31,15 +31,23 @@ import {
   CompanySettingsView,
 } from '@/components/settings';
 import { testLocalNotification, setupPushNotifications } from '@/lib/notifications';
+import { DayBookView } from '@/components/day-book/DayBookView';
+import { QuotationsView } from '@/components/quotations/QuotationsView';
+import { PurchasesView } from '@/components/purchases/PurchasesView';
+import { ExpensesView } from '@/components/expenses/ExpensesView';
 
 export default function MoreScreen() {
   const { user, logout, updateUser } = useAuth();
   const router = useRouter();
   const isOwner = user?.role === 'OWNER';
   const isAdmin = user?.role === 'ADMIN';
+  const isAccountant = user?.role === 'ACCOUNTANT';
+  const isSalesman = user?.role === 'SALESMAN';
+  const isSupervisor = user?.role === 'SUPERVISOR';
+  const canViewFinances = isOwner || isAdmin || isAccountant;
 
   const [activeSection, setActiveSection] = useState<
-    'MENU' | 'PARTIES' | 'STAFF' | 'SETTINGS' | 'WAREHOUSES'
+    'MENU' | 'PARTIES' | 'STAFF' | 'SETTINGS' | 'WAREHOUSES' | 'DAY_BOOK' | 'QUOTATIONS' | 'PURCHASES' | 'EXPENSES'
   >('MENU');
 
   // Handle hardware & gesture back button inside More screen
@@ -263,6 +271,14 @@ export default function MoreScreen() {
     switch (activeSection) {
       case 'PARTIES':
         return 'Customer Parties';
+      case 'DAY_BOOK':
+        return 'Daily Till Book';
+      case 'QUOTATIONS':
+        return 'Price Estimates';
+      case 'PURCHASES':
+        return 'Inward Purchases';
+      case 'EXPENSES':
+        return 'Business Expenses';
       case 'STAFF':
         return 'Staff Roster & Roles';
       case 'WAREHOUSES':
@@ -278,6 +294,14 @@ export default function MoreScreen() {
     switch (activeSection) {
       case 'PARTIES':
         return 'Directory & Statements';
+      case 'DAY_BOOK':
+        return 'Cash reconciliation & till stream';
+      case 'QUOTATIONS':
+        return 'Quotations & 1-click invoice';
+      case 'PURCHASES':
+        return 'Vendor POs & stock increment';
+      case 'EXPENSES':
+        return 'Daily cash & digital outflows';
       case 'STAFF':
         return 'Team Permissions & Access';
       case 'WAREHOUSES':
@@ -340,6 +364,88 @@ export default function MoreScreen() {
               </View>
               <Ionicons name="chevron-forward" size={18} color={Colors.dark.textTertiary} />
             </TouchableOpacity>
+
+            {/* 2. Quotations / Estimates (Salesmen, Accountants, Admins, Owners) */}
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => setActiveSection('QUOTATIONS')}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.menuIconCircle, { backgroundColor: '#3B82F6' }]}>
+                <Ionicons name="document-text-outline" size={20} color="#FFFFFF" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.menuItemTitle}>Price Estimates (Quotations)</Text>
+                <Text style={styles.menuItemSub}>
+                  Browse quotations, download PDFs & 1-click invoice conversion
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={Colors.dark.textTertiary} />
+            </TouchableOpacity>
+
+            {/* 3. Daily Till Book (Day Book) */}
+            {canViewFinances ? (
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => setActiveSection('DAY_BOOK')}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.menuIconCircle, { backgroundColor: '#10B981' }]}>
+                  <Ionicons name="wallet-outline" size={20} color="#FFFFFF" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.menuItemTitle}>Daily Till Book (Day Book)</Text>
+                  <Text style={styles.menuItemSub}>
+                    Opening balance, live till cash & chronological reconciliation
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={Colors.dark.textTertiary} />
+              </TouchableOpacity>
+            ) : null}
+
+            {/* 4. Inward Purchases */}
+            {canViewFinances || isSupervisor ? (
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => setActiveSection('PURCHASES')}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.menuIconCircle, { backgroundColor: '#F59E0B' }]}>
+                  <Ionicons name="cart-outline" size={20} color="#FFFFFF" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.menuItemTitle}>
+                    {isSupervisor ? 'Inward Purchases & Goods' : 'Inward Purchases & Payables'}
+                  </Text>
+                  <Text style={styles.menuItemSub}>
+                    {isSupervisor
+                      ? 'Vendor purchase orders & incoming warehouse stock'
+                      : 'Vendor purchase orders, inventory increment & debit notes'}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={Colors.dark.textTertiary} />
+              </TouchableOpacity>
+            ) : null}
+
+            {/* 5. Business Expenses */}
+            {canViewFinances ? (
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => setActiveSection('EXPENSES')}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.menuIconCircle, { backgroundColor: '#EF4444' }]}>
+                  <Ionicons name="cash-outline" size={20} color="#FFFFFF" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.menuItemTitle}>Business Expenses</Text>
+                  <Text style={styles.menuItemSub}>
+                    Daily overheads, rent, utilities & cash outflows
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={Colors.dark.textTertiary} />
+              </TouchableOpacity>
+            ) : null}
 
             {/* 2. Warehouses & Showrooms (Owner/Admin only) */}
             {isOwner || isAdmin ? (
@@ -516,6 +622,26 @@ export default function MoreScreen() {
             onDeleteUpi={handleDeleteUpi}
           />
         ) : null}
+
+        {/* ========================================================================= */}
+        {/* VIEW 6: DAY BOOK                                                          */}
+        {/* ========================================================================= */}
+        {activeSection === 'DAY_BOOK' ? <DayBookView /> : null}
+
+        {/* ========================================================================= */}
+        {/* VIEW 7: QUOTATIONS                                                        */}
+        {/* ========================================================================= */}
+        {activeSection === 'QUOTATIONS' ? <QuotationsView /> : null}
+
+        {/* ========================================================================= */}
+        {/* VIEW 8: PURCHASES                                                         */}
+        {/* ========================================================================= */}
+        {activeSection === 'PURCHASES' ? <PurchasesView /> : null}
+
+        {/* ========================================================================= */}
+        {/* VIEW 9: EXPENSES                                                          */}
+        {/* ========================================================================= */}
+        {activeSection === 'EXPENSES' ? <ExpensesView /> : null}
       </ScrollView>
 
       {/* Settings & Staff Modals */}

@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Colors } from '@/constants/theme';
 import { formatINR, formatDate, cleanPhoneNumber } from '@/lib/formatters';
+import { downloadAndSharePdf } from '@/lib/pdf';
+import { useAuth } from '@/lib/auth-context';
 import { Delivery } from './types';
 
 interface DeliveryRunModalProps {
@@ -23,6 +25,8 @@ export function DeliveryRunModal({
   visible,
   onClose,
 }: DeliveryRunModalProps) {
+  const { user } = useAuth();
+  const isSupervisor = user?.role === 'SUPERVISOR';
   if (!delivery) return null;
 
   const partyPhone = delivery.invoice?.party?.phone;
@@ -130,40 +134,42 @@ export function DeliveryRunModal({
           </View>
         </Card>
 
-        {/* Payment & Cash Custody Status */}
-        <Card style={styles.paymentCard}>
-          <View style={styles.paymentRow}>
-            <View>
-              <Text style={styles.paymentLabel}>Payment Settlement</Text>
-              <Text style={styles.paymentValue}>
-                {cashCollectedNum > 0
-                  ? formatINR(delivery.cashCollected)
-                  : Number(delivery.amountToCollect || 0) === 0
-                  ? 'Prepaid (₹0 Dues)'
-                  : `Dues: ${formatINR(delivery.amountToCollect)}`}
-              </Text>
-            </View>
-
-            {cashCollectedNum > 0 ? (
-              delivery.cashHandedOver ? (
-                <View style={styles.settledBadge}>
-                  <Ionicons name="checkmark-done" size={12} color="#10B981" />
-                  <Text style={styles.settledBadgeText}>Office Received</Text>
-                </View>
-              ) : (
-                <View style={styles.custodyBadge}>
-                  <Ionicons name="wallet-outline" size={12} color="#F59E0B" />
-                  <Text style={styles.custodyBadgeText}>With Driver</Text>
-                </View>
-              )
-            ) : (
-              <View style={styles.settledBadge}>
-                <Ionicons name="checkmark-circle" size={12} color="#10B981" />
-                <Text style={styles.settledBadgeText}>Fully Settled</Text>
+        {/* Payment & Cash Custody Status - Mask for Supervisor */}
+        {!isSupervisor ? (
+          <Card style={styles.paymentCard}>
+            <View style={styles.paymentRow}>
+              <View>
+                <Text style={styles.paymentLabel}>Payment Settlement</Text>
+                <Text style={styles.paymentValue}>
+                  {cashCollectedNum > 0
+                    ? formatINR(delivery.cashCollected)
+                    : Number(delivery.amountToCollect || 0) === 0
+                    ? 'Prepaid (₹0 Dues)'
+                    : `Dues: ${formatINR(delivery.amountToCollect)}`}
+                </Text>
               </View>
-            )}
-          </View>
-        </Card>
+
+              {cashCollectedNum > 0 ? (
+                delivery.cashHandedOver ? (
+                  <View style={styles.settledBadge}>
+                    <Ionicons name="checkmark-done" size={12} color="#10B981" />
+                    <Text style={styles.settledBadgeText}>Office Received</Text>
+                  </View>
+                ) : (
+                  <View style={styles.custodyBadge}>
+                    <Ionicons name="wallet-outline" size={12} color="#F59E0B" />
+                    <Text style={styles.custodyBadgeText}>With Driver</Text>
+                  </View>
+                )
+              ) : (
+                <View style={styles.settledBadge}>
+                  <Ionicons name="checkmark-circle" size={12} color="#10B981" />
+                  <Text style={styles.settledBadgeText}>Fully Settled</Text>
+                </View>
+              )}
+            </View>
+          </Card>
+        ) : null}
 
         {/* Delivered Items Manifest */}
         <Text style={styles.sectionTitle}>
@@ -205,13 +211,28 @@ export function DeliveryRunModal({
           </View>
         ) : null}
 
+        {/* Challan PDF Download */}
+        <Button
+          title="Download Delivery Challan PDF"
+          icon="document-text-outline"
+          variant="outline"
+          size="md"
+          onPress={() =>
+            downloadAndSharePdf(
+              `delivery/${delivery.id}/challan-pdf`,
+              `Challan_${delivery.invoice?.invoiceNo || delivery.id}`,
+            )
+          }
+          style={{ marginTop: 14 }}
+        />
+
         {/* Close Button */}
         <Button
           title="Done & Close"
           variant="secondary"
           size="md"
           onPress={onClose}
-          style={{ marginTop: 16 }}
+          style={{ marginTop: 10 }}
         />
       </View>
     </BottomSheetModal>

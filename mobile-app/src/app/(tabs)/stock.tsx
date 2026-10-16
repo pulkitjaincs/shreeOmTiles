@@ -34,6 +34,8 @@ import {
 export default function StockScreen() {
   const { user } = useAuth();
   const isOwnerOrAdmin = user?.role === 'OWNER' || user?.role === 'ADMIN';
+  const isSupervisor = user?.role === 'SUPERVISOR';
+  const userWarehouseId = user?.scope;
 
   const [activeTab, setActiveTab] = useState<'STOCK' | 'PRODUCTS'>('STOCK');
   const [stocks, setStocks] = useState<StockItem[]>([]);
@@ -300,7 +302,7 @@ export default function StockScreen() {
         </View>
 
         {/* Secondary Quick Inventory Utility Links (Transfer & Adjust) */}
-        {isOwnerOrAdmin && activeTab === 'STOCK' && (
+        {(isOwnerOrAdmin || isSupervisor) && activeTab === 'STOCK' && (
           <View style={styles.secondaryActionsRow}>
             <TouchableOpacity
               style={styles.utilityBtn}
@@ -372,6 +374,8 @@ export default function StockScreen() {
             <WarehouseStockCard
               item={item}
               isOwnerOrAdmin={isOwnerOrAdmin}
+              isSupervisor={isSupervisor}
+              userWarehouseId={userWarehouseId}
               onInward={(stock) => {
                 setInwardProductId(stock.productId);
                 setInwardWarehouseId(stock.warehouseId);
@@ -409,6 +413,7 @@ export default function StockScreen() {
               item={item}
               stocks={stocks}
               isOwnerOrAdmin={isOwnerOrAdmin}
+              isSupervisor={isSupervisor}
               onInward={(productId) => {
                 setInwardProductId(productId);
                 setInwardModalOpen(true);

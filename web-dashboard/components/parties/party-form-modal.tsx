@@ -24,6 +24,7 @@ export function PartyFormModal({
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [gstin, setGstin] = useState('');
+  const [category, setCategory] = useState<'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER'>('RETAIL');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -33,6 +34,7 @@ export function PartyFormModal({
       setPhone(party?.phone || '');
       setAddress(party?.address || '');
       setGstin(party?.gstin || '');
+      setCategory(party?.category || 'RETAIL');
       setError('');
     }
   }, [isOpen, party]);
@@ -59,6 +61,7 @@ export function PartyFormModal({
             phone: cleanPhone,
             address: address.trim() || undefined,
             gstin: gstin.trim().toUpperCase() || undefined,
+            category,
           }),
         });
       } else {
@@ -69,6 +72,7 @@ export function PartyFormModal({
             phone: cleanPhone,
             address: address.trim() || undefined,
             gstin: gstin.trim().toUpperCase() || undefined,
+            category,
           }),
         });
       }
@@ -173,6 +177,25 @@ export function PartyFormModal({
               value={gstin}
               onChange={(e) => setGstin(e.target.value)}
             />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1.5">
+              Customer Category / Tier
+            </label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value as 'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER')}
+              className="w-full rounded-xl border border-border/80 bg-muted/50 px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
+            >
+              <option value="RETAIL">Retail Customer</option>
+              <option value="CONTRACTOR">Contractor (Tiered Wholesale)</option>
+              <option value="ARCHITECT">Architect / Designer</option>
+              <option value="WHOLESALER">Wholesaler / Dealer</option>
+            </select>
+            <span className="text-[11px] text-muted-foreground mt-1 block">
+              Wholesalers & Contractors automatically receive wholesale pricing on invoices.
+            </span>
           </div>
 
           {error && (

@@ -2,28 +2,65 @@ import {
   Injectable,
   BadRequestException,
   NotFoundException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdjustStockDto, TransferStockDto } from './dto/stock.dto';
-import { Prisma, StockLedger, Product, Warehouse } from '@prisma/client';
+import { Prisma, StockLedger, Product, Warehouse, Role } from '@prisma/client';
 
 @Injectable()
 export class StockService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll(query?: {
-    productId?: string;
-    warehouseId?: string;
-    page?: number;
-    limit?: number;
-  }): Promise<any> {
+  async findAll(
+    query?: {
+      productId?: string;
+      warehouseId?: string;
+      page?: number;
+      limit?: number;
+    },
+    user?: { id: string; role: Role; scope?: string | null },
+  ): Promise<any> {
     const where: Prisma.StockLedgerWhereInput = {};
     if (query?.productId) where.productId = query.productId;
     if (query?.warehouseId) where.warehouseId = query.warehouseId;
 
+    const isSupervisor = user?.role === Role.SUPERVISOR;
+    if (isSupervisor && user?.scope) {
+      where.warehouseId = user.scope;
+    }
+
     const includeRelations = {
       product: true,
       warehouse: true,
+    };
+
+    const sanitizeStockForSupervisor = <T extends Record<string, unknown>>(
+      item: T,
+    ): T => {
+      if (!item) return item;
+      const rawProd =
+        item.product && typeof item.product === 'object'
+          ? (item.product as Record<string, unknown>)
+          : null;
+      if (!rawProd) return item;
+      let cleanAttrs = rawProd.attributes;
+      if (cleanAttrs && typeof cleanAttrs === 'object') {
+        const copy = { ...(cleanAttrs as Record<string, unknown>) };
+        delete copy.price;
+        delete copy.sellingPrice;
+        delete copy.purchasePrice;
+        delete copy.cost;
+        delete copy.rate;
+        cleanAttrs = copy;
+      }
+      return {
+        ...item,
+        product: {
+          ...rawProd,
+          attributes: cleanAttrs,
+        },
+      };
     };
 
     if (query?.page !== undefined || query?.limit !== undefined) {
@@ -46,7 +83,9 @@ export class StockService {
       ]);
 
       return {
-        data,
+        data: isSupervisor
+          ? data.map((item) => sanitizeStockForSupervisor(item))
+          : data,
         total,
         page,
         limit,
@@ -54,18 +93,31 @@ export class StockService {
       };
     }
 
-    return this.prisma.stockLedger.findMany({
+    const items = await this.prisma.stockLedger.findMany({
       where,
       include: includeRelations,
       orderBy: [{ warehouse: { name: 'asc' } }, { product: { name: 'asc' } }],
       take: 250,
     });
+
+    return isSupervisor
+      ? items.map((item) => sanitizeStockForSupervisor(item))
+      : items;
   }
 
   async adjustStock(
     dto: AdjustStockDto,
     actorId?: string,
+    user?: { id: string; role: Role; scope?: string | null },
   ): Promise<StockLedger & { product: Product; warehouse: Warehouse }> {
+    if (user?.role === Role.SUPERVISOR && user.scope) {
+      if (dto.warehouseId !== user.scope) {
+        throw new ForbiddenException(
+          'Supervisors can only adjust stock in their assigned warehouse.',
+        );
+      }
+    }
+
     const batchNo = dto.batchNo || null;
 
     const product = await this.prisma.product.findUnique({
@@ -92,7 +144,9 @@ export class StockService {
       let updated: StockLedger & { product: Product; warehouse: Warehouse };
 
       if (existing) {
-        const lockedRows = await tx.$queryRaw<Array<{ id: string; quantity: number }>>`
+        const lockedRows = await tx.$queryRaw<
+          Array<{ id: string; quantity: number }>
+        >`
           SELECT id, quantity FROM "StockLedger" WHERE id = ${existing.id} FOR UPDATE
         `;
         const lockedQty = lockedRows[0]?.quantity ?? existing.quantity ?? 0;
@@ -155,7 +209,17 @@ export class StockService {
   async zeroOutStock(
     query: { productId?: string; warehouseId?: string },
     actorId?: string,
+    user?: { id: string; role: Role; scope?: string | null },
   ) {
+    if (user?.role === Role.SUPERVISOR && user.scope) {
+      if (query.warehouseId && query.warehouseId !== user.scope) {
+        throw new ForbiddenException(
+          'Supervisors can only zero out stock in their assigned warehouse.',
+        );
+      }
+      query.warehouseId = user.scope;
+    }
+
     if (!query.productId && !query.warehouseId) {
       throw new BadRequestException(
         'Either productId or warehouseId must be specified to zero out stock',
@@ -204,7 +268,19 @@ export class StockService {
     });
   }
 
-  async transferStock(dto: TransferStockDto, actorId?: string) {
+  async transferStock(
+    dto: TransferStockDto,
+    actorId?: string,
+    user?: { id: string; role: Role; scope?: string | null },
+  ) {
+    if (user?.role === Role.SUPERVISOR && user.scope) {
+      if (dto.fromWarehouseId !== user.scope) {
+        throw new ForbiddenException(
+          'Supervisors can only transfer stock out of their assigned warehouse.',
+        );
+      }
+    }
+
     if (dto.fromWarehouseId === dto.toWarehouseId) {
       throw new BadRequestException(
         'Source and destination warehouses cannot be the same',

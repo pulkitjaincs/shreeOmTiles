@@ -11,6 +11,35 @@ enum Role {
   ADMIN
   SALESMAN
   DRIVER
+  ACCOUNTANT
+  SUPERVISOR
+}
+
+enum PartyCategory {
+  RETAIL
+  CONTRACTOR
+  ARCHITECT
+  WHOLESALER
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  CONVERTED
+  EXPIRED
+}
+
+enum ExpenseCategory {
+  FUEL_TRANSPORT
+  LABOUR_HAMALI
+  RENT_GODOWN
+  ELECTRICITY_UTILITIES
+  SALARY_ADVANCE
+  PANTRY_REFRESHMENTS
+  MAINTENANCE_REPAIRS
+  MARKETING_SAMPLE
+  OTHER
 }
 
 enum InvoiceStatus {
@@ -83,6 +112,9 @@ model User {
   paymentsConfirmed Payment[]         @relation("ConfirmedPayments")
   deliveries        Delivery[]        @relation("DriverDeliveries")
   auditLogs         AuditLog[]
+  purchases         Purchase[]        @relation("UserPurchases")
+  quotations        Quotation[]       @relation("UserQuotations")
+  expenses          Expense[]         @relation("UserExpenses")
 
   @@index([role, isActive])
   @@index([createdAt])
@@ -99,22 +131,26 @@ model Warehouse {
   stockLedgers       StockLedger[]
   invoiceItems       InvoiceItem[]
   refundInvoiceItems RefundInvoiceItem[]
+  purchaseItems      PurchaseItem[]
 }
 
 model Product {
-  id           String         @id @default(uuid())
-  category     String
-  name         String
-  attributes   Json           @default("{}") // JSONB in postgres
-  hsnCode      String?
-  unit         String         @default("box") // box, sqft, piece, set
-  isActive     Boolean        @default(true)
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  id            String         @id @default(uuid())
+  category      String
+  name          String
+  attributes    Json           @default("{}") // JSONB in postgres
+  hsnCode       String?
+  unit          String         @default("box") // box, sqft, piece, set
+  minStockAlert Int            @default(10)
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   
   stockLedgers       StockLedger[]
   invoiceItems       InvoiceItem[]
   refundInvoiceItems RefundInvoiceItem[]
+  quotationItems     QuotationItem[]
+  purchaseItems      PurchaseItem[]
 
   @@index([category])
   @@index([name])
@@ -143,6 +179,7 @@ model Party {
   phone         String
   address       String?
   gstin         String?
+  category      PartyCategory  @default(RETAIL)
   isSaved       Boolean        @default(true)
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
@@ -151,6 +188,9 @@ model Party {
   refundInvoices RefundInvoice[]
   payments       Payment[]
   creditLedgers  CreditLedger[]
+  purchases      Purchase[]
+  quotations     Quotation[]
+  debitNotes     DebitNote[]
 
   @@index([phone])
   @@index([name])
@@ -165,21 +205,28 @@ model InvoiceSequence {
 }
 
 model Invoice {
-  id            String         @id @default(uuid())
-  invoiceNo     String         @unique
-  partyId       String
-  party         Party          @relation(fields: [partyId], references: [id])
-  salesmanId    String
-  salesman      User           @relation(fields: [salesmanId], references: [id])
-  status        InvoiceStatus  @default(CREATED)
-  taxBreakup    Json           @default("{}") // { cgst: 0, sgst: 0, igst: 0, rate: 18 }
-  subtotal      Decimal        @default(0) @db.Decimal(12, 2)
-  tax           Decimal        @default(0) @db.Decimal(12, 2)
-  total         Decimal        @default(0) @db.Decimal(12, 2)
-  paymentMode   PaymentMode?
-  notes         String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id               String         @id @default(uuid())
+  invoiceNo        String         @unique
+  partyId          String
+  party            Party          @relation(fields: [partyId], references: [id])
+  salesmanId       String
+  salesman         User           @relation(fields: [salesmanId], references: [id])
+  status           InvoiceStatus  @default(CREATED)
+  taxBreakup       Json           @default("{}") // { cgst: 0, sgst: 0, igst: 0, rate: 18 }
+  subtotal         Decimal        @default(0) @db.Decimal(12, 2)
+  tax              Decimal        @default(0) @db.Decimal(12, 2)
+  taxRate          Decimal        @default(0) @db.Decimal(5, 2)
+  transportCost    Decimal        @default(0) @db.Decimal(12, 2)
+  transportGstRate Decimal        @default(0) @db.Decimal(5, 2)
+  transportTax     Decimal        @default(0) @db.Decimal(12, 2)
+  itemsTax         Decimal        @default(0) @db.Decimal(12, 2)
+  total            Decimal        @default(0) @db.Decimal(12, 2)
+  paymentMode      PaymentMode?
+  notes            String?
+  quotationId      String?
+  quotation        Quotation?     @relation(fields: [quotationId], references: [id], onDelete: SetNull)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
   items          InvoiceItem[]
   refundInvoices RefundInvoice[]
@@ -215,75 +262,81 @@ model InvoiceItem {
 }
 
 model Payment {
-  id            String        @id @default(uuid())
+  id              String         @id @default(uuid())
   invoiceId       String?
   invoice         Invoice?       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   refundInvoiceId String?
   refundInvoice   RefundInvoice? @relation(fields: [refundInvoiceId], references: [id], onDelete: SetNull)
+  purchaseId      String?
+  purchase        Purchase?      @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
   partyId         String?
-  party         Party?        @relation(fields: [partyId], references: [id], onDelete: SetNull)
-  mode          PaymentMode
-  amount        Decimal       @db.Decimal(12, 2)
-  upiTxnRef     String?
-  upiUtr        String?
-  confirmedById String?
-  confirmedBy   User?         @relation("ConfirmedPayments", fields: [confirmedById], references: [id])
-  status        PaymentStatus @default(PENDING)
-  type          PaymentType   @default(INFLOW)
-  notes         String?
-  paidAt        DateTime?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  party           Party?         @relation(fields: [partyId], references: [id], onDelete: SetNull)
+  mode            PaymentMode
+  amount          Decimal        @db.Decimal(12, 2)
+  upiTxnRef       String?
+  upiUtr          String?
+  confirmedById   String?
+  confirmedBy     User?          @relation("ConfirmedPayments", fields: [confirmedById], references: [id])
+  status          PaymentStatus  @default(PENDING)
+  type            PaymentType    @default(INFLOW)
+  notes           String?
+  paidAt          DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   @@index([partyId])
   @@index([invoiceId])
+  @@index([purchaseId])
   @@index([status, type, paidAt])
   @@index([confirmedById])
   @@index([createdAt])
 }
 
 model CreditLedger {
-  id            String       @id @default(uuid())
-  partyId       String
-  party         Party        @relation(fields: [partyId], references: [id], onDelete: Cascade)
+  id              String         @id @default(uuid())
+  partyId         String
+  party           Party          @relation(fields: [partyId], references: [id], onDelete: Cascade)
   invoiceId       String?
   invoice         Invoice?       @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   refundInvoiceId String?
   refundInvoice   RefundInvoice? @relation(fields: [refundInvoiceId], references: [id], onDelete: SetNull)
+  purchaseId      String?
+  purchase        Purchase?      @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
   amountDue       Decimal        @db.Decimal(12, 2)
-  dueDate       DateTime?
-  type          CreditType   @default(RECEIVABLE)
-  notes         String?
-  status        CreditStatus @default(UNPAID)
-  remindersSent Int          @default(0)
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  dueDate         DateTime?
+  type            CreditType     @default(RECEIVABLE)
+  notes           String?
+  status          CreditStatus   @default(UNPAID)
+  remindersSent   Int            @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   @@index([partyId])
   @@index([invoiceId])
+  @@index([purchaseId])
   @@index([partyId, status, type])
   @@index([type, status, amountDue])
   @@index([createdAt])
 }
 
 model Delivery {
-  id              String         @id @default(uuid())
-  invoiceId       String
-  invoice         Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  driverId        String?
-  driver          User?          @relation("DriverDeliveries", fields: [driverId], references: [id])
-  status          DeliveryStatus @default(PENDING)
-  notes           String?
-  items           Json?          @default("[]")
-  amountToCollect Decimal        @default(0) @db.Decimal(12, 2)
-  cashCollected   Decimal?       @default(0) @db.Decimal(12, 2)
-  cashCollectedAt DateTime?
-  cashHandedOver  Boolean        @default(false)
-  cashHandedOverAt DateTime?
+  id                 String         @id @default(uuid())
+  invoiceId          String
+  invoice            Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  driverId           String?
+  driver             User?          @relation("DriverDeliveries", fields: [driverId], references: [id])
+  status             DeliveryStatus @default(PENDING)
+  notes              String?
+  items              Json?          @default("[]")
+  amountToCollect    Decimal        @default(0) @db.Decimal(12, 2)
+  cashCollected      Decimal?       @default(0) @db.Decimal(12, 2)
+  cashCollectedAt    DateTime?
+  cashHandedOver     Boolean        @default(false)
+  cashHandedOverAt   DateTime?
   cashHandedOverToId String?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  trips           DeliveryTrip[]
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  trips              DeliveryTrip[]
 
   @@index([invoiceId])
   @@index([driverId, status])
@@ -383,3 +436,146 @@ model CompanySetting {
   upiAccounts  Json?    @default("[]")
   updatedAt    DateTime @updatedAt
 }
+
+// ---------------- NEW PROCUREMENT & VYAPAR MODELS ----------------
+
+model PurchaseSequence {
+  id            String   @id @default(uuid())
+  financialYear String   @unique // e.g. "2627"
+  lastNumber    Int      @default(0)
+  updatedAt     DateTime @updatedAt
+}
+
+model Purchase {
+  id            String         @id @default(uuid())
+  purchaseNo    String         @unique // e.g. "PUR-2627-0001"
+  vendorBillNo  String?
+  partyId       String
+  party         Party          @relation(fields: [partyId], references: [id])
+  createdById   String
+  createdBy     User           @relation("UserPurchases", fields: [createdById], references: [id])
+  status        InvoiceStatus  @default(CREATED)
+  taxRate       Decimal        @default(0) @db.Decimal(5, 2)
+  subtotal      Decimal        @default(0) @db.Decimal(12, 2)
+  tax           Decimal        @default(0) @db.Decimal(12, 2)
+  transportCost Decimal        @default(0) @db.Decimal(12, 2)
+  total         Decimal        @default(0) @db.Decimal(12, 2)
+  paymentMode   PaymentMode?
+  notes         String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  items         PurchaseItem[]
+  debitNotes    DebitNote[]
+  payments      Payment[]
+  creditLedgers CreditLedger[]
+
+  @@index([partyId])
+  @@index([createdById])
+  @@index([createdAt])
+}
+
+model PurchaseItem {
+  id          String     @id @default(uuid())
+  purchaseId  String
+  purchase    Purchase   @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product    @relation(fields: [productId], references: [id], onDelete: Restrict)
+  warehouseId String
+  warehouse   Warehouse  @relation(fields: [warehouseId], references: [id], onDelete: Restrict)
+  batchNo     String?
+  qty         Int
+  unitPrice   Decimal    @db.Decimal(12, 2)
+  discount    Decimal    @default(0) @db.Decimal(12, 2)
+  total       Decimal    @default(0) @db.Decimal(12, 2)
+  createdAt   DateTime   @default(now())
+
+  @@index([purchaseId])
+  @@index([productId])
+  @@index([warehouseId])
+}
+
+model QuotationSequence {
+  id            String   @id @default(uuid())
+  financialYear String   @unique // e.g. "2627"
+  lastNumber    Int      @default(0)
+  updatedAt     DateTime @updatedAt
+}
+
+model Quotation {
+  id              String          @id @default(uuid())
+  quotationNo     String          @unique // e.g. "EST-2627-0001"
+  partyId         String?
+  party           Party?          @relation(fields: [partyId], references: [id], onDelete: SetNull)
+  customerName    String?
+  customerPhone   String?
+  customerAddress String?
+  createdById     String
+  createdBy       User            @relation("UserQuotations", fields: [createdById], references: [id])
+  status          QuotationStatus @default(SENT)
+  validUntil      DateTime?
+  subtotal        Decimal         @default(0) @db.Decimal(12, 2)
+  taxRate         Decimal         @default(18) @db.Decimal(5, 2)
+  tax             Decimal         @default(0) @db.Decimal(12, 2)
+  transportCost   Decimal         @default(0) @db.Decimal(12, 2)
+  transportGstRate Decimal        @default(0) @db.Decimal(5, 2)
+  total           Decimal         @default(0) @db.Decimal(12, 2)
+  notes           String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  items           QuotationItem[]
+  invoices        Invoice[]
+
+  @@index([partyId])
+  @@index([createdAt])
+}
+
+model QuotationItem {
+  id          String    @id @default(uuid())
+  quotationId String
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  productId   String
+  product     Product   @relation(fields: [productId], references: [id], onDelete: Restrict)
+  qty         Int
+  unitPrice   Decimal   @db.Decimal(12, 2)
+  discount    Decimal   @default(0) @db.Decimal(12, 2)
+  total       Decimal   @default(0) @db.Decimal(12, 2)
+
+  @@index([quotationId])
+}
+
+model Expense {
+  id          String          @id @default(uuid())
+  expenseNo   String          @unique // e.g. "EXP-2627-0001"
+  category    ExpenseCategory @default(OTHER)
+  amount      Decimal         @db.Decimal(12, 2)
+  paymentMode PaymentMode     @default(CASH)
+  paidTo      String?
+  notes       String?
+  createdById String
+  createdBy   User            @relation("UserExpenses", fields: [createdById], references: [id])
+  expenseDate DateTime        @default(now())
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([category])
+  @@index([expenseDate])
+}
+
+model DebitNote {
+  id          String    @id @default(uuid())
+  debitNoteNo String    @unique // e.g. "DN-2627-0001"
+  purchaseId  String
+  purchase    Purchase  @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  partyId     String
+  party       Party     @relation(fields: [partyId], references: [id])
+  amount      Decimal   @db.Decimal(12, 2)
+  reason      String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([purchaseId])
+  @@index([partyId])
+}
+

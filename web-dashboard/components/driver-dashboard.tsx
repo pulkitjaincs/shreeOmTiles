@@ -457,7 +457,7 @@ export default function DriverDashboard({ userName }: { userName?: string }) {
               </div>
               <p className="text-[0.75rem] text-muted-foreground">
                 {activeDelivery.status === 'OUT_FOR_PICKUP'
-                  ? 'Visit the designated warehouses below and check off each product as you collect it.'
+                  ? 'Visit the designated warehouses below. The warehouse supervisor will inspect and mark items as picked before you can depart for delivery.'
                   : activeDelivery.status === 'DELIVERED'
                   ? Number(activeDelivery.amountToCollect || 0) > 0 && Number(activeDelivery.cashCollected || 0) === 0
                     ? 'Delivery handed over to customer. Please collect the pending cash balance below.'
@@ -621,10 +621,10 @@ export default function DriverDashboard({ userName }: { userName?: string }) {
               <div>
                 <h3 className="text-[0.875rem] font-bold text-foreground flex items-center gap-2">
                   <Building2 className="h-4 w-4 text-purple-500" />
-                  Warehouse Pickup Checklist (Mark items as you collect them)
+                  Warehouse Pickup Checklist (Awaiting Supervisor Confirmation)
                 </h3>
                 <p className="text-[0.75rem] text-muted-foreground mt-0.5">
-                  Visit each warehouse location and click &quot;Pick Up&quot; to verify packages.
+                  Visit each warehouse. The warehouse supervisor will verify and mark packages as picked.
                 </p>
               </div>
 
@@ -710,36 +710,24 @@ export default function DriverDashboard({ userName }: { userName?: string }) {
                             )}
                           </div>
 
-                          {/* Pickup Action Toggle - LOCKED once picked up */}
+                          {/* Pickup Action Status - Marked exclusively by Warehouse Supervisor */}
                           <div>
                             {isPicked ? (
                               <div
-                                className="px-3.5 py-2 rounded-[0.75rem] text-[0.75rem] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 inline-flex items-center gap-1.5 cursor-not-allowed select-none opacity-90"
-                                title="Item already picked up. Option is locked."
+                                className="px-3.5 py-2 rounded-[0.75rem] text-[0.75rem] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 inline-flex items-center gap-1.5 select-none opacity-90"
+                                title="Item verified and picked by Warehouse Supervisor."
                               >
                                 <Check className="h-3.5 w-3.5 text-emerald-500" />
-                                <span>✓ Picked (Locked)</span>
+                                <span>✓ Picked by Supervisor</span>
                               </div>
                             ) : (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleToggleItemPickup(
-                                    activeDelivery.id,
-                                    originalIndex,
-                                    false
-                                  )
-                                }
-                                disabled={isUpdating}
-                                className="px-3.5 py-2 rounded-[0.75rem] text-[0.75rem] font-bold transition inline-flex items-center gap-1.5 shadow-xs bg-primary hover:bg-primary/90 text-primary-foreground active:scale-98"
+                              <div
+                                className="px-3.5 py-2 rounded-[0.75rem] text-[0.75rem] font-medium bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 inline-flex items-center gap-1.5 select-none"
+                                title="Visit warehouse to have the supervisor confirm pickup."
                               >
-                                {isUpdating ? (
-                                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                                ) : (
-                                  <Boxes className="h-3.5 w-3.5" />
-                                )}
-                                <span>Mark as Picked</span>
-                              </button>
+                                <Clock className="h-3.5 w-3.5 text-amber-500" />
+                                <span>Awaiting Supervisor Confirmation</span>
+                              </div>
                             )}
                           </div>
                         </div>

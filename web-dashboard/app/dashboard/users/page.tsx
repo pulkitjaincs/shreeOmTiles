@@ -247,6 +247,17 @@ export default function UsersPage() {
             Admins
           </button>
           <button
+            onClick={() => setRoleFilter('SUPERVISOR')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition flex items-center gap-1.5 ${
+              roleFilter === 'SUPERVISOR'
+                ? 'bg-primary text-primary-foreground shadow-sm'
+                : 'bg-muted/60 text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Boxes className="h-3 w-3" />
+            Supervisors
+          </button>
+          <button
             onClick={() => setRoleFilter('WAREHOUSE')}
             className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
               roleFilter === 'WAREHOUSE'
@@ -372,6 +383,8 @@ export default function UsersPage() {
                               ? 'bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-300 border border-fuchsia-500/30'
                               : u.role === 'ADMIN'
                               ? 'bg-primary/15 text-primary border border-primary/30'
+                              : u.role === 'SUPERVISOR'
+                              ? 'bg-purple-500/15 text-purple-600 dark:text-purple-300 border border-purple-500/30'
                               : u.role === 'DRIVER'
                               ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 border border-emerald-500/30'
                               : u.role === 'WAREHOUSE'
@@ -379,6 +392,7 @@ export default function UsersPage() {
                               : 'bg-blue-500/15 text-blue-600 dark:text-blue-300 border border-blue-500/30'
                           }`}
                         >
+                          {u.role === 'SUPERVISOR' && <Boxes className="h-3 w-3" />}
                           {u.role === 'DRIVER' && <Truck className="h-3 w-3" />}
                           {u.role}
                         </span>

@@ -20,6 +20,7 @@ export interface Party {
   phone: string;
   address?: string;
   isSaved?: boolean;
+  category?: 'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER';
 }
 
 export interface StockLedgerRecord {
@@ -127,6 +128,7 @@ export interface Invoice {
   notes?: string;
   items: InvoiceItemDetail[];
   refundInvoices?: RefundInvoiceDetail[];
+  deliveries?: { id: string; status: string }[];
 }
 
 export interface PreviewUpiData {

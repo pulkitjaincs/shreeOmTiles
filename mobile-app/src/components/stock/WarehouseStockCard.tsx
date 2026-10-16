@@ -8,6 +8,8 @@ import { StockItem } from './types';
 interface WarehouseStockCardProps {
   item: StockItem;
   isOwnerOrAdmin?: boolean;
+  isSupervisor?: boolean;
+  userWarehouseId?: string | null;
   onInward?: (item: StockItem) => void;
   onTransfer?: (item: StockItem) => void;
   onAdjust?: (item: StockItem) => void;
@@ -16,6 +18,8 @@ interface WarehouseStockCardProps {
 export function WarehouseStockCard({
   item,
   isOwnerOrAdmin = false,
+  isSupervisor = false,
+  userWarehouseId,
   onInward,
   onTransfer,
   onAdjust,
@@ -23,7 +27,8 @@ export function WarehouseStockCard({
   const isZeroStock = Number(item.quantity || 0) <= 0;
   const isLowStock = Number(item.quantity || 0) < 10;
 
-  const showActions = isOwnerOrAdmin && (onInward || onTransfer || onAdjust);
+  const canManage = isOwnerOrAdmin || (isSupervisor && Boolean(userWarehouseId && item.warehouseId === userWarehouseId));
+  const showActions = canManage && (onInward || onTransfer || onAdjust);
 
   return (
     <Card elevated style={styles.stockCard}>

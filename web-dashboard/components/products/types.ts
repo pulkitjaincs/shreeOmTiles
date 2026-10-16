@@ -16,6 +16,7 @@ export interface Product {
   name: string;
   hsnCode?: string;
   unit: string;
+  minStockAlert?: number;
   attributes: Record<string, unknown>;
   stockLedgers?: StockLedgerEntry[];
 }

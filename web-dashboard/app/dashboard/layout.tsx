@@ -17,6 +17,10 @@ import {
   Settings,
   ArrowLeftRight,
   RefreshCw,
+  FileText,
+  ShoppingCart,
+  Wallet,
+  BookOpen,
 } from 'lucide-react';
 import { OwnerSettingsModal } from '@/components/settings/owner-settings-modal';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -68,16 +72,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   const allNavItems = [
-    { name: 'Analytics', href: '/dashboard', icon: BarChart3, roles: ['OWNER', 'ADMIN'] },
+    { name: 'Analytics', href: '/dashboard', icon: BarChart3, roles: ['OWNER', 'ADMIN', 'ACCOUNTANT'] },
     { name: 'My Dashboard', href: '/dashboard', icon: BarChart3, roles: ['SALESMAN'] },
     { name: 'Driver Dashboard', href: '/dashboard', icon: Truck, roles: ['DRIVER'] },
-    { name: 'Invoices', href: '/dashboard/invoices', icon: Receipt, roles: ['OWNER', 'ADMIN', 'SALESMAN'] },
-    { name: 'Deliveries', href: '/dashboard/deliveries', icon: Truck, roles: ['OWNER', 'ADMIN'] },
+    { name: 'Supervisor Cockpit', href: '/dashboard', icon: Warehouse, roles: ['SUPERVISOR'] },
+    { name: 'Invoices', href: '/dashboard/invoices', icon: Receipt, roles: ['OWNER', 'ADMIN', 'ACCOUNTANT', 'SALESMAN', 'SUPERVISOR'] },
+    { name: 'Quotations', href: '/dashboard/quotations', icon: FileText, roles: ['OWNER', 'ADMIN', 'ACCOUNTANT', 'SALESMAN'] },
+    { name: 'Purchases', href: '/dashboard/purchases', icon: ShoppingCart, roles: ['OWNER', 'ADMIN', 'ACCOUNTANT', 'SUPERVISOR'] },
+    { name: 'Expenses', href: '/dashboard/expenses', icon: Wallet, roles: ['OWNER', 'ADMIN', 'ACCOUNTANT'] },
+    { name: 'Day Book', href: '/dashboard/day-book', icon: BookOpen, roles: ['OWNER', 'ADMIN', 'ACCOUNTANT'] },
+    { name: 'Deliveries', href: '/dashboard/deliveries', icon: Truck, roles: ['OWNER', 'ADMIN', 'ACCOUNTANT', 'SALESMAN', 'SUPERVISOR'] },
     { name: 'My Deliveries', href: '/dashboard/deliveries', icon: Package, roles: ['DRIVER'] },
-    { name: 'Transactions', href: '/dashboard/payments', icon: ArrowLeftRight, roles: ['OWNER', 'ADMIN'] },
-    { name: 'Products', href: '/dashboard/products', icon: Package, roles: ['OWNER', 'ADMIN', 'SALESMAN'] },
-    { name: 'Warehouses', href: '/dashboard/warehouses', icon: Warehouse, roles: ['OWNER', 'ADMIN', 'SALESMAN'] },
-    { name: 'Parties', href: '/dashboard/parties', icon: Users, roles: ['OWNER', 'ADMIN', 'SALESMAN'] },
+    { name: 'Transactions', href: '/dashboard/payments', icon: ArrowLeftRight, roles: ['OWNER', 'ADMIN', 'ACCOUNTANT'] },
+    { name: 'Products', href: '/dashboard/products', icon: Package, roles: ['OWNER', 'ADMIN', 'ACCOUNTANT', 'SALESMAN', 'SUPERVISOR'] },
+    { name: 'Warehouses', href: '/dashboard/warehouses', icon: Warehouse, roles: ['OWNER', 'ADMIN', 'ACCOUNTANT', 'SALESMAN', 'SUPERVISOR'] },
+    { name: 'Parties', href: '/dashboard/parties', icon: Users, roles: ['OWNER', 'ADMIN', 'ACCOUNTANT', 'SALESMAN'] },
     { name: 'Staff', href: '/dashboard/users', icon: Users, roles: ['OWNER'] },
   ];
 

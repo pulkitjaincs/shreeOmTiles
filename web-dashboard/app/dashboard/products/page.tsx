@@ -34,6 +34,7 @@ const ZeroOutStockModal = dynamic(
 
 export default function ProductsPage() {
   const { user } = useAuth();
+  const isSupervisor = user?.role === 'SUPERVISOR';
   const canManage = user?.role === 'OWNER' || user?.role === 'ADMIN';
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -142,7 +143,7 @@ export default function ProductsPage() {
                 <th className="py-3 px-4">HSN Code</th>
                 <th className="py-3 px-4">Unit</th>
                 <th className="py-3 px-4">Specifications</th>
-                <th className="py-3 px-4 text-right">Price / Unit</th>
+                {!isSupervisor && <th className="py-3 px-4 text-right">Price / Unit</th>}
                 <th className="py-3 px-4 text-center">Available Stock</th>
                 <th className="py-3 px-4 text-right">{canManage ? 'Actions' : 'Status'}</th>
               </tr>
@@ -150,7 +151,7 @@ export default function ProductsPage() {
             <tbody className="divide-y divide-border/50">
               {loading ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-10 text-muted-foreground">
+                  <td colSpan={isSupervisor ? 7 : 8} className="text-center py-10 text-muted-foreground">
                     <div className="flex items-center justify-center gap-2">
                       <Loader2 className="h-5 w-5 animate-spin text-primary" />
                       Loading products...
@@ -159,13 +160,16 @@ export default function ProductsPage() {
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-10 text-muted-foreground">
+                  <td colSpan={isSupervisor ? 7 : 8} className="text-center py-10 text-muted-foreground">
                     No products found. Add products to populate your inventory catalog.
                   </td>
                 </tr>
               ) : (
                 filtered.map((prod) => {
                   const totalStock = prod.stockLedgers?.reduce((sum, s) => sum + s.quantity, 0) ?? 0;
+                  const threshold = prod.minStockAlert ?? 10;
+                  const isLowStock = totalStock <= threshold;
+                  const attrs = (prod.attributes as Record<string, unknown>) || {};
                   return (
                     <tr key={prod.id} className="hover:bg-muted/30 transition-colors">
                       <td className="py-3.5 px-4 font-medium text-foreground">
@@ -192,35 +196,49 @@ export default function ProductsPage() {
                       <td className="py-3.5 px-4 text-xs text-muted-foreground">
                         {prod.attributes && typeof prod.attributes === 'object'
                           ? Object.entries(prod.attributes)
-                              .filter(([k]) => k !== 'price' && k !== 'purchasePrice')
+                              .filter(([k]) => k !== 'price' && k !== 'wholesalePrice' && k !== 'purchasePrice')
                               .map(([k, v]) => `${k}: ${v}`)
                               .join(' • ')
                           : '-'}
                       </td>
-                      <td className="py-3.5 px-4 text-right font-mono text-sm font-semibold text-primary">
-                        {prod.attributes &&
-                        typeof prod.attributes === 'object' &&
-                        (prod.attributes as Record<string, unknown>).price !== undefined ? (
-                          <span>
-                            ₹{String((prod.attributes as Record<string, unknown>).price)}{' '}
-                            <span className="text-[0.6875rem] text-muted-foreground font-normal">/{prod.unit}</span>
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">-</span>
-                        )}
-                      </td>
+                      {!isSupervisor && (
+                        <td className="py-3.5 px-4 text-right font-mono text-sm font-semibold text-primary">
+                          {attrs.price !== undefined ? (
+                            <div className="flex flex-col items-end">
+                              <span>
+                                ₹{String(attrs.price)}{' '}
+                                <span className="text-[0.6875rem] text-muted-foreground font-normal">/{prod.unit}</span>
+                              </span>
+                              {attrs.wholesalePrice !== undefined && (
+                                <span className="text-[11px] text-muted-foreground font-normal">
+                                  Wh: ₹{String(attrs.wholesalePrice)}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">-</span>
+                          )}
+                        </td>
+                      )}
                       <td className="py-3.5 px-4 text-center">
-                        <span
-                          className={`font-bold font-mono ${
-                            totalStock <= 0
-                              ? 'text-rose-600 dark:text-rose-400'
-                              : totalStock < 10
-                              ? 'text-amber-600 dark:text-amber-400'
-                              : 'text-emerald-600 dark:text-emerald-400'
-                          }`}
-                        >
-                          {totalStock} {prod.unit}
-                        </span>
+                        <div className="flex flex-col items-center gap-1">
+                          <span
+                            className={`font-bold font-mono ${
+                              totalStock <= 0
+                                ? 'text-rose-600 dark:text-rose-400'
+                                : isLowStock
+                                ? 'text-amber-600 dark:text-amber-400'
+                                : 'text-emerald-600 dark:text-emerald-400'
+                            }`}
+                          >
+                            {totalStock} {prod.unit}
+                          </span>
+                          {isLowStock && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                              LOW STOCK (≤{threshold})
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3.5 px-4 text-right">
                         {canManage ? (

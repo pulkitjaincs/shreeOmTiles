@@ -17,6 +17,7 @@ import { useRouter } from 'expo-router';
 import { DriverDashboardView } from '@/components/dashboard/DriverDashboardView';
 import { SalesmanDashboardView } from '@/components/dashboard/SalesmanDashboardView';
 import { OwnerDashboardView } from '@/components/dashboard/OwnerDashboardView';
+import { SupervisorDashboardView } from '@/components/dashboard/SupervisorDashboardView';
 
 export default function DashboardScreen() {
   const { user } = useAuth();
@@ -25,6 +26,7 @@ export default function DashboardScreen() {
 
   const isDriver = role === 'DRIVER';
   const isSalesman = role === 'SALESMAN';
+  const isSupervisor = role === 'SUPERVISOR';
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -42,6 +44,12 @@ export default function DashboardScreen() {
 
   const loadData = useCallback(async (force = false) => {
     try {
+      if (isSupervisor) {
+        // Supervisor uses their own scoped data in SupervisorDashboardView
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
       if (isDriver) {
         const deliveries = await cachedMobileApiRequest<any[]>('/delivery', {
           forceRefresh: force,
@@ -69,7 +77,7 @@ export default function DashboardScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [isDriver, preset, appliedDateFrom, appliedDateTo]);
+  }, [isSupervisor, isDriver, preset, appliedDateFrom, appliedDateTo]);
 
   useEffect(() => {
     setLoading(true);
@@ -140,6 +148,17 @@ export default function DashboardScreen() {
           <Text style={styles.loadingText}>Loading dashboard metrics...</Text>
         </View>
       </View>
+    );
+  }
+
+  if (isSupervisor) {
+    return (
+      <SupervisorDashboardView
+        user={user}
+        refreshing={refreshing}
+        onRefresh={onRefresh}
+        router={router}
+      />
     );
   }
 

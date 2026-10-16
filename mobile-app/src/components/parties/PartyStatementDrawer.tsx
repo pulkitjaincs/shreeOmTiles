@@ -17,6 +17,7 @@ import { mobileApiRequest } from '@/lib/api';
 import { cleanPhoneNumber, formatINR, formatDate } from '@/lib/formatters';
 import { Party, StatementInvoice, StatementCreditLedger } from './types';
 import { Ionicons } from '@expo/vector-icons';
+import { downloadAndSharePdf } from '@/lib/pdf';
 
 interface PartyStatementDrawerProps {
   party: Party | null;
@@ -40,6 +41,7 @@ export function PartyStatementDrawer({
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<'orders' | 'credits'>('orders');
   const [deleting, setDeleting] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   useEffect(() => {
     if (party) {
@@ -111,6 +113,19 @@ export function PartyStatementDrawer({
     Linking.openURL(url).catch(() => {
       Alert.alert('Error', 'Unable to open WhatsApp');
     });
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!party) return;
+    setDownloadingPdf(true);
+    try {
+      const safeName = (party.name || 'Party').replace(/[^a-zA-Z0-9_-]/g, '_');
+      await downloadAndSharePdf(`parties/${party.id}/statement-pdf`, `Statement_${safeName}`);
+    } catch (err: any) {
+      Alert.alert('Download Failed', err.message || 'Could not download statement PDF');
+    } finally {
+      setDownloadingPdf(false);
+    }
   };
 
   const handleDelete = () => {
@@ -199,7 +214,16 @@ export function PartyStatementDrawer({
           {/* Action Buttons Row */}
           <View style={styles.actionsRow}>
             <Button
-              title="WhatsApp Statement"
+              title="Statement PDF"
+              icon="document-text-outline"
+              variant="outline"
+              size="sm"
+              loading={downloadingPdf}
+              onPress={handleDownloadPdf}
+              style={styles.pdfStatementBtn}
+            />
+            <Button
+              title="WhatsApp"
               icon="logo-whatsapp"
               variant="primary"
               size="sm"
@@ -370,6 +394,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginBottom: 14,
+  },
+  pdfStatementBtn: {
+    flex: 1.1,
+    height: 40,
+    borderRadius: 10,
   },
   shareStatementBtn: {
     flex: 1,

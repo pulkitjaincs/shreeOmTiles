@@ -32,9 +32,15 @@ async function bootstrap() {
   );
 
   app.enableCors({
-    origin: (origin, callback) => {
+    origin: (
+      origin: string | undefined,
+      callback: (err: Error | null, allow?: boolean) => void,
+    ) => {
       // Allow requests with no origin (such as mobile apps, Postman, curl)
-      if (!origin) return callback(null, true);
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
       if (
         configuredOrigins.includes(origin) ||
         process.env.NODE_ENV !== 'production' ||
@@ -43,9 +49,10 @@ async function bootstrap() {
         ) ||
         /^https:\/\/([a-zA-Z0-9-]+\.)*vercel\.app$/.test(origin)
       ) {
-        return callback(null, true);
+        callback(null, true);
+        return;
       }
-      return callback(null, false);
+      callback(null, false);
     },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,

@@ -39,6 +39,12 @@ export function StaffCard({
           border: 'rgba(245, 158, 11, 0.25)',
           text: '#FBBF24',
         };
+      case 'ACCOUNTANT':
+        return {
+          bg: 'rgba(14, 165, 233, 0.12)',
+          border: 'rgba(14, 165, 233, 0.25)',
+          text: '#38BDF8',
+        };
       case 'SALESMAN':
         return {
           bg: 'rgba(168, 85, 247, 0.12)',
@@ -50,6 +56,12 @@ export function StaffCard({
           bg: 'rgba(56, 189, 248, 0.12)',
           border: 'rgba(56, 189, 248, 0.25)',
           text: '#38BDF8',
+        };
+      case 'SUPERVISOR':
+        return {
+          bg: 'rgba(168, 85, 247, 0.15)',
+          border: 'rgba(168, 85, 247, 0.35)',
+          text: '#C084FC',
         };
       default:
         return {

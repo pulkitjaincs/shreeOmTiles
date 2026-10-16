@@ -52,6 +52,7 @@ const ZeroOutWarehouseModal = dynamic(
 
 export default function WarehousesPage() {
   const { user } = useAuth();
+  const isSupervisor = user?.role === 'SUPERVISOR';
   const canManage = user?.role === 'OWNER' || user?.role === 'ADMIN';
 
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -61,7 +62,9 @@ export default function WarehousesPage() {
 
   // Search & Filter
   const [search, setSearch] = useState('');
-  const [filterWarehouseId, setFilterWarehouseId] = useState<string>('ALL');
+  const [filterWarehouseId, setFilterWarehouseId] = useState<string>(
+    isSupervisor && user?.scope ? user.scope : 'ALL'
+  );
   const [isWhDropdownOpen, setIsWhDropdownOpen] = useState(false);
   const [showAllCards, setShowAllCards] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -585,6 +588,28 @@ export default function WarehousesPage() {
                             onClick={() => setSelectedAdjustStock(stock)}
                             title="Direct count adjustment"
                             className="text-xs font-medium text-muted-foreground hover:text-foreground px-2 py-1 rounded-lg hover:bg-muted transition inline-flex items-center gap-1"
+                          >
+                            <Edit3 className="h-3.5 w-3.5" />
+                            Audit
+                          </button>
+                        </>
+                      ) : isSupervisor && stock.warehouseId === user?.scope ? (
+                        <>
+                          {/* Supervisor can transfer from their warehouse */}
+                          <button
+                            onClick={() => openTransferModal(stock)}
+                            title="Transfer stock to another warehouse"
+                            className="text-xs font-medium text-primary hover:text-primary/80 px-2 py-1 rounded-lg hover:bg-primary/10 transition inline-flex items-center gap-1"
+                          >
+                            <ArrowLeftRight className="h-3.5 w-3.5" />
+                            Transfer
+                          </button>
+
+                          {/* Supervisor can audit / adjust count in their warehouse */}
+                          <button
+                            onClick={() => setSelectedAdjustStock(stock)}
+                            title="Direct count adjustment"
+                            className="text-xs font-medium text-purple-600 dark:text-purple-400 hover:text-purple-700 px-2 py-1 rounded-lg hover:bg-purple-500/10 transition inline-flex items-center gap-1"
                           >
                             <Edit3 className="h-3.5 w-3.5" />
                             Audit

@@ -58,6 +58,7 @@ export function InvoiceLineItemCard({
         value={item.productId}
         onChange={onProductChange}
         searchable
+        clearable
         searchPlaceholder="Search product by name or category..."
         icon="cube-outline"
         options={products.map((p) => ({
@@ -69,7 +70,14 @@ export function InvoiceLineItemCard({
 
       {/* Warehouse & Batch Allocation */}
       <Text style={styles.fieldLabel}>Warehouse & Batch Allocation</Text>
-      {(item.allocations || []).length === 0 ? (
+      {!item.productId ? (
+        <View style={styles.promptSelectProductBox}>
+          <Ionicons name="search-outline" size={16} color={Colors.dark.textSecondary} />
+          <Text style={styles.promptSelectProductText}>
+            Select a product above to choose warehouse and batch allocations.
+          </Text>
+        </View>
+      ) : (item.allocations || []).length === 0 ? (
         <View style={styles.outOfStockBox}>
           <Ionicons name="alert-circle" size={16} color="#EF4444" />
           <Text style={styles.outOfStockText}>
@@ -96,7 +104,9 @@ export function InvoiceLineItemCard({
 
       <View style={styles.allocatedRow}>
         <Text style={styles.stockNoticeText}>
-          Total allocated: {totalAllocated} {selectedProduct?.unit || 'units'}
+          {item.productId
+            ? `Total allocated: ${totalAllocated} ${selectedProduct?.unit || 'units'}`
+            : 'No product selected'}
         </Text>
         <Text style={styles.lineTotalText}>
           Line Total: <Text style={styles.lineTotalValue}>{formatINR(lineTotal)}</Text>
@@ -171,6 +181,24 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#EF4444',
     fontWeight: '600',
+    flex: 1,
+  },
+  promptSelectProductBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginVertical: 6,
+    gap: 8,
+  },
+  promptSelectProductText: {
+    fontSize: 12,
+    color: Colors.dark.textSecondary,
+    fontWeight: '500',
     flex: 1,
   },
   allocatedRow: {

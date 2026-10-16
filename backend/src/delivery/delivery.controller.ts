@@ -8,6 +8,7 @@ import {
   UseGuards,
   Query,
   Request,
+  Res,
 } from '@nestjs/common';
 import { DeliveryService } from './delivery.service';
 import {
@@ -22,8 +23,10 @@ import {
 } from './dto/create-delivery.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
 import { Role } from '@prisma/client';
 import type { RequestWithUser } from '../common/interfaces/request-with-user.interface';
+import type { Request as ExpressRequest, Response } from 'express';
 
 @Controller('delivery')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -31,11 +34,20 @@ export class DeliveryController {
   constructor(private readonly deliveryService: DeliveryService) {}
 
   @Post()
+  @Roles(Role.OWNER, Role.ADMIN)
   create(@Body() createDeliveryDto: CreateDeliveryDto) {
     return this.deliveryService.create(createDeliveryDto);
   }
 
   @Get()
+  @Roles(
+    Role.OWNER,
+    Role.ADMIN,
+    Role.ACCOUNTANT,
+    Role.SALESMAN,
+    Role.DRIVER,
+    Role.SUPERVISOR,
+  )
   findAll(
     @Request() req: RequestWithUser,
     @Query('driverId') driverId?: string,
@@ -46,15 +58,62 @@ export class DeliveryController {
     const effectiveDriverId = isDriver ? req.user.id : driverId;
     const pageNum = page ? parseInt(page, 10) : undefined;
     const limitNum = limit ? parseInt(limit, 10) : undefined;
-    return this.deliveryService.findAll(effectiveDriverId, isDriver, {
-      page: pageNum,
-      limit: limitNum,
-    });
+    return this.deliveryService.findAll(
+      effectiveDriverId,
+      isDriver,
+      {
+        page: pageNum,
+        limit: limitNum,
+      },
+      req.user,
+    );
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.deliveryService.findOne(id);
+  @Roles(
+    Role.OWNER,
+    Role.ADMIN,
+    Role.ACCOUNTANT,
+    Role.SALESMAN,
+    Role.DRIVER,
+    Role.SUPERVISOR,
+  )
+  findOne(@Param('id') id: string, @Request() req: RequestWithUser) {
+    return this.deliveryService.findOne(id, req.user);
+  }
+
+  @Get(':id/challan-pdf')
+  @Roles(
+    Role.OWNER,
+    Role.ADMIN,
+    Role.ACCOUNTANT,
+    Role.SALESMAN,
+    Role.DRIVER,
+    Role.SUPERVISOR,
+  )
+  async downloadChallanPdf(
+    @Param('id') id: string,
+    @Request() req: ExpressRequest,
+    @Res() res: Response,
+  ) {
+    const { pdfBytes, invoiceNo } =
+      await this.deliveryService.generateChallanPdf(id);
+    const etag = `"challan-${invoiceNo}-${pdfBytes.length}"`;
+    if (req.headers && req.headers['if-none-match'] === etag) {
+      return res.status(304).end();
+    }
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="challan-${invoiceNo}.pdf"`,
+    );
+    res.setHeader('Content-Length', pdfBytes.length);
+    res.setHeader(
+      'Cache-Control',
+      'private, max-age=86400, stale-while-revalidate=3600',
+    );
+    res.setHeader('ETag', etag);
+    res.end(Buffer.from(pdfBytes));
   }
 
   @Patch(':id/status')
@@ -63,25 +122,30 @@ export class DeliveryController {
   }
 
   @Patch(':id/assign')
+  @Roles(Role.OWNER, Role.ADMIN)
   assignDriver(@Param('id') id: string, @Body() dto: AssignDriverDto) {
     return this.deliveryService.assignDriver(id, dto.driverId);
   }
 
   @Post(':id/push')
+  @Roles(Role.OWNER, Role.ADMIN)
   pushDelivery(@Param('id') id: string, @Body() dto: PushDeliveryDto) {
     return this.deliveryService.pushDelivery(id, dto);
   }
 
   @Patch(':id/items/:itemIndex/pickup')
+  @Roles(Role.OWNER, Role.ADMIN, Role.SUPERVISOR)
   updateItemPickup(
     @Param('id') id: string,
     @Param('itemIndex') itemIndex: string,
     @Body() dto: UpdateItemPickupDto,
+    @Request() req: RequestWithUser,
   ) {
     return this.deliveryService.updateItemPickup(
       id,
       parseInt(itemIndex, 10),
       dto.pickedUp ?? true,
+      req.user,
     );
   }
 
@@ -109,6 +173,7 @@ export class DeliveryController {
   }
 
   @Post(':id/trips')
+  @Roles(Role.OWNER, Role.ADMIN)
   addTrip(@Param('id') id: string, @Body() tripDto: CreateTripDto) {
     return this.deliveryService.addTrip(id, tripDto);
   }

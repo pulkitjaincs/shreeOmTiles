@@ -10,6 +10,7 @@ import { InvoiceListEntry } from './types';
 interface InvoiceListCardProps {
   invoice: InvoiceListEntry;
   canReturn: boolean;
+  isSupervisor?: boolean;
   onOpen: (invoice: InvoiceListEntry) => void;
   onDownloadPdf: (invoice: InvoiceListEntry) => void;
   onShareWhatsApp: (invoice: InvoiceListEntry) => void;
@@ -19,6 +20,7 @@ interface InvoiceListCardProps {
 export const InvoiceListCard = React.memo(function InvoiceListCard({
   invoice,
   canReturn,
+  isSupervisor = false,
   onOpen,
   onDownloadPdf,
   onShareWhatsApp,
@@ -43,16 +45,22 @@ export const InvoiceListCard = React.memo(function InvoiceListCard({
           <Text style={styles.dateText}>{formatDate(invoice.createdAt)}</Text>
         </View>
         <View style={{ alignItems: 'flex-end', flexShrink: 0, gap: 3 }}>
-          <Text
-            style={styles.totalAmount}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.75}
-          >
-            {formatINR(invoice.total)}
-          </Text>
+          {!isSupervisor ? (
+            <Text
+              style={styles.totalAmount}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+            >
+              {formatINR(invoice.total)}
+            </Text>
+          ) : (
+            <Text style={[styles.totalAmount, { fontSize: 12, color: Colors.dark.textSecondary }]}>
+              {invoice.items?.length ? `${invoice.items.length} items` : 'Order Items'}
+            </Text>
+          )}
           <StatusBadge status={invoice.status} size="sm" />
-          {invoice.refundInvoices && invoice.refundInvoices.length > 0 ? (
+          {!isSupervisor && invoice.refundInvoices && invoice.refundInvoices.length > 0 ? (
             <View style={styles.refundCountBadge}>
               <Text style={styles.refundCountText}>
                 Refunded ({invoice.refundInvoices.length})
@@ -66,10 +74,12 @@ export const InvoiceListCard = React.memo(function InvoiceListCard({
 
       <View style={styles.cardBottom}>
         <View style={styles.badgeRow}>
-          <View style={styles.modeBadge}>
-            <Text style={styles.modeText}>{invoice.paymentMode || 'CASH'}</Text>
-          </View>
-          {refundedTotal > 0 ? (
+          {!isSupervisor ? (
+            <View style={styles.modeBadge}>
+              <Text style={styles.modeText}>{invoice.paymentMode || 'CASH'}</Text>
+            </View>
+          ) : null}
+          {!isSupervisor && refundedTotal > 0 ? (
             <Text style={styles.refundText} numberOfLines={1}>
               −{formatINR(refundedTotal)} refunded
             </Text>
@@ -80,15 +90,17 @@ export const InvoiceListCard = React.memo(function InvoiceListCard({
         </View>
 
         <View style={styles.actionsRow}>
-          <TouchableOpacity
-            style={styles.actionIconBtn}
-            onPress={() => onDownloadPdf(invoice)}
-            accessibilityRole="button"
-            accessibilityLabel={`Share or save invoice ${invoice.invoiceNo} PDF`}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="document-text-outline" size={18} color="#3B82F6" />
-          </TouchableOpacity>
+          {!isSupervisor ? (
+            <TouchableOpacity
+              style={styles.actionIconBtn}
+              onPress={() => onDownloadPdf(invoice)}
+              accessibilityRole="button"
+              accessibilityLabel={`Share or save invoice ${invoice.invoiceNo} PDF`}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="document-text-outline" size={18} color="#3B82F6" />
+            </TouchableOpacity>
+          ) : null}
           <TouchableOpacity
             style={styles.actionIconBtn}
             onPress={() => onShareWhatsApp(invoice)}

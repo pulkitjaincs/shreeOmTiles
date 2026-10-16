@@ -35,6 +35,7 @@ interface SelectProps {
   disabled?: boolean;
   error?: string;
   icon?: keyof typeof Ionicons.glyphMap;
+  clearable?: boolean;
 }
 
 export function Select({
@@ -49,6 +50,7 @@ export function Select({
   disabled = false,
   error,
   icon,
+  clearable = false,
 }: SelectProps) {
   const insets = useSafeAreaInsets();
   const [isOpen, setIsOpen] = useState(false);
@@ -125,6 +127,18 @@ export function Select({
         </View>
 
         <View style={styles.triggerRight}>
+          {clearable && Boolean(value) && !disabled ? (
+            <TouchableOpacity
+              onPress={(e) => {
+                e.stopPropagation();
+                onChange('');
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={{ marginRight: 6 }}
+            >
+              <Ionicons name="close-circle" size={18} color={Colors.dark.textTertiary} />
+            </TouchableOpacity>
+          ) : null}
           {selectedOption?.badge ? (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>{selectedOption.badge}</Text>

@@ -34,12 +34,15 @@ import {
   InvoiceListFilters,
   InvoiceListCard,
   filterInvoiceList,
+  DeleteInvoiceModal,
 } from '@/components/invoices';
 
 export default function InvoicesScreen() {
   const { user } = useAuth();
   const isSalesman = user?.role === 'SALESMAN';
-  const canReturn = Boolean(user && user.role !== 'SALESMAN');
+  const isSupervisor = user?.role === 'SUPERVISOR';
+  const isOwnerOrAdmin = user?.role === 'OWNER' || user?.role === 'ADMIN';
+  const canReturn = Boolean(user && user.role !== 'SALESMAN' && user.role !== 'SUPERVISOR');
 
   const [invoices, setInvoices] = useState<InvoiceListEntry[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -60,6 +63,7 @@ export default function InvoicesScreen() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [detailsInvoice, setDetailsInvoice] = useState<any>(null);
   const [returnInvoice, setReturnInvoice] = useState<any>(null);
+  const [deleteInvoiceTarget, setDeleteInvoiceTarget] = useState<any>(null);
   const [locationsOpen, setLocationsOpen] = useState(false);
   const [createdInvoiceSuccess, setCreatedInvoiceSuccess] = useState<Invoice | null>(null);
 
@@ -199,11 +203,15 @@ export default function InvoicesScreen() {
     <View style={styles.screen}>
       <Header
         title={isSalesman ? 'Counter Billing' : 'Invoices'}
-        subtitle="Billing, GST & UPI Receipts"
-        rightAction={{
-          icon: 'add',
-          onPress: () => setCreateModalOpen(true),
-        }}
+        subtitle={isSupervisor ? 'Order Quantities & Line Items' : 'Billing, GST & UPI Receipts'}
+        rightAction={
+          isSupervisor
+            ? undefined
+            : {
+                icon: 'add',
+                onPress: () => setCreateModalOpen(true),
+              }
+        }
       />
 
       {canReturn ? (
@@ -268,6 +276,7 @@ export default function InvoicesScreen() {
             <InvoiceListCard
               invoice={item}
               canReturn={canReturn}
+              isSupervisor={isSupervisor}
               onOpen={handleOpenInvoiceDetails}
               onDownloadPdf={(inv) => void downloadAndSharePdf(`invoices/${inv.id}/pdf`, inv.invoiceNo || `Invoice_${inv.id}`)}
               onShareWhatsApp={handleShareWhatsApp}
@@ -278,14 +287,16 @@ export default function InvoicesScreen() {
       )}
 
       {/* Floating Action Button */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => setCreateModalOpen(true)}
-        activeOpacity={0.8}
-      >
-        <Ionicons name="add" size={24} color="#09090B" />
-        <Text style={styles.fabText}>New Bill</Text>
-      </TouchableOpacity>
+      {!isSupervisor ? (
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => setCreateModalOpen(true)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="add" size={24} color="#09090B" />
+          <Text style={styles.fabText}>New Bill</Text>
+        </TouchableOpacity>
+      ) : null}
 
       {/* Modular Modals */}
       <CreateInvoiceModal
@@ -306,6 +317,16 @@ export default function InvoicesScreen() {
         onShareWhatsApp={handleShareWhatsApp}
         onDownloadRefundPdf={handleDownloadRefundPdf}
         onInitiateReturn={canReturn ? (inv) => setReturnInvoice(inv) : undefined}
+        canDelete={isOwnerOrAdmin}
+        onDeleteInvoice={(inv) => setDeleteInvoiceTarget(inv)}
+        isSupervisor={isSupervisor}
+      />
+
+      <DeleteInvoiceModal
+        invoice={deleteInvoiceTarget}
+        visible={Boolean(deleteInvoiceTarget)}
+        onClose={() => setDeleteInvoiceTarget(null)}
+        onSuccess={() => loadData(true)}
       />
 
       <ReturnInvoiceModal

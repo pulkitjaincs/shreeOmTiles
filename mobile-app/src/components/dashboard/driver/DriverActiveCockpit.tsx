@@ -110,7 +110,7 @@ export function DriverActiveCockpit({
               <View style={styles.lockedNotice}>
                 <Ionicons name="time-outline" size={15} color="#F59E0B" />
                 <Text style={styles.lockedText}>
-                  Pick all items to unlock &quot;Out for Delivery&quot; ({pickedCount}/{totalItemsCount})
+                  Awaiting supervisor pickup confirmation ({pickedCount}/{totalItemsCount})
                 </Text>
               </View>
             )

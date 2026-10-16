@@ -2,7 +2,8 @@ export interface StaffUser {
   id: string;
   name: string;
   phone: string;
-  role: 'ADMIN' | 'SALESMAN' | 'DRIVER' | 'OWNER';
+  role: 'ADMIN' | 'ACCOUNTANT' | 'SALESMAN' | 'DRIVER' | 'OWNER' | 'SUPERVISOR';
+  scope?: string | null;
   active: boolean;
   isActive?: boolean;
   createdAt?: string;

@@ -23,7 +23,9 @@ export function StaffFormModal({
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'SALESMAN' | 'DRIVER' | 'ADMIN' | 'OWNER'>('SALESMAN');
+  const [role, setRole] = useState<'SALESMAN' | 'DRIVER' | 'ACCOUNTANT' | 'ADMIN' | 'OWNER' | 'SUPERVISOR'>('SALESMAN');
+  const [warehouseId, setWarehouseId] = useState<string>('');
+  const [warehouses, setWarehouses] = useState<Array<{ id: string; name: string }>>([]);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -32,12 +34,20 @@ export function StaffFormModal({
       setPhone(staff?.phone || '');
       setPassword('');
       setRole(staff?.role || 'SALESMAN');
+      setWarehouseId(staff?.scope || '');
+      mobileApiRequest<Array<{ id: string; name: string }>>('/warehouses')
+        .then((data) => setWarehouses(data || []))
+        .catch(() => {});
     }
   }, [visible, staff]);
 
   const handleSubmit = async () => {
     if (!name.trim() || !phone.trim() || (!staff && !password)) {
       Alert.alert('Required', staff ? 'Please fill name and phone' : 'Please fill name, phone, and password');
+      return;
+    }
+    if (role === 'SUPERVISOR' && !warehouseId) {
+      Alert.alert('Warehouse Required', 'Please assign a warehouse/godown for the supervisor');
       return;
     }
     const cleanPhone = phone.replace(/\D/g, '').slice(0, 10);
@@ -59,6 +69,7 @@ export function StaffFormModal({
           phone: cleanPhone,
           ...(password ? { password } : {}),
           role,
+          scope: role === 'SUPERVISOR' ? warehouseId : null,
         }),
       });
 
@@ -104,7 +115,7 @@ export function StaffFormModal({
         {staff?.role !== 'OWNER' ? <>
         <Text style={styles.fieldLabel}>Role Designation</Text>
         <View style={styles.roleToggleRow}>
-          {(['SALESMAN', 'DRIVER', 'ADMIN'] as const).map((r) => (
+          {(['SALESMAN', 'ACCOUNTANT', 'SUPERVISOR', 'DRIVER', 'ADMIN'] as const).map((r) => (
             <TouchableOpacity
               key={r}
               style={[styles.roleSelectChip, role === r && styles.roleSelectChipActive]}
@@ -116,11 +127,41 @@ export function StaffFormModal({
                   role === r && styles.roleSelectChipTextActive,
                 ]}
               >
-                {r}
+                {r === 'SUPERVISOR' ? 'SUPERVISOR' : r}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
+
+        {role === 'SUPERVISOR' ? (
+          <View style={{ marginBottom: 12 }}>
+            <Text style={styles.fieldLabel}>Assigned Warehouse / Godown *</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
+              {warehouses.map((w) => {
+                const isSelected = warehouseId === w.id;
+                return (
+                  <TouchableOpacity
+                    key={w.id}
+                    style={[
+                      styles.warehouseChip,
+                      isSelected && styles.warehouseChipActive,
+                    ]}
+                    onPress={() => setWarehouseId(w.id)}
+                  >
+                    <Text
+                      style={[
+                        styles.warehouseChipText,
+                        isSelected && styles.warehouseChipTextActive,
+                      ]}
+                    >
+                      {w.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
         </> : null}
 
         <Button
@@ -147,13 +188,14 @@ const styles = StyleSheet.create({
   },
   roleToggleRow: {
     flexDirection: 'row',
-    gap: 8,
+    flexWrap: 'wrap',
+    gap: 6,
     marginBottom: 10,
     marginTop: 4,
   },
   roleSelectChip: {
-    flex: 1,
-    paddingVertical: 9,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     borderRadius: 8,
     backgroundColor: Colors.dark.card,
     borderWidth: 1,
@@ -165,12 +207,32 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
   },
   roleSelectChipText: {
-    fontSize: 12,
+    fontSize: 11,
     color: Colors.dark.textSecondary,
     fontWeight: '700',
   },
   roleSelectChipTextActive: {
     color: '#09090B',
     fontWeight: '800',
+  },
+  warehouseChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: Colors.dark.cardElevated,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  warehouseChipActive: {
+    backgroundColor: '#A855F7',
+    borderColor: '#C084FC',
+  },
+  warehouseChipText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: Colors.dark.textSecondary,
+  },
+  warehouseChipTextActive: {
+    color: '#FFFFFF',
   },
 });

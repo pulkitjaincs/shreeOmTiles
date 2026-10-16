@@ -64,6 +64,7 @@ export interface PartyDetail {
   phone: string;
   address?: string;
   gstin?: string;
+  category?: 'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER';
   createdAt: string;
   invoices?: PartyInvoice[];
   creditLedgers?: PartyCreditLedger[];
@@ -75,6 +76,7 @@ export interface Party {
   phone: string;
   address?: string;
   gstin?: string;
+  category?: 'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER';
   createdAt?: string;
   creditLedgers?: {
     id?: string;

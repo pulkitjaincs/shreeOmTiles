@@ -3,6 +3,7 @@ import { View, Alert } from 'react-native';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import { mobileApiRequest } from '@/lib/api';
 import { Party } from './types';
 
@@ -12,6 +13,13 @@ interface PartyFormModalProps {
   onSuccess: () => void;
   party?: Party | null;
 }
+
+const CATEGORY_OPTIONS = [
+  { value: 'RETAIL', label: 'Retail Customer' },
+  { value: 'CONTRACTOR', label: 'Contractor (Wholesale Tier)' },
+  { value: 'ARCHITECT', label: 'Architect / Designer' },
+  { value: 'WHOLESALER', label: 'Wholesaler / Dealer' },
+];
 
 export function PartyFormModal({
   visible,
@@ -23,6 +31,7 @@ export function PartyFormModal({
   const [phone, setPhone] = useState('');
   const [gstin, setGstin] = useState('');
   const [address, setAddress] = useState('');
+  const [category, setCategory] = useState<'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER'>('RETAIL');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -31,8 +40,9 @@ export function PartyFormModal({
       setPhone(party?.phone || '');
       setGstin(party?.gstin || '');
       setAddress(party?.address || '');
+      setCategory(party?.category || 'RETAIL');
     }
-  }, [visible]);
+  }, [visible, party]);
 
   const handleSubmit = async () => {
     if (!name.trim()) {
@@ -54,6 +64,7 @@ export function PartyFormModal({
           phone: cleanPhone,
           gstin: gstin.trim().toUpperCase() || undefined,
           address: address.trim() || undefined,
+          category,
         }),
       });
 
@@ -88,6 +99,12 @@ export function PartyFormModal({
           onChangeText={(t) => setPhone(t.replace(/\D/g, '').slice(0, 10))}
           keyboardType="phone-pad"
           maxLength={10}
+        />
+        <Select
+          label="Customer Category / Tier"
+          value={category}
+          options={CATEGORY_OPTIONS}
+          onChange={(val) => setCategory(val as 'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER')}
         />
         <Input
           label="GSTIN (Optional)"

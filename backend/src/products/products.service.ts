@@ -6,7 +6,7 @@ import {
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 
 @Injectable()
 export class ProductsService {
@@ -26,6 +26,8 @@ export class ProductsService {
           attributes: finalAttributes,
           hsnCode: data.hsnCode,
           unit: data.unit || 'box',
+          minStockAlert:
+            data.minStockAlert !== undefined ? data.minStockAlert : 10,
         },
       });
 
@@ -72,13 +74,16 @@ export class ProductsService {
     });
   }
 
-  async findAll(query?: {
-    category?: string;
-    search?: string;
-    includeInactive?: boolean;
-    page?: number;
-    limit?: number;
-  }): Promise<any> {
+  async findAll(
+    query?: {
+      category?: string;
+      search?: string;
+      includeInactive?: boolean;
+      page?: number;
+      limit?: number;
+    },
+    user?: { id: string; role: Role },
+  ): Promise<any> {
     const where: Prisma.ProductWhereInput = {};
     if (!query?.includeInactive) {
       where.isActive = true;
@@ -100,6 +105,8 @@ export class ProductsService {
       },
     };
 
+    const isSupervisor = user?.role === Role.SUPERVISOR;
+
     if (query?.page !== undefined || query?.limit !== undefined) {
       const page = Math.max(1, query.page || 1);
       const limit = Math.min(Math.max(1, query.limit || 25), 100);
@@ -117,7 +124,9 @@ export class ProductsService {
       ]);
 
       return {
-        data,
+        data: isSupervisor
+          ? data.map((p) => this.sanitizeProductForSupervisor(p))
+          : data,
         total,
         page,
         limit,
@@ -125,15 +134,39 @@ export class ProductsService {
       };
     }
 
-    return this.prisma.product.findMany({
+    const products = await this.prisma.product.findMany({
       where,
       include: includeRelations,
       orderBy: { createdAt: 'desc' },
       take: 200,
     });
+
+    return isSupervisor
+      ? products.map((p) => this.sanitizeProductForSupervisor(p))
+      : products;
   }
 
-  async findOne(id: string) {
+  private sanitizeProductForSupervisor<T extends Record<string, unknown>>(
+    prod: T,
+  ): T {
+    if (!prod) return prod;
+    let cleanAttrs = prod.attributes;
+    if (cleanAttrs && typeof cleanAttrs === 'object') {
+      const copy = { ...(cleanAttrs as Record<string, unknown>) };
+      delete copy.price;
+      delete copy.sellingPrice;
+      delete copy.purchasePrice;
+      delete copy.cost;
+      delete copy.rate;
+      cleanAttrs = copy;
+    }
+    return {
+      ...prod,
+      attributes: cleanAttrs,
+    };
+  }
+
+  async findOne(id: string, user?: { id: string; role: Role }) {
     const product = await this.prisma.product.findUnique({
       where: { id },
       include: {
@@ -143,6 +176,11 @@ export class ProductsService {
       },
     });
     if (!product) throw new NotFoundException(`Product ${id} not found`);
+
+    if (user?.role === Role.SUPERVISOR) {
+      return this.sanitizeProductForSupervisor(product);
+    }
+
     return product;
   }
 

@@ -19,6 +19,7 @@ export interface Party {
   phone: string;
   address?: string;
   gstin?: string;
+  category?: 'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER';
   createdAt?: string;
   creditLedgers?: PartyCreditLedger[];
   _count?: {

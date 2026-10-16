@@ -19,6 +19,7 @@ import {
   Boxes, 
   Wallet, 
   Clock,
+  FileText,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/components/auth-provider';
@@ -40,6 +41,11 @@ export default function DeliveriesPage() {
   const { user } = useAuth();
   const router = useRouter();
   const isDriver = user?.role === 'DRIVER';
+  const isSupervisor = user?.role === 'SUPERVISOR';
+  const isOwnerOrAdmin = user?.role === 'OWNER' || user?.role === 'ADMIN';
+  const isSalesman = user?.role === 'SALESMAN';
+  const isAccountant = user?.role === 'ACCOUNTANT';
+  const isViewOnly = isSalesman || isAccountant || isSupervisor;
 
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [drivers, setDrivers] = useState<DriverUser[]>([]);
@@ -54,19 +60,39 @@ export default function DeliveriesPage() {
   const [pushSuccessDialog, setPushSuccessDialog] = useState<PushSuccessDialogData | null>(null);
   const [activeDeliveryId, setActiveDeliveryId] = useState<string | null>(null);
   const [submittingHandover, setSubmittingHandover] = useState<string | null>(null);
+  const [downloadingChallanId, setDownloadingChallanId] = useState<string | null>(null);
+
+  const handleDownloadChallan = async (deliveryId: string, invoiceNo?: string) => {
+    setDownloadingChallanId(deliveryId);
+    try {
+      const blob = await apiRequest<Blob>(`/delivery/${deliveryId}/challan-pdf`);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Delivery-Challan-${invoiceNo || deliveryId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      alert((err as Error).message || 'Failed to download delivery challan');
+    } finally {
+      setDownloadingChallanId(null);
+    }
+  };
 
   useEffect(() => {
     loadDeliveries();
-    if (!isDriver) {
+    if (isOwnerOrAdmin) {
       loadDrivers();
     }
     const handleRefresh = () => {
       loadDeliveries(true);
-      if (!isDriver) loadDrivers();
+      if (isOwnerOrAdmin) loadDrivers();
     };
     window.addEventListener('app:refresh-active-page', handleRefresh);
     return () => window.removeEventListener('app:refresh-active-page', handleRefresh);
-  }, [isDriver]);
+  }, [isOwnerOrAdmin]);
 
   async function loadDeliveries(force = false) {
     try {
@@ -285,6 +311,11 @@ ${itemsList}
           <h1 className="text-2xl font-bold text-foreground tracking-tight flex items-center gap-2">
             <Truck className="h-6 w-6 text-primary" />
             {isDriver ? 'My Assigned Deliveries' : 'Delivery Dispatch & Logistics'}
+            {isViewOnly && (
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                View Only
+              </span>
+            )}
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             {isDriver
@@ -454,21 +485,21 @@ ${itemsList}
                 <th className="py-3 px-4">Receiver & Destination</th>
                 {!isDriver && <th className="py-3 px-4">Warehouse Items & Pickup Status</th>}
                 {!isDriver && <th className="py-3 px-4">Assigned Driver</th>}
-                <th className="py-3 px-4">Collect from Customer</th>
-                <th className="py-3 px-4">{isDriver ? 'Status' : 'Status & Logistics Cost'}</th>
+                {!isDriver && !isSupervisor && <th className="py-3 px-4">Collect from Customer</th>}
+                <th className="py-3 px-4">{isDriver || isSupervisor ? 'Status' : 'Status & Logistics Cost'}</th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
               {loading ? (
                 <tr>
-                  <td colSpan={isDriver ? 5 : 7} className="text-center py-12 text-muted-foreground">
+                  <td colSpan={isDriver ? 5 : isSupervisor ? 6 : 7} className="text-center py-12 text-muted-foreground">
                     Loading deliveries...
                   </td>
                 </tr>
               ) : filteredDeliveries.length === 0 ? (
                 <tr>
-                  <td colSpan={isDriver ? 5 : 7} className="text-center py-12 text-muted-foreground">
+                  <td colSpan={isDriver ? 5 : isSupervisor ? 6 : 7} className="text-center py-12 text-muted-foreground">
                     {searchQuery
                       ? 'No deliveries matched your search filter.'
                       : activeFilter === 'PENDING'
@@ -544,6 +575,15 @@ ${itemsList}
                               <CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
                               <span>Customer Picked Up</span>
                             </div>
+                          ) : !isOwnerOrAdmin ? (
+                            delivery.driver ? (
+                              <div className="flex items-center gap-1.5 text-xs text-foreground font-medium">
+                                <UserCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                <span>{delivery.driver.name}</span>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground italic">Unassigned</span>
+                            )
                           ) : drivers.length > 0 ? (
                             <div className="space-y-1">
                               <select
@@ -578,44 +618,46 @@ ${itemsList}
                       )}
 
                       {/* Cash / Money to Collect from Customer */}
-                      <td className="py-3.5 px-4 align-top">
-                        <div className="space-y-1">
-                          {Number(delivery.cashCollected || 0) > 0 ? (
-                            delivery.cashHandedOver ? (
-                              <div>
-                                <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[0.5rem] bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 font-bold text-xs" title="Collected from customer and received by office">
-                                  <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                                  <span>Received {formatINR(delivery.cashCollected)}</span>
+                      {!isDriver && !isSupervisor && (
+                        <td className="py-3.5 px-4 align-top">
+                          <div className="space-y-1">
+                            {Number(delivery.cashCollected || 0) > 0 ? (
+                              delivery.cashHandedOver ? (
+                                <div>
+                                  <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[0.5rem] bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 font-bold text-xs" title="Collected from customer and received by office">
+                                    <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                    <span>Received {formatINR(delivery.cashCollected)}</span>
+                                  </div>
+                                  <div className="text-[0.625rem] text-emerald-600 dark:text-emerald-400/80 mt-0.5">
+                                    ✓ Settled with Office
+                                  </div>
                                 </div>
-                                <div className="text-[0.625rem] text-emerald-600 dark:text-emerald-400/80 mt-0.5">
-                                  ✓ Settled with Office
+                              ) : (
+                                <div>
+                                  <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[0.5rem] bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-300 font-bold text-xs" title="Collected from customer, currently with driver">
+                                    <Wallet className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                                    <span>{formatINR(delivery.cashCollected)} with Driver</span>
+                                  </div>
+                                  {!isDriver && (
+                                    <div className="text-[0.625rem] text-amber-700 dark:text-amber-300 mt-0.5 font-medium">
+                                      Driver: {delivery.driver?.name || 'Driver'}
+                                    </div>
+                                  )}
                                 </div>
+                              )
+                            ) : Number(delivery.amountToCollect || 0) > 0 ? (
+                              <div className="inline-flex items-center gap-1 px-2 py-1 rounded-[0.5rem] bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 font-bold text-xs">
+                                <CircleDollarSign className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                                <span>Collect {formatINR(delivery.amountToCollect)}</span>
                               </div>
                             ) : (
-                              <div>
-                                <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[0.5rem] bg-amber-500/15 border border-amber-500/30 text-amber-800 dark:text-amber-300 font-bold text-xs" title="Collected from customer, currently with driver">
-                                  <Wallet className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                                  <span>{formatINR(delivery.cashCollected)} with Driver</span>
-                                </div>
-                                {!isDriver && (
-                                  <div className="text-[0.625rem] text-amber-700 dark:text-amber-300 mt-0.5 font-medium">
-                                    Driver: {delivery.driver?.name || 'Driver'}
-                                  </div>
-                                )}
+                              <div className="inline-flex items-center gap-1 px-2 py-1 rounded-[0.5rem] bg-muted text-muted-foreground text-xs font-medium">
+                                <span>Prepaid / ₹0</span>
                               </div>
-                            )
-                          ) : Number(delivery.amountToCollect || 0) > 0 ? (
-                            <div className="inline-flex items-center gap-1 px-2 py-1 rounded-[0.5rem] bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 font-bold text-xs">
-                              <CircleDollarSign className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                              <span>Collect {formatINR(delivery.amountToCollect)}</span>
-                            </div>
-                          ) : (
-                            <div className="inline-flex items-center gap-1 px-2 py-1 rounded-[0.5rem] bg-muted text-muted-foreground text-xs font-medium">
-                              <span>Prepaid / ₹0</span>
-                            </div>
-                          )}
-                        </div>
-                      </td>
+                            )}
+                          </div>
+                        </td>
+                      )}
 
                       {/* Status Badge & Logistics Cost */}
                       <td className="py-3.5 px-4 align-top">
@@ -663,19 +705,21 @@ ${itemsList}
                             : 'Unassigned'}
                         </span>
 
-                        {!isDriver && (
+                        {!isDriver && !isSupervisor && (
                           <>
                             <div className="text-[0.6875rem] text-muted-foreground font-medium flex items-center gap-1 mt-1.5" title="Internal transport cost (hidden from driver)">
                               <Lock className="h-3 w-3 text-muted-foreground" />
                               <span>Internal Cost: {formatINR(totalTripCost)}</span>
                             </div>
 
-                            <button
-                              onClick={() => setActiveDeliveryId(delivery.id)}
-                              className="text-[0.625rem] text-primary hover:underline inline-flex items-center gap-0.5 mt-0.5"
-                            >
-                              + Log Trip Cost
-                            </button>
+                            {isOwnerOrAdmin && (
+                              <button
+                                onClick={() => setActiveDeliveryId(delivery.id)}
+                                className="text-[0.625rem] text-primary hover:underline inline-flex items-center gap-0.5 mt-0.5"
+                              >
+                                + Log Trip Cost
+                              </button>
+                            )}
                           </>
                         )}
                       </td>
@@ -720,74 +764,90 @@ ${itemsList}
                           </div>
                         ) : (
                           <div className="space-x-1.5 inline-flex items-center justify-end">
-                            {/* 1. CUSTOMER PICKED UP: Visible ONLY IF NO DRIVER IS ASSIGNED & NOT DELIVERED */}
-                            {!isDriverAssigned && !isDelivered && !isCancelled && !isCustomerPickup && (
-                              <button
-                                onClick={() => handleCustomerPickedUp(delivery.id)}
-                                className="text-xs font-semibold text-emerald-800 dark:text-emerald-300 hover:opacity-90 px-2.5 py-1.5 rounded-[0.5rem] bg-emerald-500/15 border border-emerald-500/30 transition-all inline-flex items-center gap-1 shadow-2xs active:scale-98"
-                                title="Customer picked up order directly from showroom/counter"
-                              >
-                                <CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                                Customer Picked Up
-                              </button>
-                            )}
+                            {/* Challan PDF Download */}
+                            <button
+                              onClick={() => handleDownloadChallan(delivery.id, delivery.invoice?.invoiceNo)}
+                              disabled={downloadingChallanId === delivery.id}
+                              className="text-xs font-semibold text-foreground px-2.5 py-1.5 rounded-[0.5rem] bg-muted hover:bg-muted/80 border border-border transition-all inline-flex items-center gap-1.5 shadow-2xs active:scale-98 cursor-pointer"
+                              title="Download rate-masked Delivery Challan / Gate Pass"
+                            >
+                              <FileText className="h-3.5 w-3.5 text-primary" />
+                              {downloadingChallanId === delivery.id ? 'Downloading...' : 'Challan PDF'}
+                            </button>
 
-                            {/* 2. PUSH DELIVERY: Shown when driver is assigned and delivery is pending push */}
-                            {isDriverAssigned && isPendingPush && !isCustomerPickup && (
-                              <button
-                                onClick={() => openPushModal(delivery)}
-                                className="text-xs font-semibold text-primary-foreground px-3 py-1.5 rounded-[0.5rem] bg-primary hover:bg-primary/90 transition-all inline-flex items-center gap-1.5 shadow-sm active:scale-98"
-                                title="Select products, enter collection amount & transport pricing, and push to driver"
-                              >
-                                <Send className="h-3.5 w-3.5" />
-                                Push Delivery
-                              </button>
-                            )}
+                            {/* Dispatch & Cash Actions restricted to OWNER and ADMIN */}
+                            {isOwnerOrAdmin && (
+                              <>
+                                {/* 1. CUSTOMER PICKED UP: Visible ONLY IF NO DRIVER IS ASSIGNED & NOT DELIVERED */}
+                                {!isDriverAssigned && !isDelivered && !isCancelled && !isCustomerPickup && (
+                                  <button
+                                    onClick={() => handleCustomerPickedUp(delivery.id)}
+                                    className="text-xs font-semibold text-emerald-800 dark:text-emerald-300 hover:opacity-90 px-2.5 py-1.5 rounded-[0.5rem] bg-emerald-500/15 border border-emerald-500/30 transition-all inline-flex items-center gap-1 shadow-2xs active:scale-98 cursor-pointer"
+                                    title="Customer picked up order directly from showroom/counter"
+                                  >
+                                    <CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                    Customer Picked Up
+                                  </button>
+                                )}
 
-                            {/* 3. PUSHED STATE: Delivery has been pushed to driver */}
-                            {isAssignedToDriver && (
-                              <div className="inline-flex items-center gap-1.5">
-                                <span
-                                  className="text-xs font-medium text-cyan-800 dark:text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1.5 rounded-[0.5rem] inline-flex items-center gap-1.5"
-                                  title="Delivery pushed to driver. Waiting for driver to click 'Out for Pickup' in their dashboard."
-                                >
-                                  <Clock className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400 animate-pulse" />
-                                  With {delivery.driver?.name || 'Driver'}
-                                </span>
-                                <button
-                                  onClick={() => handleShareWithDriver(delivery)}
-                                  className="p-1.5 rounded-[0.5rem] text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/30 transition-all inline-flex items-center active:scale-95"
-                                  title="Resend Delivery Assignment to Driver on WhatsApp"
-                                >
-                                  <Share2 className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            )}
+                                {/* 2. PUSH DELIVERY: Shown when driver is assigned and delivery is pending push */}
+                                {isDriverAssigned && isPendingPush && !isCustomerPickup && (
+                                  <button
+                                    onClick={() => openPushModal(delivery)}
+                                    className="text-xs font-semibold text-primary-foreground px-3 py-1.5 rounded-[0.5rem] bg-primary hover:bg-primary/90 transition-all inline-flex items-center gap-1.5 shadow-sm active:scale-98 cursor-pointer"
+                                    title="Select products, enter collection amount & push to driver"
+                                  >
+                                    <Send className="h-3.5 w-3.5" />
+                                    Push Delivery
+                                  </button>
+                                )}
 
-                            {/* 4. RESHARE ON WHATSAPP & ACTIONS */}
-                            {(isOutForPickup || isOutForDelivery) && (
-                              <button
-                                onClick={() => handleShareWithDriver(delivery)}
-                                className="p-1.5 rounded-[0.5rem] text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/30 transition-all inline-flex items-center active:scale-95"
-                                title="Resend Delivery Assignment to Driver on WhatsApp"
-                              >
-                                <Share2 className="h-3.5 w-3.5" />
-                              </button>
-                            )}
+                                {/* 3. PUSHED STATE: Delivery has been pushed to driver */}
+                                {isAssignedToDriver && (
+                                  <div className="inline-flex items-center gap-1.5">
+                                    <span
+                                      className="text-xs font-medium text-cyan-800 dark:text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1.5 rounded-[0.5rem] inline-flex items-center gap-1.5"
+                                      title="Delivery pushed to driver. Waiting for driver to click 'Out for Pickup' in their dashboard."
+                                    >
+                                      <Clock className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400 animate-pulse" />
+                                      With {delivery.driver?.name || 'Driver'}
+                                    </span>
+                                    <button
+                                      onClick={() => handleShareWithDriver(delivery)}
+                                      className="p-1.5 rounded-[0.5rem] text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/30 transition-all inline-flex items-center active:scale-95 cursor-pointer"
+                                      title="Resend Delivery Assignment to Driver on WhatsApp"
+                                    >
+                                      <Share2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                )}
 
-                            {/* 5. COLLECT CASH FROM DRIVER */}
-                            {!isDriver && isDelivered && Number(delivery.cashCollected || 0) > 0 && !delivery.cashHandedOver && (
-                              <button
-                                onClick={() => handleCollectCashFromDriver(delivery.id)}
-                                disabled={submittingHandover === delivery.id}
-                                className="text-xs font-semibold text-white px-3 py-1.5 rounded-[0.5rem] bg-emerald-600 hover:bg-emerald-500 transition-all inline-flex items-center gap-1.5 shadow-sm active:scale-98"
-                                title="Collect cash from driver and deposit to office"
-                              >
-                                <CircleDollarSign className="h-3.5 w-3.5" />
-                                {submittingHandover === delivery.id
-                                  ? 'Collecting...'
-                                  : `Collect Cash (${formatINR(delivery.cashCollected)})`}
-                              </button>
+                                {/* 4. RESHARE ON WHATSAPP & ACTIONS */}
+                                {(isOutForPickup || isOutForDelivery) && (
+                                  <button
+                                    onClick={() => handleShareWithDriver(delivery)}
+                                    className="p-1.5 rounded-[0.5rem] text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/30 transition-all inline-flex items-center active:scale-95 cursor-pointer"
+                                    title="Resend Delivery Assignment to Driver on WhatsApp"
+                                  >
+                                    <Share2 className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+
+                                {/* 5. COLLECT CASH FROM DRIVER */}
+                                {isDelivered && Number(delivery.cashCollected || 0) > 0 && !delivery.cashHandedOver && (
+                                  <button
+                                    onClick={() => handleCollectCashFromDriver(delivery.id)}
+                                    disabled={submittingHandover === delivery.id}
+                                    className="text-xs font-semibold text-white px-3 py-1.5 rounded-[0.5rem] bg-emerald-600 hover:bg-emerald-500 transition-all inline-flex items-center gap-1.5 shadow-sm active:scale-98 cursor-pointer"
+                                    title="Collect cash from driver and deposit to office"
+                                  >
+                                    <CircleDollarSign className="h-3.5 w-3.5" />
+                                    {submittingHandover === delivery.id
+                                      ? 'Collecting...'
+                                      : `Collect Cash (${formatINR(delivery.cashCollected)})`}
+                                  </button>
+                                )}
+                              </>
                             )}
                           </div>
                         )}

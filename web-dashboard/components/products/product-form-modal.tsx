@@ -31,7 +31,9 @@ export function ProductFormModal({
   const [size, setSize] = useState('600x1200mm');
   const [finish, setFinish] = useState('Glossy');
   const [price, setPrice] = useState<number | ''>(850);
+  const [wholesalePrice, setWholesalePrice] = useState<number | ''>('');
   const [purchasePrice, setPurchasePrice] = useState<number | ''>('');
+  const [minStockAlert, setMinStockAlert] = useState<number | ''>(10);
 
   // Initial Warehouse Inward (Add mode only)
   const [initialWarehouseId, setInitialWarehouseId] = useState('');
@@ -52,7 +54,9 @@ export function ProductFormModal({
         setSize((attrs.size as string) || '');
         setFinish((attrs.finish as string) || '');
         setPrice(attrs.price !== undefined ? Number(attrs.price) : '');
+        setWholesalePrice(attrs.wholesalePrice !== undefined ? Number(attrs.wholesalePrice) : '');
         setPurchasePrice(attrs.purchasePrice !== undefined ? Number(attrs.purchasePrice) : '');
+        setMinStockAlert(product.minStockAlert !== undefined ? Number(product.minStockAlert) : 10);
       } else {
         setName('');
         setCategory('Tiles');
@@ -61,7 +65,9 @@ export function ProductFormModal({
         setSize('600x1200mm');
         setFinish('Glossy');
         setPrice(850);
+        setWholesalePrice('');
         setPurchasePrice('');
+        setMinStockAlert(10);
         setInitialWarehouseId('');
         setInitialQuantity('');
         setInitialBatchNo('');
@@ -90,6 +96,7 @@ export function ProductFormModal({
           size,
           finish,
           ...(price !== '' ? { price: Number(price) } : {}),
+          ...(wholesalePrice !== '' ? { wholesalePrice: Number(wholesalePrice) } : {}),
           ...(purchasePrice !== '' ? { purchasePrice: Number(purchasePrice) } : {}),
         };
 
@@ -101,6 +108,7 @@ export function ProductFormModal({
             hsnCode: hsnCode.trim() || undefined,
             unit,
             price: price !== '' ? Number(price) : undefined,
+            minStockAlert: minStockAlert !== '' ? Number(minStockAlert) : 10,
             attributes: attrs,
           }),
         });
@@ -113,10 +121,12 @@ export function ProductFormModal({
             hsnCode: hsnCode.trim() || undefined,
             unit,
             price: price !== '' ? Number(price) : undefined,
+            minStockAlert: minStockAlert !== '' ? Number(minStockAlert) : 10,
             attributes: {
               size,
               finish,
               price: price !== '' ? Number(price) : undefined,
+              wholesalePrice: wholesalePrice !== '' ? Number(wholesalePrice) : undefined,
               purchasePrice: purchasePrice !== '' ? Number(purchasePrice) : undefined,
             },
             initialWarehouseId: initialWarehouseId || undefined,
@@ -239,11 +249,11 @@ export function ProductFormModal({
             />
           </div>
 
-          {/* Pricing Section */}
-          <div className="grid grid-cols-2 gap-3 bg-muted/30 p-3 rounded-[0.875rem] border border-border/60">
+          {/* Pricing & Tiering Section */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-muted/30 p-3 rounded-[0.875rem] border border-border/60">
             <div>
               <label className="block text-xs font-semibold text-foreground mb-1">
-                Selling Price (₹ / {unit}) *
+                Retail Price (₹ / {unit}) *
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-2 text-sm text-muted-foreground font-semibold">₹</span>
@@ -256,6 +266,24 @@ export function ProductFormModal({
                   className="w-full rounded-[0.75rem] border border-input bg-background pl-7 pr-3 py-2 text-sm text-foreground font-semibold focus:outline-none focus:ring-2 focus:ring-ring font-mono"
                   value={price}
                   onChange={(e) => setPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-foreground mb-1">
+                Wholesale Price (₹ / {unit})
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-2 text-sm text-muted-foreground font-semibold">₹</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder="750"
+                  className="w-full rounded-[0.75rem] border border-input bg-background pl-7 pr-3 py-2 text-sm text-foreground font-semibold focus:outline-none focus:ring-2 focus:ring-ring font-mono"
+                  value={wholesalePrice}
+                  onChange={(e) => setWholesalePrice(e.target.value === '' ? '' : Number(e.target.value))}
                 />
               </div>
             </div>
@@ -277,6 +305,24 @@ export function ProductFormModal({
                 />
               </div>
             </div>
+          </div>
+
+          {/* Low Stock Alert Threshold */}
+          <div className="bg-muted/30 p-3 rounded-[0.875rem] border border-border/60">
+            <label className="block text-xs font-semibold text-foreground mb-1">
+              Low Stock Alert Threshold ({unit})
+            </label>
+            <input
+              type="number"
+              min="0"
+              placeholder="10"
+              className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-sm text-foreground font-semibold focus:outline-none focus:ring-2 focus:ring-ring font-mono"
+              value={minStockAlert}
+              onChange={(e) => setMinStockAlert(e.target.value === '' ? '' : Number(e.target.value))}
+            />
+            <span className="text-[11px] text-muted-foreground mt-1 block">
+              Triggers low stock badge on dashboard when total catalog inventory falls below this amount (default: 10).
+            </span>
           </div>
 
           {/* Initial Warehouse Inward Section (Add mode only) */}
