@@ -19,10 +19,17 @@ async function bootstrap() {
     'http://localhost:3001',
     'http://127.0.0.1:3000',
     'http://127.0.0.1:3001',
+    'https://shree-om-tiles.vercel.app',
   ];
-  const configuredOrigins = allowedOriginsEnv
-    ? allowedOriginsEnv.split(',').map((o) => o.trim())
-    : defaultAllowedOrigins;
+  const envOrigins = allowedOriginsEnv
+    ? allowedOriginsEnv
+        .split(',')
+        .map((o) => o.trim())
+        .filter(Boolean)
+    : [];
+  const configuredOrigins = Array.from(
+    new Set([...defaultAllowedOrigins, ...envOrigins]),
+  );
 
   app.enableCors({
     origin: (origin, callback) => {
@@ -31,11 +38,14 @@ async function bootstrap() {
       if (
         configuredOrigins.includes(origin) ||
         process.env.NODE_ENV !== 'production' ||
-        /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$/.test(origin)
+        /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$/.test(
+          origin,
+        ) ||
+        /^https:\/\/([a-zA-Z0-9-]+\.)*vercel\.app$/.test(origin)
       ) {
         return callback(null, true);
       }
-      return callback(new Error(`CORS blocked for origin: ${origin}`));
+      return callback(null, false);
     },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
