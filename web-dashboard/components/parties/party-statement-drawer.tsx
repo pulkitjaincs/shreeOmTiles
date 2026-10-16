@@ -78,22 +78,41 @@ export function PartyStatementDrawer({
       setActiveTab('orders');
       fetchParty360(party.id);
     }
-  }, [isOpen, party, fetchParty360]);
+  }, [isOpen, party?.id, fetchParty360]);
 
   if (!isOpen || !party) return null;
 
   // Aggregate stats
-  const lifetimeTotal = (partyData?.invoices || []).reduce(
-    (sum, inv) => sum + Number(inv.total || 0),
-    0
-  );
+  const lifetimeTotal = (partyData?.invoices || [])
+    .filter((inv) => inv.status !== 'CANCELLED' && inv.status !== 'DRAFT')
+    .reduce((sum, inv) => sum + Number(inv.total || 0), 0);
 
-  const settledPayments = (partyData?.invoices || []).reduce((sum, inv) => {
-    const paid = (inv.payments || [])
-      .filter((p) => p.status === 'CONFIRMED')
-      .reduce((pSum, p) => pSum + Number(p.amount || 0), 0);
-    return sum + paid;
-  }, 0);
+  const settledPayments =
+    partyData?.payments && partyData.payments.length > 0
+      ? Math.max(
+          0,
+          partyData.payments
+            .filter((p) => p.status === 'CONFIRMED')
+            .reduce(
+              (pSum, p) =>
+                p.type === 'OUTFLOW'
+                  ? pSum - Number(p.amount || 0)
+                  : pSum + Number(p.amount || 0),
+              0
+            )
+        )
+      : (partyData?.invoices || []).reduce((sum, inv) => {
+          const paid = (inv.payments || [])
+            .filter((p) => p.status === 'CONFIRMED')
+            .reduce(
+              (pSum, p) =>
+                p.type === 'OUTFLOW'
+                  ? pSum - Number(p.amount || 0)
+                  : pSum + Number(p.amount || 0),
+              0
+            );
+          return sum + Math.max(0, paid);
+        }, 0);
 
   const totalDues = (partyData?.creditLedgers || [])
     .filter((cl) => cl.status !== 'SETTLED')
@@ -115,8 +134,8 @@ export function PartyStatementDrawer({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in">
-      <div className="w-full max-w-4xl max-h-[88dvh] flex flex-col rounded-2xl border border-border/80 bg-card/95 backdrop-blur-xl shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 overflow-y-auto animate-in fade-in">
+      <div className="w-full max-w-4xl max-h-[88dvh] flex flex-col rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
         {/* Modal Header */}
         <div className="p-6 border-b border-border/60 bg-card/90 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">

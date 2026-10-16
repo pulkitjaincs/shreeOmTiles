@@ -60,9 +60,18 @@ export async function generateInvoicePdf(
   const hasTax = itemsTax > 0 || transportTax > 0;
   const docTitle = hasTax ? 'Tax Invoice' : 'Bill of Supply';
 
-  const totalReceived = (invoice.payments || [])
-    .filter((p) => p.status === 'CONFIRMED')
-    .reduce((sum, p) => sum + Number(p.amount), 0);
+  const totalReceived = Math.max(
+    0,
+    (invoice.payments || [])
+      .filter((p) => p.status === 'CONFIRMED')
+      .reduce(
+        (sum, p) =>
+          p.type === 'OUTFLOW'
+            ? sum - Number(p.amount)
+            : sum + Number(p.amount),
+        0,
+      ),
+  );
   const balance = Math.max(0, totalAmount - totalReceived);
   const previousBalance = Number(invoice.previousBalance || 0);
   const currentBalance = previousBalance + balance;

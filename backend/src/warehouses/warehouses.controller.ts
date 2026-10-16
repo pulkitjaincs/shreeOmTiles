@@ -31,14 +31,14 @@ export class WarehousesController {
   }
 
   @Get()
-  @Roles(Role.ADMIN, Role.SALESMAN, Role.SUPERVISOR)
+  @Roles(Role.ADMIN, Role.SALESMAN, Role.SUPERVISOR, Role.ACCOUNTANT)
   @Header('Cache-Control', 'private, max-age=60, stale-while-revalidate=300')
   findAll(@Request() req: RequestWithUser) {
     return this.warehousesService.findAll(req.user);
   }
 
   @Get(':id')
-  @Roles(Role.ADMIN, Role.SALESMAN, Role.SUPERVISOR)
+  @Roles(Role.ADMIN, Role.SALESMAN, Role.SUPERVISOR, Role.ACCOUNTANT)
   findOne(@Param('id') id: string, @Request() req: RequestWithUser) {
     return this.warehousesService.findOne(id, req.user);
   }

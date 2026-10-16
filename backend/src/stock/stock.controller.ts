@@ -25,7 +25,7 @@ export class StockController {
   constructor(private readonly stockService: StockService) {}
 
   @Get()
-  @Roles(Role.ADMIN, Role.SALESMAN, Role.SUPERVISOR)
+  @Roles(Role.ADMIN, Role.SALESMAN, Role.SUPERVISOR, Role.ACCOUNTANT)
   findAll(
     @Request() req: RequestWithUser,
     @Query('productId') productId?: string,

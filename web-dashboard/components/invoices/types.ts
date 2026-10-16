@@ -19,8 +19,9 @@ export interface Party {
   name: string;
   phone: string;
   address?: string;
+  gstin?: string;
   isSaved?: boolean;
-  category?: 'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER';
+  category?: 'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER' | 'SUPPLIER';
 }
 
 export interface StockLedgerRecord {

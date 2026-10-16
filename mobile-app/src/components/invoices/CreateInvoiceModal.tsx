@@ -63,7 +63,7 @@ export function CreateInvoiceModal({
   const [taxRate, setTaxRate] = useState<number>(18);
   const [transportCost, setTransportCost] = useState<string>('0');
   const [transportGstRate, setTransportGstRate] = useState<number>(0);
-  const [paymentMode, setPaymentMode] = useState<'UPI' | 'CASH' | 'CREDIT' | 'CHEQUE'>('UPI');
+  const [paymentMode, setPaymentMode] = useState<'UPI' | 'CASH' | 'CREDIT' | 'BANK_TRANSFER'>('UPI');
   const [amountPaidNow, setAmountPaidNow] = useState<string>('0');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -153,7 +153,7 @@ export function CreateInvoiceModal({
       }
       if (cancelled) return;
       setCurrentStockList(freshStock);
-      const initialPartyId = parties[0]?.id || '';
+      const initialPartyId = '';
       setItems([{
         productId: '',
         warehouseId: '',
@@ -334,7 +334,7 @@ export function CreateInvoiceModal({
 
   const resetForm = () => {
     setCustomerMode('existing');
-    setSelectedPartyId(parties[0]?.id || '');
+    setSelectedPartyId('');
     setNewPartyName('');
     setNewPartyPhone('');
     setNewPartyAddress('');
@@ -537,25 +537,14 @@ export function CreateInvoiceModal({
 
         {/* 3. Tax & Payment Settlement */}
         <Text style={styles.modalSectionTitle}>3. Tax & Settlement</Text>
-        <Text style={styles.fieldLabel}>GST Tax Rate</Text>
-        <View style={styles.taxRow}>
-          {[18, 12, 5, 28, 0].map((rate) => (
-            <TouchableOpacity
-              key={rate}
-              onPress={() => setTaxRate(rate)}
-              style={[styles.taxChip, taxRate === rate && styles.taxChipActive]}
-            >
-              <Text style={[styles.taxChipText, taxRate === rate && styles.taxChipTextActive]}>
-                {rate}%
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
         <Input
-          label="Custom GST Rate (%)"
-          placeholder="18"
+          label="Items GST Rate (%)"
+          placeholder="e.g. 18 or 0"
           value={String(taxRate)}
-          onChangeText={(value) => setTaxRate(Math.min(100, Math.max(0, Number.parseFloat(value) || 0)))}
+          onChangeText={(value) => {
+            const num = Number.parseFloat(value);
+            setTaxRate(isNaN(num) ? 0 : Math.min(100, Math.max(0, num)));
+          }}
           keyboardType="decimal-pad"
         />
 
@@ -567,27 +556,20 @@ export function CreateInvoiceModal({
           keyboardType="decimal-pad"
         />
 
-        <Text style={styles.fieldLabel}>Transport GST Rate</Text>
-        <View style={styles.tabToggle}>
-          {([0, 5, 12, 18, 28] as const).map((rate) => {
-            const isSelected = transportGstRate === rate;
-            return (
-              <TouchableOpacity
-                key={rate}
-                onPress={() => setTransportGstRate(rate)}
-                style={[styles.toggleBtn, isSelected && styles.toggleBtnActive]}
-              >
-                <Text style={[styles.toggleText, isSelected && styles.toggleTextActive]}>
-                  {rate}%
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        <Input
+          label="Transport GST Rate (%)"
+          placeholder="e.g. 5 or 0"
+          value={String(transportGstRate)}
+          onChangeText={(value) => {
+            const num = Number.parseFloat(value);
+            setTransportGstRate(isNaN(num) ? 0 : Math.min(100, Math.max(0, num)));
+          }}
+          keyboardType="decimal-pad"
+        />
 
         <Text style={styles.fieldLabel}>Payment Mode</Text>
         <View style={styles.tabToggle}>
-          {(['UPI', 'CASH', 'CHEQUE', 'CREDIT'] as const).map((mode) => {
+          {(['UPI', 'CASH', 'BANK_TRANSFER', 'CREDIT'] as const).map((mode) => {
             const isSelected = paymentMode === mode;
             return (
               <TouchableOpacity

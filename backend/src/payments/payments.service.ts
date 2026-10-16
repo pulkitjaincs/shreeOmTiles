@@ -69,9 +69,15 @@ export class PaymentsService {
               status: PaymentStatus.CONFIRMED,
             },
           });
-          const totalPaid = allConfirmed.reduce(
-            (sum, p) => sum + Number(p.amount),
+          const totalPaid = Math.max(
             0,
+            allConfirmed.reduce(
+              (sum, p) =>
+                p.type === PaymentType.OUTFLOW
+                  ? sum - Number(p.amount)
+                  : sum + Number(p.amount),
+              0,
+            ),
           );
           const inv = await tx.invoice.findUnique({
             where: { id: data.invoiceId },
@@ -163,6 +169,18 @@ export class PaymentsService {
               },
             });
             remainingPayment -= deduct;
+          }
+
+          if (remainingPayment > 0.01 && paymentType === PaymentType.INFLOW) {
+            await tx.creditLedger.create({
+              data: {
+                partyId,
+                amountDue: new Prisma.Decimal(remainingPayment.toFixed(2)),
+                type: CreditType.PAYABLE,
+                status: 'UNPAID',
+                notes: `Advance customer overpayment from Payment #${txPayment.id.slice(0, 8)}`,
+              },
+            });
           }
         }
 
@@ -309,7 +327,10 @@ export class PaymentsService {
         });
 
         const totalPaid = allConfirmed.reduce(
-          (sum, p) => sum + Number(p.amount),
+          (sum, p) =>
+            p.type === PaymentType.OUTFLOW
+              ? sum - Number(p.amount)
+              : sum + Number(p.amount),
           0,
         );
         const invoiceTotal = Number(payment.invoice.total);
@@ -371,6 +392,18 @@ export class PaymentsService {
             },
           });
           remainingPayment -= deduct;
+        }
+
+        if (remainingPayment > 0.01 && payment.type === PaymentType.INFLOW) {
+          await tx.creditLedger.create({
+            data: {
+              partyId: payment.partyId,
+              amountDue: new Prisma.Decimal(remainingPayment.toFixed(2)),
+              type: CreditType.PAYABLE,
+              status: 'UNPAID',
+              notes: `Advance customer overpayment from confirmed Payment #${payment.id.slice(0, 8)}`,
+            },
+          });
         }
       }
 
@@ -482,7 +515,12 @@ export class PaymentsService {
       receivablesAgg,
       payablesAgg,
     ] = await Promise.all([
-      this.prisma.invoice.aggregate({ _sum: { total: true } }),
+      this.prisma.invoice.aggregate({
+        where: {
+          status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
+        },
+        _sum: { total: true },
+      }),
       this.prisma.payment.aggregate({
         where: { status: PaymentStatus.CONFIRMED, type: PaymentType.INFLOW },
         _sum: { amount: true },
@@ -517,9 +555,14 @@ export class PaymentsService {
       }),
     ]);
 
+    const totalCollected = Math.max(
+      0,
+      Number(inflowAgg._sum.amount || 0) - Number(outflowAgg._sum.amount || 0),
+    );
+
     return {
       totalSales: Number(invoiceAgg._sum.total || 0),
-      totalCollected: Number(inflowAgg._sum.amount || 0),
+      totalCollected,
       totalPaidOut: Number(outflowAgg._sum.amount || 0),
       cashCollected: Number(cashAgg._sum.amount || 0),
       upiCollected: Number(upiAgg._sum.amount || 0),
@@ -558,7 +601,10 @@ export class PaymentsService {
       invoices: pendingInvoices
         .map((inv) => {
           const paid = inv.payments.reduce(
-            (sum, p) => sum + Number(p.amount),
+            (sum, p) =>
+              p.type === PaymentType.OUTFLOW
+                ? sum - Number(p.amount)
+                : sum + Number(p.amount),
             0,
           );
           const remainingDue = Math.max(0, Number(inv.total) - paid);

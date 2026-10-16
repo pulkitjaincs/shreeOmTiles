@@ -11,8 +11,8 @@ import {
 
 interface PaymentStatsGridProps {
   stats: FinancialStats;
-  activeTab: 'dues' | 'payables' | 'all' | 'inflows' | 'credits';
-  onTabChange: (tab: 'dues' | 'payables' | 'all' | 'inflows' | 'credits') => void;
+  activeTab: 'daybook' | 'dues' | 'payables' | 'all' | 'inflows' | 'credits';
+  onTabChange: (tab: 'daybook' | 'dues' | 'payables' | 'all' | 'inflows' | 'credits') => void;
 }
 
 export function PaymentStatsGrid({

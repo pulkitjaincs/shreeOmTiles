@@ -446,6 +446,21 @@ model PurchaseSequence {
   updatedAt     DateTime @updatedAt
 }
 
+model ExpenseSequence {
+  id            String   @id @default(uuid())
+  financialYear String   @unique // e.g. "2627"
+  lastNumber    Int      @default(0)
+  updatedAt     DateTime @updatedAt
+}
+
+model DebitNoteSequence {
+  id            String   @id @default(uuid())
+  financialYear String   @unique // e.g. "2627"
+  lastNumber    Int      @default(0)
+  updatedAt     DateTime @updatedAt
+}
+
+
 model Purchase {
   id            String         @id @default(uuid())
   purchaseNo    String         @unique // e.g. "PUR-2627-0001"

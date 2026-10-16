@@ -120,8 +120,23 @@ export async function apiRequest<T = unknown>(
     } else if (endpoint.includes('/delivery')) {
       invalidateApiCache('/delivery');
       invalidateApiCache('/analytics');
+    } else if (endpoint.includes('/purchases')) {
+      invalidateApiCache('/purchases');
+      invalidateApiCache('/stock');
+      invalidateApiCache('/analytics');
+      invalidateApiCache('/payments');
+    } else if (endpoint.includes('/expenses')) {
+      invalidateApiCache('/expenses');
+      invalidateApiCache('/analytics');
+      invalidateApiCache('/payments');
+    } else if (endpoint.includes('/quotations')) {
+      invalidateApiCache('/quotations');
+      invalidateApiCache('/invoices');
+      invalidateApiCache('/analytics');
     } else if (endpoint.includes('/parties')) {
       invalidateApiCache('/parties');
+      invalidateApiCache('/payments');
+      invalidateApiCache('/analytics');
     } else if (endpoint.includes('/warehouses')) {
       invalidateApiCache('/warehouses');
       invalidateApiCache('/stock');

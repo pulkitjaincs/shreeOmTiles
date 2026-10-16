@@ -24,19 +24,9 @@ import {
 import { StaffUser } from '@/components/users/types';
 import { UserStatsGrid } from '@/components/users/user-stats-grid';
 
-// Lazy-loaded modal components
-const UserFormModal = dynamic(
-  () => import('@/components/users/user-form-modal').then((m) => m.UserFormModal),
-  { ssr: false }
-);
-const ResetPasswordModal = dynamic(
-  () => import('@/components/users/reset-password-modal').then((m) => m.ResetPasswordModal),
-  { ssr: false }
-);
-const DeleteUserModal = dynamic(
-  () => import('@/components/users/delete-user-modal').then((m) => m.DeleteUserModal),
-  { ssr: false }
-);
+import { UserFormModal } from '@/components/users/user-form-modal';
+import { ResetPasswordModal } from '@/components/users/reset-password-modal';
+import { DeleteUserModal } from '@/components/users/delete-user-modal';
 
 export default function UsersPage() {
   const { user: currentUser } = useAuth();

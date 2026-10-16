@@ -203,7 +203,7 @@ export class QuotationsService {
 
     // 2. Prepare invoice DTO
     let partyId = quotation.partyId;
-    let newParty = undefined;
+    let newParty: { name: string; phone: string; address?: string } | undefined = undefined;
 
     if (!partyId) {
       if (!quotation.customerName || !quotation.customerPhone) {
@@ -226,11 +226,19 @@ export class QuotationsService {
       }
     }
 
+    const converterUser = await this.prisma.user.findUnique({
+      where: { id: salesmanId },
+      select: { role: true },
+    });
+    const defaultMode =
+      converterUser?.role === 'SALESMAN' ? PaymentMode.CASH : PaymentMode.CREDIT;
+    const effectivePaymentMode = paymentMode || defaultMode;
+
     const invoiceDto = {
       partyId: partyId || undefined,
       newParty,
       quotationId: quotation.id,
-      paymentMode: paymentMode || PaymentMode.CREDIT,
+      paymentMode: effectivePaymentMode,
       amountPaidNow: amountPaidNow !== undefined ? amountPaidNow : 0,
       taxRate: Number(quotation.taxRate),
       transportCost: Number(quotation.transportCost),

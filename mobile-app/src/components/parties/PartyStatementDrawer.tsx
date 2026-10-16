@@ -37,6 +37,7 @@ export function PartyStatementDrawer({
   const [statementData, setStatementData] = useState<{
     invoices: StatementInvoice[];
     creditLedgers: StatementCreditLedger[];
+    payments?: any[];
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<'orders' | 'credits'>('orders');
@@ -66,16 +67,36 @@ export function PartyStatementDrawer({
   const invoices = statementData?.invoices || [];
   const ledgers = statementData?.creditLedgers || [];
 
-  const lifetimeTotal = invoices.reduce(
-    (sum, inv) => sum + Number(inv.total || 0),
-    0,
-  );
-  const settledPayments = invoices.reduce((sum, inv) => {
-    const paid = (inv.payments || [])
-      .filter((p) => p.status === 'CONFIRMED')
-      .reduce((pSum, p) => pSum + Number(p.amount || 0), 0);
-    return sum + paid;
-  }, 0);
+  const lifetimeTotal = invoices
+    .filter((inv: any) => inv.status !== 'CANCELLED' && inv.status !== 'DRAFT')
+    .reduce((sum: number, inv: any) => sum + Number(inv.total || 0), 0);
+  const partyPayments = statementData?.payments || [];
+  const settledPayments =
+    partyPayments.length > 0
+      ? Math.max(
+          0,
+          partyPayments
+            .filter((p: any) => p.status === 'CONFIRMED')
+            .reduce(
+              (pSum: number, p: any) =>
+                p.type === 'OUTFLOW'
+                  ? pSum - Number(p.amount || 0)
+                  : pSum + Number(p.amount || 0),
+              0
+            )
+        )
+      : invoices.reduce((sum: number, inv: any) => {
+          const paid = (inv.payments || [])
+            .filter((p: any) => p.status === 'CONFIRMED')
+            .reduce(
+              (pSum: number, p: any) =>
+                p.type === 'OUTFLOW'
+                  ? pSum - Number(p.amount || 0)
+                  : pSum + Number(p.amount || 0),
+              0
+            );
+          return sum + Math.max(0, paid);
+        }, 0);
   const totalDues = ledgers
     .filter((cl) => cl.status !== 'SETTLED')
     .reduce((sum, cl) => {

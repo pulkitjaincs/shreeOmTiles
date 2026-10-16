@@ -383,20 +383,25 @@ export default function MoreScreen() {
               <Ionicons name="chevron-forward" size={18} color={Colors.dark.textTertiary} />
             </TouchableOpacity>
 
-            {/* 3. Daily Till Book (Day Book) */}
+            {/* 3. Daily Till Book & Transactions */}
             {canViewFinances ? (
               <TouchableOpacity
                 style={styles.menuItem}
-                onPress={() => setActiveSection('DAY_BOOK')}
+                onPress={() =>
+                  router.push({
+                    pathname: '/(tabs)/transactions',
+                    params: { tab: 'daybook' },
+                  } as any)
+                }
                 activeOpacity={0.7}
               >
                 <View style={[styles.menuIconCircle, { backgroundColor: '#10B981' }]}>
                   <Ionicons name="wallet-outline" size={20} color="#FFFFFF" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.menuItemTitle}>Daily Till Book (Day Book)</Text>
+                  <Text style={styles.menuItemTitle}>Till Drawer & Transactions</Text>
                   <Text style={styles.menuItemSub}>
-                    Opening balance, live till cash & chronological reconciliation
+                    Live cash drawer balancing, closing till balance & transactions
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={Colors.dark.textTertiary} />

@@ -9,6 +9,7 @@ import {
   RefreshControl,
   Alert,
 } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
 import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
 import { Colors } from '@/constants/theme';
 import { Header } from '@/components/ui/Header';
@@ -16,6 +17,7 @@ import { SearchBar } from '@/components/ui/SearchBar';
 import { FilterPills } from '@/components/ui/FilterPills';
 import { FilterDropdown } from '@/components/ui/FilterDropdown';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Card } from '@/components/ui/Card';
 import { formatINR } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -37,10 +39,86 @@ import {
   SettlementSuccessData,
 } from '@/components/payments';
 
-type TransactionListItem = PendingItem | PaymentRecord | CreditLedgerRecord;
+interface DayBookResponse {
+  date: string;
+  summary: {
+    openingCash: number;
+    cashIn: number;
+    cashOut: number;
+    expenseCash: number;
+    netCashFlow: number;
+    closingCash: number;
+    digital: {
+      upiIn: number;
+      bankIn: number;
+      totalDigital: number;
+    };
+  };
+  transactions: {
+    payments: Array<{
+      id: string;
+      type: string;
+      mode: string;
+      amount: number;
+      partyName: string;
+      refNo: string;
+      time: string;
+      notes?: string;
+    }>;
+    expenses: Array<{
+      id: string;
+      expenseNo?: string;
+      category: string;
+      amount: number;
+      paymentMode: string;
+      paidTo?: string;
+      time: string;
+      notes?: string;
+    }>;
+    purchases: Array<{
+      id: string;
+      purchaseNo: string;
+      partyName?: string;
+      total: number;
+      paymentMode: string;
+      time: string;
+    }>;
+  };
+}
+
+export interface DayBookEntry {
+  id: string;
+  timestamp: number;
+  timeStr: string;
+  title: string;
+  subTitle: string;
+  mode: string;
+  isCredit: boolean;
+  amount: number;
+}
+
+type TransactionListItem = PendingItem | PaymentRecord | CreditLedgerRecord | DayBookEntry;
 
 export default function TransactionsScreen() {
-  const [activeTab, setActiveTab] = useState<ActiveTabType>('all');
+  const params = useLocalSearchParams<{ tab?: string }>();
+  const [activeTab, setActiveTab] = useState<ActiveTabType>(
+    params.tab === 'daybook' ? 'daybook' : 'all',
+  );
+  const [selectedDate, setSelectedDate] = useState(() => {
+    return new Date().toISOString().slice(0, 10);
+  });
+  const [dateFilterMode, setDateFilterMode] = useState<'all' | 'specific'>(
+    params.tab === 'daybook' ? 'specific' : 'all',
+  );
+
+  useEffect(() => {
+    if (params.tab === 'daybook') {
+      setActiveTab('daybook');
+      setDateFilterMode('specific');
+    }
+  }, [params.tab]);
+  const [dayBookData, setDayBookData] = useState<DayBookResponse | null>(null);
+  const [dayBookLoading, setDayBookLoading] = useState(false);
 
   // Data states matching web-dashboard
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
@@ -177,9 +255,89 @@ export default function TransactionsScreen() {
     loadData();
   }, [loadData]);
 
+  const loadDayBook = useCallback(async (date: string) => {
+    setDayBookLoading(true);
+    try {
+      const res = await mobileApiRequest<DayBookResponse>(`/analytics/day-book?date=${date}`);
+      setDayBookData(res);
+    } catch (err: any) {
+      console.warn('Day book load error:', err.message);
+    } finally {
+      setDayBookLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'daybook' || dateFilterMode === 'specific') {
+      loadDayBook(selectedDate);
+    }
+  }, [selectedDate, activeTab, dateFilterMode, loadDayBook]);
+
+  const handleShiftDay = (days: number) => {
+    const cur = new Date(selectedDate);
+    cur.setDate(cur.getDate() + days);
+    setSelectedDate(cur.toISOString().slice(0, 10));
+    setDateFilterMode('specific');
+  };
+
+  const handleToday = () => {
+    setSelectedDate(new Date().toISOString().slice(0, 10));
+    setDateFilterMode('specific');
+  };
+
+  const handleYesterday = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    setSelectedDate(d.toISOString().slice(0, 10));
+    setDateFilterMode('specific');
+  };
+
+  const handleAllTime = () => {
+    setDateFilterMode('all');
+    if (activeTab === 'daybook') {
+      setActiveTab('all');
+    }
+  };
+
+  const combinedDayBookEntries = useMemo(() => {
+    if (!dayBookData) return [];
+    const list: DayBookEntry[] = [];
+
+    (dayBookData.transactions.payments || []).forEach((p) => {
+      list.push({
+        id: `pay-${p.id}`,
+        timestamp: new Date(p.time).getTime(),
+        timeStr: p.time,
+        title: p.type === 'INFLOW' ? `Payment Received: ${p.partyName}` : `Payout: ${p.partyName}`,
+        subTitle: `Ref: #${p.refNo}${p.notes ? ` • ${p.notes}` : ''}`,
+        mode: p.mode,
+        isCredit: p.type === 'INFLOW',
+        amount: p.amount,
+      });
+    });
+
+    (dayBookData.transactions.expenses || []).forEach((e) => {
+      list.push({
+        id: `exp-${e.id}`,
+        timestamp: new Date(e.time).getTime(),
+        timeStr: e.time,
+        title: `Expense: ${e.category.replace(/_/g, ' ')}`,
+        subTitle: `${e.paidTo ? `Paid to: ${e.paidTo} • ` : ''}${e.notes || ''}`,
+        mode: e.paymentMode,
+        isCredit: false,
+        amount: e.amount,
+      });
+    });
+
+    return list.sort((a, b) => b.timestamp - a.timestamp);
+  }, [dayBookData]);
+
   const onRefresh = () => {
     setRefreshing(true);
     loadData(true);
+    if (activeTab === 'daybook' || dateFilterMode === 'specific') {
+      loadDayBook(selectedDate);
+    }
   };
 
   // Confirm Pending Payment
@@ -276,7 +434,14 @@ export default function TransactionsScreen() {
 
   const filteredPayments = useMemo(() => {
     const q = search.toLowerCase().trim();
-    return payments.filter((p) => {
+    let base = payments;
+    if (dateFilterMode === 'specific' && selectedDate) {
+      base = base.filter((p) => {
+        const pDate = p.paidAt || p.createdAt;
+        return pDate && pDate.slice(0, 10) === selectedDate;
+      });
+    }
+    return base.filter((p) => {
       const partyName = p.invoice?.party?.name || p.party?.name || '';
       const invNo = p.invoice?.invoiceNo || '';
       const utr = p.upiUtr || p.upiTxnRef || '';
@@ -285,7 +450,7 @@ export default function TransactionsScreen() {
       const matchesMode = modeFilter === 'ALL' || p.mode === modeFilter;
       return matchesSearch && matchesMode;
     });
-  }, [payments, search, modeFilter]);
+  }, [payments, search, modeFilter, dateFilterMode, selectedDate]);
 
   const filteredInflows = useMemo(() => {
     return filteredPayments.filter(
@@ -316,7 +481,9 @@ export default function TransactionsScreen() {
 
       <FlatList<TransactionListItem>
         data={
-          activeTab === 'dues'
+          activeTab === 'daybook'
+            ? combinedDayBookEntries
+            : activeTab === 'dues'
             ? filteredDues
             : activeTab === 'payables'
             ? filteredPayables
@@ -333,6 +500,128 @@ export default function TransactionsScreen() {
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View>
+            {/* Date-wise Navigation Toolbar */}
+            <View style={styles.dateToolbar}>
+              <TouchableOpacity
+                onPress={handleAllTime}
+                style={[
+                  styles.dateModePill,
+                  dateFilterMode === 'all' && styles.dateModePillActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.dateModePillText,
+                    dateFilterMode === 'all' && styles.dateModePillTextActive,
+                  ]}
+                >
+                  All Dates
+                </Text>
+              </TouchableOpacity>
+
+              <View style={styles.datePickerBox}>
+                <TouchableOpacity onPress={() => handleShiftDay(-1)} style={styles.dateArrowBtn}>
+                  <Ionicons name="chevron-back" size={16} color="#FFFFFF" />
+                </TouchableOpacity>
+                <Text style={styles.selectedDateText}>{selectedDate}</Text>
+                <TouchableOpacity onPress={() => handleShiftDay(1)} style={styles.dateArrowBtn}>
+                  <Ionicons name="chevron-forward" size={16} color="#FFFFFF" />
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                onPress={handleYesterday}
+                style={[
+                  styles.quickDateBtn,
+                  dateFilterMode === 'specific' &&
+                    selectedDate === new Date(Date.now() - 86400000).toISOString().slice(0, 10) &&
+                    styles.quickDateBtnActive,
+                ]}
+              >
+                <Text style={styles.quickDateText}>Yest</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleToday}
+                style={[
+                  styles.quickDateBtn,
+                  dateFilterMode === 'specific' &&
+                    selectedDate === new Date().toISOString().slice(0, 10) &&
+                    styles.quickDateBtnActive,
+                ]}
+              >
+                <Text style={styles.quickDateText}>Today</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Daily Till Drawer Summary Card */}
+            {(dateFilterMode === 'specific' || activeTab === 'daybook') && (
+              <Card elevated style={styles.tillCard}>
+                <View style={styles.tillHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    <Ionicons name="wallet-outline" size={16} color="#10B981" />
+                    <Text style={styles.tillTitle}>
+                      Till Drawer Reconciliation ({selectedDate})
+                    </Text>
+                  </View>
+                  {dayBookLoading && (
+                    <ActivityIndicator size="small" color="#10B981" />
+                  )}
+                </View>
+
+                <View style={styles.tillGrid}>
+                  <View style={styles.tillGridCol}>
+                    <Text style={styles.tillMiniLabel}>Opening Cash</Text>
+                    <Text style={styles.tillMiniVal}>
+                      {formatINR(dayBookData?.summary.openingCash || 0)}
+                    </Text>
+                  </View>
+                  <View style={styles.tillGridCol}>
+                    <Text style={[styles.tillMiniLabel, { color: '#10B981' }]}>Cash In</Text>
+                    <Text style={[styles.tillMiniVal, { color: '#10B981' }]}>
+                      +{formatINR(dayBookData?.summary.cashIn || 0)}
+                    </Text>
+                  </View>
+                  <View style={styles.tillGridCol}>
+                    <Text style={[styles.tillMiniLabel, { color: '#EF4444' }]}>Cash Out</Text>
+                    <Text style={[styles.tillMiniVal, { color: '#EF4444' }]}>
+                      -{formatINR(dayBookData?.summary.cashOut || 0)}
+                    </Text>
+                  </View>
+                  <View style={styles.tillGridCol}>
+                    <Text style={[styles.tillMiniLabel, { color: '#F59E0B' }]}>Expenses</Text>
+                    <Text style={[styles.tillMiniVal, { color: '#F59E0B' }]}>
+                      -{formatINR(dayBookData?.summary.expenseCash || 0)}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Closing Cash Till Highlight Box */}
+                <View style={styles.closingTillBox}>
+                  <View>
+                    <Text style={styles.closingTillLabel}>Closing Cash (Till Drawer)</Text>
+                    <Text style={styles.closingTillSub}>Target physical cash in till</Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={styles.closingTillAmount}>
+                      {formatINR(dayBookData?.summary.closingCash || 0)}
+                    </Text>
+                    <Text style={styles.netFlowText}>
+                      Net: {(dayBookData?.summary.netCashFlow || 0) >= 0 ? '+' : ''}
+                      {formatINR(dayBookData?.summary.netCashFlow || 0)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.digitalSplitRow}>
+                  <Text style={styles.digitalSplitLabel}>Digital Collections:</Text>
+                  <Text style={styles.digitalSplitVal}>
+                    UPI: {formatINR(dayBookData?.summary.digital.upiIn || 0)} • Bank: {formatINR(dayBookData?.summary.digital.bankIn || 0)}
+                  </Text>
+                </View>
+              </Card>
+            )}
+
             {/* Financial KPI Summary Cards (6 Cards matching PaymentStatsGrid) */}
             <PaymentStatsRow
               stats={stats}
@@ -347,6 +636,13 @@ export default function TransactionsScreen() {
                 value={activeTab}
                 onSelect={(val) => setActiveTab(val as ActiveTabType)}
                 options={[
+                  {
+                    label: 'Till & Day Book',
+                    value: 'daybook',
+                    count: combinedDayBookEntries.length,
+                    icon: 'wallet-outline',
+                    color: '#10B981',
+                  },
                   {
                     label: 'All Transactions',
                     value: 'all',
@@ -424,7 +720,7 @@ export default function TransactionsScreen() {
                     { label: 'UPI', value: 'UPI' },
                     { label: 'Cash', value: 'CASH' },
                     { label: 'Credit', value: 'CREDIT' },
-                    { label: 'Cheque', value: 'CHEQUE' },
+                    { label: 'Bank Transfer', value: 'BANK_TRANSFER' },
                   ]}
                   selected={modeFilter}
                   onSelect={setModeFilter}
@@ -465,6 +761,12 @@ export default function TransactionsScreen() {
               <ActivityIndicator size="small" color="#FFFFFF" />
               <Text style={styles.loadingText}>Loading transactions data...</Text>
             </View>
+          ) : activeTab === 'daybook' ? (
+            <EmptyState
+              icon="wallet-outline"
+              title="No Journal Transactions"
+              description={`No cash, bank, or UPI transactions recorded on ${selectedDate}.`}
+            />
           ) : activeTab === 'dues' ? (
             <EmptyState
               icon="checkmark-circle-outline"
@@ -498,6 +800,48 @@ export default function TransactionsScreen() {
           )
         }
         renderItem={({ item }) => {
+          if (activeTab === 'daybook') {
+            const entry = item as DayBookEntry;
+            return (
+              <Card style={styles.dayBookRowCard}>
+                <View style={styles.dayBookRowHeader}>
+                  <View style={{ flex: 1, paddingRight: 8 }}>
+                    <Text style={styles.dayBookTitle}>{entry.title}</Text>
+                    <Text style={styles.dayBookSub}>{entry.subTitle}</Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text
+                      style={[
+                        styles.dayBookAmount,
+                        { color: entry.isCredit ? '#10B981' : '#EF4444' },
+                      ]}
+                    >
+                      {entry.isCredit ? '+' : '-'}
+                      {formatINR(entry.amount)}
+                    </Text>
+                    <View style={styles.dayBookBadge}>
+                      <Text style={styles.dayBookBadgeText}>{entry.mode}</Text>
+                    </View>
+                  </View>
+                </View>
+                <View style={styles.dayBookTimeRow}>
+                  <Ionicons name="time-outline" size={12} color={Colors.dark.textTertiary} />
+                  <Text style={styles.dayBookTimeText}>
+                    {new Date(entry.timeStr).toLocaleTimeString('en-IN', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </Text>
+                  <View style={{ flex: 1 }} />
+                  <View style={styles.settledPill}>
+                    <Ionicons name="checkmark-done" size={11} color="#10B981" />
+                    <Text style={styles.settledPillText}>Settled</Text>
+                  </View>
+                </View>
+              </Card>
+            );
+          }
+
           if (activeTab === 'dues') {
             return (
               <CustomerDuesCard
@@ -674,5 +1018,223 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.dark.textSecondary,
     marginTop: 8,
+  },
+  dateToolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 8,
+    gap: 6,
+  },
+  dateModePill: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  dateModePillActive: {
+    backgroundColor: '#3B82F6',
+    borderColor: '#60A5FA',
+  },
+  dateModePillText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.dark.textSecondary,
+  },
+  dateModePillTextActive: {
+    color: '#FFFFFF',
+  },
+  datePickerBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  dateArrowBtn: {
+    padding: 4,
+  },
+  selectedDateText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.dark.text,
+    marginHorizontal: 4,
+  },
+  quickDateBtn: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  quickDateBtnActive: {
+    backgroundColor: 'rgba(59, 130, 246, 0.2)',
+    borderColor: '#3B82F6',
+  },
+  quickDateText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.dark.text,
+  },
+  tillCard: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 14,
+    backgroundColor: 'rgba(16, 185, 129, 0.05)',
+    borderColor: 'rgba(16, 185, 129, 0.25)',
+    borderWidth: 1,
+    borderRadius: 12,
+  },
+  tillHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  tillTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.dark.text,
+  },
+  tillGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  tillGridCol: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  tillMiniLabel: {
+    fontSize: 10,
+    color: Colors.dark.textSecondary,
+    marginBottom: 2,
+  },
+  tillMiniVal: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.dark.text,
+  },
+  closingTillBox: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 8,
+  },
+  closingTillLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  closingTillSub: {
+    fontSize: 10,
+    color: Colors.dark.textSecondary,
+  },
+  closingTillAmount: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#10B981',
+  },
+  netFlowText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: Colors.dark.textSecondary,
+    marginTop: 1,
+  },
+  digitalSplitRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.07)',
+  },
+  digitalSplitLabel: {
+    fontSize: 11,
+    color: Colors.dark.textSecondary,
+    fontWeight: '500',
+  },
+  digitalSplitVal: {
+    fontSize: 11,
+    color: Colors.dark.text,
+    fontWeight: '600',
+  },
+  dayBookRowCard: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    padding: 12,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  dayBookRowHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 6,
+  },
+  dayBookTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.dark.text,
+  },
+  dayBookSub: {
+    fontSize: 11,
+    color: Colors.dark.textSecondary,
+    marginTop: 2,
+  },
+  dayBookAmount: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  dayBookBadge: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginTop: 4,
+    alignSelf: 'flex-end',
+  },
+  dayBookBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: Colors.dark.textSecondary,
+  },
+  dayBookTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 4,
+  },
+  dayBookTimeText: {
+    fontSize: 10,
+    color: Colors.dark.textTertiary,
+  },
+  settledPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  settledPillText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#10B981',
   },
 });

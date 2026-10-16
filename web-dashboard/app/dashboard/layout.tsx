@@ -80,7 +80,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'Quotations', href: '/dashboard/quotations', icon: FileText, roles: ['OWNER', 'ADMIN', 'ACCOUNTANT', 'SALESMAN'] },
     { name: 'Purchases', href: '/dashboard/purchases', icon: ShoppingCart, roles: ['OWNER', 'ADMIN', 'ACCOUNTANT', 'SUPERVISOR'] },
     { name: 'Expenses', href: '/dashboard/expenses', icon: Wallet, roles: ['OWNER', 'ADMIN', 'ACCOUNTANT'] },
-    { name: 'Day Book', href: '/dashboard/day-book', icon: BookOpen, roles: ['OWNER', 'ADMIN', 'ACCOUNTANT'] },
     { name: 'Deliveries', href: '/dashboard/deliveries', icon: Truck, roles: ['OWNER', 'ADMIN', 'ACCOUNTANT', 'SALESMAN', 'SUPERVISOR'] },
     { name: 'My Deliveries', href: '/dashboard/deliveries', icon: Package, roles: ['DRIVER'] },
     { name: 'Transactions', href: '/dashboard/payments', icon: ArrowLeftRight, roles: ['OWNER', 'ADMIN', 'ACCOUNTANT'] },

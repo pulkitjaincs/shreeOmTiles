@@ -349,14 +349,31 @@ export class StockService {
           data: { quantity: { increment: dto.quantity } },
         });
       } else {
-        await tx.stockLedger.create({
-          data: {
-            productId: dto.productId,
-            warehouseId: dto.toWarehouseId,
-            batchNo,
-            quantity: dto.quantity,
-          },
-        });
+        try {
+          await tx.stockLedger.create({
+            data: {
+              productId: dto.productId,
+              warehouseId: dto.toWarehouseId,
+              batchNo,
+              quantity: dto.quantity,
+            },
+          });
+        } catch {
+          // In case of concurrent creation race, lock and increment
+          const fallbackDest = await tx.stockLedger.findFirst({
+            where: {
+              productId: dto.productId,
+              warehouseId: dto.toWarehouseId,
+              batchNo: batchNo,
+            },
+          });
+          if (fallbackDest) {
+            await tx.stockLedger.update({
+              where: { id: fallbackDest.id },
+              data: { quantity: { increment: dto.quantity } },
+            });
+          }
+        }
       }
 
       // 4. Audit Log

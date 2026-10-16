@@ -8,6 +8,7 @@ import {
   PaymentType,
   Role,
   InvoiceStatus,
+  DeliveryStatus,
   Prisma,
 } from '@prisma/client';
 
@@ -81,28 +82,43 @@ export class AnalyticsService {
       upiAgg,
       creditAgg,
       driverCashDeliveries,
-      confirmedPaymentsAgg,
+      confirmedInflowsAgg,
+      confirmedOutflowsAgg,
+      refundAgg,
       productCount,
       partyCount,
     ] = await Promise.all([
-      // 1. Total Revenue
+      // 1. Total Revenue (excl cancelled/draft)
       this.prisma.invoice.aggregate({
+        where: {
+          status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
+        },
         _sum: { total: true },
       }),
       // Today Invoices
       this.prisma.invoice.count({
-        where: { createdAt: { gte: today } },
+        where: {
+          createdAt: { gte: today },
+          status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
+        },
       }),
       // Total Invoices
-      this.prisma.invoice.count(),
+      this.prisma.invoice.count({
+        where: {
+          status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
+        },
+      }),
       // 2. Pending UPI
       this.prisma.payment.aggregate({
         where: { mode: PaymentMode.UPI, status: PaymentStatus.PENDING },
         _sum: { amount: true },
       }),
-      // 3. Outstanding Credit
+      // 3. Outstanding Credit (RECEIVABLES ONLY)
       this.prisma.creditLedger.aggregate({
-        where: { status: { in: ['UNPAID', 'PARTIAL', 'OVERDUE'] } },
+        where: {
+          type: CreditType.RECEIVABLE,
+          status: { in: ['UNPAID', 'PARTIAL', 'OVERDUE'] },
+        },
         _sum: { amountDue: true },
       }),
       // 4. Cash to be collected from drivers (driver collected from customer, not yet handed over to owner)
@@ -110,6 +126,7 @@ export class AnalyticsService {
         where: {
           cashHandedOver: false,
           cashCollected: { gt: 0 },
+          status: DeliveryStatus.DELIVERED,
         },
         include: {
           driver: { select: { id: true, name: true, phone: true } },
@@ -118,28 +135,42 @@ export class AnalyticsService {
           },
         },
       }),
-      // 5. Total Actual Transactions (Confirmed Payments)
+      // 5. Total Actual Transactions (Confirmed Inflow Payments)
       this.prisma.payment.aggregate({
-        where: { status: PaymentStatus.CONFIRMED },
+        where: { status: PaymentStatus.CONFIRMED, type: PaymentType.INFLOW },
         _sum: { amount: true },
         _count: { id: true },
+      }),
+      // Confirmed Outflow Payments (Refunds / Payouts)
+      this.prisma.payment.aggregate({
+        where: { status: PaymentStatus.CONFIRMED, type: PaymentType.OUTFLOW },
+        _sum: { amount: true },
+      }),
+      // Total Refunds (Credit Notes)
+      this.prisma.refundInvoice.aggregate({
+        _sum: { total: true },
       }),
       // 6. Total Products & Total Parties
       this.prisma.product.count(),
       this.prisma.party.count(),
     ]);
 
-    const totalRevenue = Number(revenueAgg._sum.total || 0);
+    const totalRevenue = Math.max(
+      0,
+      Number(revenueAgg._sum.total || 0) - Number(refundAgg._sum.total || 0),
+    );
     const pendingUpi = Number(upiAgg._sum.amount || 0);
     const outstandingCredit = Number(creditAgg._sum.amountDue || 0);
     const cashToBeCollectedFromDrivers = driverCashDeliveries.reduce(
       (sum, d) => sum + Number(d.cashCollected || 0),
       0,
     );
-    const actualTransactionsTotal = Number(
-      confirmedPaymentsAgg._sum.amount || 0,
+    const actualTransactionsTotal = Math.max(
+      0,
+      Number(confirmedInflowsAgg._sum.amount || 0) -
+        Number(confirmedOutflowsAgg._sum.amount || 0),
     );
-    const actualTransactionsCount = confirmedPaymentsAgg._count.id;
+    const actualTransactionsCount = confirmedInflowsAgg._count.id;
 
     return {
       totalRevenue,
@@ -382,6 +413,7 @@ export class AnalyticsService {
     const trendInvoicesConditions: Prisma.Sql[] = [
       Prisma.sql`"createdAt" >= ${trendStart}`,
       Prisma.sql`"createdAt" <= ${trendEnd}`,
+      Prisma.sql`status NOT IN ('CANCELLED', 'DRAFT')`,
     ];
     if (salesmanScope?.salesmanId) {
       trendInvoicesConditions.push(
@@ -393,9 +425,11 @@ export class AnalyticsService {
     const [
       revenueAgg,
       prevRevenueAgg,
+      periodRefundAgg,
       todayInvoicesCount,
       totalInvoicesCount,
       confirmedInflowsAgg,
+      confirmedOutflowsAgg,
       receivablesAgg,
       payablesAgg,
       pendingUpiAgg,
@@ -417,6 +451,7 @@ export class AnalyticsService {
       // Current Period Invoiced Revenue & Count
       this.prisma.invoice.aggregate({
         where: {
+          status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
           ...(salesmanScope || {}),
           ...(dateFilter ? { createdAt: dateFilter } : {}),
         },
@@ -427,6 +462,7 @@ export class AnalyticsService {
       prevDateFilter
         ? this.prisma.invoice.aggregate({
             where: {
+              status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
               ...(salesmanScope || {}),
               createdAt: prevDateFilter,
             },
@@ -434,16 +470,27 @@ export class AnalyticsService {
             _count: { id: true },
           })
         : Promise.resolve({ _sum: { total: null }, _count: { id: 0 } }),
+      // Period Refunds (Credit Notes)
+      this.prisma.refundInvoice.aggregate({
+        where: {
+          ...(dateFilter ? { createdAt: dateFilter } : {}),
+        },
+        _sum: { total: true },
+      }),
       // Invoices Created Today
       this.prisma.invoice.count({
         where: {
+          status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
           ...(salesmanScope || {}),
           createdAt: { gte: todayStart },
         },
       }),
       // All-Time Invoices Count
       this.prisma.invoice.count({
-        where: salesmanScope,
+        where: {
+          status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
+          ...(salesmanScope || {}),
+        },
       }),
       // Confirmed Inflow Collections
       isSalesman
@@ -456,6 +503,17 @@ export class AnalyticsService {
             },
             _sum: { amount: true },
             _count: { id: true },
+          }),
+      // Confirmed Outflow Collections (Refunds / Payouts)
+      isSalesman
+        ? Promise.resolve({ _sum: { amount: null } })
+        : this.prisma.payment.aggregate({
+            where: {
+              status: PaymentStatus.CONFIRMED,
+              type: PaymentType.OUTFLOW,
+              ...(dateFilter ? { paidAt: dateFilter } : {}),
+            },
+            _sum: { amount: true },
           }),
       // Customer Receivables (Dues to Store) - only for Owner/Admin
       isSalesman
@@ -626,15 +684,15 @@ export class AnalyticsService {
         ${trendInvoicesWhere}
         GROUP BY TO_CHAR("createdAt", 'YYYY-MM-DD')
       `,
-      // Trend: Confirmed Inflow Payments in trend window aggregated by day
+      // Trend: Confirmed Net Payments in trend window aggregated by day
       isSalesman
         ? Promise.resolve<Array<{ day: string; amount: number }>>([])
         : this.prisma.$queryRaw<Array<{ day: string; amount: number }>>`
             SELECT 
               TO_CHAR("paidAt", 'YYYY-MM-DD') AS day,
-              ROUND(COALESCE(SUM(amount), 0))::int AS amount
+              ROUND(COALESCE(SUM(CASE WHEN type = 'INFLOW' THEN amount ELSE -amount END), 0))::int AS amount
             FROM "Payment"
-            WHERE status = 'CONFIRMED' AND type = 'INFLOW'
+            WHERE status = 'CONFIRMED'
               AND "paidAt" >= ${trendStart} AND "paidAt" <= ${trendEnd}
             GROUP BY TO_CHAR("paidAt", 'YYYY-MM-DD')
           `,
@@ -702,7 +760,11 @@ export class AnalyticsService {
       .filter((u) => u.invoiceCount > 0 || u.role === Role.SALESMAN);
 
     // Calculate deltas
-    const currentRevenue = Number(revenueAgg._sum.total || 0);
+    const currentRevenue = Math.max(
+      0,
+      Number(revenueAgg._sum.total || 0) -
+        Number(periodRefundAgg?._sum?.total || 0),
+    );
     const prevRevenue = Number(prevRevenueAgg._sum.total || 0);
     let deltaRevenue: number | null = null;
     if (prevDateFilter && prevRevenue > 0) {
@@ -803,7 +865,11 @@ export class AnalyticsService {
         deltaInvoices,
         todayInvoices: todayInvoicesCount,
         totalInvoices: totalInvoicesCount,
-        totalCollected: Number(confirmedInflowsAgg._sum?.amount || 0),
+        totalCollected: Math.max(
+          0,
+          Number(confirmedInflowsAgg._sum?.amount || 0) -
+            Number(confirmedOutflowsAgg?._sum?.amount || 0),
+        ),
         totalCollectedCount: confirmedInflowsAgg._count?.id || 0,
         cashToBeCollectedFromDrivers,
         pendingDriverDeliveriesCount: driverCashDeliveries.length,
@@ -887,7 +953,10 @@ export class AnalyticsService {
           mode: PaymentMode.CASH,
           status: PaymentStatus.CONFIRMED,
           type: PaymentType.INFLOW,
-          createdAt: { lt: startOfDay },
+          OR: [
+            { paidAt: { lt: startOfDay } },
+            { paidAt: null, createdAt: { lt: startOfDay } },
+          ],
         },
         _sum: { amount: true },
       }),
@@ -896,7 +965,10 @@ export class AnalyticsService {
           mode: PaymentMode.CASH,
           status: PaymentStatus.CONFIRMED,
           type: PaymentType.OUTFLOW,
-          createdAt: { lt: startOfDay },
+          OR: [
+            { paidAt: { lt: startOfDay } },
+            { paidAt: null, createdAt: { lt: startOfDay } },
+          ],
         },
         _sum: { amount: true },
       }),
@@ -919,7 +991,10 @@ export class AnalyticsService {
       this.prisma.payment.findMany({
         where: {
           status: PaymentStatus.CONFIRMED,
-          createdAt: { gte: startOfDay, lte: endOfDay },
+          OR: [
+            { paidAt: { gte: startOfDay, lte: endOfDay } },
+            { paidAt: null, createdAt: { gte: startOfDay, lte: endOfDay } },
+          ],
         },
         include: {
           invoice: { include: { party: true } },
@@ -952,7 +1027,9 @@ export class AnalyticsService {
     let cashIn = 0;
     let cashOut = 0;
     let upiIn = 0;
+    let upiOut = 0;
     let bankIn = 0;
+    let bankOut = 0;
     let expenseCash = 0;
 
     for (const p of todayPayments) {
@@ -965,8 +1042,10 @@ export class AnalyticsService {
         }
       } else if (p.mode === PaymentMode.UPI) {
         if (p.type === PaymentType.INFLOW) upiIn += amt;
+        else upiOut += amt;
       } else if (p.mode === PaymentMode.BANK_TRANSFER) {
         if (p.type === PaymentType.INFLOW) bankIn += amt;
+        else bankOut += amt;
       }
     }
 
@@ -992,7 +1071,7 @@ export class AnalyticsService {
         digital: {
           upiIn,
           bankIn,
-          totalDigital: upiIn + bankIn,
+          totalDigital: Math.max(0, upiIn + bankIn - (upiOut + bankOut)),
         },
       },
       transactions: {
@@ -1003,7 +1082,7 @@ export class AnalyticsService {
           amount: Number(p.amount),
           partyName: p.invoice?.party?.name || p.party?.name || 'Customer',
           refNo: p.invoice?.invoiceNo || p.upiTxnRef || 'Direct',
-          time: p.createdAt,
+          time: p.paidAt || p.createdAt,
           notes: p.notes,
         })),
         expenses: todayExpenses.map((e) => ({

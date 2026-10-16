@@ -147,6 +147,8 @@ export function PushDeliveryModal({
           placeholder="Choose driver..."
           value={selectedDriverId}
           onChange={setSelectedDriverId}
+          searchable
+          searchPlaceholder="Search driver name or phone..."
           icon="car-outline"
           options={drivers.map((dr) => ({
             value: dr.id,

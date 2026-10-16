@@ -400,7 +400,7 @@ export class PurchasesService {
     const fy = this.getFinancialYear();
 
     return this.prisma.$transaction(async (tx) => {
-      const seq = await tx.purchaseSequence.upsert({
+      const seq = await tx.debitNoteSequence.upsert({
         where: { financialYear: fy },
         update: { lastNumber: { increment: 1 } },
         create: { financialYear: fy, lastNumber: 1 },
@@ -446,6 +446,19 @@ export class PurchasesService {
               status: CreditStatus.SETTLED,
             },
           });
+          const excess = dto.amount - curDue;
+          if (excess > 0.01) {
+            await tx.creditLedger.create({
+              data: {
+                partyId: purchase.partyId,
+                purchaseId: purchase.id,
+                amountDue: new Prisma.Decimal(excess.toFixed(2)),
+                type: CreditType.RECEIVABLE,
+                status: CreditStatus.UNPAID,
+                notes: `Advance supplier credit from Debit Note #${debitNoteNo} against Purchase #${purchase.purchaseNo}`,
+              },
+            });
+          }
         }
       }
 

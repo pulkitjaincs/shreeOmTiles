@@ -407,6 +407,8 @@ export function SettlementModal({
                   setSelectedPartyId(val);
                   setSelectedInvoiceId('');
                 }}
+                searchable
+                searchPlaceholder="Search party by name or phone..."
                 options={[
                   { value: '', label: '-- Choose Party --' },
                   ...parties.map((p) => ({

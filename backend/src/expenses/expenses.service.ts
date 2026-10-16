@@ -19,26 +19,32 @@ export class ExpensesService {
   }
 
   async create(data: CreateExpenseDto, userId: string) {
-    const fy = this.getFinancialYear();
-    const count = await this.prisma.expense.count();
-    const expenseNo = `EXP-${fy}-${String(count + 1).padStart(4, '0')}`;
-
     const expDate = data.expenseDate ? new Date(data.expenseDate) : new Date();
+    const fy = this.getFinancialYear(expDate);
 
-    return this.prisma.expense.create({
-      data: {
-        expenseNo,
-        category: data.category,
-        amount: new Prisma.Decimal(data.amount.toFixed(2)),
-        paymentMode: data.paymentMode || 'CASH',
-        paidTo: data.paidTo || null,
-        notes: data.notes || null,
-        expenseDate: expDate,
-        createdById: userId,
-      },
-      include: {
-        createdBy: { select: { id: true, name: true, phone: true } },
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const seq = await tx.expenseSequence.upsert({
+        where: { financialYear: fy },
+        update: { lastNumber: { increment: 1 } },
+        create: { financialYear: fy, lastNumber: 1 },
+      });
+      const expenseNo = `EXP-${fy}-${String(seq.lastNumber).padStart(4, '0')}`;
+
+      return tx.expense.create({
+        data: {
+          expenseNo,
+          category: data.category,
+          amount: new Prisma.Decimal(data.amount.toFixed(2)),
+          paymentMode: data.paymentMode || 'CASH',
+          paidTo: data.paidTo || null,
+          notes: data.notes || null,
+          expenseDate: expDate,
+          createdById: userId,
+        },
+        include: {
+          createdBy: { select: { id: true, name: true, phone: true } },
+        },
+      });
     });
   }
 

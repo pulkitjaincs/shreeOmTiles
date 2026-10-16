@@ -52,7 +52,7 @@ export function QuotationsView() {
   const handleConvert = (quote: any) => {
     Alert.alert(
       'Convert to Invoice',
-      `Generate official Tax Invoice from Price Estimate #${quote.estimateNo}? This will reserve warehouse inventory.`,
+      `Generate official Tax Invoice from Price Estimate #${quote.quotationNo || quote.estimateNo}? This will reserve warehouse inventory.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -60,7 +60,7 @@ export function QuotationsView() {
           onPress: async () => {
             setConvertingId(quote.id);
             try {
-              const res = await mobileApiRequest<any>(`/quotations/${quote.id}/convert`, {
+              const res = await mobileApiRequest<any>(`/quotations/${quote.id}/convert-to-invoice`, {
                 method: 'POST',
               });
               Alert.alert(
@@ -81,7 +81,7 @@ export function QuotationsView() {
 
   const handleDownloadPdf = async (quote: any) => {
     try {
-      await downloadAndSharePdf(`quotations/${quote.id}/pdf`, `Estimate_${quote.estimateNo}`);
+      await downloadAndSharePdf(`quotations/${quote.id}/pdf`, `Estimate_${quote.quotationNo || quote.estimateNo}`);
     } catch (err: any) {
       Alert.alert('Download Failed', err.message || 'Could not download estimate PDF');
     }
@@ -105,7 +105,7 @@ export function QuotationsView() {
             <Card key={item.id} style={styles.quoteCard}>
               <View style={styles.quoteTop}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.estimateNo}>#{item.estimateNo}</Text>
+                  <Text style={styles.estimateNo}>#{item.quotationNo || item.estimateNo}</Text>
                   <Text style={styles.customerName}>
                     {item.party?.name || 'Walk-in Customer'}
                   </Text>

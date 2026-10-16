@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { apiRequest } from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import { ThemedSelect } from '@/components/ui/themed-select';
 import { PackagePlus, X, CheckCircle2 } from 'lucide-react';
 import { Warehouse, Product, StockItem } from './types';
 
@@ -131,18 +132,18 @@ export function InwardStockModal({
             <label className="block text-xs font-semibold text-foreground mb-1.5">
               Destination Warehouse / Showroom *
             </label>
-            <select
-              required
+            <ThemedSelect
               value={inwardWarehouseId}
-              onChange={(e) => setInwardWarehouseId(e.target.value)}
-              className="w-full rounded-xl border border-border/80 bg-muted/50 px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
-            >
-              {warehouses.map((w) => (
-                <option key={w.id} value={w.id} className="bg-card text-foreground">
-                  {w.name} ({w.type}) — {w.address}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setInwardWarehouseId(val)}
+              searchable
+              searchPlaceholder="Search warehouse..."
+              options={warehouses.map((w) => ({
+                value: w.id,
+                label: w.name,
+                subLabel: w.address,
+                badge: w.type,
+              }))}
+            />
           </div>
 
           {/* Product / Design Selection */}
@@ -150,23 +151,23 @@ export function InwardStockModal({
             <label className="block text-xs font-semibold text-foreground mb-1.5">
               Select Product / Tile Design *
             </label>
-            <select
-              required
+            <ThemedSelect
               value={inwardProductId}
-              onChange={(e) => setInwardProductId(e.target.value)}
-              className="w-full rounded-xl border border-border/80 bg-muted/50 px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
-            >
-              {products.map((p) => {
+              onChange={(val) => setInwardProductId(val)}
+              searchable
+              searchPlaceholder="Search product or tile design..."
+              options={products.map((p) => {
                 const sizeStr = (p.attributes as Record<string, string>)?.size;
                 const finishStr = (p.attributes as Record<string, string>)?.finish;
                 const spec = [sizeStr, finishStr].filter(Boolean).join(' • ');
-                return (
-                  <option key={p.id} value={p.id} className="bg-card text-foreground">
-                    {p.name} [{p.category}] {spec ? `(${spec})` : ''} - Unit: {p.unit}
-                  </option>
-                );
+                return {
+                  value: p.id,
+                  label: p.name,
+                  subLabel: spec ? `${spec} • Unit: ${p.unit}` : `Unit: ${p.unit}`,
+                  badge: p.category,
+                };
               })}
-            </select>
+            />
             <div className="flex justify-between items-center mt-1 text-[11px] text-muted-foreground">
               <span>Need a new design not listed here?</span>
               <Link

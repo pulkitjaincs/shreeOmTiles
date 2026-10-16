@@ -30,19 +30,19 @@ import {
 } from './pdf/delivery-challan-pdf.generator';
 
 interface DeliveryItemPayload {
-  invoiceItemId?: string;
-  productId?: string;
-  productName?: string;
-  unit?: string;
-  warehouseId?: string;
-  warehouseName?: string;
-  warehouseAddress?: string;
-  batchNo?: string;
-  qty?: number;
-  pickedUp?: boolean;
-  pickedUpAt?: string;
-  pickedUpByName?: string;
-  pickedUpById?: string;
+  invoiceItemId?: string | null;
+  productId?: string | null;
+  productName?: string | null;
+  unit?: string | null;
+  warehouseId?: string | null;
+  warehouseName?: string | null;
+  warehouseAddress?: string | null;
+  batchNo?: string | null;
+  qty?: number | null;
+  pickedUp?: boolean | null;
+  pickedUpAt?: string | null;
+  pickedUpByName?: string | null;
+  pickedUpById?: string | null;
 }
 
 export type DeliveryDetailResult = Prisma.DeliveryGetPayload<{
@@ -417,13 +417,29 @@ export class DeliveryService {
     }
 
     // When customer picks up, mark all items as pickedUp: true and disassociate any driver
-    let updatedItems: DeliveryItemPayload[] = delivery.items || [];
-    if (isMarkingCustomerPickup && Array.isArray(delivery.items)) {
-      updatedItems = delivery.items.map((it) => ({
-        ...it,
-        pickedUp: true,
-        pickedUpAt: it.pickedUpAt || new Date().toISOString(),
-      }));
+    let updatedItems: DeliveryItemPayload[] =
+      Array.isArray(delivery.items) && delivery.items.length > 0
+        ? delivery.items
+        : [];
+    if (isMarkingCustomerPickup) {
+      if (updatedItems.length === 0 && delivery.invoice?.items) {
+        updatedItems = delivery.invoice.items.map((it: any) => ({
+          productId: it.productId,
+          productName: it.product?.name || 'Product',
+          qty: it.qty,
+          batchNo: it.batchNo,
+          warehouseId: it.warehouseId,
+          warehouseName: it.warehouse?.name,
+          pickedUp: true,
+          pickedUpAt: new Date().toISOString(),
+        }));
+      } else {
+        updatedItems = updatedItems.map((it) => ({
+          ...it,
+          pickedUp: true,
+          pickedUpAt: it.pickedUpAt || new Date().toISOString(),
+        }));
+      }
     }
 
     const updated = await this.prisma.delivery.update({
@@ -683,16 +699,21 @@ export class DeliveryService {
           await tx.delivery.update({
             where: { id: existingPending.id },
             data: {
-              items: remainingItems,
+              items: remainingItems as unknown as Prisma.InputJsonValue,
             },
           });
         } else {
+          const remainingAmount = Math.max(
+            0,
+            Number(delivery.amountToCollect || 0) - (dto.amountToCollect || 0),
+          );
           await tx.delivery.create({
             data: {
               invoiceId: delivery.invoiceId,
               status: DeliveryStatus.PENDING,
               driverId: null,
-              items: remainingItems,
+              amountToCollect: new Prisma.Decimal(remainingAmount.toFixed(2)),
+              items: remainingItems as unknown as Prisma.InputJsonValue,
               notes: `Remaining balance items from Invoice #${delivery.invoice.invoiceNo}`,
             },
           });
@@ -839,6 +860,12 @@ export class DeliveryService {
   async handoverCash(id: string, actorId?: string, overrideAmount?: number) {
     const delivery = await this.findOne(id);
 
+    if (delivery.cashHandedOver) {
+      throw new BadRequestException(
+        'Cash for this delivery has already been handed over and confirmed.',
+      );
+    }
+
     // Determine actual cash received at office
     const effectiveCash =
       overrideAmount !== undefined
@@ -905,7 +932,10 @@ export class DeliveryService {
         });
 
         const totalPaid = allConfirmedPayments.reduce(
-          (sum, p) => sum + Number(p.amount),
+          (sum, p) =>
+            p.type === PaymentType.OUTFLOW
+              ? sum - Number(p.amount)
+              : sum + Number(p.amount),
           0,
         );
         const invoiceTotal = Number(invoice.total);

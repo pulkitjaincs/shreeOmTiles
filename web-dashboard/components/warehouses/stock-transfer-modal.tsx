@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { apiRequest } from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import { ThemedSelect } from '@/components/ui/themed-select';
 import { ArrowLeftRight, X } from 'lucide-react';
 import { Warehouse, StockItem } from './types';
 
@@ -140,45 +141,44 @@ export function StockTransferModal({
               <label className="block text-xs font-semibold text-foreground mb-1.5">
                 Source Warehouse (From) *
               </label>
-              <select
-                required
+              <ThemedSelect
                 value={fromWarehouseId}
-                onChange={(e) => {
-                  const newFrom = e.target.value;
+                onChange={(newFrom) => {
                   setFromWarehouseId(newFrom);
                   const firstAvail = stocks.filter(
                     (s) => s.warehouseId === newFrom && s.quantity > 0,
                   )[0];
                   setTransferStockId(firstAvail?.id || '');
                 }}
-                className="w-full rounded-xl border border-border/80 bg-muted/50 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
-              >
-                {warehouses.map((w) => (
-                  <option key={w.id} value={w.id} className="bg-card text-foreground">
-                    {w.name}
-                  </option>
-                ))}
-              </select>
+                searchable
+                searchPlaceholder="Search source godown..."
+                options={warehouses.map((w) => ({
+                  value: w.id,
+                  label: w.name,
+                  subLabel: w.address,
+                  badge: w.type,
+                }))}
+              />
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-foreground mb-1.5">
                 Destination Warehouse (To) *
               </label>
-              <select
-                required
+              <ThemedSelect
                 value={toWarehouseId}
-                onChange={(e) => setToWarehouseId(e.target.value)}
-                className="w-full rounded-xl border border-border/80 bg-muted/50 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
-              >
-                {warehouses
+                onChange={(val) => setToWarehouseId(val)}
+                searchable
+                searchPlaceholder="Search destination godown..."
+                options={warehouses
                   .filter((w) => w.id !== fromWarehouseId)
-                  .map((w) => (
-                    <option key={w.id} value={w.id} className="bg-card text-foreground">
-                      {w.name}
-                    </option>
-                  ))}
-              </select>
+                  .map((w) => ({
+                    value: w.id,
+                    label: w.name,
+                    subLabel: w.address,
+                    badge: w.type,
+                  }))}
+              />
             </div>
           </div>
 
@@ -193,19 +193,18 @@ export function StockTransferModal({
                 source or inward stock first.
               </div>
             ) : (
-              <select
-                required
+              <ThemedSelect
                 value={transferStockId}
-                onChange={(e) => setTransferStockId(e.target.value)}
-                className="w-full rounded-xl border border-border/80 bg-muted/50 px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
-              >
-                {availableSourceStocks.map((s) => (
-                  <option key={s.id} value={s.id} className="bg-card text-foreground">
-                    {s.product?.name} (Batch: {s.batchNo || 'Default'}) — Available:{' '}
-                    {s.quantity} {s.product?.unit}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => setTransferStockId(val)}
+                searchable
+                searchPlaceholder="Search product or batch..."
+                options={availableSourceStocks.map((s) => ({
+                  value: s.id,
+                  label: s.product?.name || 'Product',
+                  subLabel: `Batch: ${s.batchNo || 'Default'} • Available: ${s.quantity} ${s.product?.unit || 'units'}`,
+                  badge: s.product?.category,
+                }))}
+              />
             )}
           </div>
 

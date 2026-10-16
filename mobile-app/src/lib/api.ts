@@ -161,6 +161,19 @@ export async function mobileApiRequest<T = any>(
       await invalidateMobileApiCache('/payments');
       await invalidateMobileApiCache('/parties');
       await invalidateMobileApiCache('/analytics');
+    } else if (endpoint.includes('/purchases')) {
+      await invalidateMobileApiCache('/purchases');
+      await invalidateMobileApiCache('/stock');
+      await invalidateMobileApiCache('/analytics');
+      await invalidateMobileApiCache('/payments');
+    } else if (endpoint.includes('/expenses')) {
+      await invalidateMobileApiCache('/expenses');
+      await invalidateMobileApiCache('/analytics');
+      await invalidateMobileApiCache('/payments');
+    } else if (endpoint.includes('/quotations')) {
+      await invalidateMobileApiCache('/quotations');
+      await invalidateMobileApiCache('/invoices');
+      await invalidateMobileApiCache('/analytics');
     } else if (endpoint.includes('/users')) {
       await invalidateMobileApiCache('/users');
       await invalidateMobileApiCache('/analytics');

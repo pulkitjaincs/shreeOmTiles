@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { apiRequest } from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import { ThemedSelect } from '@/components/ui/themed-select';
 import { CreditCard, X } from 'lucide-react';
 import { Party } from './types';
 
@@ -131,19 +132,19 @@ export function CreditLedgerModal({
             <label className="block text-xs font-medium text-foreground mb-1">
               Select Party *
             </label>
-            <select
-              required
-              className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            <ThemedSelect
               value={creditPartyId}
-              onChange={(e) => setCreditPartyId(e.target.value)}
-            >
-              <option value="">-- Choose Party --</option>
-              {parties.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} ({p.phone})
-                </option>
-              ))}
-            </select>
+              onChange={(val) => setCreditPartyId(val)}
+              searchable
+              searchPlaceholder="Search party by name or phone..."
+              placeholder="-- Choose Party --"
+              options={parties.map((p) => ({
+                value: p.id,
+                label: p.name,
+                subLabel: p.phone,
+                badge: p.type,
+              }))}
+            />
           </div>
 
           {/* Amount */}

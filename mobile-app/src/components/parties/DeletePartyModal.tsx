@@ -25,14 +25,14 @@ export function DeletePartyModal({
 
   if (!party) return null;
 
-  const totalDue = (party.creditLedgers || [])
-    .filter((cl) => cl.status !== 'SETTLED')
-    .reduce((sum, cl) => {
-      const amt = Number(cl.amountDue || 0);
-      return cl.type === 'RECEIVABLE' ? sum + amt : sum - amt;
-    }, 0);
+  const receivableDue = (party.creditLedgers || [])
+    .filter((cl) => cl.status !== 'SETTLED' && cl.type === 'RECEIVABLE')
+    .reduce((sum, cl) => sum + Number(cl.amountDue || 0), 0);
+  const payableDue = (party.creditLedgers || [])
+    .filter((cl) => cl.status !== 'SETTLED' && cl.type === 'PAYABLE')
+    .reduce((sum, cl) => sum + Number(cl.amountDue || 0), 0);
 
-  const hasPendingDues = totalDue > 0.01;
+  const hasPendingDues = receivableDue > 0.01 || payableDue > 0.01;
 
   const handleConfirmDelete = async () => {
     setSubmitting(true);
@@ -62,7 +62,10 @@ export function DeletePartyModal({
             <Ionicons name="shield-outline" size={20} color="#EF4444" />
             <View style={{ flex: 1 }}>
               <Text style={styles.prohibitedTitle}>
-                Pending Dues: {formatINR(totalDue)}
+                Pending Balance:{' '}
+                {receivableDue > 0.01 && `${formatINR(receivableDue)} (Receivable)`}
+                {receivableDue > 0.01 && payableDue > 0.01 && ' • '}
+                {payableDue > 0.01 && `${formatINR(payableDue)} (Store Credit / Payable)`}
               </Text>
               <Text style={styles.prohibitedDesc}>
                 Customer accounts cannot be deleted or removed while dues are pending. Under store safety policy, neither can the customer owe money to the shop, nor can the shop owe money to the customer.

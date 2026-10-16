@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import dynamic from 'next/dynamic';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { cachedApiRequest } from '@/lib/api';
 import { useAuth } from '@/components/auth-provider';
 import { Button } from '@/components/ui/button';
@@ -16,20 +15,9 @@ import {
   ShoppingBag,
 } from 'lucide-react';
 import { Party } from '@/components/parties/types';
-
-// Lazy-loaded modal components
-const PartyFormModal = dynamic(
-  () => import('@/components/parties/party-form-modal').then((m) => m.PartyFormModal),
-  { ssr: false }
-);
-const DeletePartyModal = dynamic(
-  () => import('@/components/parties/delete-party-modal').then((m) => m.DeletePartyModal),
-  { ssr: false }
-);
-const PartyStatementDrawer = dynamic(
-  () => import('@/components/parties/party-statement-drawer').then((m) => m.PartyStatementDrawer),
-  { ssr: false }
-);
+import { PartyFormModal } from '@/components/parties/party-form-modal';
+import { DeletePartyModal } from '@/components/parties/delete-party-modal';
+import { PartyStatementDrawer } from '@/components/parties/party-statement-drawer';
 
 export default function PartiesPage() {
   const { user } = useAuth();
@@ -79,35 +67,44 @@ export default function PartiesPage() {
   };
 
   // Search Filter
-  const filtered = parties.filter(
-    (p) =>
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.phone.includes(search) ||
-      (p.gstin && p.gstin.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return parties;
+    return parties.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.phone.includes(q) ||
+        (p.gstin && p.gstin.toLowerCase().includes(q))
+    );
+  }, [parties, search]);
 
   // Ageing Buckets Calculation (Only un-settled RECEIVABLES)
-  const [now] = useState(() => Date.now());
-  let totalReceivables = 0;
-  let b0to15 = 0;
-  let b15to30 = 0;
-  let b30to60 = 0;
-  let b60plus = 0;
+  const ageing = useMemo(() => {
+    let totalReceivables = 0;
+    let b0to15 = 0;
+    let b15to30 = 0;
+    let b30to60 = 0;
+    let b60plus = 0;
+    const nowTime = Date.now();
 
-  for (const p of parties) {
-    for (const cl of p.creditLedgers || []) {
-      if (cl.status !== 'SETTLED' && cl.type === 'RECEIVABLE') {
-        const amt = Number(cl.amountDue || 0);
-        totalReceivables += amt;
-        const dueTime = cl.dueDate ? new Date(cl.dueDate).getTime() : now;
-        const daysOverdue = Math.max(0, Math.floor((now - dueTime) / (1000 * 60 * 60 * 24)));
-        if (daysOverdue <= 15) b0to15 += amt;
-        else if (daysOverdue <= 30) b15to30 += amt;
-        else if (daysOverdue <= 60) b30to60 += amt;
-        else b60plus += amt;
+    for (const p of parties) {
+      for (const cl of p.creditLedgers || []) {
+        if (cl.status !== 'SETTLED' && cl.type === 'RECEIVABLE') {
+          const amt = Number(cl.amountDue || 0);
+          totalReceivables += amt;
+          const dueTime = cl.dueDate ? new Date(cl.dueDate).getTime() : nowTime;
+          const daysOverdue = Math.max(0, Math.floor((nowTime - dueTime) / (1000 * 60 * 60 * 24)));
+          if (daysOverdue <= 15) b0to15 += amt;
+          else if (daysOverdue <= 30) b15to30 += amt;
+          else if (daysOverdue <= 60) b30to60 += amt;
+          else b60plus += amt;
+        }
       }
     }
-  }
+    return { totalReceivables, b0to15, b15to30, b30to60, b60plus };
+  }, [parties]);
+
+  const { totalReceivables, b0to15, b15to30, b30to60, b60plus } = ageing;
 
   return (
     <div className="space-y-6">

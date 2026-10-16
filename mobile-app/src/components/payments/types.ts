@@ -20,7 +20,7 @@ export interface Party {
   type?: string;
 }
 
-export type ActiveTabType = 'dues' | 'payables' | 'all' | 'inflows' | 'credits';
+export type ActiveTabType = 'daybook' | 'dues' | 'payables' | 'all' | 'inflows' | 'credits';
 
 export interface PaymentRecord {
   id: string;

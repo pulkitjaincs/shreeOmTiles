@@ -18,19 +18,8 @@ import {
 } from 'lucide-react';
 import { Product, Warehouse } from '@/components/products/types';
 
-// Lazy-loaded modal components
-const ProductFormModal = dynamic(
-  () => import('@/components/products/product-form-modal').then((m) => m.ProductFormModal),
-  { ssr: false }
-);
-const DeleteProductModal = dynamic(
-  () => import('@/components/products/product-danger-modals').then((m) => m.DeleteProductModal),
-  { ssr: false }
-);
-const ZeroOutStockModal = dynamic(
-  () => import('@/components/products/product-danger-modals').then((m) => m.ZeroOutStockModal),
-  { ssr: false }
-);
+import { ProductFormModal } from '@/components/products/product-form-modal';
+import { DeleteProductModal, ZeroOutStockModal } from '@/components/products/product-danger-modals';
 
 export default function ProductsPage() {
   const { user } = useAuth();

@@ -22,13 +22,13 @@ export function DeletePartyModal({
 
   if (!party) return null;
 
-  const totalDue = (party.creditLedgers || [])
-    .filter((cl) => cl.status !== 'SETTLED')
-    .reduce((sum, cl) => {
-      const amt = Number(cl.amountDue || 0);
-      return cl.type === 'RECEIVABLE' ? sum + amt : sum - amt;
-    }, 0);
-  const hasPendingDues = totalDue > 0.01;
+  const receivableDue = (party.creditLedgers || [])
+    .filter((cl) => cl.status !== 'SETTLED' && cl.type === 'RECEIVABLE')
+    .reduce((sum, cl) => sum + Number(cl.amountDue || 0), 0);
+  const payableDue = (party.creditLedgers || [])
+    .filter((cl) => cl.status !== 'SETTLED' && cl.type === 'PAYABLE')
+    .reduce((sum, cl) => sum + Number(cl.amountDue || 0), 0);
+  const hasPendingDues = receivableDue > 0.01 || payableDue > 0.01;
 
   const handleDeleteParty = async () => {
     setDeleteSubmitting(true);
@@ -45,8 +45,8 @@ export function DeletePartyModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-      <div className="w-full max-w-md rounded-2xl border border-border/80 bg-card/95 backdrop-blur-xl p-6 shadow-2xl space-y-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 animate-in fade-in">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4">
         <div className="flex items-center justify-between border-b border-border/60 pb-3">
           <div className="flex items-center gap-2">
             {hasPendingDues ? (
@@ -73,7 +73,10 @@ export function DeletePartyModal({
             <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-300 text-xs space-y-1.5">
               <div className="font-semibold text-rose-700 dark:text-rose-200 flex items-center gap-1.5 text-sm">
                 <AlertTriangle className="h-4 w-4" />
-                Pending Dues: ₹{totalDue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                Pending Balance:{' '}
+                {receivableDue > 0.01 && `₹${receivableDue.toLocaleString('en-IN')} (Customer Dues / Receivable)`}
+                {receivableDue > 0.01 && payableDue > 0.01 && ' • '}
+                {payableDue > 0.01 && `₹${payableDue.toLocaleString('en-IN')} (Store Credit / Payable)`}
               </div>
               <p className="text-muted-foreground leading-relaxed">
                 Customer accounts cannot be deleted or removed while dues are pending.

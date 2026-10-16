@@ -164,6 +164,7 @@ export class DeliveryController {
   }
 
   @Patch(':id/handover-cash')
+  @Roles(Role.OWNER, Role.ADMIN, Role.ACCOUNTANT)
   handoverCash(
     @Param('id') id: string,
     @Body() dto: HandoverCashDto,

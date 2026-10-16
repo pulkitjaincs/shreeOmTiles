@@ -501,3 +501,30 @@ ALTER TABLE "RefundInvoiceItem" ADD CONSTRAINT "RefundInvoiceItem_productId_fkey
 
 -- AddForeignKey
 ALTER TABLE "RefundInvoiceItem" ADD CONSTRAINT "RefundInvoiceItem_warehouseId_fkey" FOREIGN KEY ("warehouseId") REFERENCES "Warehouse"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- CreateTable
+CREATE TABLE "ExpenseSequence" (
+    "id" TEXT NOT NULL,
+    "financialYear" TEXT NOT NULL,
+    "lastNumber" INTEGER NOT NULL DEFAULT 0,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "ExpenseSequence_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "DebitNoteSequence" (
+    "id" TEXT NOT NULL,
+    "financialYear" TEXT NOT NULL,
+    "lastNumber" INTEGER NOT NULL DEFAULT 0,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "DebitNoteSequence_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ExpenseSequence_financialYear_key" ON "ExpenseSequence"("financialYear");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "DebitNoteSequence_financialYear_key" ON "DebitNoteSequence"("financialYear");
+

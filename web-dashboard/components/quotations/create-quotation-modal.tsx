@@ -211,10 +211,13 @@ export function CreateQuotationModal({
                 <ThemedSelect
                   value={partyId}
                   onChange={(val) => setPartyId(val)}
+                  searchable
+                  searchPlaceholder="Search customer name, phone..."
                   options={parties.map((p) => ({
                     value: p.id,
                     label: p.name,
                     subLabel: p.phone,
+                    badge: p.category,
                   }))}
                 />
               </div>
@@ -288,10 +291,13 @@ export function CreateQuotationModal({
                       <ThemedSelect
                         value={it.productId}
                         onChange={(v) => handleItemChange(idx, 'productId', v)}
+                        searchable
+                        searchPlaceholder="Search product or tile..."
                         options={products.map((p) => ({
                           value: p.id,
                           label: p.name,
-                          subLabel: p.unit,
+                          subLabel: p.unit ? `Unit: ${p.unit}` : undefined,
+                          badge: p.category,
                         }))}
                       />
                     </div>
@@ -396,16 +402,17 @@ export function CreateQuotationModal({
               <label className="block text-xs font-medium text-foreground mb-1">
                 Transport GST (%)
               </label>
-              <ThemedSelect
-                value={String(transportGstRate)}
-                onChange={(v) => setTransportGstRate(Number(v))}
-                options={[
-                  { value: '0', label: '0% (Exempt)' },
-                  { value: '5', label: '5% (GTA)' },
-                  { value: '12', label: '12%' },
-                  { value: '18', label: '18%' },
-                  { value: '28', label: '28%' },
-                ]}
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                placeholder="0"
+                value={transportGstRate === 0 ? '' : transportGstRate}
+                onChange={(e) =>
+                  setTransportGstRate(e.target.value === '' ? 0 : Number(e.target.value))
+                }
+                className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary"
               />
             </div>
 

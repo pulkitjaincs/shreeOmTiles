@@ -114,9 +114,10 @@ export class InvoicesService {
       }
 
       // GST Breakup based on validated party state
+      const trimmedGstin = party.gstin ? party.gstin.trim() : '';
       const isInterState =
-        party.gstin && party.gstin.length >= 2
-          ? party.gstin.slice(0, 2) !== companyState
+        trimmedGstin.length >= 2
+          ? trimmedGstin.slice(0, 2) !== companyState
           : false;
 
       const taxBreakup = {
@@ -1078,12 +1079,24 @@ export class InvoicesService {
         },
       });
 
-      // 7. Update original invoice notes for audit tracking
+      // 7. Update original invoice notes & status for audit tracking
       const returnNote = `[REFUND INVOICE ${refundNo} (${new Date().toISOString().slice(0, 10)}): Refunded Rs. ${totalRefund.toFixed(2)} (${data.refundMode}). Reason: ${data.reason || 'Customer return'}]`;
+      const prevRefundTotal = (invoice.refundInvoices || []).reduce(
+        (s, r) => s + Number(r.total || 0),
+        0,
+      );
+      const totalRefundedSoFar = prevRefundTotal + totalRefund;
+      const invoiceTotal = Number(invoice.total);
+      const newStatus =
+        totalRefundedSoFar >= invoiceTotal - 0.01
+          ? InvoiceStatus.CANCELLED
+          : InvoiceStatus.PARTIAL;
+
       await tx.invoice.update({
         where: { id: invoice.id },
         data: {
           notes: invoice.notes ? `${invoice.notes}\n${returnNote}` : returnNote,
+          status: newStatus,
         },
       });
 
@@ -1128,13 +1141,15 @@ export class InvoicesService {
     const prevCreditLedgers = await this.prisma.creditLedger.findMany({
       where: {
         partyId: invoice.partyId,
-        type: CreditType.RECEIVABLE,
         status: { not: CreditStatus.SETTLED },
         createdAt: { lt: invoice.createdAt },
       },
     });
     const previousBalance = prevCreditLedgers.reduce(
-      (sum, item) => sum + Number(item.amountDue || 0),
+      (sum, item) =>
+        item.type === CreditType.RECEIVABLE
+          ? sum + Number(item.amountDue || 0)
+          : sum - Number(item.amountDue || 0),
       0,
     );
 

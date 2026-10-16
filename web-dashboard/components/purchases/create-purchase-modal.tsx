@@ -241,10 +241,13 @@ export function CreatePurchaseModal({
                   <ThemedSelect
                     value={partyId}
                     onChange={(val) => setPartyId(val)}
+                    searchable
+                    searchPlaceholder="Search supplier name, phone..."
                     options={parties.map((p) => ({
                       value: p.id,
                       label: p.name,
                       subLabel: p.phone,
+                      badge: p.gstin ? 'GST' : undefined,
                     }))}
                   />
                 </div>
@@ -340,10 +343,13 @@ export function CreatePurchaseModal({
                       <ThemedSelect
                         value={it.productId}
                         onChange={(v) => handleItemChange(idx, 'productId', v)}
+                        searchable
+                        searchPlaceholder="Search product or tile..."
                         options={products.map((p) => ({
                           value: p.id,
                           label: p.name,
-                          subLabel: p.unit,
+                          subLabel: p.unit ? `Unit: ${p.unit}` : undefined,
+                          badge: p.category,
                         }))}
                       />
                     </div>
@@ -355,10 +361,13 @@ export function CreatePurchaseModal({
                       <ThemedSelect
                         value={it.warehouseId}
                         onChange={(v) => handleItemChange(idx, 'warehouseId', v)}
+                        searchable
+                        searchPlaceholder="Search warehouse..."
                         options={warehouses.map((w) => ({
                           value: w.id,
                           label: w.name,
                           subLabel: w.code,
+                          badge: w.type,
                         }))}
                       />
                     </div>
@@ -459,15 +468,20 @@ export function CreatePurchaseModal({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-foreground mb-1">
-                Tax Rate (%)
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-semibold text-foreground">
+                  Purchase GST / Tax (%)
+                </label>
+                <span className="text-[0.625rem] text-primary font-mono font-bold">
+                  {numTaxRate}%
+                </span>
+              </div>
               <input
                 type="number"
                 min="0"
                 max="100"
                 step="0.01"
-                placeholder="0"
+                placeholder="0 (e.g. 18, 12, 5)"
                 value={taxRate}
                 onChange={(e) => setTaxRate(e.target.value === '' ? '' : Number(e.target.value))}
                 className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-xs text-foreground font-mono focus:outline-none focus:ring-1 focus:ring-primary"
@@ -511,7 +525,7 @@ export function CreatePurchaseModal({
             </div>
             {numTaxRate > 0 && (
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Tax ({numTaxRate}%):</span>
+                <span>Purchase GST ({numTaxRate}%):</span>
                 <span>₹{taxAmount.toFixed(2)}</span>
               </div>
             )}

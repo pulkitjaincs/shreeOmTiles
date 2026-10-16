@@ -87,11 +87,13 @@ export class PaymentsController {
   }
 
   @Patch(':id/confirm')
+  @Roles(Role.OWNER, Role.ADMIN, Role.ACCOUNTANT)
   confirmPatch(@Param('id') id: string, @Request() req: RequestWithUser) {
     return this.paymentsService.confirmPayment(id, req.user.id);
   }
 
   @Post(':id/confirm')
+  @Roles(Role.OWNER, Role.ADMIN, Role.ACCOUNTANT)
   confirmPost(@Param('id') id: string, @Request() req: RequestWithUser) {
     return this.paymentsService.confirmPayment(id, req.user.id);
   }

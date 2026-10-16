@@ -122,6 +122,9 @@ export class PartiesService {
             },
           },
         },
+        payments: {
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
     if (!party) throw new NotFoundException(`Party ${id} not found`);
@@ -134,14 +137,16 @@ export class PartiesService {
   }
 
   async remove(id: string) {
-    // 1. Fetch party with credit ledgers and invoices to check dues
+    // 1. Fetch party with credit ledgers, purchases, and invoices to check dues
     const party = await this.prisma.party.findUnique({
       where: { id },
       include: {
         creditLedgers: true,
+        purchases: true,
         invoices: {
           include: {
             payments: true,
+            refundInvoices: true,
           },
         },
       },
@@ -163,17 +168,25 @@ export class PartiesService {
     // Unpaid invoices that don't already have a credit ledger
     let unpaidInvoiceDue = 0;
     for (const inv of party.invoices || []) {
-      if (inv.status !== 'PAID' && inv.status !== 'CANCELLED') {
+      if (inv.status !== 'PAID' && inv.status !== 'CANCELLED' && inv.status !== 'DRAFT') {
         const hasCreditLedger = (party.creditLedgers || []).some(
           (cl) => cl.invoiceId === inv.id && cl.status !== 'SETTLED',
         );
         if (!hasCreditLedger) {
           const total = Number(inv.total || 0);
-          const confirmedPaid = (inv.payments || [])
-            .filter((p) => p.status === 'CONFIRMED')
+          const totalRefunded = (inv.refundInvoices || []).reduce(
+            (s, r) => s + Number(r.total || 0),
+            0,
+          );
+          const confirmedInflows = (inv.payments || [])
+            .filter((p) => p.status === 'CONFIRMED' && p.type === 'INFLOW')
             .reduce((sum, p) => sum + Number(p.amount || 0), 0);
-          const diff = total - confirmedPaid;
-          if (diff > 0) {
+          const confirmedOutflows = (inv.payments || [])
+            .filter((p) => p.status === 'CONFIRMED' && p.type === 'OUTFLOW')
+            .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+          const netPaid = Math.max(0, confirmedInflows - confirmedOutflows);
+          const diff = Math.max(0, total - totalRefunded - netPaid);
+          if (diff > 0.01) {
             unpaidInvoiceDue += diff;
           }
         }
@@ -193,8 +206,11 @@ export class PartiesService {
     }
 
     // 3. Zero dues confirmed.
-    // If historical invoices exist, soft-delete (isSaved: false) to protect past tax records and foreign keys.
-    if (party.invoices && party.invoices.length > 0) {
+    // If historical invoices or purchases exist, soft-delete (isSaved: false) to protect past tax records and foreign keys.
+    if (
+      (party.invoices && party.invoices.length > 0) ||
+      (party.purchases && party.purchases.length > 0)
+    ) {
       await this.prisma.party.update({
         where: { id },
         data: { isSaved: false },
@@ -256,7 +272,11 @@ export class PartiesService {
     }
     for (const p of party.payments) {
       if (p.status === 'CONFIRMED' && new Date(p.createdAt) < start) {
-        runningBal -= Number(p.amount);
+        if (p.type === 'INFLOW') {
+          runningBal -= Number(p.amount);
+        } else {
+          runningBal += Number(p.amount);
+        }
       }
     }
     for (const r of party.refundInvoices) {
@@ -283,7 +303,7 @@ export class PartiesService {
     // Collect transactions between start and end
     interface RawTx {
       date: Date;
-      type: 'INVOICE' | 'PAYMENT' | 'REFUND';
+      type: 'INVOICE' | 'PAYMENT' | 'PAYOUT' | 'REFUND';
       refNo: string;
       particulars: string;
       amount: number;
@@ -311,13 +331,25 @@ export class PartiesService {
     for (const p of party.payments) {
       const d = new Date(p.createdAt);
       if (p.status === 'CONFIRMED' && d >= start && d <= end) {
-        rawTxs.push({
-          date: d,
-          type: 'PAYMENT',
-          refNo: p.upiTxnRef || `PAY-${p.id.slice(0, 6)}`,
-          particulars: `Payment (${p.mode})`,
-          amount: Number(p.amount),
-        });
+        if (p.type === 'INFLOW') {
+          rawTxs.push({
+            date: d,
+            type: 'PAYMENT',
+            refNo: p.upiTxnRef || `PAY-${p.id.slice(0, 6)}`,
+            particulars: `Payment (${p.mode})`,
+            amount: Number(p.amount),
+          });
+        } else {
+          rawTxs.push({
+            date: d,
+            type: 'PAYOUT',
+            refNo: p.upiTxnRef || `OUT-${p.id.slice(0, 6)}`,
+            particulars: p.refundInvoiceId
+              ? `Refund Payout (${p.mode})`
+              : `Payout / Settlement (${p.mode})`,
+            amount: Number(p.amount),
+          });
+        }
       }
     }
 
@@ -363,6 +395,17 @@ export class PartiesService {
           particulars: tx.particulars,
           debit: 0,
           credit: tx.amount,
+          balance: runningBal,
+        });
+      } else if (tx.type === 'PAYOUT') {
+        runningBal += tx.amount;
+        entries.push({
+          date: tx.date,
+          voucherType: 'Payment Paid Out',
+          refNo: tx.refNo,
+          particulars: tx.particulars,
+          debit: tx.amount,
+          credit: 0,
           balance: runningBal,
         });
       } else if (tx.type === 'REFUND') {

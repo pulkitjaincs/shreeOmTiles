@@ -14,6 +14,7 @@ export interface InvoiceItem {
 
 export interface Payment {
   id: string;
+  type?: 'INFLOW' | 'OUTFLOW';
   mode: string;
   amount: number;
   status: string;
@@ -68,6 +69,7 @@ export interface PartyDetail {
   createdAt: string;
   invoices?: PartyInvoice[];
   creditLedgers?: PartyCreditLedger[];
+  payments?: Payment[];
 }
 
 export interface Party {

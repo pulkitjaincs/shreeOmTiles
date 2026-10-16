@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import dynamic from 'next/dynamic';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { apiRequest, cachedApiRequest } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { 
@@ -15,6 +14,14 @@ import {
   CheckCircle2,
   Loader2,
   Check,
+  BookOpen,
+  Calendar,
+  ArrowLeft,
+  ArrowRight,
+  Wallet,
+  QrCode,
+  Building2,
+  RefreshCw,
 } from 'lucide-react';
 import { PaymentStatsGrid } from '@/components/payments/payment-stats-grid';
 import { 
@@ -25,16 +32,58 @@ import {
   FinancialStats,
   PendingCreditLedger 
 } from '@/components/payments/types';
+import { SettlementModal } from '@/components/payments/settlement-modal';
+import { CreditLedgerModal } from '@/components/payments/credit-ledger-modal';
+import { formatINR, formatDateTime } from '@/lib/formatters';
 
-const SettlementModal = dynamic(
-  () => import('@/components/payments/settlement-modal').then((mod) => mod.SettlementModal),
-  { ssr: false }
-);
+export interface DayBookResponse {
+  date: string;
+  summary: {
+    openingCash: number;
+    cashIn: number;
+    cashOut: number;
+    expenseCash: number;
+    netCashFlow: number;
+    closingCash: number;
+    digital: {
+      upiIn: number;
+      bankIn: number;
+      totalDigital: number;
+    };
+  };
+  transactions: {
+    payments: Array<{
+      id: string;
+      type: string;
+      mode: string;
+      amount: number;
+      partyName: string;
+      refNo: string;
+      time: string;
+      notes?: string;
+    }>;
+    expenses: Array<{
+      id: string;
+      expenseNo?: string;
+      category: string;
+      amount: number;
+      paymentMode: string;
+      paidTo?: string;
+      time: string;
+      notes?: string;
+    }>;
+    purchases: Array<{
+      id: string;
+      purchaseNo: string;
+      partyName?: string;
+      total: number;
+      paymentMode: string;
+      time: string;
+    }>;
+  };
+}
 
-const CreditLedgerModal = dynamic(
-  () => import('@/components/payments/credit-ledger-modal').then((mod) => mod.CreditLedgerModal),
-  { ssr: false }
-);
+export type TabType = 'daybook' | 'dues' | 'payables' | 'all' | 'inflows' | 'credits';
 
 interface SettlementConfig {
   isOpen: boolean;
@@ -63,7 +112,13 @@ export default function TransactionsPage() {
   });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<'dues' | 'payables' | 'all' | 'inflows' | 'credits'>('dues');
+  const [activeTab, setActiveTab] = useState<TabType>('dues');
+  const [selectedDate, setSelectedDate] = useState(() => {
+    return new Date().toISOString().slice(0, 10);
+  });
+  const [dateFilterMode, setDateFilterMode] = useState<'all' | 'specific'>('all');
+  const [dayBookData, setDayBookData] = useState<DayBookResponse | null>(null);
+  const [dayBookLoading, setDayBookLoading] = useState(false);
 
   // Modal states
   const [settlementConfig, setSettlementConfig] = useState<SettlementConfig>({
@@ -181,6 +236,106 @@ export default function TransactionsPage() {
     return () => window.removeEventListener('app:refresh-active-page', handleRefresh);
   }, [loadData]);
 
+  // Load Day Book reconciliation data for selectedDate
+  const fetchDayBook = useCallback(async (date: string) => {
+    setDayBookLoading(true);
+    try {
+      const res = await apiRequest<DayBookResponse>(`/analytics/day-book?date=${date}`);
+      setDayBookData(res);
+    } catch (err) {
+      console.error('Failed to load day book reconciliation data:', err);
+    } finally {
+      setDayBookLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'daybook' || dateFilterMode === 'specific') {
+      fetchDayBook(selectedDate);
+    }
+  }, [selectedDate, activeTab, dateFilterMode, fetchDayBook]);
+
+  // Support direct redirect / link: /dashboard/payments?tab=daybook
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam === 'daybook') {
+        setActiveTab('daybook');
+        setDateFilterMode('specific');
+      }
+    }
+  }, []);
+
+  const handleShiftDay = (days: number) => {
+    const cur = new Date(selectedDate);
+    cur.setDate(cur.getDate() + days);
+    setSelectedDate(cur.toISOString().slice(0, 10));
+    setDateFilterMode('specific');
+  };
+
+  const handleToday = () => {
+    setSelectedDate(new Date().toISOString().slice(0, 10));
+    setDateFilterMode('specific');
+  };
+
+  const handleYesterday = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    setSelectedDate(d.toISOString().slice(0, 10));
+    setDateFilterMode('specific');
+  };
+
+  const handleAllTime = () => {
+    setDateFilterMode('all');
+    if (activeTab === 'daybook') {
+      setActiveTab('all');
+    }
+  };
+
+  // Unified chronological Day Book transactions list
+  const combinedDayBookEntries = useMemo(() => {
+    if (!dayBookData) return [];
+    const list: Array<{
+      id: string;
+      timestamp: number;
+      timeStr: string;
+      title: string;
+      subTitle: string;
+      mode: string;
+      isCredit: boolean;
+      amount: number;
+    }> = [];
+
+    (dayBookData.transactions.payments || []).forEach((p) => {
+      list.push({
+        id: `pay-${p.id}`,
+        timestamp: new Date(p.time).getTime(),
+        timeStr: p.time,
+        title: p.type === 'INFLOW' ? `Payment Received: ${p.partyName}` : `Payout / Refund: ${p.partyName}`,
+        subTitle: `Ref: #${p.refNo}${p.notes ? ` • ${p.notes}` : ''}`,
+        mode: p.mode,
+        isCredit: p.type === 'INFLOW',
+        amount: p.amount,
+      });
+    });
+
+    (dayBookData.transactions.expenses || []).forEach((e) => {
+      list.push({
+        id: `exp-${e.id}`,
+        timestamp: new Date(e.time).getTime(),
+        timeStr: e.time,
+        title: `Expense: ${e.category.replace(/_/g, ' ')}`,
+        subTitle: `${e.paidTo ? `Paid to: ${e.paidTo} • ` : ''}${e.notes || ''}`,
+        mode: e.paymentMode,
+        isCredit: false,
+        amount: e.amount,
+      });
+    });
+
+    return list.sort((a, b) => b.timestamp - a.timestamp);
+  }, [dayBookData]);
+
   // Open Modal directly from a Pending Row
   const handleOpenActionForPending = (item: PendingItem) => {
     const isPayable = item.creditType === 'PAYABLE';
@@ -250,13 +405,22 @@ export default function TransactionsPage() {
       (item.invoiceNo && item.invoiceNo.toLowerCase().includes(search.toLowerCase()))
   );
 
-  const filteredPayments = payments.filter((p) => {
-    const partyName = p.invoice?.party?.name || p.party?.name || '';
-    const invNo = p.invoice?.invoiceNo || '';
-    const utr = p.upiUtr || '';
-    const q = search.toLowerCase();
-    return partyName.toLowerCase().includes(q) || invNo.toLowerCase().includes(q) || utr.toLowerCase().includes(q);
-  });
+  const filteredPayments = useMemo(() => {
+    let base = payments;
+    if (dateFilterMode === 'specific' && selectedDate) {
+      base = base.filter((p) => {
+        const pDate = p.paidAt || p.createdAt;
+        return pDate && pDate.slice(0, 10) === selectedDate;
+      });
+    }
+    return base.filter((p) => {
+      const partyName = p.invoice?.party?.name || p.party?.name || '';
+      const invNo = p.invoice?.invoiceNo || '';
+      const utr = p.upiUtr || '';
+      const q = search.toLowerCase();
+      return partyName.toLowerCase().includes(q) || invNo.toLowerCase().includes(q) || utr.toLowerCase().includes(q);
+    });
+  }, [payments, dateFilterMode, selectedDate, search]);
 
   const filteredCredits = creditLedgers.filter((cl) => {
     const partyName = cl.party?.name || '';
@@ -311,6 +475,190 @@ export default function TransactionsPage() {
         </div>
       </div>
 
+      {/* Date-wise Navigation Toolbar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-card/80 p-2.5 rounded-2xl border border-border/80 shadow-2xs">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5 ml-1">
+            <Calendar className="h-4 w-4 text-primary" />
+            Date Filter:
+          </span>
+
+          <div className="flex items-center gap-1.5 bg-muted/40 border border-border/60 p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => handleShiftDay(-1)}
+              className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition"
+              title="Previous Day"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+            </button>
+
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => {
+                setSelectedDate(e.target.value);
+                setDateFilterMode('specific');
+              }}
+              className="bg-transparent border-none text-xs font-semibold text-foreground focus:outline-none cursor-pointer px-1"
+            />
+
+            <button
+              type="button"
+              onClick={() => handleShiftDay(1)}
+              className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition"
+              title="Next Day"
+            >
+              <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleYesterday}
+            className={`text-xs h-7 px-2.5 rounded-xl ${
+              dateFilterMode === 'specific' &&
+              selectedDate === new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+                ? 'bg-muted font-bold text-foreground'
+                : 'text-muted-foreground'
+            }`}
+          >
+            Yesterday
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleToday}
+            className={`text-xs h-7 px-2.5 rounded-xl ${
+              dateFilterMode === 'specific' &&
+              selectedDate === new Date().toISOString().slice(0, 10)
+                ? 'bg-primary/10 text-primary font-bold border-primary/30'
+                : 'text-muted-foreground'
+            }`}
+          >
+            Today
+          </Button>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant={dateFilterMode === 'all' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={handleAllTime}
+            className="text-xs h-7 px-3 rounded-xl"
+          >
+            All Dates (Overall)
+          </Button>
+
+          <Button
+            variant={activeTab === 'daybook' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => {
+              setActiveTab('daybook');
+              setDateFilterMode('specific');
+            }}
+            className="text-xs h-7 px-3 rounded-xl inline-flex items-center gap-1.5"
+          >
+            <BookOpen className="h-3.5 w-3.5" />
+            Till Drawer ({selectedDate})
+          </Button>
+        </div>
+      </div>
+
+      {/* Daily Till Drawer Summary (Opening Cash, Inflows, Outflows, Expenses, Net Flow & Closing Cash) */}
+      {(dateFilterMode === 'specific' || activeTab === 'daybook') && (
+        <div className="rounded-2xl border border-border/80 bg-card/90 p-4 shadow-sm space-y-3">
+          <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
+            <div className="flex items-center gap-2">
+              <BookOpen className="h-4 w-4 text-primary" />
+              <h2 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                Till Reconciliation & Closing Balance ({selectedDate})
+              </h2>
+            </div>
+            {dayBookLoading && (
+              <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                Balancing till drawer...
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
+            {/* 1. Opening Cash */}
+            <div className="p-3 rounded-xl border border-border/60 bg-muted/20">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">Opening Cash</span>
+              <div className="text-base font-bold font-mono text-foreground mt-1">
+                ₹{(dayBookData?.summary.openingCash || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+              </div>
+              <span className="text-[10px] text-muted-foreground">Drawer starting cash</span>
+            </div>
+
+            {/* 2. Cash In */}
+            <div className="p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
+              <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider block">Cash Inflows</span>
+              <div className="text-base font-bold font-mono text-emerald-700 dark:text-emerald-300 mt-1">
+                +₹{(dayBookData?.summary.cashIn || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+              </div>
+              <span className="text-[10px] text-emerald-700/70 dark:text-emerald-300/70">Sales & collected cash</span>
+            </div>
+
+            {/* 3. Cash Out */}
+            <div className="p-3 rounded-xl border border-rose-500/20 bg-rose-500/5">
+              <span className="text-[10px] font-semibold text-rose-700 dark:text-rose-300 uppercase tracking-wider block">Cash Outflows</span>
+              <div className="text-base font-bold font-mono text-rose-700 dark:text-rose-300 mt-1">
+                -₹{(dayBookData?.summary.cashOut || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+              </div>
+              <span className="text-[10px] text-rose-700/70 dark:text-rose-300/70">Customer refunds</span>
+            </div>
+
+            {/* 4. Daily Expenses */}
+            <div className="p-3 rounded-xl border border-amber-500/20 bg-amber-500/5">
+              <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wider block">Cash Expenses</span>
+              <div className="text-base font-bold font-mono text-amber-700 dark:text-amber-300 mt-1">
+                -₹{(dayBookData?.summary.expenseCash || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+              </div>
+              <span className="text-[10px] text-amber-700/70 dark:text-amber-300/70">Daily operational expenses</span>
+            </div>
+
+            {/* 5. Net Cash Flow */}
+            <div className="p-3 rounded-xl border border-primary/20 bg-primary/5">
+              <span className="text-[10px] font-semibold text-primary uppercase tracking-wider block">Net Cash Flow</span>
+              <div className="text-base font-bold font-mono text-foreground mt-1">
+                {(dayBookData?.summary.netCashFlow || 0) >= 0 ? '+' : ''}₹{(dayBookData?.summary.netCashFlow || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+              </div>
+              <span className="text-[10px] text-muted-foreground">Inflows - Outflows - Exp</span>
+            </div>
+
+            {/* 6. Closing Cash Balance (Till Drawer) */}
+            <div className="p-3 rounded-xl border-2 border-emerald-500/60 bg-emerald-500/10 shadow-xs col-span-2 sm:col-span-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-200 uppercase tracking-wider block">
+                  Closing Cash (Till)
+                </span>
+                <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-emerald-600 text-white font-bold">DRAWER</span>
+              </div>
+              <div className="text-lg font-extrabold font-mono text-emerald-800 dark:text-emerald-100 mt-1">
+                ₹{(dayBookData?.summary.closingCash || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+              </div>
+              <span className="text-[10px] font-medium text-emerald-800/80 dark:text-emerald-300/80">Target physical cash</span>
+            </div>
+
+            {/* 7. Digital Collections */}
+            <div className="p-3 rounded-xl border border-border/60 bg-muted/20 col-span-2 sm:col-span-1">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">Digital Inflows</span>
+              <div className="text-base font-bold font-mono text-foreground mt-1">
+                ₹{(dayBookData?.summary.digital.totalDigital || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+              </div>
+              <span className="text-[10px] text-muted-foreground truncate block">
+                UPI: ₹{(dayBookData?.summary.digital.upiIn || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })} • Bank: ₹{(dayBookData?.summary.digital.bankIn || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Financial KPI Summary Cards (Extracted Component) */}
       <PaymentStatsGrid
         stats={stats}
@@ -321,6 +669,22 @@ export default function TransactionsPage() {
       {/* Tabs & Search Filter */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-2">
         <div className="flex items-center gap-2 overflow-x-auto">
+          {/* 0. Till & Day Book Tab */}
+          <button
+            onClick={() => {
+              setActiveTab('daybook');
+              setDateFilterMode('specific');
+            }}
+            className={`px-3.5 py-1.5 rounded-[0.625rem] text-xs font-semibold transition-all flex items-center gap-1.5 active:scale-98 ${
+              activeTab === 'daybook'
+                ? 'bg-primary text-primary-foreground shadow-xs'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+            }`}
+          >
+            <BookOpen className="h-3.5 w-3.5" />
+            Till & Day Book
+          </button>
+
           {/* 1. Customer Dues Tab */}
           <button
             onClick={() => setActiveTab('dues')}
@@ -393,7 +757,9 @@ export default function TransactionsPage() {
           <input
             type="text"
             placeholder={
-              activeTab === 'dues'
+              activeTab === 'daybook'
+                ? 'Filter journal entries...'
+                : activeTab === 'dues'
                 ? 'Search customer dues...'
                 : activeTab === 'payables'
                 ? 'Search store payables...'
@@ -405,6 +771,97 @@ export default function TransactionsPage() {
           />
         </div>
       </div>
+
+      {/* ========================================================================= */}
+      {/* TAB 0: TILL & DAY BOOK RECONCILIATION JOURNAL                            */}
+      {/* ========================================================================= */}
+      {activeTab === 'daybook' && (
+        <div className="rounded-[1rem] border border-border/60 bg-card/75 backdrop-blur-xl overflow-hidden shadow-xs">
+          <div className="p-4 border-b border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-muted/20">
+            <div>
+              <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-primary" />
+                Chronological Store Journal & Till Ledger ({selectedDate})
+              </h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Every cash inflow, digital checkout, customer settlement, and operational payout recorded on this date.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono font-bold text-foreground bg-muted px-3 py-1 rounded-[0.5rem] border border-border/60">
+                {combinedDayBookEntries.length} Transactions
+              </span>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm text-foreground">
+              <thead className="bg-muted/40 text-[0.6875rem] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/60">
+                <tr>
+                  <th className="py-3 px-4">Time</th>
+                  <th className="py-3 px-4">Transaction / Activity</th>
+                  <th className="py-3 px-4">Reference & Notes</th>
+                  <th className="py-3 px-4">Payment Mode</th>
+                  <th className="py-3 px-4 text-right">Amount Flow</th>
+                  <th className="py-3 px-4 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {combinedDayBookEntries.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-12 text-center text-muted-foreground text-xs">
+                      No cash or digital transactions recorded for {selectedDate}.
+                    </td>
+                  </tr>
+                ) : (
+                  combinedDayBookEntries
+                    .filter((entry) => {
+                      if (!search.trim()) return true;
+                      const q = search.toLowerCase();
+                      return (
+                        entry.title.toLowerCase().includes(q) ||
+                        entry.subTitle.toLowerCase().includes(q) ||
+                        entry.mode.toLowerCase().includes(q)
+                      );
+                    })
+                    .map((entry) => (
+                      <tr key={entry.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="py-3 px-4 font-mono text-xs text-muted-foreground whitespace-nowrap">
+                          {new Date(entry.timeStr).toLocaleTimeString('en-IN', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </td>
+                        <td className="py-3 px-4 font-semibold text-foreground text-xs">
+                          {entry.title}
+                        </td>
+                        <td className="py-3 px-4 text-xs text-muted-foreground font-mono">
+                          {entry.subTitle}
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className="text-[11px] px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border/50 font-medium">
+                            {entry.mode}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono font-bold text-xs whitespace-nowrap">
+                          <span className={entry.isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
+                            {entry.isCredit ? '+' : '-'}₹{entry.amount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                            <Check className="h-3 w-3" />
+                            Settled
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* TAB 1: CUSTOMER DUES (RECEIVABLES)                                        */}

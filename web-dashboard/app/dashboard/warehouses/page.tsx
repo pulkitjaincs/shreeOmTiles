@@ -20,35 +20,11 @@ import {
 } from 'lucide-react';
 import { Warehouse, Product, StockItem } from '@/components/warehouses/types';
 
-const InwardStockModal = dynamic(
-  () => import('@/components/warehouses/inward-stock-modal').then((mod) => mod.InwardStockModal),
-  { ssr: false }
-);
-
-const StockTransferModal = dynamic(
-  () => import('@/components/warehouses/stock-transfer-modal').then((mod) => mod.StockTransferModal),
-  { ssr: false }
-);
-
-const StockAdjustModal = dynamic(
-  () => import('@/components/warehouses/stock-adjust-modal').then((mod) => mod.StockAdjustModal),
-  { ssr: false }
-);
-
-const WarehouseFormModal = dynamic(
-  () => import('@/components/warehouses/warehouse-form-modal').then((mod) => mod.WarehouseFormModal),
-  { ssr: false }
-);
-
-const DeleteWarehouseModal = dynamic(
-  () => import('@/components/warehouses/warehouse-danger-modals').then((mod) => mod.DeleteWarehouseModal),
-  { ssr: false }
-);
-
-const ZeroOutWarehouseModal = dynamic(
-  () => import('@/components/warehouses/warehouse-danger-modals').then((mod) => mod.ZeroOutWarehouseModal),
-  { ssr: false }
-);
+import { InwardStockModal } from '@/components/warehouses/inward-stock-modal';
+import { StockTransferModal } from '@/components/warehouses/stock-transfer-modal';
+import { StockAdjustModal } from '@/components/warehouses/stock-adjust-modal';
+import { WarehouseFormModal } from '@/components/warehouses/warehouse-form-modal';
+import { DeleteWarehouseModal, ZeroOutWarehouseModal } from '@/components/warehouses/warehouse-danger-modals';
 
 export default function WarehousesPage() {
   const { user } = useAuth();

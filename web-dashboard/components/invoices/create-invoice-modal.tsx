@@ -109,10 +109,6 @@ export function CreateInvoiceModal({
   useEffect(() => {
     if (!isOpen) return;
 
-    if (parties.length > 0 && !partyId) {
-      setPartyId(parties[0].id);
-    }
-
     const initItems = async () => {
       await onRefreshStock().catch(() => allStock);
 
@@ -125,9 +121,10 @@ export function CreateInvoiceModal({
         },
       ]);
       setFormError('');
+      setPartyId('');
       setAmountPaidNowInput('0');
       setCustomerMode('EXISTING');
-      setCustomerSearch(parties.length > 0 ? `${parties[0].name} (${parties[0].phone})` : '');
+      setCustomerSearch('');
       setIsCustomerDropdownOpen(false);
       setOpenProductDropdownIdx(null);
       setNewParty({ name: '', phone: '', address: '' });
@@ -425,7 +422,7 @@ export function CreateInvoiceModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 overflow-hidden animate-in fade-in">
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 overflow-hidden animate-in fade-in">
         <div className="w-full max-w-4xl rounded-[1.5rem] border border-border bg-card shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-foreground">
           <div className="shrink-0 flex items-center justify-between border-b border-border p-6">
             <div>
@@ -750,16 +747,15 @@ export function CreateInvoiceModal({
 
               <div>
                 <label className="block text-[0.75rem] font-medium text-foreground mb-1">Transport GST (%)</label>
-                <ThemedSelect
-                  value={String(transportGstRate)}
-                  onChange={(v) => setTransportGstRate(Number(v))}
-                  options={[
-                    { value: '0', label: '0% (Exempt)' },
-                    { value: '5', label: '5% (GTA)' },
-                    { value: '12', label: '12%' },
-                    { value: '18', label: '18%' },
-                    { value: '28', label: '28%' },
-                  ]}
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  placeholder="0"
+                  value={transportGstRate === 0 ? '' : transportGstRate}
+                  onChange={(e) => setTransportGstRate(e.target.value === '' ? 0 : (parseFloat(e.target.value) || 0))}
+                  className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-[0.8125rem] text-foreground font-mono focus:border-primary focus:outline-none"
                 />
               </div>
 
