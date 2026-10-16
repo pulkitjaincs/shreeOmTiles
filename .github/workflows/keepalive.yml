@@ -2,10 +2,12 @@ name: dhraERP Store Hours Keep-Alive
 
 on:
   schedule:
-    # 02:58 UTC = 08:28 AM IST: Pre-warm container & database 2 mins before showroom opens
+    # 02:58 UTC = 08:28 AM IST: Pre-warm container & database 2 mins before business starts
     - cron: '58 2 * * *'
-    # Every 10 mins from 03:00 to 17:30 UTC = 08:30 AM to 11:00 PM IST (Showroom business hours)
+    # Every 10 mins from 03:00 to 17:50 UTC = 08:30 AM to 11:20 PM IST
     - cron: '*/10 3-17 * * *'
+    # 18:00 UTC = 11:30 PM IST: Final ping of the business day (stays alive until ~11:45 PM IST)
+    - cron: '0 18 * * *'
   workflow_dispatch:
 
 jobs:
@@ -16,4 +18,4 @@ jobs:
         run: |
           TARGET_URL="${{ secrets.BACKEND_API_URL || 'https://dhraerp-backend.onrender.com' }}"
           echo "Sending keep-alive ping to $TARGET_URL at $(date -u)"
-          curl -s -f -m 30 "$TARGET_URL/health" || echo "Ping dispatched (server waking up if cold)"
+          curl -s -f -m 30 "$TARGET_URL/health?prewarm=true" || echo "Ping dispatched (server waking up if cold)"

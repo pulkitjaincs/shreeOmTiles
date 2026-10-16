@@ -12,63 +12,32 @@ async function seed() {
   console.log('🌱 Starting dhraERP database seeding...');
 
   const salt = await bcrypt.genSalt(10);
-  const adminPasswordHash = await bcrypt.hash('admin123', salt);
-  const salesPasswordHash = await bcrypt.hash('sales123', salt);
-  const driverPasswordHash = await bcrypt.hash('driver123', salt);
+  const ownerPasswordHash = await bcrypt.hash('vijay@2026@ShreeOmTiles', salt);
 
-  // 1. Owner & Staff Users
+  // 1. Single Owner User
   const owner = await prisma.user.upsert({
-    where: { phone: '9828920964' },
+    where: { phone: '9212610962' },
     update: {
-      passwordHash: adminPasswordHash,
-      name: 'Pulkit Jain',
+      passwordHash: ownerPasswordHash,
+      name: 'Vijay Jain',
       role: Role.OWNER,
       isActive: true,
     },
     create: {
-      phone: '9828920964',
-      name: 'Pulkit Jain',
-      passwordHash: adminPasswordHash,
+      phone: '9212610962',
+      name: 'Vijay Jain',
+      passwordHash: ownerPasswordHash,
       role: Role.OWNER,
       isActive: true,
     },
   });
 
-  const salesman = await prisma.user.upsert({
-    where: { phone: '9876543211' },
-    update: {
-      passwordHash: salesPasswordHash,
-      name: 'Amit Kumar (Sales Staff)',
-      role: Role.SALESMAN,
-      isActive: true,
-    },
-    create: {
-      phone: '9876543211',
-      name: 'Amit Kumar (Sales Staff)',
-      passwordHash: salesPasswordHash,
-      role: Role.SALESMAN,
-      isActive: true,
-    },
+  // Ensure only this user exists
+  await prisma.user.deleteMany({
+    where: { phone: { not: '9212610962' } },
   });
 
-  const driver = await prisma.user.upsert({
-    where: { phone: '9876543212' },
-    update: {
-      passwordHash: driverPasswordHash,
-      name: 'Ramesh Singh (Driver)',
-      role: Role.DRIVER,
-      isActive: true,
-    },
-    create: {
-      phone: '9876543212',
-      name: 'Ramesh Singh (Driver)',
-      passwordHash: driverPasswordHash,
-      role: Role.DRIVER,
-      isActive: true,
-    },
-  });
-
-  console.log('✅ Users ready: Owner (9828920964 / admin123), Salesman (9876543211 / sales123), Driver (9876543212 / driver123)');
+  console.log('✅ Users ready: Owner Vijay Jain (9212610962 / vijay@2026@ShreeOmTiles)');
 
   // 2. Warehouses & Showrooms
   let showroom = await prisma.warehouse.findFirst({ where: { name: 'Main Showroom' } });
