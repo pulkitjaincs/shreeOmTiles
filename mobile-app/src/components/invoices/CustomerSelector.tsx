@@ -49,7 +49,13 @@ export function CustomerSelector({
         <TouchableOpacity
           style={[styles.toggleBtn, customerMode === 'existing' && styles.toggleBtnActive]}
           onPress={() => onCustomerModeChange('existing')}
+          activeOpacity={0.8}
         >
+          <Ionicons
+            name="people-outline"
+            size={14}
+            color={customerMode === 'existing' ? '#09090B' : Colors.dark.textSecondary}
+          />
           <Text style={[styles.toggleText, customerMode === 'existing' && styles.toggleTextActive]}>
             Select Existing
           </Text>
@@ -57,7 +63,13 @@ export function CustomerSelector({
         <TouchableOpacity
           style={[styles.toggleBtn, customerMode === 'new' && styles.toggleBtnActive]}
           onPress={() => onCustomerModeChange('new')}
+          activeOpacity={0.8}
         >
+          <Ionicons
+            name="person-add-outline"
+            size={14}
+            color={customerMode === 'new' ? '#09090B' : Colors.dark.textSecondary}
+          />
           <Text style={[styles.toggleText, customerMode === 'new' && styles.toggleTextActive]}>
             + Quick Add Party
           </Text>
@@ -141,20 +153,28 @@ const styles = StyleSheet.create({
   tabToggle: {
     flexDirection: 'row',
     backgroundColor: Colors.dark.card,
-    borderRadius: 10,
+    borderRadius: 11,
     borderWidth: 1,
     borderColor: Colors.dark.border,
-    padding: 2,
+    padding: 3,
     marginBottom: 10,
   },
   toggleBtn: {
     flex: 1,
+    flexDirection: 'row',
+    gap: 6,
     paddingVertical: 8,
     alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: 8,
   },
   toggleBtnActive: {
-    backgroundColor: Colors.dark.primary,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
   toggleText: {
     fontSize: 12,
@@ -162,7 +182,8 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
   },
   toggleTextActive: {
-    color: '#FFFFFF',
+    color: '#09090B',
+    fontWeight: '800',
   },
   savePartyRow: {
     flexDirection: 'row',

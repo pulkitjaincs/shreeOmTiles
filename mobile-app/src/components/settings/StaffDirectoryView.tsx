@@ -2,7 +2,6 @@ import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { SearchBar } from '@/components/ui/SearchBar';
-import { FilterPills } from '@/components/ui/FilterPills';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Colors } from '@/constants/theme';
@@ -31,8 +30,6 @@ export function StaffDirectoryView({
   onDeleteStaff,
 }: StaffDirectoryViewProps) {
   const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState('ALL');
-  const [statusFilter, setStatusFilter] = useState('ALL');
 
   // Stats matching Web's UserStatsGrid
   const stats = useMemo(() => {
@@ -43,38 +40,24 @@ export function StaffDirectoryView({
     return { total, active, drivers, salesmen };
   }, [staffList]);
 
-  // Filtered staff list
+  // Filtered staff list (name, phone, role)
   const filteredStaff = useMemo(() => {
     const q = search.trim().toLowerCase();
     const cleanPhone = search.replace(/\D/g, '');
 
+    if (!q) return staffList;
+
     return staffList.filter((st) => {
-      if (roleFilter !== 'ALL' && st.role !== roleFilter) return false;
-      if (statusFilter === 'ACTIVE' && !st.active) return false;
-      if (statusFilter === 'INACTIVE' && st.active) return false;
-
-      if (q) {
-        const matchesName = st.name.toLowerCase().includes(q);
-        const matchesPhone = cleanPhone ? st.phone.replace(/\D/g, '').includes(cleanPhone) : false;
-        const matchesRole = st.role.toLowerCase().includes(q);
-        if (!matchesName && !matchesPhone && !matchesRole) return false;
-      }
-
-      return true;
+      const matchesName = st.name?.toLowerCase().includes(q);
+      const matchesPhone = cleanPhone && st.phone ? st.phone.replace(/\D/g, '').includes(cleanPhone) : false;
+      const matchesRole = st.role?.toLowerCase().includes(q);
+      return matchesName || matchesPhone || matchesRole;
     });
-  }, [staffList, search, roleFilter, statusFilter]);
-
-  const hasActiveFilters = search.trim() !== '' || roleFilter !== 'ALL' || statusFilter !== 'ALL';
-
-  const clearFilters = () => {
-    setSearch('');
-    setRoleFilter('ALL');
-    setStatusFilter('ALL');
-  };
+  }, [staffList, search]);
 
   return (
     <View style={styles.container}>
-      {/* Top Metrics Row */}
+      {/* 1. Top Metrics Row */}
       <View style={styles.metricsGrid}>
         <Card elevated style={styles.metricCard}>
           <Text style={styles.metricLabel}>Total Staff</Text>
@@ -94,47 +77,15 @@ export function StaffDirectoryView({
         </Card>
       </View>
 
-      {/* Search Input */}
-      <SearchBar
-        value={search}
-        onChangeText={setSearch}
-        placeholder="Search staff by name, mobile, or role..."
-      />
-
-      {/* Role Filter Pills */}
-      <FilterPills
-        options={[
-          { label: 'All Roles', value: 'ALL', count: staffList.length },
-          { label: 'Drivers', value: 'DRIVER', count: stats.drivers },
-          { label: 'Salesmen', value: 'SALESMAN', count: stats.salesmen },
-          { label: 'Admins', value: 'ADMIN' },
-        ]}
-        selected={roleFilter}
-        onSelect={setRoleFilter}
-      />
-
-      {/* Status Filter Pills */}
-      <FilterPills
-        options={[
-          { label: 'All Statuses', value: 'ALL' },
-          { label: 'Active', value: 'ACTIVE' },
-          { label: 'Inactive', value: 'INACTIVE' },
-        ]}
-        selected={statusFilter}
-        onSelect={setStatusFilter}
-      />
-
-      {/* Action Header Row */}
+      {/* 2. Action Header Row */}
       <View style={styles.actionHeaderRow}>
-        <View style={styles.headerLeft}>
+        <View style={{ flex: 1 }}>
           <Text style={styles.sectionTitle}>
             Staff Accounts ({filteredStaff.length})
           </Text>
-          {hasActiveFilters ? (
-            <TouchableOpacity onPress={clearFilters} hitSlop={8}>
-              <Text style={styles.clearText}>Clear</Text>
-            </TouchableOpacity>
-          ) : null}
+          <Text style={styles.sectionSubtitle}>
+            Manage role-based system access & accounts
+          </Text>
         </View>
 
         <View style={styles.headerRight}>
@@ -150,13 +101,38 @@ export function StaffDirectoryView({
             size="sm"
             variant="primary"
             onPress={onAddStaff}
+            style={styles.addStaffBtn}
           />
         </View>
       </View>
 
-      {/* Staff Cards List */}
+      {/* 3. Search Bar */}
+      <View style={styles.searchContainer}>
+        <SearchBar
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search staff by name, mobile, or role..."
+        />
+      </View>
+
+      {/* Active Search Result / Clear Row */}
+      {search.trim().length > 0 ? (
+        <View style={styles.resultsInfoRow}>
+          <Text style={styles.resultsCountText}>
+            Showing <Text style={{ color: '#FFFFFF', fontWeight: '800' }}>{filteredStaff.length}</Text> of {staffList.length} staff members
+          </Text>
+          <TouchableOpacity
+            onPress={() => setSearch('')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.resetFilterText}>Clear Search</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {/* 4. Staff Cards List */}
       {loading ? (
-        <View style={styles.centerBox}>
+        <View style={styles.loadingContainer}>
           <ActivityIndicator size="small" color="#FFFFFF" />
           <Text style={styles.loadingText}>Fetching staff directory...</Text>
         </View>
@@ -165,17 +141,17 @@ export function StaffDirectoryView({
           <Ionicons name="people-outline" size={40} color={Colors.dark.textTertiary} />
           <Text style={styles.emptyTitle}>No Staff Members Found</Text>
           <Text style={styles.emptySub}>
-            {hasActiveFilters
-              ? 'No staff members match the selected filters.'
+            {search.trim().length > 0
+              ? 'No staff members match your search query.'
               : 'Add your first salesman, driver, or manager to grant system access.'}
           </Text>
-          {hasActiveFilters ? (
+          {search.trim().length > 0 ? (
             <Button
-              title="Clear Filters"
+              title="Clear Search"
               size="sm"
               variant="outline"
-              onPress={clearFilters}
-              style={{ marginTop: 12 }}
+              onPress={() => setSearch('')}
+              style={{ marginTop: 12, height: 36, borderRadius: 8 }}
             />
           ) : null}
         </View>
@@ -197,30 +173,33 @@ export function StaffDirectoryView({
 
 const styles = StyleSheet.create({
   container: {
+    gap: 10,
     paddingBottom: 24,
   },
   metricsGrid: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 12,
+    marginBottom: 2,
   },
   metricCard: {
     flex: 1,
-    padding: 10,
+    paddingVertical: 9,
+    paddingHorizontal: 4,
     borderRadius: 12,
-    backgroundColor: Colors.dark.cardElevated,
+    backgroundColor: Colors.dark.card,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.dark.borderMedium,
   },
   metricLabel: {
-    fontSize: 10,
+    fontSize: 9.5,
     fontWeight: '700',
     color: Colors.dark.textSecondary,
     textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   metricValue: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '900',
     color: '#FFFFFF',
     marginTop: 2,
@@ -230,55 +209,79 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 12,
-    paddingHorizontal: 2,
+    gap: 12,
+    marginTop: 2,
+    marginBottom: 2,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+  sectionTitle: {
+    fontSize: 15.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.3,
+  },
+  sectionSubtitle: {
+    fontSize: 11,
+    color: Colors.dark.textSecondary,
+    marginTop: 1,
   },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  clearText: {
-    fontSize: 11,
-    color: Colors.dark.primary,
-    fontWeight: '700',
+    gap: 8,
   },
   refreshIconBtn: {
-    padding: 6,
-    borderRadius: 8,
+    width: 38,
+    height: 38,
+    borderRadius: 10,
     backgroundColor: Colors.dark.card,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  centerBox: {
-    paddingVertical: 40,
+    borderColor: Colors.dark.borderMedium,
     alignItems: 'center',
-    gap: 10,
+    justifyContent: 'center',
+  },
+  addStaffBtn: {
+    height: 38,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+  },
+  searchContainer: {
+    marginBottom: 2,
+  },
+  resultsInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+    paddingHorizontal: 2,
+  },
+  resultsCountText: {
+    fontSize: 11.5,
+    color: Colors.dark.textSecondary,
+  },
+  resetFilterText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#38BDF8',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+    gap: 8,
   },
   loadingText: {
     fontSize: 12,
     color: Colors.dark.textSecondary,
   },
   emptyCard: {
-    padding: 30,
+    padding: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.dark.borderMedium,
     backgroundColor: Colors.dark.card,
-    marginTop: 8,
+    marginTop: 4,
   },
   emptyTitle: {
     fontSize: 15,

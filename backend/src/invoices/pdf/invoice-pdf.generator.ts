@@ -7,11 +7,26 @@ import {
   TaxBreakupData,
 } from './pdf-utils';
 
+interface CachedPdf {
+  pdfBytes: Uint8Array;
+  invoiceNo: string;
+}
+
+const pdfBufferCache = new Map<string, CachedPdf>();
+const MAX_PDF_CACHE_SIZE = 50;
+
 export async function generateInvoicePdf(
   invoice: InvoicePdfPayload,
 ): Promise<GeneratedPdfResult> {
+  const cacheKey = `${invoice.id}:${invoice.updatedAt ? new Date(invoice.updatedAt).getTime() : 0}`;
+  const cached = pdfBufferCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const doc = await PDFDocument.create();
   const page = doc.addPage([595.28, 841.89]); // A4 Standard
+  let currentPage = page;
   const { width, height } = page.getSize();
 
   const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -340,6 +355,85 @@ export async function generateInvoicePdf(
   let idx = 1;
 
   for (const item of invoice.items || []) {
+    // Check if drawing this row would collide with the bottom footer
+    if (y - rowHeight < 140) {
+      currentPage = doc.addPage([595.28, 841.89]);
+      currentPage.drawText(
+        safePdfText(`${companyName} - Invoice #${invoice.invoiceNo} (Continued)`),
+        {
+          x: leftMargin,
+          y: height - 35,
+          size: 9,
+          font: fontBold,
+          color: primaryColor,
+        },
+      );
+
+      const contTableHeaderY = height - 55;
+      currentPage.drawRectangle({
+        x: leftMargin,
+        y: contTableHeaderY - headerHeight,
+        width: contentWidth,
+        height: headerHeight,
+        color: rgb(0.92, 0.94, 0.98),
+        borderColor: rgb(0.78, 0.83, 0.92),
+        borderWidth: 0.75,
+      });
+
+      const contHeaderY = contTableHeaderY - 13;
+      currentPage.drawText('#', {
+        x: leftMargin + 6,
+        y: contHeaderY,
+        size: 8,
+        font: fontBold,
+        color: primaryColor,
+      });
+      currentPage.drawText('Item Description', {
+        x: leftMargin + 25,
+        y: contHeaderY,
+        size: 8,
+        font: fontBold,
+        color: primaryColor,
+      });
+      currentPage.drawText('HSN', {
+        x: leftMargin + 195,
+        y: contHeaderY,
+        size: 8,
+        font: fontBold,
+        color: primaryColor,
+      });
+      currentPage.drawText('Godown / Lot', {
+        x: leftMargin + 245,
+        y: contHeaderY,
+        size: 8,
+        font: fontBold,
+        color: primaryColor,
+      });
+      currentPage.drawText(qtyHdr, {
+        x: leftMargin + 375 - qtyHdrW,
+        y: contHeaderY,
+        size: 8,
+        font: fontBold,
+        color: primaryColor,
+      });
+      currentPage.drawText(rateHdr, {
+        x: leftMargin + 445 - rateHdrW,
+        y: contHeaderY,
+        size: 8,
+        font: fontBold,
+        color: primaryColor,
+      });
+      currentPage.drawText(totalHdr, {
+        x: rightMargin - 8 - totalHdrW,
+        y: contHeaderY,
+        size: 8,
+        font: fontBold,
+        color: primaryColor,
+      });
+
+      y = contTableHeaderY - headerHeight - 16;
+    }
+
     const idxStr = String(idx).padStart(2, '0');
     const hsn = item.product?.hsnCode || '-';
     const whBatch = `${item.warehouse?.name || 'Showroom'}${item.batchNo ? ` (${item.batchNo})` : ''}`;
@@ -347,7 +441,7 @@ export async function generateInvoicePdf(
     const rateStr = Number(item.unitPrice).toFixed(2);
     const lineTotalStr = Number(item.total).toFixed(2);
 
-    page.drawText(idxStr, {
+    currentPage.drawText(idxStr, {
       x: leftMargin + 6,
       y,
       size: 7.5,
@@ -355,7 +449,7 @@ export async function generateInvoicePdf(
       color: grayColor,
     });
 
-    page.drawText(safePdfText((item.product?.name || 'Item').slice(0, 32)), {
+    currentPage.drawText(safePdfText((item.product?.name || 'Item').slice(0, 32)), {
       x: leftMargin + 25,
       y,
       size: 8.5,
@@ -363,7 +457,7 @@ export async function generateInvoicePdf(
       color: textColor,
     });
 
-    page.drawText(safePdfText(hsn), {
+    currentPage.drawText(safePdfText(hsn), {
       x: leftMargin + 195,
       y,
       size: 7.5,
@@ -371,7 +465,7 @@ export async function generateInvoicePdf(
       color: grayColor,
     });
 
-    page.drawText(safePdfText(whBatch.slice(0, 20)), {
+    currentPage.drawText(safePdfText(whBatch.slice(0, 20)), {
       x: leftMargin + 245,
       y,
       size: 7.5,
@@ -381,7 +475,7 @@ export async function generateInvoicePdf(
 
     // Right-aligned numerical columns
     const qw = fontRegular.widthOfTextAtSize(qtyStr, 8);
-    page.drawText(safePdfText(qtyStr), {
+    currentPage.drawText(safePdfText(qtyStr), {
       x: leftMargin + 375 - qw,
       y,
       size: 8,
@@ -390,7 +484,7 @@ export async function generateInvoicePdf(
     });
 
     const rw = fontRegular.widthOfTextAtSize(rateStr, 8.5);
-    page.drawText(safePdfText(rateStr), {
+    currentPage.drawText(safePdfText(rateStr), {
       x: leftMargin + 445 - rw,
       y,
       size: 8.5,
@@ -399,7 +493,7 @@ export async function generateInvoicePdf(
     });
 
     const tw = fontBold.widthOfTextAtSize(lineTotalStr, 8.5);
-    page.drawText(safePdfText(lineTotalStr), {
+    currentPage.drawText(safePdfText(lineTotalStr), {
       x: rightMargin - 8 - tw,
       y,
       size: 8.5,
@@ -408,7 +502,7 @@ export async function generateInvoicePdf(
     });
 
     // Subtle row divider line
-    page.drawLine({
+    currentPage.drawLine({
       start: { x: leftMargin, y: y - 6 },
       end: { x: rightMargin, y: y - 6 },
       thickness: 0.5,
@@ -421,6 +515,23 @@ export async function generateInvoicePdf(
 
   y -= 8;
 
+  // Check if financial summary and footer fit on the current page
+  const footerY = 56;
+  if (y - 140 < footerY + 20) {
+    currentPage = doc.addPage([595.28, 841.89]);
+    currentPage.drawText(
+      safePdfText(`${companyName} - Invoice #${invoice.invoiceNo} (Summary)`),
+      {
+        x: leftMargin,
+        y: height - 35,
+        size: 9,
+        font: fontBold,
+        color: primaryColor,
+      },
+    );
+    y = height - 65;
+  }
+
   // 5. Financial Summary Box (Explicit GST Tax Breakup & Grand Total)
   const taxBreakup = (invoice.taxBreakup as unknown as TaxBreakupData) || {};
   const subtotalStr = Number(invoice.subtotal).toFixed(2);
@@ -432,7 +543,7 @@ export async function generateInvoicePdf(
   const sumBoxX = rightMargin - sumBoxW;
 
   // Subtotal line
-  page.drawText('Subtotal (Taxable Value):', {
+  currentPage.drawText('Subtotal (Taxable Value):', {
     x: sumBoxX,
     y,
     size: 8.5,
@@ -441,7 +552,7 @@ export async function generateInvoicePdf(
   });
   const subVal = `Rs. ${subtotalStr}`;
   const subValW = fontRegular.widthOfTextAtSize(subVal, 8.5);
-  page.drawText(subVal, {
+  currentPage.drawText(subVal, {
     x: rightMargin - subValW,
     y,
     size: 8.5,
@@ -452,7 +563,7 @@ export async function generateInvoicePdf(
 
   // Tax breakdown with explicit percentage
   if (taxBreakup.isInterState) {
-    page.drawText(`Integrated GST (IGST ${taxRate}%):`, {
+    currentPage.drawText(`Integrated GST (IGST ${taxRate}%):`, {
       x: sumBoxX,
       y,
       size: 8.5,
@@ -461,7 +572,7 @@ export async function generateInvoicePdf(
     });
     const igstVal = `Rs. ${taxStr}`;
     const igstValW = fontRegular.widthOfTextAtSize(igstVal, 8.5);
-    page.drawText(igstVal, {
+    currentPage.drawText(igstVal, {
       x: rightMargin - igstValW,
       y,
       size: 8.5,
@@ -472,7 +583,7 @@ export async function generateInvoicePdf(
   } else {
     const halfTax = (Number(invoice.tax) / 2).toFixed(2);
     const halfRate = taxRate / 2;
-    page.drawText(`Central GST (CGST ${halfRate}%):`, {
+    currentPage.drawText(`Central GST (CGST ${halfRate}%):`, {
       x: sumBoxX,
       y,
       size: 8.5,
@@ -481,7 +592,7 @@ export async function generateInvoicePdf(
     });
     const cgstVal = `Rs. ${halfTax}`;
     const cgstValW = fontRegular.widthOfTextAtSize(cgstVal, 8.5);
-    page.drawText(cgstVal, {
+    currentPage.drawText(cgstVal, {
       x: rightMargin - cgstValW,
       y,
       size: 8.5,
@@ -490,7 +601,7 @@ export async function generateInvoicePdf(
     });
     y -= 14;
 
-    page.drawText(`State GST (SGST ${halfRate}%):`, {
+    currentPage.drawText(`State GST (SGST ${halfRate}%):`, {
       x: sumBoxX,
       y,
       size: 8.5,
@@ -499,7 +610,7 @@ export async function generateInvoicePdf(
     });
     const sgstVal = `Rs. ${halfTax}`;
     const sgstValW = fontRegular.widthOfTextAtSize(sgstVal, 8.5);
-    page.drawText(sgstVal, {
+    currentPage.drawText(sgstVal, {
       x: rightMargin - sgstValW,
       y,
       size: 8.5,
@@ -511,7 +622,7 @@ export async function generateInvoicePdf(
 
   // Grand Total Card Box
   const grandBoxH = 24;
-  page.drawRectangle({
+  currentPage.drawRectangle({
     x: sumBoxX - 8,
     y: y - 6,
     width: sumBoxW + 8,
@@ -521,7 +632,7 @@ export async function generateInvoicePdf(
     borderWidth: 0.75,
   });
 
-  page.drawText('GRAND TOTAL:', {
+  currentPage.drawText('GRAND TOTAL:', {
     x: sumBoxX,
     y: y + 2,
     size: 9.5,
@@ -530,7 +641,7 @@ export async function generateInvoicePdf(
   });
   const totalVal = `Rs. ${totalStr}`;
   const totalValW = fontBold.widthOfTextAtSize(totalVal, 10.5);
-  page.drawText(totalVal, {
+  currentPage.drawText(totalVal, {
     x: rightMargin - totalValW,
     y: y + 2,
     size: 10.5,
@@ -538,23 +649,22 @@ export async function generateInvoicePdf(
     color: primaryColor,
   });
 
-  // 6. Bottom Terms & Conditions & Signatory Section
-  const footerY = 56;
-  page.drawLine({
+  // 6. Bottom Terms & Conditions & Signatory Section on Final Page
+  currentPage.drawLine({
     start: { x: leftMargin, y: footerY + 16 },
     end: { x: rightMargin, y: footerY + 16 },
     thickness: 0.75,
     color: lineGray,
   });
 
-  page.drawText('Terms & Conditions:', {
+  currentPage.drawText('Terms & Conditions:', {
     x: leftMargin,
     y: footerY + 5,
     size: 7.5,
     font: fontBold,
     color: primaryColor,
   });
-  page.drawText(
+  currentPage.drawText(
     '1. Unbroken, undamaged full boxes returnable within 7 days with this invoice QR code.',
     {
       x: leftMargin,
@@ -564,7 +674,7 @@ export async function generateInvoicePdf(
       color: grayColor,
     },
   );
-  page.drawText(
+  currentPage.drawText(
     '2. Please inspect shade, size and batch lot prior to laying tiles. No claims accepted after installation.',
     {
       x: leftMargin,
@@ -577,20 +687,20 @@ export async function generateInvoicePdf(
 
   // Signatory Box
   const sigX = rightMargin - 160;
-  page.drawText(`For ${companyName}`, {
+  currentPage.drawText(`For ${companyName}`, {
     x: sigX,
     y: footerY + 5,
     size: 8,
     font: fontBold,
     color: textColor,
   });
-  page.drawLine({
+  currentPage.drawLine({
     start: { x: sigX, y: footerY - 8 },
     end: { x: rightMargin, y: footerY - 8 },
     thickness: 0.5,
     color: lineGray,
   });
-  page.drawText('[ Authorized Signatory ]', {
+  currentPage.drawText('[ Authorized Signatory ]', {
     x: sigX + 18,
     y: footerY - 18,
     size: 6.5,
@@ -598,6 +708,26 @@ export async function generateInvoicePdf(
     color: grayColor,
   });
 
+  // Page Numbers across all pages
+  const totalPages = doc.getPageCount();
+  doc.getPages().forEach((p, i) => {
+    p.drawText(`Page ${i + 1} of ${totalPages}`, {
+      x: rightMargin - 45,
+      y: 18,
+      size: 7,
+      font: fontRegular,
+      color: grayColor,
+    });
+  });
+
   const pdfBytes = await doc.save();
-  return { pdfBytes, invoiceNo: invoice.invoiceNo };
+  const result: GeneratedPdfResult = { pdfBytes, invoiceNo: invoice.invoiceNo };
+
+  if (pdfBufferCache.size >= MAX_PDF_CACHE_SIZE) {
+    const oldestKey = pdfBufferCache.keys().next().value;
+    if (oldestKey) pdfBufferCache.delete(oldestKey);
+  }
+  pdfBufferCache.set(cacheKey, result);
+
+  return result;
 }

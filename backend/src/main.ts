@@ -13,8 +13,30 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   // Enable CORS for Web Dashboard & Mobile App clients
+  const allowedOriginsEnv = process.env.ALLOWED_ORIGINS;
+  const defaultAllowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:3001',
+  ];
+  const configuredOrigins = allowedOriginsEnv
+    ? allowedOriginsEnv.split(',').map((o) => o.trim())
+    : defaultAllowedOrigins;
+
   app.enableCors({
-    origin: true, // Reflects request origin, allowed with credentials
+    origin: (origin, callback) => {
+      // Allow requests with no origin (such as mobile apps, Postman, curl)
+      if (!origin) return callback(null, true);
+      if (
+        configuredOrigins.includes(origin) ||
+        process.env.NODE_ENV !== 'production' ||
+        /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+)(:\d+)?$/.test(origin)
+      ) {
+        return callback(null, true);
+      }
+      return callback(new Error(`CORS blocked for origin: ${origin}`));
+    },
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });

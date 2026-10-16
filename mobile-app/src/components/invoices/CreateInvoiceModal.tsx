@@ -694,7 +694,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   toggleBtnActive: {
-    backgroundColor: Colors.dark.primary,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
   toggleText: {
     fontSize: 12,
@@ -702,7 +707,8 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
   },
   toggleTextActive: {
-    color: '#FFFFFF',
+    color: '#09090B',
+    fontWeight: '800',
   },
   taxRow: {
     flexDirection: 'row',
@@ -719,8 +725,13 @@ const styles = StyleSheet.create({
     borderColor: Colors.dark.border,
   },
   taxChipActive: {
-    backgroundColor: Colors.dark.primary,
-    borderColor: Colors.dark.primary,
+    backgroundColor: '#FFFFFF',
+    borderColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
   taxChipText: {
     fontSize: 12,
@@ -728,7 +739,8 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
   },
   taxChipTextActive: {
-    color: '#FFFFFF',
+    color: '#09090B',
+    fontWeight: '800',
   },
   fullPayBtn: {
     alignSelf: 'flex-end',

@@ -56,10 +56,10 @@ export function PaymentCategoryBreakdown({
                   <View style={styles.rowMeta}>
                     <View style={styles.labelRow}>
                       <View style={[styles.dot, { backgroundColor: color }]} />
-                      <Text style={styles.name}>{pm.name}</Text>
-                      <Text style={styles.countText}>({count} inv)</Text>
+                      <Text style={styles.name} numberOfLines={1}>{pm.name}</Text>
+                      <Text style={styles.countText} numberOfLines={1}>({count} inv)</Text>
                     </View>
-                    <Text style={styles.amount}>
+                    <Text style={styles.amount} numberOfLines={1}>
                       {formatINR(pm.value)} ({pct}%)
                     </Text>
                   </View>
@@ -140,8 +140,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 5,
+    gap: 8,
   },
   labelRow: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -164,6 +166,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: Colors.dark.textSecondary,
+    flexShrink: 0,
   },
   progressTrack: {
     height: 6,

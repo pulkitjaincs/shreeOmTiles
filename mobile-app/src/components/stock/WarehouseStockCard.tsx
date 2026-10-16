@@ -52,13 +52,15 @@ export function WarehouseStockCard({
       <View style={styles.divider} />
 
       <View style={styles.stockMeta}>
-        <View style={styles.metaItem}>
+        <View style={[styles.metaItem, { flex: 1, marginRight: 8 }]}>
           <Ionicons name="business-outline" size={13} color="#818CF8" />
-          <Text style={styles.metaText}>{item.warehouse?.name || 'Warehouse'}</Text>
+          <Text style={styles.metaText} numberOfLines={1}>
+            {item.warehouse?.name || 'Warehouse'}
+          </Text>
         </View>
         <View style={styles.metaItem}>
           <Ionicons name="barcode-outline" size={13} color="#A1A1AA" />
-          <Text style={styles.metaText}>
+          <Text style={styles.metaText} numberOfLines={1}>
             Batch: <Text style={styles.metaBatchVal}>{item.batchNo || 'Standard Batch'}</Text>
           </Text>
         </View>
@@ -202,15 +204,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    paddingVertical: 6,
+    gap: 5,
+    height: 34,
     borderRadius: 8,
     backgroundColor: 'rgba(16, 185, 129, 0.1)',
     borderWidth: 1,
     borderColor: 'rgba(16, 185, 129, 0.25)',
   },
   actionTextInward: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '700',
     color: '#10B981',
   },
@@ -219,15 +221,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    paddingVertical: 6,
+    gap: 5,
+    height: 34,
     borderRadius: 8,
     backgroundColor: 'rgba(56, 189, 248, 0.1)',
     borderWidth: 1,
     borderColor: 'rgba(56, 189, 248, 0.25)',
   },
   actionTextTransfer: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '700',
     color: '#38BDF8',
   },
@@ -236,15 +238,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
-    paddingVertical: 6,
+    gap: 5,
+    height: 34,
     borderRadius: 8,
     backgroundColor: Colors.dark.cardElevated,
     borderWidth: 1,
     borderColor: Colors.dark.border,
   },
   actionTextAudit: {
-    fontSize: 11,
+    fontSize: 11.5,
     fontWeight: '600',
     color: Colors.dark.textSecondary,
   },

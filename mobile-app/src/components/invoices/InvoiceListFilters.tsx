@@ -5,6 +5,8 @@ import { FilterPills } from '@/components/ui/FilterPills';
 import { Input } from '@/components/ui/Input';
 import { Colors } from '@/constants/theme';
 
+import { FilterDropdown } from '@/components/ui/FilterDropdown';
+
 interface InvoiceListFiltersProps {
   search: string;
   onSearchChange: (value: string) => void;
@@ -49,30 +51,56 @@ export function InvoiceListFilters({
         onChangeText={onSearchChange}
         placeholder="Search invoice #, customer name, phone..."
       />
-      <FilterPills
-        options={[
-          { label: 'All Bills', value: 'ALL', count: invoiceCount },
-          { label: 'Paid', value: 'PAID' },
-          { label: 'Partial', value: 'PARTIAL' },
-          { label: 'Created', value: 'CREATED' },
-        ]}
-        selected={status}
-        onSelect={onStatusChange}
-      />
-      <FilterPills
-        options={[
-          { label: 'All Time', value: 'ALL' },
-          { label: 'Today', value: 'TODAY' },
-          { label: 'Yesterday', value: 'YESTERDAY' },
-          { label: 'This Week', value: 'THIS_WEEK' },
-          { label: 'This Month', value: 'THIS_MONTH' },
-          { label: 'Custom Range', value: 'CUSTOM' },
-        ]}
-        selected={datePreset}
-        onSelect={onDatePresetChange}
-      />
+
+      {/* Line 1: Status Dropdown & Payment Mode Dropdown in one line */}
+      <View style={styles.dropdownsRow}>
+        <FilterDropdown
+          label="Status"
+          value={status}
+          options={[
+            { label: 'All Bills', value: 'ALL', count: invoiceCount, icon: 'receipt-outline' },
+            { label: 'Paid', value: 'PAID', icon: 'checkmark-circle-outline', color: '#10B981' },
+            { label: 'Partial', value: 'PARTIAL', icon: 'time-outline', color: '#F59E0B' },
+            { label: 'Created', value: 'CREATED', icon: 'document-outline', color: '#38BDF8' },
+            { label: 'Refunds', value: 'REFUNDED', icon: 'return-up-back-outline', color: '#F43F5E' },
+          ]}
+          onSelect={onStatusChange}
+          icon="receipt-outline"
+        />
+
+        <FilterDropdown
+          label="Mode"
+          value={paymentMode}
+          options={[
+            { label: 'All Modes', value: 'ALL', icon: 'wallet-outline' },
+            { label: 'UPI QR', value: 'UPI', icon: 'qr-code-outline', color: '#38BDF8' },
+            { label: 'Cash', value: 'CASH', icon: 'cash-outline', color: '#10B981' },
+            { label: 'Credit', value: 'CREDIT', icon: 'card-outline', color: '#EF4444' },
+            { label: 'Cheque', value: 'CHEQUE', icon: 'document-text-outline', color: '#F59E0B' },
+          ]}
+          onSelect={onPaymentModeChange}
+          icon="wallet-outline"
+        />
+      </View>
+
+      {/* Line 2: Timing Date Preset FilterPills */}
+      <View style={styles.datePillsContainer}>
+        <FilterPills
+          options={[
+            { label: 'All Time', value: 'ALL' },
+            { label: 'Today', value: 'TODAY' },
+            { label: 'Yesterday', value: 'YESTERDAY' },
+            { label: 'This Week', value: 'THIS_WEEK' },
+            { label: 'This Month', value: 'THIS_MONTH' },
+            { label: 'Custom Range', value: 'CUSTOM' },
+          ]}
+          selected={datePreset}
+          onSelect={onDatePresetChange}
+        />
+      </View>
+
       {datePreset === 'CUSTOM' ? (
-        <View style={{ flexDirection: 'row', paddingHorizontal: 16, gap: 8 }}>
+        <View style={styles.customDateRow}>
           <View style={{ flex: 1 }}>
             <Input label="From (YYYY-MM-DD)" placeholder="2026-01-01" value={dateFrom} onChangeText={onDateFromChange} />
           </View>
@@ -81,17 +109,7 @@ export function InvoiceListFilters({
           </View>
         </View>
       ) : null}
-      <FilterPills
-        options={[
-          { label: 'All Modes', value: 'ALL' },
-          { label: 'UPI', value: 'UPI' },
-          { label: 'Cash', value: 'CASH' },
-          { label: 'Credit', value: 'CREDIT' },
-          { label: 'Cheque', value: 'CHEQUE' },
-        ]}
-        selected={paymentMode}
-        onSelect={onPaymentModeChange}
-      />
+
       <View style={styles.resultsRow}>
         <Text style={styles.resultsText}>Showing {resultCount} of {invoiceCount} invoices</Text>
         {hasActiveFilters ? (
@@ -105,13 +123,32 @@ export function InvoiceListFilters({
 }
 
 const styles = StyleSheet.create({
+  dropdownsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    paddingHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  datePillsContainer: {
+    marginTop: -4,
+    marginBottom: -4,
+  },
+  customDateRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    gap: 8,
+    marginTop: 6,
+    marginBottom: 6,
+  },
   resultsRow: {
     minHeight: 30,
     paddingHorizontal: 16,
-    flexDirection: 'row' as const,
-    alignItems: 'center' as const,
-    justifyContent: 'space-between' as const,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 2,
   },
   resultsText: { color: Colors.dark.textTertiary, fontSize: 11 },
-  clearFilters: { color: Colors.dark.primary, fontSize: 11, fontWeight: '700' as const },
+  clearFilters: { color: '#38BDF8', fontSize: 11, fontWeight: '700' },
 });

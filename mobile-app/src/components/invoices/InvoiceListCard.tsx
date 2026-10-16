@@ -16,7 +16,7 @@ interface InvoiceListCardProps {
   onReturn: (invoice: InvoiceListEntry) => void;
 }
 
-export function InvoiceListCard({
+export const InvoiceListCard = React.memo(function InvoiceListCard({
   invoice,
   canReturn,
   onOpen,
@@ -32,18 +32,25 @@ export function InvoiceListCard({
   return (
     <Card elevated style={styles.invoiceCard} onPress={() => onOpen(invoice)}>
       <View style={styles.cardTop}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={styles.invoiceNumber}>#{invoice.invoiceNo}</Text>
-          <Text style={styles.partyName} numberOfLines={1}>
+        <View style={{ flex: 1, minWidth: 0, marginRight: 8 }}>
+          <Text style={styles.invoiceNumber} numberOfLines={1}>#{invoice.invoiceNo}</Text>
+          <Text style={styles.partyName} numberOfLines={1} ellipsizeMode="tail">
             {invoice.party?.name || invoice.partyName || 'Counter Sale'}
           </Text>
           {invoice.party?.phone || invoice.partyPhone ? (
-            <Text style={styles.partyPhone}>{invoice.party?.phone || invoice.partyPhone}</Text>
+            <Text style={styles.partyPhone} numberOfLines={1}>{invoice.party?.phone || invoice.partyPhone}</Text>
           ) : null}
           <Text style={styles.dateText}>{formatDate(invoice.createdAt)}</Text>
         </View>
-        <View style={{ alignItems: 'flex-end' }}>
-          <Text style={styles.totalAmount}>{formatINR(invoice.total)}</Text>
+        <View style={{ alignItems: 'flex-end', flexShrink: 0, gap: 3 }}>
+          <Text
+            style={styles.totalAmount}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
+          >
+            {formatINR(invoice.total)}
+          </Text>
           <StatusBadge status={invoice.status} size="sm" />
           {invoice.refundInvoices && invoice.refundInvoices.length > 0 ? (
             <View style={styles.refundCountBadge}>
@@ -62,8 +69,14 @@ export function InvoiceListCard({
           <View style={styles.modeBadge}>
             <Text style={styles.modeText}>{invoice.paymentMode || 'CASH'}</Text>
           </View>
-          {refundedTotal > 0 ? <Text style={styles.refundText}>−{formatINR(refundedTotal)} refunded</Text> : null}
-          <Text style={styles.salesmanText}>By: {invoice.salesman?.name || 'Staff'}</Text>
+          {refundedTotal > 0 ? (
+            <Text style={styles.refundText} numberOfLines={1}>
+              −{formatINR(refundedTotal)} refunded
+            </Text>
+          ) : null}
+          <Text style={styles.salesmanText} numberOfLines={1} ellipsizeMode="tail">
+            By: {invoice.salesman?.name || 'Staff'}
+          </Text>
         </View>
 
         <View style={styles.actionsRow}>
@@ -100,7 +113,7 @@ export function InvoiceListCard({
       </View>
     </Card>
   );
-}
+});
 
 const styles = StyleSheet.create({
   invoiceCard: { padding: 16, marginBottom: 10 },

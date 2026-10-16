@@ -87,33 +87,37 @@ export class StockService {
         },
       });
 
-      if (existing) {
-        await tx.$queryRawUnsafe(
-          `SELECT id, quantity FROM "StockLedger" WHERE id = $1 FOR UPDATE`,
-          existing.id,
-        );
-      }
-
-      const currentQty = existing?.quantity ?? 0;
+      let currentQty = 0;
       let targetQuantity: number;
-      if (dto.mode === 'ADD') {
-        targetQuantity = currentQty + dto.quantity;
-      } else {
-        targetQuantity = dto.quantity;
-      }
-
-      if (targetQuantity < 0) {
-        throw new BadRequestException('Stock quantity cannot be negative');
-      }
-
       let updated: StockLedger & { product: Product; warehouse: Warehouse };
+
       if (existing) {
+        const lockedRows = await tx.$queryRaw<Array<{ id: string; quantity: number }>>`
+          SELECT id, quantity FROM "StockLedger" WHERE id = ${existing.id} FOR UPDATE
+        `;
+        const lockedQty = lockedRows[0]?.quantity ?? existing.quantity ?? 0;
+        currentQty = lockedQty;
+
+        if (dto.mode === 'ADD') {
+          targetQuantity = lockedQty + dto.quantity;
+        } else {
+          targetQuantity = dto.quantity;
+        }
+
+        if (targetQuantity < 0) {
+          throw new BadRequestException('Stock quantity cannot be negative');
+        }
+
         updated = await tx.stockLedger.update({
           where: { id: existing.id },
           data: { quantity: targetQuantity },
           include: { product: true, warehouse: true },
         });
       } else {
+        targetQuantity = dto.quantity;
+        if (targetQuantity < 0) {
+          throw new BadRequestException('Stock quantity cannot be negative');
+        }
         updated = await tx.stockLedger.create({
           data: {
             productId: dto.productId,

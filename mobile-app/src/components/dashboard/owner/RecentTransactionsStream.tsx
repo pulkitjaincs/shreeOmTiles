@@ -66,11 +66,15 @@ export function RecentTransactionsStream({
                 </View>
 
                 {/* Content */}
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, marginRight: 8 }}>
                   <View style={styles.partyRow}>
-                    <Text style={styles.partyName}>{tx.partyName}</Text>
+                    <Text style={styles.partyName} numberOfLines={1} ellipsizeMode="tail">
+                      {tx.partyName}
+                    </Text>
                     {tx.invoiceNo && tx.invoiceNo !== 'Direct' && (
-                      <Text style={styles.invoiceTag}>#{tx.invoiceNo}</Text>
+                      <Text style={styles.invoiceTag} numberOfLines={1}>
+                        #{tx.invoiceNo}
+                      </Text>
                     )}
                   </View>
 
@@ -78,24 +82,24 @@ export function RecentTransactionsStream({
                   <View style={styles.metaRow}>
                     {isOutflow ? (
                       <View style={[styles.sourceBadge, styles.badgeAmber]}>
-                        <Text style={[styles.sourceText, { color: '#FCD34D' }]}>
+                        <Text style={[styles.sourceText, { color: '#FCD34D' }]} numberOfLines={1}>
                           Store Paid Out ({tx.mode})
                         </Text>
                       </View>
                     ) : isDriverHandover ? (
                       <View style={[styles.sourceBadge, styles.badgeEmerald]}>
                         <Ionicons name="bicycle-outline" size={11} color="#10B981" />
-                        <Text style={[styles.sourceText, { color: '#10B981' }]}>
+                        <Text style={[styles.sourceText, { color: '#10B981' }]} numberOfLines={1}>
                           Handed by {tx.driverName}
                         </Text>
                       </View>
                     ) : isCash ? (
                       <View style={[styles.sourceBadge, styles.badgeMuted]}>
-                        <Text style={styles.sourceText}>Counter Cash</Text>
+                        <Text style={styles.sourceText} numberOfLines={1}>Counter Cash</Text>
                       </View>
                     ) : (
                       <View style={[styles.sourceBadge, styles.badgeSky]}>
-                        <Text style={[styles.sourceText, { color: '#38BDF8' }]}>
+                        <Text style={[styles.sourceText, { color: '#38BDF8' }]} numberOfLines={1}>
                           {tx.mode} Inflow
                         </Text>
                       </View>
@@ -105,19 +109,22 @@ export function RecentTransactionsStream({
                   </View>
 
                   {tx.confirmedByName ? (
-                    <Text style={styles.confirmedBy}>
+                    <Text style={styles.confirmedBy} numberOfLines={1}>
                       Confirmed by {tx.confirmedByName}
                     </Text>
                   ) : null}
                 </View>
 
                 {/* Amount */}
-                <View style={{ alignItems: 'flex-end', gap: 3 }}>
+                <View style={{ alignItems: 'flex-end', gap: 3, flexShrink: 0 }}>
                   <Text
                     style={[
                       styles.amount,
                       isOutflow ? { color: '#F59E0B' } : { color: '#10B981' },
                     ]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.75}
                   >
                     {isOutflow ? `- ${formatINR(tx.amount)}` : `+ ${formatINR(tx.amount)}`}
                   </Text>
@@ -199,11 +206,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: Colors.dark.text,
+    flexShrink: 1,
   },
   invoiceTag: {
     fontSize: 11,
     fontWeight: '800',
     color: '#38BDF8',
+    flexShrink: 0,
   },
   metaRow: {
     flexDirection: 'row',
@@ -248,6 +257,7 @@ const styles = StyleSheet.create({
   amount: {
     fontSize: 13.5,
     fontWeight: '800',
+    flexShrink: 0,
   },
   confirmedBadge: {
     backgroundColor: 'rgba(16, 185, 129, 0.12)',

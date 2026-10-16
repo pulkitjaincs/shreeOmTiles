@@ -99,6 +99,8 @@ export function TransactionHistoryCard({
               styles.paymentAmount,
               { color: isInflow ? '#10B981' : '#F59E0B' },
             ]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
           >
             {isInflow ? `+${formatINR(payment.amount)}` : `-${formatINR(payment.amount)}`}
           </Text>

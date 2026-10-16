@@ -37,7 +37,9 @@ export function ExecutiveKpiGrid({
   return (
     <View style={styles.container}>
       <Text style={styles.sectionHeader}>Executive KPI Grid</Text>
-      <View style={styles.grid}>
+
+      {/* Row 1: Invoiced Sales & Invoices Count */}
+      <View style={styles.kpiRow}>
         {/* KPI 1: Invoiced Sales */}
         <TouchableOpacity
           style={[styles.kpiCard, styles.kpiCardPrimary]}
@@ -45,14 +47,25 @@ export function ExecutiveKpiGrid({
           activeOpacity={0.75}
         >
           <View style={styles.headerRow}>
-            <Text style={styles.label}>Invoiced Sales</Text>
+            <Text style={styles.label} numberOfLines={1} ellipsizeMode="tail">
+              Invoiced Sales
+            </Text>
             <View style={styles.iconBox}>
               <Ionicons name="receipt-outline" size={13} color="#FFFFFF" />
             </View>
           </View>
-          <Text style={styles.value}>{formatINR(data.totalRevenue)}</Text>
+          <Text
+            style={styles.value}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+          >
+            {formatINR(data.totalRevenue)}
+          </Text>
           <View style={styles.footerRow}>
-            <Text style={styles.subText}>{data.periodInvoices || 0} invoices</Text>
+            <Text style={styles.subText} numberOfLines={1} ellipsizeMode="tail">
+              {data.periodInvoices || 0} invoices
+            </Text>
             {data.deltaRevenue !== null && data.deltaRevenue !== undefined && (
               <View
                 style={[
@@ -65,8 +78,9 @@ export function ExecutiveKpiGrid({
                     styles.deltaBadgeText,
                     data.deltaRevenue >= 0 ? styles.deltaTextUp : styles.deltaTextDown,
                   ]}
+                  numberOfLines={1}
                 >
-                  {data.deltaRevenue >= 0 ? `↑ +${data.deltaRevenue}%` : `↓ ${data.deltaRevenue}%`}
+                  {data.deltaRevenue >= 0 ? `↑+${data.deltaRevenue}%` : `↓${data.deltaRevenue}%`}
                 </Text>
               </View>
             )}
@@ -80,14 +94,25 @@ export function ExecutiveKpiGrid({
           activeOpacity={0.75}
         >
           <View style={styles.headerRow}>
-            <Text style={styles.label}>Invoices Count</Text>
+            <Text style={styles.label} numberOfLines={1} ellipsizeMode="tail">
+              Invoices Count
+            </Text>
             <View style={styles.iconBox}>
               <Ionicons name="trending-up-outline" size={13} color="#FFFFFF" />
             </View>
           </View>
-          <Text style={styles.value}>{data.periodInvoices || 0}</Text>
+          <Text
+            style={styles.value}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+          >
+            {data.periodInvoices || 0}
+          </Text>
           <View style={styles.footerRow}>
-            <Text style={styles.subText}>{data.todayInvoices || 0} today</Text>
+            <Text style={styles.subText} numberOfLines={1} ellipsizeMode="tail">
+              {data.todayInvoices || 0} today
+            </Text>
             {data.deltaInvoices !== null && data.deltaInvoices !== undefined && (
               <View
                 style={[
@@ -100,14 +125,18 @@ export function ExecutiveKpiGrid({
                     styles.deltaBadgeText,
                     data.deltaInvoices >= 0 ? styles.deltaTextUp : styles.deltaTextDown,
                   ]}
+                  numberOfLines={1}
                 >
-                  {data.deltaInvoices >= 0 ? `↑ +${data.deltaInvoices}%` : `↓ ${data.deltaInvoices}%`}
+                  {data.deltaInvoices >= 0 ? `↑+${data.deltaInvoices}%` : `↓${data.deltaInvoices}%`}
                 </Text>
               </View>
             )}
           </View>
         </TouchableOpacity>
+      </View>
 
+      {/* Row 2: Collected (Inflow) & With Drivers */}
+      <View style={styles.kpiRow}>
         {/* KPI 3: Collected Inflow */}
         <TouchableOpacity
           style={[styles.kpiCard, styles.kpiCardEmerald]}
@@ -115,15 +144,30 @@ export function ExecutiveKpiGrid({
           activeOpacity={0.75}
         >
           <View style={styles.headerRow}>
-            <Text style={[styles.label, { color: '#10B981' }]}>Collected (Inflow)</Text>
+            <Text
+              style={[styles.label, { color: '#10B981' }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              Collected Inflow
+            </Text>
             <View style={[styles.iconBox, { backgroundColor: 'rgba(16, 185, 129, 0.15)' }]}>
               <Ionicons name="wallet-outline" size={13} color="#10B981" />
             </View>
           </View>
-          <Text style={[styles.value, { color: '#10B981' }]}>
+          <Text
+            style={[styles.value, { color: '#10B981' }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+          >
             {formatINR(data.totalCollected)}
           </Text>
-          <Text style={styles.subText}>{data.totalCollectedCount || 0} confirmed txns</Text>
+          <View style={styles.footerRow}>
+            <Text style={styles.subText} numberOfLines={1} ellipsizeMode="tail">
+              {data.totalCollectedCount || 0} confirmed txns
+            </Text>
+          </View>
         </TouchableOpacity>
 
         {/* KPI 4: With Drivers */}
@@ -133,19 +177,35 @@ export function ExecutiveKpiGrid({
           activeOpacity={0.75}
         >
           <View style={styles.headerRow}>
-            <Text style={[styles.label, { color: '#F59E0B' }]}>With Drivers</Text>
+            <Text
+              style={[styles.label, { color: '#F59E0B' }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              With Drivers
+            </Text>
             <View style={[styles.iconBox, { backgroundColor: 'rgba(245, 158, 11, 0.15)' }]}>
               <Ionicons name="bicycle-outline" size={13} color="#F59E0B" />
             </View>
           </View>
-          <Text style={[styles.value, { color: '#F59E0B' }]}>
+          <Text
+            style={[styles.value, { color: '#F59E0B' }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+          >
             {formatINR(data.cashToBeCollectedFromDrivers)}
           </Text>
-          <Text style={styles.subText}>
-            {data.pendingDriverDeliveriesCount || 0} orders waiting handover
-          </Text>
+          <View style={styles.footerRow}>
+            <Text style={styles.subText} numberOfLines={1} ellipsizeMode="tail">
+              {data.pendingDriverDeliveriesCount || 0} waiting handover
+            </Text>
+          </View>
         </TouchableOpacity>
+      </View>
 
+      {/* Row 3: Customer Receivables & Store Payables */}
+      <View style={styles.kpiRow}>
         {/* KPI 5: Customer Receivables */}
         <TouchableOpacity
           style={[styles.kpiCard, styles.kpiCardRose]}
@@ -153,15 +213,30 @@ export function ExecutiveKpiGrid({
           activeOpacity={0.75}
         >
           <View style={styles.headerRow}>
-            <Text style={[styles.label, { color: '#EF4444' }]}>Receivables</Text>
+            <Text
+              style={[styles.label, { color: '#EF4444' }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              Receivables
+            </Text>
             <View style={[styles.iconBox, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
               <Ionicons name="arrow-down-outline" size={13} color="#EF4444" />
             </View>
           </View>
-          <Text style={[styles.value, { color: '#EF4444' }]}>
+          <Text
+            style={[styles.value, { color: '#EF4444' }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+          >
             {formatINR(data.receivablesTotal)}
           </Text>
-          <Text style={styles.subText}>{data.receivablesCount || 0} unpaid balances</Text>
+          <View style={styles.footerRow}>
+            <Text style={styles.subText} numberOfLines={1} ellipsizeMode="tail">
+              {data.receivablesCount || 0} unpaid balances
+            </Text>
+          </View>
         </TouchableOpacity>
 
         {/* KPI 6: Store Payables */}
@@ -171,15 +246,30 @@ export function ExecutiveKpiGrid({
           activeOpacity={0.75}
         >
           <View style={styles.headerRow}>
-            <Text style={[styles.label, { color: '#FCD34D' }]}>Store Payables</Text>
+            <Text
+              style={[styles.label, { color: '#FCD34D' }]}
+              numberOfLines={1}
+              ellipsizeMode="tail"
+            >
+              Store Payables
+            </Text>
             <View style={[styles.iconBox, { backgroundColor: 'rgba(252, 211, 77, 0.15)' }]}>
               <Ionicons name="arrow-up-outline" size={13} color="#FCD34D" />
             </View>
           </View>
-          <Text style={[styles.value, { color: '#FCD34D' }]}>
+          <Text
+            style={[styles.value, { color: '#FCD34D' }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.7}
+          >
             {formatINR(data.payablesTotal)}
           </Text>
-          <Text style={styles.subText}>{data.payablesCount || 0} debts we owe</Text>
+          <View style={styles.footerRow}>
+            <Text style={styles.subText} numberOfLines={1} ellipsizeMode="tail">
+              {data.payablesCount || 0} store debts
+            </Text>
+          </View>
         </TouchableOpacity>
       </View>
     </View>
@@ -188,28 +278,30 @@ export function ExecutiveKpiGrid({
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 10,
-    marginBottom: 6,
+    marginTop: 8,
+    marginBottom: 4,
   },
   sectionHeader: {
-    fontSize: 13.5,
+    fontSize: 13,
     fontWeight: '800',
     color: '#FFFFFF',
     marginBottom: 10,
     letterSpacing: -0.2,
   },
-  grid: {
+  kpiRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 10,
+    marginBottom: 10,
   },
   kpiCard: {
-    width: '48.5%',
+    flex: 1,
     backgroundColor: '#141417',
     borderRadius: 14,
     borderWidth: 1,
     borderColor: Colors.dark.border,
-    padding: 13,
+    padding: 12,
+    minHeight: 96,
+    justifyContent: 'space-between',
   },
   kpiCardPrimary: {
     borderColor: 'rgba(255, 255, 255, 0.16)',
@@ -234,44 +326,50 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   label: {
-    fontSize: 10.5,
+    flex: 1,
+    fontSize: 9.5,
     fontWeight: '700',
     color: Colors.dark.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
+    marginRight: 4,
   },
   iconBox: {
-    width: 24,
-    height: 24,
-    borderRadius: 7,
+    width: 22,
+    height: 22,
+    borderRadius: 6,
     backgroundColor: Colors.dark.cardElevated,
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   value: {
-    fontSize: 17.5,
+    fontSize: 16.5,
     fontWeight: '900',
     color: '#FFFFFF',
-    letterSpacing: -0.4,
+    letterSpacing: -0.3,
+    marginVertical: 2,
   },
   footerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 4,
+    marginTop: 2,
+    gap: 4,
   },
   subText: {
-    fontSize: 10.5,
+    flex: 1,
+    fontSize: 9.5,
     color: Colors.dark.textTertiary,
-    marginTop: 3,
   },
   deltaBadge: {
-    paddingHorizontal: 5,
-    paddingVertical: 1.5,
-    borderRadius: 5,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 4,
+    flexShrink: 0,
   },
   deltaBadgeUp: {
     backgroundColor: 'rgba(16, 185, 129, 0.14)',
@@ -280,7 +378,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(239, 68, 68, 0.14)',
   },
   deltaBadgeText: {
-    fontSize: 9.5,
+    fontSize: 9,
     fontWeight: '800',
   },
   deltaTextUp: {

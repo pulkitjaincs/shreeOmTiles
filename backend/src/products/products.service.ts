@@ -75,10 +75,14 @@ export class ProductsService {
   async findAll(query?: {
     category?: string;
     search?: string;
+    includeInactive?: boolean;
     page?: number;
     limit?: number;
   }): Promise<any> {
     const where: Prisma.ProductWhereInput = {};
+    if (!query?.includeInactive) {
+      where.isActive = true;
+    }
     if (query?.category) {
       where.category = query.category;
     }
@@ -175,7 +179,11 @@ export class ProductsService {
     return this.prisma.$transaction(async (tx) => {
       const product = await tx.product.findUnique({
         where: { id },
-        include: { stockLedgers: true },
+        include: {
+          stockLedgers: true,
+          invoiceItems: true,
+          refundInvoiceItems: true,
+        },
       });
       if (!product) throw new NotFoundException(`Product ${id} not found`);
 
@@ -187,15 +195,19 @@ export class ProductsService {
         );
       }
 
-      // Disassociate product from historical invoice items and refund items so past tax records remain intact
-      await tx.invoiceItem.updateMany({
-        where: { productId: id },
-        data: { productId: null },
-      });
-      await tx.refundInvoiceItem.updateMany({
-        where: { productId: id },
-        data: { productId: null },
-      });
+      const hasPastInvoices =
+        (product.invoiceItems?.length ?? 0) > 0 ||
+        (product.refundInvoiceItems?.length ?? 0) > 0;
+
+      if (hasPastInvoices) {
+        // Soft delete: deactivate product to preserve historical GST Section 31 tax records and foreign keys
+        return tx.product.update({
+          where: { id },
+          data: { isActive: false },
+        });
+      }
+
+      // If never invoiced, safely remove empty stock ledgers and delete product
       await tx.stockLedger.deleteMany({ where: { productId: id } });
       return tx.product.delete({ where: { id } });
     });

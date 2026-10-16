@@ -29,18 +29,20 @@ export function DateFilterBar({
 }: DateFilterBarProps) {
   return (
     <View style={styles.container}>
-      <FilterPills<DatePreset>
-        options={[
-          { label: 'Today', value: 'today' },
-          { label: '7 Days', value: '7d' },
-          { label: '30 Days', value: '30d' },
-          { label: 'This Month', value: 'month' },
-          { label: 'All Time', value: 'all' },
-          { label: 'Custom', value: 'custom' },
-        ]}
-        selected={preset}
-        onSelect={(val) => setPreset(val)}
-      />
+      <View style={styles.pillsWrapper}>
+        <FilterPills<DatePreset>
+          options={[
+            { label: 'Today', value: 'today' },
+            { label: '7 Days', value: '7d' },
+            { label: '30 Days', value: '30d' },
+            { label: 'This Month', value: 'month' },
+            { label: 'All Time', value: 'all' },
+            { label: 'Custom', value: 'custom' },
+          ]}
+          selected={preset}
+          onSelect={(val) => setPreset(val)}
+        />
+      </View>
 
       {preset === 'custom' && (
         <Card style={styles.customDateCard}>
@@ -83,12 +85,14 @@ const styles = StyleSheet.create({
   container: {
     marginBottom: 6,
   },
+  pillsWrapper: {
+    marginHorizontal: -16,
+  },
   customDateCard: {
     padding: 14,
     backgroundColor: '#16161A',
     borderWidth: 1,
     borderColor: Colors.dark.borderMedium,
-    marginHorizontal: 16,
     marginBottom: 8,
   },
   customDateHeader: {

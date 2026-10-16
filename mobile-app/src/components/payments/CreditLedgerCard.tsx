@@ -123,26 +123,6 @@ export function CreditLedgerCard({ credit, onSettle }: CreditLedgerCardProps) {
                 <Ionicons name="call" size={11} color="#38BDF8" />
                 <Text style={styles.phoneText}>{partyPhone}</Text>
               </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handleWhatsAppAction}
-                style={styles.waPillTouch}
-                activeOpacity={0.7}
-              >
-                <Ionicons
-                  name="logo-whatsapp"
-                  size={12}
-                  color={isPayable ? '#F59E0B' : '#10B981'}
-                />
-                <Text
-                  style={[
-                    styles.waPillText,
-                    { color: isPayable ? '#F59E0B' : '#10B981' },
-                  ]}
-                >
-                  WhatsApp
-                </Text>
-              </TouchableOpacity>
             </View>
           ) : null}
 
@@ -181,6 +161,8 @@ export function CreditLedgerCard({ credit, onSettle }: CreditLedgerCardProps) {
               styles.paymentAmount,
               { color: isPayable ? '#F59E0B' : '#EF4444' },
             ]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
           >
             {formatINR(credit.amountDue)}
           </Text>
@@ -311,21 +293,6 @@ const styles = StyleSheet.create({
     color: '#38BDF8',
     fontFamily: 'monospace',
     fontWeight: '600',
-  },
-  waPillTouch: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    paddingVertical: 1,
-    paddingHorizontal: 5,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  waPillText: {
-    fontSize: 10,
-    fontWeight: '700',
   },
   invoiceRef: {
     fontSize: 11,

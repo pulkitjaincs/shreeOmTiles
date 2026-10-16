@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Text, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth-context';
@@ -31,7 +31,11 @@ export default function AppEntryScreen() {
       ]}
     >
       <View style={styles.logoBadge}>
-        <Text style={styles.logoText}>SO</Text>
+        <Image
+          source={require('@/assets/images/icon.png')}
+          style={styles.logoImage}
+          resizeMode="contain"
+        />
       </View>
       <ActivityIndicator size="small" color="#FFFFFF" style={styles.spinner} />
       <Text style={styles.loadingText}>Loading Shree Om Tiles...</Text>
@@ -48,19 +52,21 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   logoBadge: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
+    width: 64,
+    height: 64,
+    borderRadius: 18,
+    backgroundColor: '#000000',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
   },
-  logoText: {
-    color: '#09090B',
-    fontSize: 20,
-    fontWeight: '900',
-    letterSpacing: -1,
+  logoImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 16,
   },
   spinner: {
     marginBottom: 12,

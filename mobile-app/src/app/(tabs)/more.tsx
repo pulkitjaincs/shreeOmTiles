@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Alert,
+  BackHandler,
 } from 'react-native';
 import { useAuth } from '@/lib/auth-context';
 import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
@@ -40,6 +41,20 @@ export default function MoreScreen() {
   const [activeSection, setActiveSection] = useState<
     'MENU' | 'PARTIES' | 'STAFF' | 'SETTINGS' | 'WAREHOUSES'
   >('MENU');
+
+  // Handle hardware & gesture back button inside More screen
+  useEffect(() => {
+    const onBackPress = () => {
+      if (activeSection !== 'MENU') {
+        setActiveSection('MENU');
+        return true; // prevent changing tab or exiting screen
+      }
+      return false;
+    };
+
+    const backSub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => backSub.remove();
+  }, [activeSection]);
 
   // Parties State
   const [parties, setParties] = useState<Party[]>([]);
@@ -259,19 +274,28 @@ export default function MoreScreen() {
     }
   };
 
+  const getSectionSubtitle = () => {
+    switch (activeSection) {
+      case 'PARTIES':
+        return 'Directory & Statements';
+      case 'STAFF':
+        return 'Team Permissions & Access';
+      case 'WAREHOUSES':
+        return 'Locations & Showroom Hubs';
+      case 'SETTINGS':
+        return 'Dynamic QR & Company Profile';
+      default:
+        return 'Tools, Directory & Permissions';
+    }
+  };
+
   return (
     <View style={styles.screen}>
       <Header
         title={getSectionTitle()}
-        subtitle="Tools, Directory & Permissions"
-        rightAction={
-          activeSection !== 'MENU'
-            ? {
-                icon: 'chevron-back',
-                onPress: () => setActiveSection('MENU'),
-              }
-            : undefined
-        }
+        subtitle={getSectionSubtitle()}
+        showBrand={activeSection === 'MENU'}
+        onBack={activeSection !== 'MENU' ? () => setActiveSection('MENU') : undefined}
       />
 
       <ScrollView contentContainerStyle={styles.scrollContainer}>
@@ -527,7 +551,7 @@ const styles = StyleSheet.create({
   },
   scrollContainer: {
     padding: 16,
-    paddingBottom: 40,
+    paddingBottom: 95,
   },
   profileCard: {
     padding: 18,

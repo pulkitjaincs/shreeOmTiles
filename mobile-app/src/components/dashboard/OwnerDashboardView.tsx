@@ -222,7 +222,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.dark.textSecondary,
     marginTop: 2,
-    maxWidth: 240,
+    lineHeight: 15,
   },
   newInvoiceBtn: {
     flexDirection: 'row',

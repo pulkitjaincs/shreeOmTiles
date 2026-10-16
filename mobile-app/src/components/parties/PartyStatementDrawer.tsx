@@ -16,6 +16,7 @@ import { Colors } from '@/constants/theme';
 import { mobileApiRequest } from '@/lib/api';
 import { cleanPhoneNumber, formatINR, formatDate } from '@/lib/formatters';
 import { Party, StatementInvoice, StatementCreditLedger } from './types';
+import { Ionicons } from '@expo/vector-icons';
 
 interface PartyStatementDrawerProps {
   party: Party | null;
@@ -197,31 +198,42 @@ export function PartyStatementDrawer({
 
           {/* Action Buttons Row */}
           <View style={styles.actionsRow}>
-            {onEdit ? <Button
-              title="Edit Party"
-              icon="create-outline"
-              variant="outline"
-              size="md"
-              onPress={() => onEdit(party)}
-              style={{ flex: 1 }}
-            /> : null}
             <Button
               title="WhatsApp Statement"
               icon="logo-whatsapp"
               variant="primary"
-              size="md"
+              size="sm"
               onPress={handleShareStatement}
-              style={{ flex: 1.4 }}
+              style={styles.shareStatementBtn}
+              textStyle={styles.shareStatementBtnText}
             />
-            {canDelete ? <Button
-              title="Delete"
-              icon="trash-outline"
-              variant="danger"
-              size="md"
-              loading={deleting}
-              onPress={handleDelete}
-              style={{ flex: 0.8 }}
-            /> : null}
+            {onEdit ? (
+              <TouchableOpacity
+                style={styles.drawerIconBtn}
+                onPress={() => onEdit(party)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="pencil-outline" size={17} color="#F59E0B" />
+              </TouchableOpacity>
+            ) : null}
+            {canDelete ? (
+              <TouchableOpacity
+                style={[styles.drawerIconBtn, totalDues > 0 && styles.drawerIconBtnDisabled]}
+                onPress={handleDelete}
+                disabled={deleting}
+                activeOpacity={0.7}
+              >
+                {deleting ? (
+                  <ActivityIndicator size="small" color="#EF4444" />
+                ) : (
+                  <Ionicons
+                    name="trash-outline"
+                    size={17}
+                    color={totalDues > 0 ? Colors.dark.textTertiary : '#EF4444'}
+                  />
+                )}
+              </TouchableOpacity>
+            ) : null}
           </View>
 
           {/* Tabs: Orders vs Credit Ledgers */}
@@ -355,8 +367,33 @@ const styles = StyleSheet.create({
   },
   actionsRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
-    marginBottom: 12,
+    marginBottom: 14,
+  },
+  shareStatementBtn: {
+    flex: 1,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#10B981',
+  },
+  shareStatementBtnText: {
+    color: '#FFFFFF',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  drawerIconBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: Colors.dark.cardElevated,
+    borderWidth: 1,
+    borderColor: Colors.dark.borderMedium,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  drawerIconBtnDisabled: {
+    opacity: 0.5,
   },
   tabToggle: {
     flexDirection: 'row',

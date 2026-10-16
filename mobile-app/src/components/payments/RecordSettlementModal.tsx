@@ -7,7 +7,6 @@ import {
   Image,
   ActivityIndicator,
   Alert,
-  Linking,
 } from 'react-native';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Button } from '@/components/ui/Button';
@@ -18,17 +17,19 @@ import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
 import { formatINR } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
 import { Party, UpiAccount, UpiPreviewData } from './types';
+import { SettlementSuccessData } from './SettlementSuccessModal';
 
 interface RecordSettlementModalProps {
   visible: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (data?: SettlementSuccessData) => void;
   parties: Party[];
   onPartyCreated?: (newParty: Party) => void;
   initialDirection?: 'COLLECT' | 'PAY';
   initialPartyId?: string;
   initialAmount?: string;
   initialInvoiceId?: string;
+  initialInvoiceNo?: string;
   initialNotes?: string;
 }
 
@@ -42,6 +43,7 @@ export function RecordSettlementModal({
   initialPartyId = '',
   initialAmount = '',
   initialInvoiceId,
+  initialInvoiceNo = '',
   initialNotes = '',
 }: RecordSettlementModalProps) {
   const [direction, setDirection] = useState<'COLLECT' | 'PAY'>(initialDirection);
@@ -51,6 +53,7 @@ export function RecordSettlementModal({
   const [utr, setUtr] = useState('');
   const [notes, setNotes] = useState(initialNotes || '');
   const [invoiceId, setInvoiceId] = useState(initialInvoiceId || '');
+  const [invoiceNo, setInvoiceNo] = useState(initialInvoiceNo || '');
   const [submitting, setSubmitting] = useState(false);
 
   // Quick "Create New Party On The Spot" inside Modal
@@ -123,6 +126,7 @@ export function RecordSettlementModal({
       setUtr('');
       setNotes(initialNotes || '');
       setInvoiceId(initialInvoiceId || '');
+      setInvoiceNo(initialInvoiceNo || '');
       setUpiPreview(null);
       setUpiLoading(false);
       setIsCreatingPartyOnSpot(false);
@@ -156,7 +160,7 @@ export function RecordSettlementModal({
       setUpiPreview(null);
       setUpiLoading(false);
     }
-  }, [visible, initialDirection, initialPartyId, initialAmount, initialNotes, initialInvoiceId, parties, generateUpiQr]);
+  }, [visible, initialDirection, initialPartyId, initialAmount, initialNotes, initialInvoiceId, initialInvoiceNo, parties, generateUpiQr]);
 
   const handleAmountChange = (val: string) => {
     setAmount(val);
@@ -181,17 +185,6 @@ export function RecordSettlementModal({
       setUpiPreview(null);
       setUpiLoading(false);
       setUtr('');
-    }
-  };
-
-  const handleOpenUpiIntent = () => {
-    if (upiPreview?.upiUri) {
-      Linking.openURL(upiPreview.upiUri).catch(() => {
-        Alert.alert(
-          'UPI App Not Found',
-          'Could not find a supported UPI application installed on this device. Please scan the QR code instead.',
-        );
-      });
     }
   };
 
@@ -269,12 +262,17 @@ export function RecordSettlementModal({
         }),
       });
 
-      Alert.alert(
-        'Settlement Recorded',
-        `Recorded ${direction === 'COLLECT' ? 'receipt' : 'payout'} of ${formatINR(amtNum)}!`,
-      );
       onClose();
-      onSuccess();
+      onSuccess({
+        direction,
+        amount: amtNum,
+        partyName: targetParty?.name || 'Party',
+        partyPhone: targetParty?.phone,
+        mode: direction === 'PAY' ? 'CASH' : mode,
+        invoiceNo: invoiceNo || undefined,
+        utr: direction === 'COLLECT' && utr.trim() ? utr.trim() : undefined,
+        notes: notes.trim() || defaultNote,
+      });
     } catch (err: any) {
       Alert.alert('Settlement Failed', err.message || 'Could not record payment');
     } finally {
@@ -563,17 +561,6 @@ export function RecordSettlementModal({
               <Text style={styles.qrSubText}>
                 Customer scans with GPay, PhonePe, Paytm, or BHIM
               </Text>
-
-              {upiPreview.upiUri ? (
-                <TouchableOpacity
-                  style={styles.openUpiBtn}
-                  onPress={handleOpenUpiIntent}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="open-outline" size={13} color="#FFFFFF" />
-                  <Text style={styles.openUpiBtnText}>Launch UPI App Directly</Text>
-                </TouchableOpacity>
-              ) : null}
             </View>
           ) : (
             <View style={styles.qrPromptBox}>
@@ -862,24 +849,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: Colors.dark.textTertiary,
     marginTop: 4,
-  },
-  openUpiBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    marginTop: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  openUpiBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#FFFFFF',
   },
   qrPromptBox: {
     paddingVertical: 20,

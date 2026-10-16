@@ -7,13 +7,16 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  TouchableOpacity,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/lib/auth-context';
 import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
 import { Colors } from '@/constants/theme';
 import { Header } from '@/components/ui/Header';
 import { SearchBar } from '@/components/ui/SearchBar';
-import { FilterPills } from '@/components/ui/FilterPills';
+import { Button } from '@/components/ui/Button';
+import { FilterDropdown } from '@/components/ui/FilterDropdown';
 import { EmptyState } from '@/components/ui/EmptyState';
 import {
   Product,
@@ -22,7 +25,6 @@ import {
   WarehouseStockCard,
   ProductCatalogCard,
   StockTabBar,
-  StockActionsBar,
   InwardStockModal,
   StockTransferModal,
   StockAdjustModal,
@@ -169,10 +171,19 @@ export default function StockScreen() {
 
   const warehouseOptions = useMemo(() => {
     return [
-      { label: `All Godowns (${stocks.length})`, value: 'ALL' },
+      {
+        label: 'All Godowns',
+        value: 'ALL',
+        count: stocks.length,
+        icon: 'business-outline' as const,
+        color: '#FFFFFF',
+      },
       ...warehouses.map((w) => ({
-        label: `${w.name} (${stocks.filter((s) => s.warehouseId === w.id).length})`,
+        label: w.name,
         value: w.id,
+        count: stocks.filter((s) => s.warehouseId === w.id).length,
+        icon: 'business-outline' as const,
+        color: '#818CF8',
       })),
     ];
   }, [warehouses, stocks]);
@@ -180,10 +191,19 @@ export default function StockScreen() {
   const categoryOptions = useMemo(() => {
     const cats = Array.from(new Set(products.map((p) => p.category).filter(Boolean)));
     return [
-      { label: `All (${products.length})`, value: 'ALL' },
+      {
+        label: 'All Categories',
+        value: 'ALL',
+        count: products.length,
+        icon: 'grid-outline' as const,
+        color: '#FFFFFF',
+      },
       ...cats.map((c) => ({
-        label: `${c} (${products.filter((p) => p.category === c).length})`,
+        label: c,
         value: c,
+        count: products.filter((p) => p.category === c).length,
+        icon: 'folder-outline' as const,
+        color: '#38BDF8',
       })),
     ];
   }, [products]);
@@ -205,75 +225,124 @@ export default function StockScreen() {
       <Header
         title="Stock & Inventory"
         subtitle="Warehouse Ledgers & Product Catalog"
-        rightAction={
-          isOwnerOrAdmin
-            ? {
-                icon: 'add',
-                onPress: () => {
-                  if (activeTab === 'STOCK') {
-                    setInwardProductId(undefined);
-                    setInwardModalOpen(true);
-                  } else {
-                    setEditingProduct(null);
-                    setProductFormModalOpen(true);
-                  }
-                },
-              }
-            : undefined
-        }
       />
 
-      {/* View Switcher Tabs (Live Stock vs Product Catalog) */}
-      <StockTabBar
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        stockCount={stocks.length}
-        productCount={products.length}
-      />
-
-      <SearchBar
-        value={search}
-        onChangeText={setSearch}
-        placeholder={
-          activeTab === 'STOCK'
-            ? 'Search product, warehouse, batch...'
-            : 'Search product catalog, category, HSN...'
-        }
-      />
-
-      {/* Warehouse Filter Pills for Live Stock */}
-      {activeTab === 'STOCK' && warehouseOptions.length > 1 ? (
-        <View style={styles.categoryPillsContainer}>
-          <FilterPills
-            options={warehouseOptions}
-            selected={selectedWarehouse}
-            onSelect={setSelectedWarehouse}
-          />
-        </View>
-      ) : null}
-
-      {/* Category Filter Pills for Product Catalog */}
-      {activeTab === 'PRODUCTS' && categoryOptions.length > 1 ? (
-        <View style={styles.categoryPillsContainer}>
-          <FilterPills
-            options={categoryOptions}
-            selected={selectedCategory}
-            onSelect={setSelectedCategory}
-          />
-        </View>
-      ) : null}
-
-      {/* Stock Management Actions for Owner/Admin */}
-      {isOwnerOrAdmin && activeTab === 'STOCK' ? (
-        <StockActionsBar
-          onInward={() => {
-            setInwardProductId(undefined);
-            setInwardModalOpen(true);
-          }}
-          onTransfer={() => setTransferModalOpen(true)}
-          onAdjust={() => setAdjustModalOpen(true)}
+      <View style={styles.topControlContainer}>
+        {/* View Switcher Tabs (Live Stock vs Product Catalog) */}
+        <StockTabBar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          stockCount={stocks.length}
+          productCount={products.length}
         />
-      ) : null}
+
+        <SearchBar
+          value={search}
+          onChangeText={setSearch}
+          placeholder={
+            activeTab === 'STOCK'
+              ? 'Search product, warehouse, batch...'
+              : 'Search product catalog, category, HSN...'
+          }
+        />
+
+        {/* Dropdown of Godowns with Inward Stock Button Beside It */}
+        <View style={styles.dropdownActionRow}>
+          {activeTab === 'STOCK' ? (
+            <FilterDropdown
+              label="Godown"
+              value={selectedWarehouse}
+              options={warehouseOptions}
+              onSelect={setSelectedWarehouse}
+              icon="business-outline"
+              containerStyle={{ flex: 1.15 }}
+            />
+          ) : (
+            <FilterDropdown
+              label="Category"
+              value={selectedCategory}
+              options={categoryOptions}
+              onSelect={setSelectedCategory}
+              icon="grid-outline"
+              containerStyle={{ flex: 1.15 }}
+            />
+          )}
+
+          {isOwnerOrAdmin && (
+            activeTab === 'STOCK' ? (
+              <Button
+                title="Inward Stock"
+                icon="add-circle-outline"
+                size="sm"
+                variant="primary"
+                onPress={() => {
+                  setInwardProductId(undefined);
+                  setInwardWarehouseId(undefined);
+                  setInwardBatchNo(undefined);
+                  setInwardModalOpen(true);
+                }}
+                style={styles.actionBtn}
+              />
+            ) : (
+              <Button
+                title="New Product"
+                icon="add-circle-outline"
+                size="sm"
+                variant="primary"
+                onPress={() => {
+                  setEditingProduct(null);
+                  setProductFormModalOpen(true);
+                }}
+                style={styles.actionBtn}
+              />
+            )
+          )}
+        </View>
+
+        {/* Secondary Quick Inventory Utility Links (Transfer & Adjust) */}
+        {isOwnerOrAdmin && activeTab === 'STOCK' && (
+          <View style={styles.secondaryActionsRow}>
+            <TouchableOpacity
+              style={styles.utilityBtn}
+              onPress={() => setTransferModalOpen(true)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="swap-horizontal" size={13} color="#38BDF8" />
+              <Text style={styles.utilityBtnTextTransfer}>Transfer Stock</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.utilityBtn}
+              onPress={() => setAdjustModalOpen(true)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="options-outline" size={13} color="#A855F7" />
+              <Text style={styles.utilityBtnTextAdjust}>Audit / Adjust</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Results Count & Reset Filters */}
+        <View style={styles.resultsRow}>
+          <Text style={styles.resultsText}>
+            {activeTab === 'STOCK'
+              ? `Showing ${filteredStocks.length} of ${stocks.length} inventory batches`
+              : `Showing ${filteredProducts.length} of ${products.length} products`}
+          </Text>
+          {((activeTab === 'STOCK' ? selectedWarehouse !== 'ALL' : selectedCategory !== 'ALL') ||
+            Boolean(search.trim())) ? (
+            <TouchableOpacity
+              onPress={() => {
+                if (activeTab === 'STOCK') setSelectedWarehouse('ALL');
+                else setSelectedCategory('ALL');
+                setSearch('');
+              }}
+            >
+              <Text style={styles.clearFiltersText}>Reset Filters</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      </View>
 
       {loading && !refreshing ? (
         <View style={styles.center}>
@@ -285,6 +354,10 @@ export default function StockScreen() {
           data={filteredStocks}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={7}
+          removeClippedSubviews={true}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />
           }
@@ -414,13 +487,72 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.dark.background,
   },
-  categoryPillsContainer: {
+  topControlContainer: {
+    paddingBottom: 2,
+  },
+  dropdownActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
     paddingHorizontal: 16,
-    marginBottom: 8,
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  actionBtn: {
+    flex: 0.85,
+    height: 38,
+    borderRadius: 10,
+  },
+  secondaryActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 6,
+  },
+  utilityBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: Colors.dark.cardElevated,
+    borderRadius: 8,
+    paddingVertical: 7,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  utilityBtnTextTransfer: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#38BDF8',
+  },
+  utilityBtnTextAdjust: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#A855F7',
+  },
+  resultsRow: {
+    minHeight: 24,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 2,
+    marginBottom: 4,
+  },
+  resultsText: {
+    color: Colors.dark.textTertiary,
+    fontSize: 11,
+  },
+  clearFiltersText: {
+    color: '#38BDF8',
+    fontSize: 11,
+    fontWeight: '700',
   },
   listContent: {
-    padding: 16,
-    paddingBottom: 40,
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 90,
   },
   center: {
     flex: 1,

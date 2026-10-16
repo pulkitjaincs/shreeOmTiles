@@ -22,7 +22,8 @@ export default function TabsLayout() {
     }
   }, [isLoading, isAuthenticated, router]);
 
-  const bottomInset = Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 8);
+  // Minute subtle increase (+6px) to comfortably elevate navbar above device gesture/nav bar
+  const bottomInset = Math.max(insets.bottom + 6, Platform.OS === 'ios' ? 16 : 14);
 
   return (
     <Tabs

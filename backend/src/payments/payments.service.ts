@@ -264,7 +264,7 @@ export class PaymentsService {
   }
 
   async confirmPayment(id: string, userId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const payment = await tx.payment.findUnique({
         where: { id },
         include: {

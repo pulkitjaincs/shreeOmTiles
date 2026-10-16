@@ -14,6 +14,7 @@ import { Colors } from '@/constants/theme';
 import { Header } from '@/components/ui/Header';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { FilterPills } from '@/components/ui/FilterPills';
+import { FilterDropdown } from '@/components/ui/FilterDropdown';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { formatINR } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,19 +27,20 @@ import {
   FinancialStats,
   ActiveTabType,
   PaymentStatsRow,
-  TransactionTabsBar,
   CustomerDuesCard,
   StorePayablesCard,
   TransactionHistoryCard,
   CreditLedgerCard,
   RecordSettlementModal,
   RecordCreditModal,
+  SettlementSuccessModal,
+  SettlementSuccessData,
 } from '@/components/payments';
 
 type TransactionListItem = PendingItem | PaymentRecord | CreditLedgerRecord;
 
 export default function TransactionsScreen() {
-  const [activeTab, setActiveTab] = useState<ActiveTabType>('dues');
+  const [activeTab, setActiveTab] = useState<ActiveTabType>('all');
 
   // Data states matching web-dashboard
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
@@ -67,6 +69,8 @@ export default function TransactionsScreen() {
   const [settleAmount, setSettleAmount] = useState('');
   const [settleNotes, setSettleNotes] = useState('');
   const [settleInvoiceId, setSettleInvoiceId] = useState('');
+  const [settleInvoiceNo, setSettleInvoiceNo] = useState('');
+  const [settlementSuccessData, setSettlementSuccessData] = useState<SettlementSuccessData | null>(null);
 
   const [creditModalOpen, setCreditModalOpen] = useState(false);
   const [creditPartyId, setCreditPartyId] = useState('');
@@ -200,6 +204,7 @@ export default function TransactionsScreen() {
     setSettleDirection(isPayable ? 'PAY' : 'COLLECT');
     setSelectedPartyId(item.partyId);
     setSettleInvoiceId(item.isCreditLedger ? '' : item.id);
+    setSettleInvoiceNo(item.invoiceNo || '');
     setSettleAmount(item.remainingDue.toFixed(2));
     setSettleNotes(
       isPayable
@@ -216,6 +221,7 @@ export default function TransactionsScreen() {
     setSettleDirection('COLLECT');
     setSelectedPartyId(parties[0]?.id || '');
     setSettleInvoiceId('');
+    setSettleInvoiceNo('');
     setSettleAmount('');
     setSettleNotes('');
     setSettleModalOpen(true);
@@ -226,6 +232,7 @@ export default function TransactionsScreen() {
     setSettleDirection('PAY');
     setSelectedPartyId(parties[0]?.id || '');
     setSettleInvoiceId('');
+    setSettleInvoiceNo('');
     setSettleAmount('');
     setSettleNotes('');
     setSettleModalOpen(true);
@@ -302,8 +309,8 @@ export default function TransactionsScreen() {
         title="Transactions & Ledger"
         subtitle="Sales, Dues, Store Payables & UPI Inflows"
         rightAction={{
-          icon: 'wallet-outline',
-          onPress: handleOpenGeneralCollect,
+          icon: 'add',
+          onPress: () => handleOpenRecordCredit(),
         }}
       />
 
@@ -326,36 +333,6 @@ export default function TransactionsScreen() {
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View>
-            {/* Quick Action Buttons Row (Matching Web Actions) */}
-            <View style={styles.headerActionRow}>
-              <TouchableOpacity
-                style={styles.headerBtnCollect}
-                onPress={handleOpenGeneralCollect}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="cash-outline" size={15} color="#FFFFFF" />
-                <Text style={styles.headerBtnText}>Collect</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.headerBtnPay}
-                onPress={handleOpenGeneralPay}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="arrow-up-circle-outline" size={15} color="#FFFFFF" />
-                <Text style={styles.headerBtnText}>Pay Party</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.headerBtnCredit}
-                onPress={() => handleOpenRecordCredit()}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="card-outline" size={15} color="#F59E0B" />
-                <Text style={styles.headerBtnCreditText}>Record Credit</Text>
-              </TouchableOpacity>
-            </View>
-
             {/* Financial KPI Summary Cards (6 Cards matching PaymentStatsGrid) */}
             <PaymentStatsRow
               stats={stats}
@@ -363,16 +340,63 @@ export default function TransactionsScreen() {
               onTabChange={setActiveTab}
             />
 
-            {/* 5-Tab Navigation Bar matching Web Dashboard */}
-            <TransactionTabsBar
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-              duesCount={customerDues.length}
-              payablesCount={storePayables.length}
-              allCount={payments.length}
-              inflowsCount={filteredInflows.length}
-              creditsCount={creditLedgers.length}
-            />
+            {/* View Selector Dropdown & + Record Credit Row */}
+            <View style={styles.viewSelectorRow}>
+              <FilterDropdown
+                label="View"
+                value={activeTab}
+                onSelect={(val) => setActiveTab(val as ActiveTabType)}
+                options={[
+                  {
+                    label: 'All Transactions',
+                    value: 'all',
+                    count: payments.length,
+                    icon: 'swap-horizontal-outline',
+                    color: '#FFFFFF',
+                  },
+                  {
+                    label: 'Customer Dues',
+                    value: 'dues',
+                    count: customerDues.length,
+                    icon: 'time-outline',
+                    color: '#EF4444',
+                  },
+                  {
+                    label: 'Store Payables',
+                    value: 'payables',
+                    count: storePayables.length,
+                    icon: 'arrow-up-circle-outline',
+                    color: '#F59E0B',
+                  },
+                  {
+                    label: 'Settled Inflows',
+                    value: 'inflows',
+                    count: filteredInflows.length,
+                    icon: 'checkmark-circle-outline',
+                    color: '#10B981',
+                  },
+                  {
+                    label: 'Credit Ledger',
+                    value: 'credits',
+                    count: creditLedgers.length,
+                    icon: 'book-outline',
+                    color: '#F59E0B',
+                  },
+                ]}
+                hideLabelPrefix
+                showCountOnTrigger
+                containerStyle={{ flex: 1 }}
+              />
+
+              <TouchableOpacity
+                style={styles.recordCreditBtn}
+                onPress={() => handleOpenRecordCredit()}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="add-circle" size={16} color="#F59E0B" />
+                <Text style={styles.recordCreditBtnText}>Record Credit</Text>
+              </TouchableOpacity>
+            </View>
 
             {/* Search Input */}
             <View style={styles.searchContainer}>
@@ -515,9 +539,12 @@ export default function TransactionsScreen() {
       <RecordSettlementModal
         visible={settleModalOpen}
         onClose={() => setSettleModalOpen(false)}
-        onSuccess={() => {
+        onSuccess={(data) => {
           setSettleModalOpen(false);
           loadData(true);
+          if (data) {
+            setSettlementSuccessData(data);
+          }
         }}
         parties={parties}
         onPartyCreated={(newParty) => setParties((prev) => [newParty, ...prev])}
@@ -526,6 +553,7 @@ export default function TransactionsScreen() {
         initialAmount={settleAmount}
         initialNotes={settleNotes}
         initialInvoiceId={settleInvoiceId}
+        initialInvoiceNo={settleInvoiceNo}
       />
 
       {/* Credit / Advance Ledger Modal */}
@@ -540,6 +568,13 @@ export default function TransactionsScreen() {
         onPartyCreated={(newParty) => setParties((prev) => [newParty, ...prev])}
         defaultPartyId={creditPartyId}
       />
+
+      {/* Themed Settlement Success Feedback Modal */}
+      <SettlementSuccessModal
+        visible={Boolean(settlementSuccessData)}
+        data={settlementSuccessData}
+        onClose={() => setSettlementSuccessData(null)}
+      />
     </View>
   );
 }
@@ -550,64 +585,41 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.dark.background,
   },
   listContent: {
-    paddingBottom: 40,
+    paddingBottom: 90,
   },
-  headerActionRow: {
+  viewSelectorRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 6,
-    gap: 8,
+    marginTop: 2,
+    marginBottom: 8,
+    gap: 10,
   },
-  headerBtnCollect: {
-    flex: 1.1,
+  recordCreditBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#10B981',
-    borderRadius: 11,
-    paddingVertical: 10,
-    gap: 5,
-  },
-  headerBtnPay: {
-    flex: 1.1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F59E0B',
-    borderRadius: 11,
-    paddingVertical: 10,
-    gap: 5,
-  },
-  headerBtnCredit: {
-    flex: 1.2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
     borderWidth: 1,
     borderColor: 'rgba(245, 158, 11, 0.35)',
-    borderRadius: 11,
-    paddingVertical: 10,
-    gap: 5,
+    borderRadius: 10,
+    paddingHorizontal: 13,
+    paddingVertical: 9,
+    minHeight: 38,
+    gap: 6,
   },
-  headerBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  headerBtnCreditText: {
+  recordCreditBtnText: {
     fontSize: 12,
     fontWeight: '700',
     color: '#F59E0B',
   },
   searchContainer: {
     paddingHorizontal: 16,
-    marginTop: 8,
+    marginBottom: 8,
   },
   filterPillsContainer: {
     paddingHorizontal: 16,
-    marginBottom: 6,
+    marginBottom: 8,
   },
   duesHeaderBanner: {
     flexDirection: 'row',

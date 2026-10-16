@@ -169,7 +169,19 @@ function fetchAndCache<T>(
             }),
           );
         } catch {
-          invalidateApiCache();
+          // Gracefully prune older cache entries rather than wiping the entire cache
+          try {
+            const keysToRemove: string[] = [];
+            for (let i = 0; i < localStorage.length; i++) {
+              const k = localStorage.key(i);
+              if (k && k.startsWith(CACHE_PREFIX) && k !== cacheKey) {
+                keysToRemove.push(k);
+              }
+            }
+            keysToRemove.slice(0, Math.ceil(keysToRemove.length / 2)).forEach((k) => localStorage.removeItem(k));
+          } catch {
+            // Storage unavailable or full, continue gracefully
+          }
         }
       }
       return freshData;

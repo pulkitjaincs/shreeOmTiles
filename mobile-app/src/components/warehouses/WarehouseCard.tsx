@@ -169,7 +169,7 @@ export function WarehouseCard({
             size="sm"
             variant="outline"
             onPress={() => onEdit(warehouse)}
-            style={{ flex: 1 }}
+            style={styles.cardBtn}
           />
 
           {/* Zero-Out Action: Only shown/enabled when totalUnits > 0 */}
@@ -180,7 +180,7 @@ export function WarehouseCard({
               size="sm"
               variant="secondary"
               onPress={() => onZeroOut(warehouse, totalUnits)}
-              style={{ flex: 1.2, backgroundColor: 'rgba(245, 158, 11, 0.15)' }}
+              style={[styles.cardBtn, styles.zeroOutBtn]}
               textStyle={{ color: '#FBBF24' }}
             />
           ) : null}
@@ -193,7 +193,7 @@ export function WarehouseCard({
               size="sm"
               variant="danger"
               onPress={() => onDelete(warehouse, totalUnits)}
-              style={{ flex: 1.1 }}
+              style={styles.cardBtn}
             />
           ) : null}
         </View>
@@ -204,11 +204,11 @@ export function WarehouseCard({
 
 const styles = StyleSheet.create({
   card: {
-    padding: 16,
-    marginBottom: 12,
-    borderRadius: 16,
+    padding: 14,
+    marginBottom: 10,
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.dark.borderMedium,
     backgroundColor: Colors.dark.card,
   },
   headerRow: {
@@ -217,8 +217,8 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   iconContainer: {
-    width: 44,
-    height: 44,
+    width: 42,
+    height: 42,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   nameText: {
-    fontSize: 16,
+    fontSize: 15.5,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: -0.2,
@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
   showroomBadge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 8,
+    borderRadius: 6,
     backgroundColor: 'rgba(56, 189, 248, 0.14)',
     borderWidth: 1,
     borderColor: 'rgba(56, 189, 248, 0.3)',
@@ -263,7 +263,7 @@ const styles = StyleSheet.create({
   warehouseBadge: {
     paddingHorizontal: 8,
     paddingVertical: 3,
-    borderRadius: 8,
+    borderRadius: 6,
     backgroundColor: 'rgba(129, 140, 248, 0.14)',
     borderWidth: 1,
     borderColor: 'rgba(129, 140, 248, 0.3)',
@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   addressText: {
-    fontSize: 12,
+    fontSize: 11.5,
     color: Colors.dark.textSecondary,
     flex: 1,
   },
@@ -289,10 +289,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 14,
-    paddingVertical: 10,
+    marginTop: 12,
+    paddingVertical: 8,
     paddingHorizontal: 12,
-    borderRadius: 12,
+    borderRadius: 10,
     backgroundColor: Colors.dark.cardElevated,
     borderWidth: 1,
     borderColor: Colors.dark.border,
@@ -302,8 +302,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   metricLabel: {
-    fontSize: 10.5,
-    fontWeight: '600',
+    fontSize: 10,
+    fontWeight: '700',
     color: Colors.dark.textTertiary,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
   },
   metricUnit: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '500',
     color: Colors.dark.textSecondary,
     fontFamily: 'System',
@@ -350,7 +350,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#71717A',
   },
   statusText: {
-    fontSize: 12,
+    fontSize: 11.5,
     fontWeight: '600',
     color: Colors.dark.textSecondary,
   },
@@ -359,11 +359,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    marginTop: 10,
-    paddingVertical: 6,
+    marginTop: 8,
+    paddingVertical: 4,
   },
   expandToggleText: {
-    fontSize: 11.5,
+    fontSize: 11,
     fontWeight: '600',
     color: Colors.dark.textSecondary,
   },
@@ -374,21 +374,22 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.02)',
     borderWidth: 1,
     borderColor: Colors.dark.border,
-    gap: 8,
+    gap: 6,
   },
   stockItemRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
+    paddingVertical: 3,
   },
   stockProdName: {
-    fontSize: 12.5,
+    fontSize: 12,
     fontWeight: '700',
     color: '#FFFFFF',
   },
   stockBatchText: {
-    fontSize: 10.5,
+    fontSize: 10,
     color: Colors.dark.textTertiary,
     marginTop: 1,
   },
@@ -404,7 +405,7 @@ const styles = StyleSheet.create({
     color: '#F59E0B',
   },
   moreItemsText: {
-    fontSize: 11,
+    fontSize: 10.5,
     color: Colors.dark.textTertiary,
     textAlign: 'center',
     marginTop: 2,
@@ -414,9 +415,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginTop: 14,
-    paddingTop: 12,
+    marginTop: 12,
+    paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: Colors.dark.border,
+    borderTopColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  cardBtn: {
+    flex: 1,
+    height: 36,
+    borderRadius: 8,
+  },
+  zeroOutBtn: {
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
   },
 });

@@ -393,15 +393,11 @@ export class AnalyticsService {
     const [
       revenueAgg,
       prevRevenueAgg,
-      periodInvoicesCount,
-      prevInvoicesCount,
       todayInvoicesCount,
       totalInvoicesCount,
       confirmedInflowsAgg,
       receivablesAgg,
-      receivablesCount,
       payablesAgg,
-      payablesCount,
       pendingUpiAgg,
       driverCashDeliveries,
       productCount,
@@ -418,15 +414,16 @@ export class AnalyticsService {
       trendCreditsRaw,
       salesmanRecentInvoices,
     ] = await Promise.all([
-      // Current Period Invoiced Revenue
+      // Current Period Invoiced Revenue & Count
       this.prisma.invoice.aggregate({
         where: {
           ...(salesmanScope || {}),
           ...(dateFilter ? { createdAt: dateFilter } : {}),
         },
         _sum: { total: true },
+        _count: { id: true },
       }),
-      // Previous Period Revenue (for delta)
+      // Previous Period Revenue & Count (for delta)
       prevDateFilter
         ? this.prisma.invoice.aggregate({
             where: {
@@ -434,24 +431,9 @@ export class AnalyticsService {
               createdAt: prevDateFilter,
             },
             _sum: { total: true },
+            _count: { id: true },
           })
-        : Promise.resolve({ _sum: { total: null } }),
-      // Current Period Invoices Count
-      this.prisma.invoice.count({
-        where: {
-          ...(salesmanScope || {}),
-          ...(dateFilter ? { createdAt: dateFilter } : {}),
-        },
-      }),
-      // Previous Period Invoices Count
-      prevDateFilter
-        ? this.prisma.invoice.count({
-            where: {
-              ...(salesmanScope || {}),
-              createdAt: prevDateFilter,
-            },
-          })
-        : Promise.resolve(0),
+        : Promise.resolve({ _sum: { total: null }, _count: { id: 0 } }),
       // Invoices Created Today
       this.prisma.invoice.count({
         where: {
@@ -477,7 +459,7 @@ export class AnalyticsService {
           }),
       // Customer Receivables (Dues to Store) - only for Owner/Admin
       isSalesman
-        ? Promise.resolve({ _sum: { amountDue: null } })
+        ? Promise.resolve({ _sum: { amountDue: null }, _count: { id: 0 } })
         : this.prisma.creditLedger.aggregate({
             where: {
               type: CreditType.RECEIVABLE,
@@ -490,24 +472,11 @@ export class AnalyticsService {
               },
             },
             _sum: { amountDue: true },
-          }),
-      isSalesman
-        ? Promise.resolve(0)
-        : this.prisma.creditLedger.count({
-            where: {
-              type: CreditType.RECEIVABLE,
-              status: {
-                in: [
-                  CreditStatus.UNPAID,
-                  CreditStatus.PARTIAL,
-                  CreditStatus.OVERDUE,
-                ],
-              },
-            },
+            _count: { id: true },
           }),
       // Store Payables (Dues we owe to Parties) - only for Owner/Admin
       isSalesman
-        ? Promise.resolve({ _sum: { amountDue: null } })
+        ? Promise.resolve({ _sum: { amountDue: null }, _count: { id: 0 } })
         : this.prisma.creditLedger.aggregate({
             where: {
               type: CreditType.PAYABLE,
@@ -520,20 +489,7 @@ export class AnalyticsService {
               },
             },
             _sum: { amountDue: true },
-          }),
-      isSalesman
-        ? Promise.resolve(0)
-        : this.prisma.creditLedger.count({
-            where: {
-              type: CreditType.PAYABLE,
-              status: {
-                in: [
-                  CreditStatus.UNPAID,
-                  CreditStatus.PARTIAL,
-                  CreditStatus.OVERDUE,
-                ],
-              },
-            },
+            _count: { id: true },
           }),
       // Pending UPI payments
       isSalesman
@@ -704,6 +660,12 @@ export class AnalyticsService {
           }) as unknown as Promise<SalesmanRecentInvoiceItem[]>)
         : Promise.resolve<SalesmanRecentInvoiceItem[]>([]),
     ]);
+
+    // Extract consolidated counts
+    const periodInvoicesCount = (revenueAgg as any)._count?.id || 0;
+    const prevInvoicesCount = (prevRevenueAgg as any)._count?.id || 0;
+    const receivablesCount = (receivablesAgg as any)._count?.id || 0;
+    const payablesCount = (payablesAgg as any)._count?.id || 0;
 
     // Format driver cash
     const cashToBeCollectedFromDrivers = driverCashDeliveries.reduce(

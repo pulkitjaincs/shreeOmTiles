@@ -2,35 +2,45 @@ import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
+import { isRunningInExpoGo } from 'expo';
 import { router } from 'expo-router';
 import { mobileApiRequest } from './api';
 
-// Configure foreground notification behavior
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    priority: Notifications.AndroidNotificationPriority.HIGH,
-  }),
-});
+// Configure foreground notification behavior safely
+try {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      priority: Notifications.AndroidNotificationPriority.HIGH,
+    }),
+  });
+} catch (err: any) {
+  console.warn('[Push] setNotificationHandler warning:', err?.message || err);
+}
+
 
 /**
  * Configure Android notification channels for heads-up alerts and custom vibration
  */
 export async function setupNotificationChannels(): Promise<void> {
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('default', {
-      name: 'DhraERP Alerts',
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-      lightColor: '#D97706',
-      sound: 'default',
-      enableVibrate: true,
-      showBadge: true,
-    });
+  if (Platform.OS === 'android' && !isRunningInExpoGo()) {
+    try {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'DhraERP Alerts',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#D97706',
+        sound: 'default',
+        enableVibrate: true,
+        showBadge: true,
+      });
+    } catch (err: any) {
+      console.warn('[Push] Channel setup warning:', err?.message || err);
+    }
   }
 }
 
@@ -82,6 +92,11 @@ export async function setupPushNotifications(): Promise<string | null> {
       return null;
     }
 
+    if (isRunningInExpoGo()) {
+      console.log('[Push] Running in Expo Go: remote push token registration is not supported on Android in Expo Go. Skipping remote token registration. (Use standalone APK / EAS dev build for full push notifications).');
+      return null;
+    }
+
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
@@ -126,38 +141,45 @@ export function setupNotificationListeners(): () => void {
     return () => {};
   }
 
-  // Foreground notification handler
-  const notificationListener = Notifications.addNotificationReceivedListener((notification) => {
-    console.log('[Push] Received in foreground:', notification.request.content.title);
-  });
+  try {
+    // Foreground notification handler
+    const notificationListener = Notifications.addNotificationReceivedListener((notification) => {
+      console.log('[Push] Received in foreground:', notification.request.content.title);
+    });
 
-  // Tapped notification interaction handler
-  const responseListener = Notifications.addNotificationResponseReceivedListener((response) => {
-    const data = response.notification.request.content.data;
-    console.log('[Push] Notification tapped with payload:', data);
+    // Tapped notification interaction handler
+    const responseListener = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data;
+      console.log('[Push] Notification tapped with payload:', data);
 
-    if (
-      data?.type === 'DELIVERY_ASSIGNED' ||
-      data?.type === 'CASH_COLLECTED' ||
-      data?.type === 'CASH_HANDED_OVER' ||
-      data?.type === 'DELIVERY_COMPLETED' ||
-      data?.type === 'DELIVERY_CANCELLED'
-    ) {
-      router.push('/(tabs)/deliveries');
-    } else if (
-      data?.type === 'NEW_INVOICE' ||
-      data?.type === 'CREDIT_NOTE_ISSUED'
-    ) {
-      router.push('/(tabs)/invoices');
-    } else if (data?.type === 'PAYMENT_RECEIVED') {
-      router.push('/(tabs)/transactions');
-    }
-  });
+      if (
+        data?.type === 'DELIVERY_ASSIGNED' ||
+        data?.type === 'CASH_COLLECTED' ||
+        data?.type === 'CASH_HANDED_OVER' ||
+        data?.type === 'DELIVERY_COMPLETED' ||
+        data?.type === 'DELIVERY_CANCELLED'
+      ) {
+        router.push('/(tabs)/deliveries');
+      } else if (
+        data?.type === 'NEW_INVOICE' ||
+        data?.type === 'CREDIT_NOTE_ISSUED'
+      ) {
+        router.push('/(tabs)/invoices');
+      } else if (data?.type === 'PAYMENT_RECEIVED') {
+        router.push('/(tabs)/transactions');
+      }
+    });
 
-  return () => {
-    notificationListener.remove();
-    responseListener.remove();
-  };
+    return () => {
+      try {
+        notificationListener.remove();
+        responseListener.remove();
+      } catch {}
+    };
+  } catch (err: any) {
+    console.warn('[Push] Failed to register notification listeners:', err?.message || err);
+    return () => {};
+  }
 }
 
 /**

@@ -75,16 +75,23 @@ export class InvoicesController {
   @Get('refund/:refundId/pdf')
   async downloadRefundPdf(
     @Param('refundId') refundId: string,
+    @Request() req: any,
     @Res() res: Response,
   ) {
     const { pdfBytes, invoiceNo } =
       await this.invoicesService.generateRefundPdf(refundId);
+    const etag = `"${invoiceNo}-${pdfBytes.length}"`;
+    if (req.headers && req.headers['if-none-match'] === etag) {
+      return res.status(304).end();
+    }
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
       `attachment; filename="${invoiceNo}.pdf"`,
     );
     res.setHeader('Content-Length', pdfBytes.length);
+    res.setHeader('Cache-Control', 'private, max-age=86400, stale-while-revalidate=3600');
+    res.setHeader('ETag', etag);
     res.end(Buffer.from(pdfBytes));
   }
 
@@ -104,14 +111,24 @@ export class InvoicesController {
   }
 
   @Get(':id/pdf')
-  async downloadPdf(@Param('id') id: string, @Res() res: Response) {
+  async downloadPdf(
+    @Param('id') id: string,
+    @Request() req: any,
+    @Res() res: Response,
+  ) {
     const { pdfBytes, invoiceNo } = await this.invoicesService.generatePdf(id);
+    const etag = `"${invoiceNo}-${pdfBytes.length}"`;
+    if (req.headers && req.headers['if-none-match'] === etag) {
+      return res.status(304).end();
+    }
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
       `attachment; filename="${invoiceNo}.pdf"`,
     );
     res.setHeader('Content-Length', pdfBytes.length);
+    res.setHeader('Cache-Control', 'private, max-age=86400, stale-while-revalidate=3600');
+    res.setHeader('ETag', etag);
     res.end(Buffer.from(pdfBytes));
   }
 }

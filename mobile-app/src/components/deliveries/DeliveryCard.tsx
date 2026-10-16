@@ -17,13 +17,12 @@ interface DeliveryCardProps {
   onOpenRunDetails: (delivery: Delivery) => void;
   onOpenPushModal: (delivery: Delivery) => void;
   onOpenCollectCash: (delivery: Delivery) => void;
-  onOpenAddTrip: (delivery: Delivery) => void;
   onCustomerPickedUp: (deliveryId: string) => void;
   onHandoverCash: (deliveryId: string) => void;
   onUpdateStatus: (deliveryId: string, status: string) => void;
 }
 
-export function DeliveryCard({
+export const DeliveryCard = React.memo(function DeliveryCard({
   delivery,
   isOwnerOrAdmin,
   isDriver,
@@ -31,7 +30,6 @@ export function DeliveryCard({
   onOpenRunDetails,
   onOpenPushModal,
   onOpenCollectCash,
-  onOpenAddTrip,
   onCustomerPickedUp,
   onHandoverCash,
   onUpdateStatus,
@@ -43,8 +41,7 @@ export function DeliveryCard({
   const pickedCount = itemsList.filter((it) => it.pickedUp).length;
   const totalCount = itemsList.length;
 
-  const totalTripCost =
-    delivery.trips?.reduce((sum, t) => sum + Number(t.cost || 0), 0) || 0;
+  const cashCollectedNum = Number(delivery.cashCollected || 0);
 
   const isDriverAssigned = Boolean(delivery.driverId);
   const isDelivered = delivery.status === 'DELIVERED';
@@ -88,13 +85,22 @@ export function DeliveryCard({
     });
   };
 
+  const hasCustomerOrRunActions = Boolean(
+    partyPhone ||
+      partyAddress ||
+      isAssignedToDriver ||
+      isOutForPickup ||
+      isOutForDelivery ||
+      isDelivered,
+  );
+
   return (
     <Card elevated style={styles.card}>
-      {/* Top Header: Invoice & Status */}
+      {/* Top Header: Invoice ID only & Status Badge */}
       <View style={styles.cardHeader}>
         <View style={{ flex: 1 }}>
           <View style={styles.invoiceNoRow}>
-            <Text style={styles.invoiceNo}>Invoice #{delivery.invoice?.invoiceNo || 'N/A'}</Text>
+            <Text style={styles.invoiceNo}>#{delivery.invoice?.invoiceNo || 'N/A'}</Text>
             <Text style={styles.dateText}>{formatDate(delivery.createdAt)}</Text>
           </View>
           <Text style={styles.partyName} numberOfLines={1}>
@@ -156,7 +162,7 @@ export function DeliveryCard({
         </View>
 
         {/* Amount / Collection Tag */}
-        {Number(delivery.cashCollected || 0) > 0 ? (
+        {cashCollectedNum > 0 ? (
           delivery.cashHandedOver ? (
             <View style={styles.settledBadge}>
               <Ionicons name="checkmark-circle" size={11} color="#10B981" />
@@ -207,31 +213,14 @@ export function DeliveryCard({
         </View>
       ) : null}
 
-      {/* Internal Transport Logistics Cost (Owner only) */}
-      {isOwnerOrAdmin && (
-        <View style={styles.costRow}>
-          <View style={styles.costPill}>
-            <Ionicons name="lock-closed" size={11} color={Colors.dark.textSecondary} />
-            <Text style={styles.costText}>Internal Cost: {formatINR(totalTripCost)}</Text>
-          </View>
-          <TouchableOpacity
-            onPress={() => onOpenAddTrip(delivery)}
-            style={styles.addTripLink}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.addTripText}>+ Log Trip Cost</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Handover Notice / Verification for Owner */}
-      {delivery.cashCollected && !delivery.cashHandedOver ? (
+      {/* Handover Notice / Verification for Owner: shown strictly if cashCollected > 0 & !cashHandedOver */}
+      {cashCollectedNum > 0 && !delivery.cashHandedOver ? (
         <View style={styles.handoverBanner}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.handoverBannerTitle}>
+            <Text style={styles.handoverBannerTitle} numberOfLines={1}>
               Cash in Driver Hand: {formatINR(delivery.cashCollected)}
             </Text>
-            <Text style={styles.handoverBannerSub}>
+            <Text style={styles.handoverBannerSub} numberOfLines={1}>
               Collected from customer. Awaiting deposit into office register.
             </Text>
           </View>
@@ -242,59 +231,68 @@ export function DeliveryCard({
               variant="primary"
               loading={handoverInProgress === delivery.id}
               onPress={() => onHandoverCash(delivery.id)}
+              style={styles.verifyBtn}
             />
           ) : null}
         </View>
       ) : null}
 
-      {/* Divider */}
-      <View style={styles.divider} />
+      {/* Divider & Action Buttons */}
+      {hasCustomerOrRunActions ? (
+        <>
+          <View style={styles.divider} />
 
-      {/* Action Buttons Row */}
-      <View style={styles.cardActions}>
-        {/* Customer Actions */}
-        {partyPhone ? (
-          <Button
-            title="Call"
-            icon="call"
-            size="sm"
-            variant="secondary"
-            onPress={() => handleCall(partyPhone)}
-            style={{ flex: 1 }}
-          />
-        ) : null}
+          <View style={styles.cardActions}>
+            {/* Customer Actions */}
+            {partyPhone ? (
+              <Button
+                title="Call"
+                icon="call"
+                size="sm"
+                variant="secondary"
+                onPress={() => handleCall(partyPhone)}
+                style={styles.actionBtn}
+              />
+            ) : null}
 
-        {partyAddress ? (
-          <Button
-            title="Maps"
-            icon="navigate"
-            size="sm"
-            variant="secondary"
-            onPress={() => handleMap(partyAddress)}
-            style={{ flex: 1 }}
-          />
-        ) : null}
+            {partyAddress ? (
+              <Button
+                title="Maps"
+                icon="navigate"
+                size="sm"
+                variant="secondary"
+                onPress={() => handleMap(partyAddress)}
+                style={styles.actionBtn}
+              />
+            ) : null}
 
-        {/* Reshare Manifest to Driver on WhatsApp */}
-        {(isAssignedToDriver || isOutForPickup || isOutForDelivery) ? (
-          <TouchableOpacity
-            style={styles.waShareBtn}
-            onPress={handleShareManifest}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="logo-whatsapp" size={13} color="#10B981" />
-            <Text style={styles.waShareText}>Manifest</Text>
-          </TouchableOpacity>
-        ) : null}
+            {/* Reshare Manifest to Driver on WhatsApp */}
+            {(isAssignedToDriver || isOutForPickup || isOutForDelivery) ? (
+              <Button
+                title="Manifest"
+                icon="logo-whatsapp"
+                size="sm"
+                variant="secondary"
+                onPress={handleShareManifest}
+                style={[styles.actionBtn, styles.waManifestBtn]}
+                textStyle={{ color: '#10B981' }}
+              />
+            ) : null}
 
-        <Button
-          title="Run Details"
-          size="sm"
-          variant="outline"
-          onPress={() => onOpenRunDetails(delivery)}
-          style={{ flex: 1.2 }}
-        />
-      </View>
+            {/* Run Details: strictly shown when the order is delivered */}
+            {isDelivered ? (
+              <Button
+                title="Run Details"
+                icon="document-text-outline"
+                size="sm"
+                variant="outline"
+                onPress={() => onOpenRunDetails(delivery)}
+                style={[styles.actionBtn, { flex: 1.15 }]}
+              />
+            ) : null}
+          </View>
+        </>
+      ) : null}
 
       {/* Owner: Push Dispatch & Counter Pickup Buttons */}
       {isOwnerOrAdmin && isPendingPush ? (
@@ -303,18 +301,18 @@ export function DeliveryCard({
             title="Dispatch Order"
             icon="paper-plane-outline"
             variant="primary"
-            size="md"
+            size="sm"
             onPress={() => onOpenPushModal(delivery)}
-            style={{ flex: 1.3 }}
+            style={{ flex: 1.2, height: 38, borderRadius: 10 }}
           />
           {!isDriverAssigned ? (
             <Button
               title="Counter Pickup"
               icon="bag-check-outline"
               variant="outline"
-              size="md"
+              size="sm"
               onPress={() => onCustomerPickedUp(delivery.id)}
-              style={{ flex: 1.1 }}
+              style={{ flex: 1, height: 38, borderRadius: 10 }}
             />
           ) : null}
         </View>
@@ -326,9 +324,9 @@ export function DeliveryCard({
           title="Accept: Out for Pickup"
           icon="cube-outline"
           variant="primary"
-          size="md"
+          size="sm"
           onPress={() => onUpdateStatus(delivery.id, 'OUT_FOR_PICKUP')}
-          style={{ marginTop: 8 }}
+          style={{ marginTop: 8, height: 40, borderRadius: 10 }}
         />
       ) : null}
 
@@ -338,24 +336,24 @@ export function DeliveryCard({
             title="Mark Delivered & Collect Cash"
             icon="checkmark-circle-outline"
             variant="primary"
-            size="md"
+            size="sm"
             onPress={() => onOpenCollectCash(delivery)}
-            style={{ marginTop: 8 }}
+            style={{ marginTop: 8, height: 40, borderRadius: 10 }}
           />
         ) : (
           <Button
             title="Mark as Delivered"
             icon="checkmark-circle-outline"
             variant="primary"
-            size="md"
+            size="sm"
             onPress={() => onUpdateStatus(delivery.id, 'DELIVERED')}
-            style={{ marginTop: 8 }}
+            style={{ marginTop: 8, height: 40, borderRadius: 10 }}
           />
         )
       ) : null}
     </Card>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {
@@ -565,31 +563,6 @@ const styles = StyleSheet.create({
   progressFillComplete: {
     backgroundColor: '#10B981',
   },
-  costRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  costPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  costText: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    fontFamily: 'monospace',
-  },
-  addTripLink: {
-    paddingVertical: 2,
-    paddingHorizontal: 4,
-  },
-  addTripText: {
-    fontSize: 11,
-    color: '#38BDF8',
-    fontWeight: '600',
-  },
   handoverBanner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -612,6 +585,12 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
     marginTop: 1,
   },
+  verifyBtn: {
+    minWidth: 74,
+    height: 32,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+  },
   divider: {
     height: 1,
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
@@ -622,21 +601,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  waShareBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
+  actionBtn: {
+    flex: 1,
+    height: 36,
     borderRadius: 8,
-    paddingVertical: 7,
-    paddingHorizontal: 8,
+    paddingHorizontal: 6,
   },
-  waShareText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#10B981',
+  waManifestBtn: {
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderColor: 'rgba(16, 185, 129, 0.3)',
   },
   ownerActionsRow: {
     flexDirection: 'row',

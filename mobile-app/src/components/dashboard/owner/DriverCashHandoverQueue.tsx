@@ -27,10 +27,10 @@ export function DriverCashHandoverQueue({
   return (
     <Card elevated style={styles.card}>
       <View style={styles.header}>
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, marginRight: 8 }}>
           <View style={styles.titleRow}>
             <Ionicons name="cash-outline" size={16} color="#F59E0B" />
-            <Text style={styles.title}>
+            <Text style={styles.title} numberOfLines={1}>
               Driver Cash Handover Queue ({deliveries.length})
             </Text>
           </View>
@@ -38,7 +38,14 @@ export function DriverCashHandoverQueue({
             Physical cash collected by drivers awaiting counter settlement
           </Text>
         </View>
-        <Text style={styles.total}>{formatINR(cashTotal)}</Text>
+        <Text
+          style={styles.total}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.75}
+        >
+          {formatINR(cashTotal)}
+        </Text>
       </View>
 
       {onNavigateDeliveries && (
@@ -52,17 +59,17 @@ export function DriverCashHandoverQueue({
         const cashAmount = item.amount ?? item.amountToCollect ?? 0;
         return (
           <View key={deliveryId} style={styles.item}>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, marginRight: 8 }}>
               <View style={styles.driverRow}>
                 <Ionicons name="person-outline" size={13} color="#FCD34D" />
-                <Text style={styles.driverName}>
+                <Text style={styles.driverName} numberOfLines={1}>
                   {item.driverName || 'Assigned Driver'}
                 </Text>
               </View>
-              <Text style={styles.invoiceMeta}>
+              <Text style={styles.invoiceMeta} numberOfLines={1} ellipsizeMode="tail">
                 Invoice #{item.invoiceNo} • {item.partyName}
               </Text>
-              <Text style={styles.amount}>
+              <Text style={styles.amount} numberOfLines={1}>
                 Cash to hand over: {formatINR(cashAmount)}
               </Text>
             </View>
@@ -110,12 +117,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.dark.textSecondary,
     marginTop: 2,
-    maxWidth: 220,
+    lineHeight: 15,
   },
   total: {
     fontSize: 18,
     fontWeight: '900',
     color: '#FFFFFF',
+    flexShrink: 0,
   },
   panelLink: {
     alignSelf: 'flex-start',

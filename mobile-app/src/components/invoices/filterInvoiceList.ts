@@ -33,7 +33,11 @@ export function filterInvoiceList(
       (normalizedPhoneSearch.length > 0 &&
         String(invoice.party?.phone || '').replace(/\D/g, '').includes(normalizedPhoneSearch));
 
-    const matchesStatus = filters.status === 'ALL' || invoice.status === filters.status;
+    const matchesStatus =
+      filters.status === 'ALL' ||
+      (filters.status === 'REFUNDED'
+        ? invoice.status === 'REFUNDED' || (Array.isArray(invoice.refundInvoices) && invoice.refundInvoices.length > 0)
+        : invoice.status === filters.status);
     const matchesMode = filters.paymentMode === 'ALL' || invoice.paymentMode === filters.paymentMode;
     const date = new Date(invoice.createdAt);
     const matchesPreset =

@@ -7,6 +7,7 @@ import {
   Platform,
   ScrollView,
   StatusBar,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -74,7 +75,11 @@ export default function LoginScreen() {
       >
         <View style={styles.brandSection}>
           <View style={styles.logoBadge}>
-            <Text style={styles.logoText}>SO</Text>
+            <Image
+              source={require('@/assets/images/icon.png')}
+              style={styles.logoImage}
+              resizeMode="contain"
+            />
           </View>
           <Text style={styles.brandTitle}>Shree Om Tiles</Text>
           <Text style={styles.brandSubtitle}>Tiles & Sanitaryware ERP</Text>
@@ -144,24 +149,26 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   logoBadge: {
-    width: 58,
-    height: 58,
-    borderRadius: 18,
-    backgroundColor: '#FFFFFF',
+    width: 68,
+    height: 68,
+    borderRadius: 20,
+    backgroundColor: '#000000',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
-    shadowColor: '#FFFFFF',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.3,
     shadowRadius: 10,
     elevation: 4,
   },
-  logoText: {
-    color: '#09090B',
-    fontSize: 22,
-    fontWeight: '900',
-    letterSpacing: -1,
+  logoImage: {
+    width: 64,
+    height: 64,
+    borderRadius: 18,
   },
   brandTitle: {
     color: '#FFFFFF',

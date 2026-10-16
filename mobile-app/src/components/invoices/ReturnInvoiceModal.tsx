@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -296,11 +297,32 @@ export function ReturnInvoiceModal({
 
             <Text style={styles.sectionTitle}>Refund settlement</Text>
             <View style={styles.modeRow}>
-              {(['CASH', 'UPI', 'CREDIT'] as const).map((mode) => (
-                <TouchableOpacity key={mode} style={[styles.modeButton, returnMode === mode && styles.modeButtonActive]} onPress={() => setReturnMode(mode)}>
-                  <Text style={[styles.modeText, returnMode === mode && styles.modeTextActive]}>{mode === 'CREDIT' ? 'Store Credit' : mode}</Text>
-                </TouchableOpacity>
-              ))}
+              {(['CASH', 'UPI', 'CREDIT'] as const).map((mode) => {
+                const isSelected = returnMode === mode;
+                return (
+                  <TouchableOpacity
+                    key={mode}
+                    style={[styles.modeButton, isSelected && styles.modeButtonActive]}
+                    onPress={() => setReturnMode(mode)}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name={
+                        mode === 'CASH'
+                          ? 'cash-outline'
+                          : mode === 'UPI'
+                          ? 'qr-code-outline'
+                          : 'card-outline'
+                      }
+                      size={14}
+                      color={isSelected ? '#09090B' : Colors.dark.textSecondary}
+                    />
+                    <Text style={[styles.modeText, isSelected && styles.modeTextActive]}>
+                      {mode === 'CREDIT' ? 'Store Credit' : mode}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
             <Input label="Reason for Return (Optional)" placeholder="e.g. Unopened boxes or design change" value={returnReason} onChangeText={setReturnReason} />
             <Button
@@ -345,10 +367,29 @@ const styles = StyleSheet.create({
   totalRow: { borderTopWidth: 1, borderColor: Colors.dark.border, paddingTop: 9, marginTop: 7 },
   totalLabel: { color: Colors.dark.text, fontSize: 14, fontWeight: '800' },
   totalValue: { color: '#34D399', fontSize: 16, fontWeight: '900' },
-  modeRow: { flexDirection: 'row', gap: 7, marginBottom: 12 },
-  modeButton: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 9, borderWidth: 1, borderColor: Colors.dark.border, backgroundColor: Colors.dark.card },
-  modeButtonActive: { borderColor: Colors.dark.primary, backgroundColor: Colors.dark.primary },
-  modeText: { color: Colors.dark.textSecondary, fontSize: 11, fontWeight: '700' },
-  modeTextActive: { color: '#FFFFFF' },
+  modeRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  modeButton: {
+    flex: 1,
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    backgroundColor: Colors.dark.card,
+  },
+  modeButtonActive: {
+    borderColor: '#FFFFFF',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.25,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  modeText: { color: Colors.dark.textSecondary, fontSize: 11.5, fontWeight: '700' },
+  modeTextActive: { color: '#09090B', fontWeight: '800' },
   loadingRow: { padding: 24, alignItems: 'center', gap: 10 },
 });

@@ -31,6 +31,8 @@ export function PartyCard({
 
   const orderCount = party._count?.invoices || 0;
 
+  const hasDue = totalDue > 0.01;
+
   const handleCall = () => {
     const clean = cleanPhoneNumber(party.phone);
     if (clean) {
@@ -38,17 +40,18 @@ export function PartyCard({
     }
   };
 
-  const handleWhatsAppReminder = () => {
+  const handleWhatsAppAction = () => {
     const clean = cleanPhoneNumber(party.phone);
-    const msg =
-      `*PAYMENT REMINDER — SHREE OM TILES*\n\n` +
-      `Dear *${party.name}*,\n\n` +
-      (totalDue > 0
-        ? `This is a friendly reminder that you have an outstanding balance of *${formatINR(totalDue)}* on your account.\n\n` +
-          `Kindly arrange payment clearance at your earliest convenience via UPI or Counter Cash.\n\n`
-        : `Your account balance is currently clear with zero dues pending.\n\n`) +
-      `Thank you for your business!\n` +
-      `Shree Om Tiles & Sanitaryware`;
+    const msg = hasDue
+      ? `*PAYMENT REMINDER — SHREE OM TILES*\n\n` +
+        `Dear *${party.name}*,\n\n` +
+        `This is a friendly reminder that you have an outstanding balance of *${formatINR(totalDue)}* on your account.\n\n` +
+        `Kindly arrange payment clearance at your earliest convenience via UPI or Counter Cash.\n\n` +
+        `Thank you for your business! 🙏\n` +
+        `*Shree Om Tiles & Sanitaryware*`
+      : `Hello *${party.name}*,\n\n` +
+        `Greetings from *Shree Om Tiles & Sanitaryware*! 🙏\n\n` +
+        `How may we assist you today?`;
 
     const url = clean
       ? `https://wa.me/91${clean}?text=${encodeURIComponent(msg)}`
@@ -60,27 +63,36 @@ export function PartyCard({
   };
 
   return (
-    <Card elevated style={styles.card}>
+    <Card
+      elevated
+      onPress={() => onViewStatement(party)}
+      style={styles.card}
+    >
       {/* Top Section */}
       <View style={styles.topRow}>
         <View style={styles.avatarCircle}>
           <Text style={styles.avatarText}>{getInitials(party.name)}</Text>
         </View>
 
-        <View style={{ flex: 1 }}>
+        <View style={styles.infoCol}>
           <View style={styles.nameHeaderRow}>
             <Text style={styles.partyName} numberOfLines={1}>
               {party.name}
             </Text>
-            {totalDue > 0 ? (
+            {totalDue > 0.01 ? (
               <View style={styles.duesBadgeRose}>
                 <Text style={styles.duesBadgeRoseText}>{formatINR(totalDue)} Due</Text>
+              </View>
+            ) : totalDue < -0.01 ? (
+              <View style={styles.duesBadgeAmber}>
+                <Text style={styles.duesBadgeAmberText}>{formatINR(Math.abs(totalDue))} Payable</Text>
               </View>
             ) : (
               <View style={styles.duesBadgeEmerald}>
                 <Text style={styles.duesBadgeEmeraldText}>Cleared</Text>
               </View>
             )}
+            <Ionicons name="chevron-forward" size={15} color={Colors.dark.textTertiary} />
           </View>
 
           {/* Phone & Orders */}
@@ -94,20 +106,23 @@ export function PartyCard({
               <Ionicons name="bag-handle-outline" size={10} color={Colors.dark.textSecondary} />
               <Text style={styles.orderPillText}>{orderCount} orders</Text>
             </View>
+
+            {party.gstin ? (
+              <View style={styles.gstinPill}>
+                <Text style={styles.gstinLabel}>GSTIN:</Text>
+                <Text style={styles.gstinVal} numberOfLines={1}>{party.gstin}</Text>
+              </View>
+            ) : null}
           </View>
 
-          {/* GSTIN & Address */}
-          {party.gstin ? (
-            <View style={styles.gstinRow}>
-              <Text style={styles.gstinLabel}>GSTIN:</Text>
-              <Text style={styles.gstinVal}>{party.gstin}</Text>
-            </View>
-          ) : null}
-
+          {/* Address */}
           {party.address ? (
-            <Text style={styles.addressText} numberOfLines={2}>
-              {party.address}
-            </Text>
+            <View style={styles.addressRow}>
+              <Ionicons name="location-outline" size={11} color={Colors.dark.textTertiary} />
+              <Text style={styles.addressText} numberOfLines={1}>
+                {party.address}
+              </Text>
+            </View>
           ) : null}
         </View>
       </View>
@@ -126,21 +141,12 @@ export function PartyCard({
         />
 
         <Button
-          title="Reminder"
+          title={hasDue ? 'Reminder' : 'WhatsApp'}
           icon="logo-whatsapp"
           size="sm"
           variant="secondary"
-          onPress={handleWhatsAppReminder}
+          onPress={handleWhatsAppAction}
           style={styles.actionBtn}
-        />
-
-        <Button
-          title="360° Statement"
-          icon="document-text-outline"
-          size="sm"
-          variant="primary"
-          onPress={() => onViewStatement(party)}
-          style={[styles.actionBtn, { flex: 1.3 }]}
         />
 
         {canEditOrDelete ? (
@@ -173,12 +179,11 @@ export function PartyCard({
 
 const styles = StyleSheet.create({
   card: {
-    marginHorizontal: 16,
     marginBottom: 10,
     padding: 14,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.dark.borderMedium,
     backgroundColor: Colors.dark.card,
   },
   topRow: {
@@ -186,10 +191,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: 12,
   },
+  infoCol: {
+    flex: 1,
+  },
   avatarCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
+    width: 42,
+    height: 42,
+    borderRadius: 12,
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.15)',
@@ -197,14 +205,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '800',
     color: '#FFFFFF',
   },
   nameHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     gap: 8,
   },
   partyName: {
@@ -240,16 +247,37 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#10B981',
   },
+  duesBadgeAmber: {
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    paddingHorizontal: 8,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  duesBadgeAmberText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#F59E0B',
+    fontFamily: 'monospace',
+  },
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginTop: 4,
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 6,
   },
   phoneTouch: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    backgroundColor: Colors.dark.cardElevated,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
   },
   phoneText: {
     fontSize: 11,
@@ -261,25 +289,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
     backgroundColor: Colors.dark.cardElevated,
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-    borderRadius: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 5,
     borderWidth: 1,
     borderColor: Colors.dark.border,
   },
   orderPillText: {
-    fontSize: 10,
+    fontSize: 10.5,
     color: Colors.dark.textSecondary,
     fontWeight: '600',
   },
-  gstinRow: {
+  gstinPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
+    gap: 3,
+    backgroundColor: Colors.dark.cardElevated,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
   },
   gstinLabel: {
-    fontSize: 10,
+    fontSize: 9.5,
     color: Colors.dark.textTertiary,
     fontWeight: '600',
   },
@@ -288,11 +321,16 @@ const styles = StyleSheet.create({
     fontFamily: 'monospace',
     color: Colors.dark.textSecondary,
   },
+  addressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 6,
+  },
   addressText: {
     fontSize: 11,
     color: Colors.dark.textSecondary,
-    marginTop: 4,
-    lineHeight: 15,
+    flex: 1,
   },
   divider: {
     height: 1,
@@ -302,22 +340,22 @@ const styles = StyleSheet.create({
   bottomActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   actionBtn: {
     flex: 1,
   },
   iconBtn: {
-    width: 34,
-    height: 34,
+    width: 38,
+    height: 38,
     borderRadius: 8,
     backgroundColor: Colors.dark.cardElevated,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.dark.borderMedium,
     alignItems: 'center',
     justifyContent: 'center',
   },
   iconBtnDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
 });

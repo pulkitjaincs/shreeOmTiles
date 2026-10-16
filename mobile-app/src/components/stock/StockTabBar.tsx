@@ -30,8 +30,9 @@ export function StockTabBar({
         />
         <Text
           style={[styles.toggleTabText, activeTab === 'STOCK' && styles.toggleTabTextActive]}
+          numberOfLines={1}
         >
-          Live Warehouse Stock ({stockCount})
+          Live Stock ({stockCount})
         </Text>
       </TouchableOpacity>
 
@@ -47,6 +48,7 @@ export function StockTabBar({
         />
         <Text
           style={[styles.toggleTabText, activeTab === 'PRODUCTS' && styles.toggleTabTextActive]}
+          numberOfLines={1}
         >
           Product Catalog ({productCount})
         </Text>

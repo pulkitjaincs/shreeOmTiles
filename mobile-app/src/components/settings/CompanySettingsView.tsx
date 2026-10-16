@@ -381,7 +381,12 @@ const styles = StyleSheet.create({
     borderRadius: 9,
   },
   toggleBtnActive: {
-    backgroundColor: Colors.dark.primary,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
   },
   toggleText: {
     fontSize: 11.5,
@@ -389,7 +394,8 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
   },
   toggleTextActive: {
-    color: '#FFFFFF',
+    color: '#09090B',
+    fontWeight: '800',
   },
   tabContent: {
     gap: 10,

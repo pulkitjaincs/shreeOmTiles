@@ -248,6 +248,10 @@ export default function InvoicesScreen() {
           data={filteredInvoices}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
+          initialNumToRender={8}
+          maxToRenderPerBatch={10}
+          windowSize={7}
+          removeClippedSubviews={true}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />
           }
@@ -265,7 +269,7 @@ export default function InvoicesScreen() {
               invoice={item}
               canReturn={canReturn}
               onOpen={handleOpenInvoiceDetails}
-              onDownloadPdf={(invoice) => void downloadAndSharePdf(`invoices/${invoice.id}/pdf`, invoice.invoiceNo || `Invoice_${invoice.id}`)}
+              onDownloadPdf={(inv) => void downloadAndSharePdf(`invoices/${inv.id}/pdf`, inv.invoiceNo || `Invoice_${inv.id}`)}
               onShareWhatsApp={handleShareWhatsApp}
               onReturn={setReturnInvoice}
             />

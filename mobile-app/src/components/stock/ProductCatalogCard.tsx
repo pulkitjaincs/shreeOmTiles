@@ -44,8 +44,8 @@ export function ProductCatalogCard({
   return (
     <Card elevated style={styles.productCard}>
       <View style={styles.stockTop}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.productTitle}>{item.name}</Text>
+        <View style={{ flex: 1, marginRight: 8 }}>
+          <Text style={styles.productTitle} numberOfLines={1}>{item.name}</Text>
           <View style={styles.badgeRow}>
             <View style={styles.categoryBadgePill}>
               <Text style={styles.categoryBadgeText}>{item.category}</Text>
@@ -131,7 +131,8 @@ export function ProductCatalogCard({
             variant="secondary"
             icon="add-circle-outline"
             onPress={() => onInward(item.id)}
-            style={{ flex: 1.1 }}
+            style={styles.cardActionBtn}
+            textStyle={styles.cardActionBtnText}
           />
           <Button
             title="Edit"
@@ -139,21 +140,24 @@ export function ProductCatalogCard({
             variant="secondary"
             icon="pencil-outline"
             onPress={() => onEdit(item)}
-            style={{ flex: 1 }}
+            style={styles.cardActionBtn}
+            textStyle={styles.cardActionBtnText}
           />
           {totalStock > 0 ? (
             <Button
-              title="Zero Stock"
+              title="Zero Out"
               size="sm"
               variant="outline"
               onPress={() => onZeroOut(item.id, item.name)}
-              style={{ flex: 1.1 }}
+              style={styles.cardActionBtn}
+              textStyle={styles.cardActionBtnText}
             />
           ) : null}
           {totalStock === 0 ? (
             <TouchableOpacity
               style={styles.deleteIconBtn}
               onPress={() => onDelete(item.id, item.name)}
+              activeOpacity={0.7}
             >
               <Ionicons name="trash-outline" size={16} color="#EF4444" />
             </TouchableOpacity>
@@ -281,17 +285,29 @@ const styles = StyleSheet.create({
   productActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
     marginTop: 12,
     paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: Colors.dark.border,
   },
+  cardActionBtn: {
+    flex: 1,
+    height: 34,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+  },
+  cardActionBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
   deleteIconBtn: {
-    width: 38,
-    height: 38,
+    width: 34,
+    height: 34,
     borderRadius: 8,
     backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
   },

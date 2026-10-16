@@ -176,5 +176,5 @@ export interface PreviewUpiData {
 
 export type CustomerMode = 'EXISTING' | 'NEW_SAVED' | 'UNREGISTERED';
 export type DatePreset = 'ALL' | 'TODAY' | 'YESTERDAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'CUSTOM';
-export type InvoiceStatusFilter = 'ALL' | 'PAID' | 'PARTIAL' | 'CREATED';
+export type InvoiceStatusFilter = 'ALL' | 'PAID' | 'PARTIAL' | 'CREATED' | 'REFUNDED';
 export type PaymentModeFilter = 'ALL' | 'UPI' | 'CASH' | 'CREDIT' | 'CHEQUE';

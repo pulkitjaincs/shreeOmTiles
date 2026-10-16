@@ -32,23 +32,29 @@ export async function downloadAndSharePdf(
     }
 
     const fileUri = `${FileSystem.cacheDirectory}${fileName}.pdf`;
-    const downloadRes = await FileSystem.downloadAsync(url, fileUri, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
+    const fileInfo = await FileSystem.getInfoAsync(fileUri);
+    let targetUri = fileUri;
 
-    if (downloadRes.status !== 200) {
-      throw new Error(`Server returned HTTP ${downloadRes.status} for PDF download`);
+    if (!fileInfo.exists) {
+      const downloadRes = await FileSystem.downloadAsync(url, fileUri, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (downloadRes.status !== 200) {
+        throw new Error(`Server returned HTTP ${downloadRes.status} for PDF download`);
+      }
+      targetUri = downloadRes.uri;
     }
 
     const canShare = await Sharing.isAvailableAsync();
     if (canShare) {
-      await Sharing.shareAsync(downloadRes.uri, {
+      await Sharing.shareAsync(targetUri, {
         mimeType: 'application/pdf',
         dialogTitle: `Share ${fileName}.pdf`,
         UTI: 'com.adobe.pdf',
       });
     } else {
-      Alert.alert('PDF Saved', `Invoice document saved to ${downloadRes.uri}`);
+      Alert.alert('PDF Saved', `Invoice document saved to ${targetUri}`);
     }
   } catch (err: any) {
     Alert.alert('PDF Download Failed', err.message || 'Could not download official PDF invoice');

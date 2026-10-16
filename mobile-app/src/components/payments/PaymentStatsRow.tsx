@@ -26,7 +26,9 @@ export function PaymentStatsRow({ stats, activeTab, onTabChange }: PaymentStatsR
           <Text style={styles.statMiniLabel}>Total Billed</Text>
           <Ionicons name="receipt-outline" size={15} color={Colors.dark.textSecondary} />
         </View>
-        <Text style={styles.statMiniVal}>{formatINR(stats.totalSales || 0)}</Text>
+        <Text style={styles.statMiniVal} numberOfLines={1} adjustsFontSizeToFit>
+          {formatINR(stats.totalSales || 0)}
+        </Text>
         <Text style={styles.statMiniSub}>Across all invoices</Text>
       </Card>
 
@@ -46,7 +48,11 @@ export function PaymentStatsRow({ stats, activeTab, onTabChange }: PaymentStatsR
             <Text style={[styles.statMiniLabel, { color: '#10B981' }]}>Total Collected</Text>
             <Ionicons name="checkmark-circle" size={15} color="#10B981" />
           </View>
-          <Text style={[styles.statMiniVal, { color: '#10B981' }]}>
+          <Text
+            style={[styles.statMiniVal, { color: '#10B981' }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+          >
             {formatINR(stats.totalCollected || 0)}
           </Text>
           <Text style={[styles.statMiniSub, { color: 'rgba(16, 185, 129, 0.75)' }]}>
@@ -71,7 +77,11 @@ export function PaymentStatsRow({ stats, activeTab, onTabChange }: PaymentStatsR
             <Text style={[styles.statMiniLabel, { color: '#F59E0B' }]}>Total Paid Out</Text>
             <Ionicons name="arrow-up-circle" size={15} color="#F59E0B" />
           </View>
-          <Text style={[styles.statMiniVal, { color: '#F59E0B' }]}>
+          <Text
+            style={[styles.statMiniVal, { color: '#F59E0B' }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+          >
             {formatINR(stats.totalPaidOut || 0)}
           </Text>
           <Text style={[styles.statMiniSub, { color: 'rgba(245, 158, 11, 0.75)' }]}>
@@ -96,7 +106,11 @@ export function PaymentStatsRow({ stats, activeTab, onTabChange }: PaymentStatsR
             <Text style={[styles.statMiniLabel, { color: '#EF4444' }]}>Customer Dues</Text>
             <Ionicons name="trending-down" size={15} color="#EF4444" />
           </View>
-          <Text style={[styles.statMiniVal, { color: '#EF4444' }]}>
+          <Text
+            style={[styles.statMiniVal, { color: '#EF4444' }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+          >
             {formatINR(stats.pendingReceivables || 0)}
           </Text>
           <Text style={[styles.statMiniSub, { color: 'rgba(239, 68, 68, 0.75)' }]}>
@@ -121,7 +135,11 @@ export function PaymentStatsRow({ stats, activeTab, onTabChange }: PaymentStatsR
             <Text style={[styles.statMiniLabel, { color: '#F59E0B' }]}>Store Payables</Text>
             <Ionicons name="trending-up" size={15} color="#F59E0B" />
           </View>
-          <Text style={[styles.statMiniVal, { color: '#F59E0B' }]}>
+          <Text
+            style={[styles.statMiniVal, { color: '#F59E0B' }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+          >
             {formatINR(stats.creditsOwed || 0)}
           </Text>
           <Text style={[styles.statMiniSub, { color: 'rgba(245, 158, 11, 0.8)' }]}>
@@ -142,11 +160,15 @@ export function PaymentStatsRow({ stats, activeTab, onTabChange }: PaymentStatsR
         </Text>
         <View style={styles.splitRow}>
           <Text style={styles.splitLabel}>Cash:</Text>
-          <Text style={styles.splitValCash}>{formatINR(stats.cashCollected || 0)}</Text>
+          <Text style={styles.splitValCash} numberOfLines={1} adjustsFontSizeToFit>
+            {formatINR(stats.cashCollected || 0)}
+          </Text>
         </View>
         <View style={styles.splitRow}>
           <Text style={styles.splitLabel}>UPI:</Text>
-          <Text style={styles.splitValUpi}>{formatINR(stats.upiCollected || 0)}</Text>
+          <Text style={styles.splitValUpi} numberOfLines={1} adjustsFontSizeToFit>
+            {formatINR(stats.upiCollected || 0)}
+          </Text>
         </View>
       </Card>
     </ScrollView>

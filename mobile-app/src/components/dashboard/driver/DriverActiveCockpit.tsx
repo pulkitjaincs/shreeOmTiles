@@ -115,13 +115,22 @@ export function DriverActiveCockpit({
               </View>
             )
           ) : activeDelivery.status === 'OUT_FOR_DELIVERY' ? (
-            <Button
-              title="Mark as Delivered"
-              variant="primary"
-              size="md"
-              loading={statusUpdating}
-              onPress={() => onStatusChange(activeDelivery.id, 'DELIVERED')}
-            />
+            Number(activeDelivery.amountToCollect || 0) > 0 ? (
+              <Button
+                title={`Mark Delivered & Collect Cash (${formatINR(activeDelivery.amountToCollect)})`}
+                variant="primary"
+                size="md"
+                onPress={() => onOpenCollectCash(activeDelivery)}
+              />
+            ) : (
+              <Button
+                title="Mark as Delivered"
+                variant="primary"
+                size="md"
+                loading={statusUpdating}
+                onPress={() => onStatusChange(activeDelivery.id, 'DELIVERED')}
+              />
+            )
           ) : activeDelivery.status === 'DELIVERED' &&
             Number(activeDelivery.amountToCollect || 0) > 0 &&
             Number(activeDelivery.cashCollected || 0) === 0 ? (

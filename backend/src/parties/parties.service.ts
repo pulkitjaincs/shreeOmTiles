@@ -145,31 +145,45 @@ export class PartiesService {
     if (!party) throw new NotFoundException(`Party ${id} not found`);
 
     // 2. Check pending dues:
-    // Check credit ledger dues (unsettled amount due)
-    const unpaidCreditDue = (party.creditLedgers || [])
-      .filter((cl) => cl.status !== 'SETTLED')
+    // Dues customer owes the shop (RECEIVABLE)
+    const receivableDue = (party.creditLedgers || [])
+      .filter((cl) => cl.type === 'RECEIVABLE' && cl.status !== 'SETTLED')
       .reduce((sum, cl) => sum + Number(cl.amountDue || 0), 0);
 
-    // Check unpaid invoices (where status is not PAID or CANCELLED)
+    // Dues shop owes the customer (PAYABLE - e.g. refunds or credit notes)
+    const payableDue = (party.creditLedgers || [])
+      .filter((cl) => cl.type === 'PAYABLE' && cl.status !== 'SETTLED')
+      .reduce((sum, cl) => sum + Number(cl.amountDue || 0), 0);
+
+    // Unpaid invoices that don't already have a credit ledger
     let unpaidInvoiceDue = 0;
     for (const inv of party.invoices || []) {
       if (inv.status !== 'PAID' && inv.status !== 'CANCELLED') {
-        const total = Number(inv.total || 0);
-        const confirmedPaid = (inv.payments || [])
-          .filter((p) => p.status === 'CONFIRMED')
-          .reduce((sum, p) => sum + Number(p.amount || 0), 0);
-        const diff = total - confirmedPaid;
-        if (diff > 0) {
-          unpaidInvoiceDue += diff;
+        const hasCreditLedger = (party.creditLedgers || []).some(
+          (cl) => cl.invoiceId === inv.id && cl.status !== 'SETTLED',
+        );
+        if (!hasCreditLedger) {
+          const total = Number(inv.total || 0);
+          const confirmedPaid = (inv.payments || [])
+            .filter((p) => p.status === 'CONFIRMED')
+            .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+          const diff = total - confirmedPaid;
+          if (diff > 0) {
+            unpaidInvoiceDue += diff;
+          }
         }
       }
     }
 
-    const totalPendingDue = Math.max(unpaidCreditDue, unpaidInvoiceDue);
-
-    if (totalPendingDue > 0.01) {
+    const totalCustomerDebt = receivableDue + unpaidInvoiceDue;
+    if (totalCustomerDebt > 0.01) {
       throw new BadRequestException(
-        `Cannot delete customer '${party.name}': Outstanding dues of ₹${totalPendingDue.toLocaleString('en-IN', { maximumFractionDigits: 2 })} are still pending. Neither customer dues nor shop dues can be pending for deletion. Please settle all dues first.`,
+        `Cannot delete customer '${party.name}': Customer has outstanding dues of ₹${totalCustomerDebt.toLocaleString('en-IN', { maximumFractionDigits: 2 })} pending payment. Please collect payment first.`,
+      );
+    }
+    if (payableDue > 0.01) {
+      throw new BadRequestException(
+        `Cannot delete customer '${party.name}': Shop owes ₹${payableDue.toLocaleString('en-IN', { maximumFractionDigits: 2 })} in store credit/refunds to this customer. Please settle or refund first.`,
       );
     }
 

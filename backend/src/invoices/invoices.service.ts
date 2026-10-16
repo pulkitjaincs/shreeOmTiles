@@ -54,36 +54,13 @@ export class InvoicesService {
         'An invoice must contain at least one line item',
       );
     }
-
-    let party: Party | null = null;
-    if (data.partyId) {
-      party = await this.prisma.party.findUnique({
-        where: { id: data.partyId },
-      });
-    } else if (data.newParty) {
-      party = await this.prisma.party.create({
-        data: {
-          name: data.newParty.name,
-          phone: data.newParty.phone,
-          address: data.newParty.address,
-          gstin: data.newParty.gstin,
-          isSaved: data.newParty.isSaved ?? true,
-        },
-      });
-    }
-
-    if (!party) {
-      throw new NotFoundException(
+    if (!data.partyId && !data.newParty) {
+      throw new BadRequestException(
         'Selected customer/party does not exist and new party details were not provided',
       );
     }
-    const customerParty: Party = party;
 
     const companyState = process.env.COMPANY_STATE_CODE || '07';
-    const isInterState =
-      party.gstin && party.gstin.length >= 2
-        ? party.gstin.slice(0, 2) !== companyState
-        : false;
     const taxRate = data.taxRate !== undefined ? data.taxRate : 18; // Default 18% GST
 
     // Pre-calculate line items and subtotal
@@ -102,32 +79,59 @@ export class InvoicesService {
     const taxAmount = (subtotal * taxRate) / 100;
     const totalAmount = subtotal + taxAmount;
 
-    // GST Breakup
-    const taxBreakup = isInterState
-      ? { rate: taxRate, igst: taxAmount, cgst: 0, sgst: 0, isInterState: true }
-      : {
-          rate: taxRate,
-          igst: 0,
-          cgst: taxAmount / 2,
-          sgst: taxAmount / 2,
-          isInterState: false,
-        };
-
     const fy = this.getFinancialYear();
 
     const invoice = await this.prisma.$transaction(async (tx) => {
-      // 1. Atomic Gapless Invoice Sequence per Financial Year
-      const seq = await tx.invoiceSequence.upsert({
-        where: { financialYear: fy },
-        update: { lastNumber: { increment: 1 } },
-        create: { financialYear: fy, lastNumber: 1 },
-      });
+      // 1. Transactional Party Resolution / Creation (prevents orphaned records on failure)
+      let party: Party | null = null;
+      if (data.partyId) {
+        party = await tx.party.findUnique({
+          where: { id: data.partyId },
+        });
+      } else if (data.newParty) {
+        party = await tx.party.create({
+          data: {
+            name: data.newParty.name,
+            phone: data.newParty.phone,
+            address: data.newParty.address,
+            gstin: data.newParty.gstin,
+            isSaved: data.newParty.isSaved ?? true,
+          },
+        });
+      }
 
-      const invoiceNo = `INV-${fy}-${String(seq.lastNumber).padStart(4, '0')}`;
+      if (!party) {
+        throw new NotFoundException(
+          'Selected customer/party does not exist and new party details were not provided',
+        );
+      }
+
+      // GST Breakup based on validated party state
+      const isInterState =
+        party.gstin && party.gstin.length >= 2
+          ? party.gstin.slice(0, 2) !== companyState
+          : false;
+
+      const taxBreakup = isInterState
+        ? { rate: taxRate, igst: taxAmount, cgst: 0, sgst: 0, isInterState: true }
+        : {
+            rate: taxRate,
+            igst: 0,
+            cgst: taxAmount / 2,
+            sgst: taxAmount / 2,
+            isInterState: false,
+          };
 
       // 2. Validate & Decrement Stock for all line items
       const allocatedInvoiceItems: Prisma.InvoiceItemUncheckedCreateWithoutInvoiceInput[] =
         [];
+      const pendingAuditLogs: Array<{
+        action: string;
+        entity: string;
+        entityId: string;
+        diff: Record<string, any>;
+        actorId: string;
+      }> = [];
       for (const item of calculatedItems) {
         let remainingQty = item.qty;
 
@@ -184,20 +188,17 @@ export class InvoicesService {
             data: { quantity: { decrement: qtyToTake } },
           });
 
-          await tx.auditLog.create({
-            data: {
-              action: 'ADJUST_STOCK',
-              entity: 'StockLedger',
-              entityId: stock.id,
-              diff: {
-                reason: 'Invoice Sales',
-                invoiceNo: invoiceNo,
-                previousQuantity: lockedStock.quantity,
-                newQuantity: lockedStock.quantity - qtyToTake,
-                change: -qtyToTake,
-              },
-              actorId: salesmanId,
+          pendingAuditLogs.push({
+            action: 'ADJUST_STOCK',
+            entity: 'StockLedger',
+            entityId: stock.id,
+            diff: {
+              reason: 'Invoice Sales',
+              previousQuantity: lockedStock.quantity,
+              newQuantity: lockedStock.quantity - qtyToTake,
+              change: -qtyToTake,
             },
+            actorId: salesmanId,
           });
 
           // Calculate discount proportionally or per unit
@@ -282,6 +283,23 @@ export class InvoicesService {
         initialStatus = InvoiceStatus.CREATED;
       }
 
+      // 3. Gapless Invoice Sequence per Financial Year (Deferred right before create to minimize lock holding time)
+      const seq = await tx.invoiceSequence.upsert({
+        where: { financialYear: fy },
+        update: { lastNumber: { increment: 1 } },
+        create: { financialYear: fy, lastNumber: 1 },
+      });
+      const invoiceNo = `INV-${fy}-${String(seq.lastNumber).padStart(4, '0')}`;
+
+      if (pendingAuditLogs.length > 0) {
+        await tx.auditLog.createMany({
+          data: pendingAuditLogs.map((log) => ({
+            ...log,
+            diff: { ...log.diff, invoiceNo },
+          })),
+        });
+      }
+
       const invoice = await tx.invoice.create({
         data: {
           invoiceNo,
@@ -356,9 +374,10 @@ export class InvoicesService {
     });
 
     // Notify Owner & Admin about new sale
+    const partyName = invoice.party?.name || 'Customer';
     void this.notifications.notifyAdmins(
       'New Sale Generated!',
-      `₹${Math.round(totalAmount).toLocaleString('en-IN')} invoiced for ${customerParty.name}.`,
+      `₹${Math.round(totalAmount).toLocaleString('en-IN')} invoiced for ${partyName}.`,
       { type: 'NEW_INVOICE', invoiceId: invoice.id },
     );
 
@@ -761,14 +780,6 @@ export class InvoicesService {
       const taxRate =
         originalTaxBreakup.rate !== undefined ? originalTaxBreakup.rate : 18;
 
-      // 3. Generate Gapless Sequence for Refund Invoice (Credit Note)
-      const seq = await tx.refundSequence.upsert({
-        where: { financialYear: fy },
-        update: { lastNumber: { increment: 1 } },
-        create: { financialYear: fy, lastNumber: 1 },
-      });
-      const refundNo = `RF-${fy}-${String(seq.lastNumber).padStart(4, '0')}`;
-
       let subtotal = 0;
       const returnedSummaries: string[] = [];
       const refundInvoiceItemsData: Prisma.RefundInvoiceItemUncheckedCreateWithoutRefundInvoiceInput[] =
@@ -849,7 +860,15 @@ export class InvoicesService {
             isInterState: false,
           };
 
-      // 4. Create formal RefundInvoice (Credit Note)
+      // 4. Generate Gapless Sequence for Refund Invoice (Credit Note) right before creation
+      const seq = await tx.refundSequence.upsert({
+        where: { financialYear: fy },
+        update: { lastNumber: { increment: 1 } },
+        create: { financialYear: fy, lastNumber: 1 },
+      });
+      const refundNo = `RF-${fy}-${String(seq.lastNumber).padStart(4, '0')}`;
+
+      // 5. Create formal RefundInvoice (Credit Note)
       const refundInvoice = await tx.refundInvoice.create({
         data: {
           refundNo,

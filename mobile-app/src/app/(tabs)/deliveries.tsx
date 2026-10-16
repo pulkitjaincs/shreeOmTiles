@@ -7,12 +7,14 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  TouchableOpacity,
 } from 'react-native';
 import { useAuth } from '@/lib/auth-context';
 import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
 import { Colors } from '@/constants/theme';
 import { Header } from '@/components/ui/Header';
 import { SearchBar } from '@/components/ui/SearchBar';
+import { FilterDropdown } from '@/components/ui/FilterDropdown';
 import { EmptyState } from '@/components/ui/EmptyState';
 
 import {
@@ -22,12 +24,10 @@ import {
   DeliveryCounts,
   PushSuccessDialogData,
   DeliveryCard,
-  DeliveryFilterTabs,
   PushDeliveryModal,
   PushSuccessModal,
   DeliveryRunModal,
   CollectCashModal,
-  AddTripModal,
 } from '@/components/deliveries';
 
 export default function DeliveriesScreen() {
@@ -49,7 +49,6 @@ export default function DeliveriesScreen() {
   const [pushModalDelivery, setPushModalDelivery] = useState<Delivery | null>(null);
   const [pushSuccessData, setPushSuccessData] = useState<PushSuccessDialogData | null>(null);
   const [collectCashDelivery, setCollectCashDelivery] = useState<Delivery | null>(null);
-  const [addTripDelivery, setAddTripDelivery] = useState<Delivery | null>(null);
 
   // Handover state
   const [handoverInProgress, setHandoverInProgress] = useState<string | null>(null);
@@ -106,6 +105,56 @@ export default function DeliveriesScreen() {
     const cancelled = deliveries.filter((d) => d.status === 'CANCELLED').length;
     return { total, pending, outForPickup, outForDelivery, delivered, cancelled };
   }, [deliveries]);
+
+  // Dropdown options matching web-dashboard filters
+  const filterOptions = useMemo(() => [
+    {
+      label: 'All Deliveries',
+      value: 'ALL',
+      count: counts.total,
+      icon: 'layers-outline' as const,
+      color: '#FFFFFF',
+    },
+    {
+      label: isDriver ? 'Ready for Pickup' : 'Pending Dispatch',
+      value: 'PENDING',
+      count: counts.pending,
+      icon: 'time-outline' as const,
+      color: '#F59E0B',
+    },
+    {
+      label: 'Out for Pickup',
+      value: 'OUT_FOR_PICKUP',
+      count: counts.outForPickup,
+      icon: 'cube-outline' as const,
+      color: '#A855F7',
+    },
+    {
+      label: 'Out for Delivery',
+      value: 'OUT_FOR_DELIVERY',
+      count: counts.outForDelivery,
+      icon: 'bicycle-outline' as const,
+      color: '#38BDF8',
+    },
+    {
+      label: 'Delivered',
+      value: 'DELIVERED',
+      count: counts.delivered,
+      icon: 'checkmark-circle-outline' as const,
+      color: '#10B981',
+    },
+    ...(counts.cancelled > 0
+      ? [
+          {
+            label: 'Cancelled',
+            value: 'CANCELLED',
+            count: counts.cancelled,
+            icon: 'close-circle-outline' as const,
+            color: '#EF4444',
+          },
+        ]
+      : []),
+  ], [counts, isDriver]);
 
   // Filtered deliveries matching web-dashboard logic
   const filteredDeliveries = useMemo(() => {
@@ -187,45 +236,6 @@ export default function DeliveriesScreen() {
     );
   };
 
-  // Warehouse item pickup check
-  const handleToggleItemPickup = async (
-    deliveryId: string,
-    itemIdx: number,
-    currentPicked: boolean | undefined,
-  ) => {
-    if (currentPicked) return;
-
-    try {
-      await mobileApiRequest(`/delivery/${deliveryId}/items/${itemIdx}/pickup`, {
-        method: 'PATCH',
-        body: JSON.stringify({ pickedUp: true }),
-      });
-
-      setDeliveries((prev) =>
-        prev.map((d) => {
-          if (d.id === deliveryId && d.items) {
-            const nextItems = [...d.items];
-            if (nextItems[itemIdx]) {
-              nextItems[itemIdx] = { ...nextItems[itemIdx], pickedUp: true };
-            }
-            return { ...d, items: nextItems };
-          }
-          return d;
-        }),
-      );
-
-      if (activeDeliveryModal && activeDeliveryModal.id === deliveryId && activeDeliveryModal.items) {
-        const nextItems = [...activeDeliveryModal.items];
-        if (nextItems[itemIdx]) {
-          nextItems[itemIdx] = { ...nextItems[itemIdx], pickedUp: true };
-        }
-        setActiveDeliveryModal({ ...activeDeliveryModal, items: nextItems });
-      }
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to lock item pickup');
-    }
-  };
-
   // Verify Driver Cash Handover
   const handleHandoverCash = async (deliveryId: string) => {
     setHandoverInProgress(deliveryId);
@@ -249,19 +259,43 @@ export default function DeliveriesScreen() {
         subtitle={isDriver ? 'Active Runs & Pickups' : 'Driver Logistics & Routing'}
       />
 
-      <SearchBar
-        value={search}
-        onChangeText={setSearch}
-        placeholder="Search invoice #, customer, driver..."
-      />
+      <View style={styles.topControlContainer}>
+        <SearchBar
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search invoice #, customer, driver..."
+        />
 
-      {/* Filter Status Chips matching Web Dashboard */}
-      <DeliveryFilterTabs
-        activeFilter={activeFilter}
-        onSelectFilter={setActiveFilter}
-        counts={counts}
-        isDriver={isDriver}
-      />
+        {/* View Selection Dropdown matching Invoices & Payments */}
+        <View style={styles.filterDropdownRow}>
+          <FilterDropdown
+            label="Filter"
+            value={activeFilter}
+            onSelect={(val) => setActiveFilter(val as FilterTab)}
+            options={filterOptions}
+            hideLabelPrefix
+            showCountOnTrigger
+            containerStyle={{ flex: 1 }}
+          />
+        </View>
+
+        {/* Results Count & Reset */}
+        <View style={styles.resultsRow}>
+          <Text style={styles.resultsText}>
+            Showing {filteredDeliveries.length} of {deliveries.length} deliveries
+          </Text>
+          {(activeFilter !== 'ALL' || Boolean(search.trim())) ? (
+            <TouchableOpacity
+              onPress={() => {
+                setActiveFilter('ALL');
+                setSearch('');
+              }}
+            >
+              <Text style={styles.clearFiltersText}>Reset Filters</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      </View>
 
       {loading && !refreshing ? (
         <View style={styles.center}>
@@ -273,6 +307,10 @@ export default function DeliveriesScreen() {
           data={filteredDeliveries}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
+          initialNumToRender={8}
+          maxToRenderPerBatch={10}
+          windowSize={7}
+          removeClippedSubviews={true}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />
           }
@@ -292,7 +330,6 @@ export default function DeliveriesScreen() {
               onOpenRunDetails={(d) => setActiveDeliveryModal(d)}
               onOpenPushModal={(d) => setPushModalDelivery(d)}
               onOpenCollectCash={(d) => setCollectCashDelivery(d)}
-              onOpenAddTrip={(d) => setAddTripDelivery(d)}
               onCustomerPickedUp={handleCustomerPickedUp}
               onHandoverCash={handleHandoverCash}
               onUpdateStatus={handleUpdateStatus}
@@ -326,23 +363,12 @@ export default function DeliveriesScreen() {
         delivery={activeDeliveryModal}
         visible={Boolean(activeDeliveryModal)}
         onClose={() => setActiveDeliveryModal(null)}
-        onToggleItemPickup={handleToggleItemPickup}
-        onUpdateStatus={handleUpdateStatus}
-        onOpenCollectCash={(d) => setCollectCashDelivery(d)}
-        onOpenAddTrip={(d) => setAddTripDelivery(d)}
       />
 
       <CollectCashModal
         delivery={collectCashDelivery}
         visible={Boolean(collectCashDelivery)}
         onClose={() => setCollectCashDelivery(null)}
-        onSuccess={() => loadData(true)}
-      />
-
-      <AddTripModal
-        delivery={addTripDelivery}
-        visible={Boolean(addTripDelivery)}
-        onClose={() => setAddTripDelivery(null)}
         onSuccess={() => loadData(true)}
       />
     </View>
@@ -354,8 +380,37 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.dark.background,
   },
+  topControlContainer: {
+    paddingBottom: 4,
+  },
+  filterDropdownRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  resultsRow: {
+    minHeight: 24,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+    marginBottom: 2,
+  },
+  resultsText: {
+    color: Colors.dark.textTertiary,
+    fontSize: 11,
+  },
+  clearFiltersText: {
+    color: '#38BDF8',
+    fontSize: 11,
+    fontWeight: '700',
+  },
   listContent: {
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingBottom: 90,
   },
   center: {

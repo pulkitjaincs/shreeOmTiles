@@ -9,6 +9,11 @@ const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
 async function seed() {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('⛔ Refusing to seed database in production environment. Aborting.');
+    process.exit(0);
+  }
+
   console.log('🌱 Starting dhraERP database seeding...');
 
   const salt = await bcrypt.genSalt(10);

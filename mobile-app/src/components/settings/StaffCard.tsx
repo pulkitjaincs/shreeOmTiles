@@ -102,7 +102,8 @@ export function StaffCard({
           size="sm"
           variant="outline"
           onPress={() => onEdit(staff)}
-          style={{ flex: 1 }}
+          style={styles.cardBtn}
+          textStyle={styles.btnText}
         />
         <Button
           title="Password"
@@ -110,7 +111,8 @@ export function StaffCard({
           size="sm"
           variant="outline"
           onPress={() => onResetPassword(staff)}
-          style={{ flex: 1.1 }}
+          style={[styles.cardBtn, { flex: isOwner ? 1 : 1.15 }]}
+          textStyle={styles.btnText}
         />
         {!isOwner ? (
           <Button
@@ -118,7 +120,8 @@ export function StaffCard({
             size="sm"
             variant={staff.active ? 'secondary' : 'primary'}
             onPress={() => onToggleStatus(staff)}
-            style={{ flex: 1.2 }}
+            style={[styles.cardBtn, { flex: 1.25 }]}
+            textStyle={styles.btnText}
           />
         ) : null}
         {!isOwner ? (
@@ -141,9 +144,9 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 10,
     borderRadius: 14,
-    backgroundColor: Colors.dark.cardElevated,
+    backgroundColor: Colors.dark.card,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.dark.borderMedium,
   },
   topRow: {
     flexDirection: 'row',
@@ -151,14 +154,14 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   avatarCircle: {
-    width: 46,
-    height: 46,
-    borderRadius: 14,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     backgroundColor: Colors.dark.secondary,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.dark.borderMedium,
   },
   avatarText: {
     color: '#FFFFFF',
@@ -166,7 +169,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   staffName: {
-    fontSize: 15,
+    fontSize: 15.5,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: -0.2,
@@ -190,17 +193,18 @@ const styles = StyleSheet.create({
   },
   roleBadge: {
     paddingHorizontal: 7,
-    paddingVertical: 2,
+    paddingVertical: 2.5,
     borderRadius: 6,
     borderWidth: 1,
   },
   roleBadgeText: {
     fontSize: 10,
     fontWeight: '800',
+    letterSpacing: 0.3,
   },
   divider: {
     height: 1,
-    backgroundColor: Colors.dark.border,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
     marginVertical: 10,
   },
   actionsRow: {
@@ -208,8 +212,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
+  cardBtn: {
+    flex: 1,
+    height: 36,
+    borderRadius: 8,
+    paddingHorizontal: 6,
+  },
+  btnText: {
+    fontSize: 11.5,
+  },
   deleteBtn: {
-    minWidth: 38,
+    width: 36,
+    height: 36,
+    borderRadius: 8,
     paddingHorizontal: 0,
     alignItems: 'center',
     justifyContent: 'center',

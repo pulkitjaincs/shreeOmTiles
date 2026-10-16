@@ -57,8 +57,10 @@ export function CategorySplitCard({
         return (
           <View key={idx} style={styles.row}>
             <View style={styles.rowMeta}>
-              <Text style={styles.name}>{cat.name}</Text>
-              <Text style={styles.amount}>
+              <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">
+                {cat.name}
+              </Text>
+              <Text style={styles.amount} numberOfLines={1}>
                 {formatINR(cat.value)} ({pct}%)
               </Text>
             </View>
@@ -119,8 +121,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 5,
+    gap: 8,
   },
   name: {
+    flex: 1,
     fontSize: 12,
     fontWeight: '600',
     color: Colors.dark.text,
@@ -129,6 +133,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: Colors.dark.textSecondary,
+    flexShrink: 0,
   },
   progressTrack: {
     height: 6,

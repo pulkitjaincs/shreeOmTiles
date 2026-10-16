@@ -7,3 +7,4 @@ export * from './TransactionHistoryCard';
 export * from './CreditLedgerCard';
 export * from './RecordSettlementModal';
 export * from './RecordCreditModal';
+export * from './SettlementSuccessModal';

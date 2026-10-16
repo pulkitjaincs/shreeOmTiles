@@ -127,9 +127,16 @@ export function SalesmanDashboardView({
           {/* Card 1: My Invoiced Sales */}
           <Card elevated style={styles.personalKpiCard}>
             <View style={styles.personalKpiRow}>
-              <View>
-                <Text style={styles.personalKpiLabel}>My Invoiced Sales</Text>
-                <Text style={styles.personalKpiValue}>{formatINR(kpi?.totalRevenue)}</Text>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Text style={styles.personalKpiLabel} numberOfLines={1}>My Invoiced Sales</Text>
+                <Text
+                  style={styles.personalKpiValue}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
+                  {formatINR(kpi?.totalRevenue)}
+                </Text>
                 {kpi?.deltaRevenue !== null && kpi?.deltaRevenue !== undefined ? (
                   <View
                     style={[
@@ -142,21 +149,22 @@ export function SalesmanDashboardView({
                         styles.deltaBadgeText,
                         kpi.deltaRevenue >= 0 ? styles.deltaTextUp : styles.deltaTextDown,
                       ]}
+                      numberOfLines={1}
                     >
                       {kpi.deltaRevenue >= 0
-                        ? `+${kpi.deltaRevenue.toFixed(1)}% vs prev period`
-                        : `${kpi.deltaRevenue.toFixed(1)}% vs prev period`}
+                        ? `+${kpi.deltaRevenue.toFixed(1)}% vs prev`
+                        : `${kpi.deltaRevenue.toFixed(1)}% vs prev`}
                     </Text>
                   </View>
                 ) : (
-                  <Text style={styles.personalKpiSub}>Selected period sales volume</Text>
+                  <Text style={styles.personalKpiSub} numberOfLines={1}>Selected period sales</Text>
                 )}
               </View>
               <View style={styles.kpiIconCircle}>
                 <Ionicons name="trending-up-outline" size={24} color="#FFFFFF" />
               </View>
             </View>
-            <Text style={styles.personalKpiNote}>
+            <Text style={styles.personalKpiNote} numberOfLines={1}>
               100% collected upfront at counter via Cash or UPI QR
             </Text>
           </Card>
@@ -166,16 +174,23 @@ export function SalesmanDashboardView({
             {/* Card 2: Invoices Raised */}
             <Card style={styles.secondaryKpiCard}>
               <View style={styles.kpiHeaderSmall}>
-                <Text style={styles.personalKpiLabel}>Invoices Raised</Text>
+                <Text style={styles.personalKpiLabel} numberOfLines={1}>Invoices</Text>
                 <Ionicons name="receipt-outline" size={15} color="#10B981" />
               </View>
-              <Text style={styles.secondaryKpiVal}>{kpi?.periodInvoices || 0}</Text>
+              <Text
+                style={styles.secondaryKpiVal}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.75}
+              >
+                {kpi?.periodInvoices || 0}
+              </Text>
               <View style={styles.todayInvoicesBadge}>
-                <Text style={styles.todayInvoicesBadgeText}>
+                <Text style={styles.todayInvoicesBadgeText} numberOfLines={1}>
                   {kpi?.todayInvoices || 0} raised today
                 </Text>
               </View>
-              <Text style={styles.kpiFootnote}>
+              <Text style={styles.kpiFootnote} numberOfLines={1}>
                 {kpi?.totalInvoices || 0} lifetime invoices
               </Text>
             </Card>
@@ -183,18 +198,23 @@ export function SalesmanDashboardView({
             {/* Card 3: Average Ticket Size */}
             <Card style={styles.secondaryKpiCard}>
               <View style={styles.kpiHeaderSmall}>
-                <Text style={styles.personalKpiLabel}>Avg Ticket Size</Text>
+                <Text style={styles.personalKpiLabel} numberOfLines={1}>Avg Ticket</Text>
                 <Ionicons name="wallet-outline" size={15} color="#A855F7" />
               </View>
-              <Text style={[styles.secondaryKpiVal, { color: '#C084FC' }]}>
+              <Text
+                style={[styles.secondaryKpiVal, { color: '#C084FC' }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.7}
+              >
                 {formatINR(avgTicket)}
               </Text>
               <View style={[styles.todayInvoicesBadge, { backgroundColor: 'rgba(168, 85, 247, 0.12)' }]}>
-                <Text style={[styles.todayInvoicesBadgeText, { color: '#C084FC' }]}>
+                <Text style={[styles.todayInvoicesBadgeText, { color: '#C084FC' }]} numberOfLines={1}>
                   Avg order value
                 </Text>
               </View>
-              <Text style={styles.kpiFootnote}>Direct retail billing</Text>
+              <Text style={styles.kpiFootnote} numberOfLines={1}>Direct retail billing</Text>
             </Card>
           </View>
         </View>
@@ -240,9 +260,9 @@ export function SalesmanDashboardView({
             return (
               <Card key={inv.id} style={styles.recentInvoiceCard}>
                 <View style={styles.recentRow}>
-                  <View style={{ flex: 1 }}>
+                  <View style={{ flex: 1, marginRight: 8 }}>
                     <View style={styles.invNumberRow}>
-                      <Text style={styles.recentInvoiceNo}>#{inv.invoiceNo}</Text>
+                      <Text style={styles.recentInvoiceNo} numberOfLines={1}>#{inv.invoiceNo}</Text>
                       <View
                         style={[
                           styles.modeBadge,
@@ -262,13 +282,16 @@ export function SalesmanDashboardView({
                               ? { color: '#10B981' }
                               : { color: Colors.dark.textSecondary },
                           ]}
+                          numberOfLines={1}
                         >
                           {inv.paymentMode || 'PAID'}
                         </Text>
                       </View>
                     </View>
 
-                    <Text style={styles.recentParty}>{inv.partyName}</Text>
+                    <Text style={styles.recentParty} numberOfLines={1} ellipsizeMode="tail">
+                      {inv.partyName}
+                    </Text>
 
                     <View style={styles.invMetaRow}>
                       <Text style={styles.recentDate}>{formatDateTime(inv.createdAt)}</Text>
@@ -278,14 +301,21 @@ export function SalesmanDashboardView({
                           onPress={() => handleCall(inv.partyPhone)}
                         >
                           <Ionicons name="call" size={10} color="#10B981" />
-                          <Text style={styles.invPhoneText}>{inv.partyPhone}</Text>
+                          <Text style={styles.invPhoneText} numberOfLines={1}>{inv.partyPhone}</Text>
                         </TouchableOpacity>
                       ) : null}
                     </View>
                   </View>
 
-                  <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                    <Text style={styles.recentAmount}>{formatINR(inv.total)}</Text>
+                  <View style={{ alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+                    <Text
+                      style={styles.recentAmount}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.75}
+                    >
+                      {formatINR(inv.total)}
+                    </Text>
                     <StatusBadge status={inv.status} size="sm" />
                   </View>
                 </View>

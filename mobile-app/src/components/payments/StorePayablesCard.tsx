@@ -61,15 +61,6 @@ export function StorePayablesCard({ item, onPay }: StorePayablesCardProps) {
                     <Ionicons name="call" size={11} color="#38BDF8" />
                     <Text style={styles.phoneText}>{item.partyPhone}</Text>
                   </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={handleSendWhatsAppInquiry}
-                    style={styles.waPillTouch}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="logo-whatsapp" size={12} color="#F59E0B" />
-                    <Text style={styles.waPillText}>WhatsApp</Text>
-                  </TouchableOpacity>
                 </View>
               ) : null}
             </View>
@@ -87,9 +78,13 @@ export function StorePayablesCard({ item, onPay }: StorePayablesCardProps) {
 
         <View style={styles.amountCol}>
           <Text style={styles.amountLabel}>Store Owes</Text>
-          <Text style={styles.dueAmountVal}>{formatINR(item.remainingDue)}</Text>
+          <Text style={styles.dueAmountVal} numberOfLines={1} adjustsFontSizeToFit>
+            {formatINR(item.remainingDue)}
+          </Text>
           {item.total && item.total !== item.remainingDue ? (
-            <Text style={styles.billedText}>Total Debt: {formatINR(item.total)}</Text>
+            <Text style={styles.billedText} numberOfLines={1}>
+              Total Debt: {formatINR(item.total)}
+            </Text>
           ) : null}
         </View>
       </View>
@@ -182,22 +177,6 @@ const styles = StyleSheet.create({
     color: '#38BDF8',
     fontFamily: 'monospace',
     fontWeight: '600',
-  },
-  waPillTouch: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    paddingVertical: 1,
-    paddingHorizontal: 5,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.25)',
-  },
-  waPillText: {
-    fontSize: 10,
-    color: '#F59E0B',
-    fontWeight: '700',
   },
   refRow: {
     flexDirection: 'row',

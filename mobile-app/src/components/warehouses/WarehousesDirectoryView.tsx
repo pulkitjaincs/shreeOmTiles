@@ -1,8 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { SearchBar } from '@/components/ui/SearchBar';
-import { FilterPills } from '@/components/ui/FilterPills';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Colors } from '@/constants/theme';
 import { Warehouse } from './types';
@@ -27,7 +26,6 @@ export function WarehousesDirectoryView({
   isOwnerOrAdmin,
 }: WarehousesDirectoryViewProps) {
   const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState<'ALL' | 'WAREHOUSE' | 'SHOWROOM'>('ALL');
 
   // Modal States
   const [formModalOpen, setFormModalOpen] = useState(false);
@@ -57,28 +55,18 @@ export function WarehousesDirectoryView({
     [warehouses],
   );
 
-  // Filter and Search logic
+  // Filter and Search logic (no horizontal list)
   const filteredWarehouses = useMemo(() => {
     const q = search.toLowerCase().trim();
+    if (!q) return warehouses;
     return warehouses.filter((wh) => {
-      const matchesSearch =
+      return (
         wh.name?.toLowerCase().includes(q) ||
-        (wh.address && wh.address.toLowerCase().includes(q));
-
-      const matchesType =
-        filterType === 'ALL' ||
-        (filterType === 'WAREHOUSE' && wh.type === 'WAREHOUSE') ||
-        (filterType === 'SHOWROOM' && wh.type === 'SHOWROOM');
-
-      return matchesSearch && matchesType;
+        (wh.address && wh.address.toLowerCase().includes(q)) ||
+        wh.type?.toLowerCase().includes(q)
+      );
     });
-  }, [warehouses, search, filterType]);
-
-  const filterOptions = [
-    { label: `All (${warehouses.length})`, value: 'ALL' },
-    { label: `Godowns (${godownCount})`, value: 'WAREHOUSE' },
-    { label: `Showrooms (${showroomCount})`, value: 'SHOWROOM' },
-  ];
+  }, [warehouses, search]);
 
   return (
     <View style={styles.container}>
@@ -105,36 +93,52 @@ export function WarehousesDirectoryView({
 
       {/* 2. Action Header Row */}
       <View style={styles.actionHeaderRow}>
-        <Text style={styles.sectionTitle}>
-          Locations & Godowns ({filteredWarehouses.length})
-        </Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.sectionTitle}>
+            Locations & Godowns ({filteredWarehouses.length})
+          </Text>
+          <Text style={styles.sectionSubtitle}>
+            Manage storage godowns, showrooms & branch stock
+          </Text>
+        </View>
         {isOwnerOrAdmin ? (
           <Button
             title="+ Add Location"
+            icon="add-circle-outline"
             size="sm"
             variant="primary"
             onPress={() => {
               setEditingWarehouse(null);
               setFormModalOpen(true);
             }}
+            style={styles.addLocationBtn}
           />
         ) : null}
       </View>
 
-      {/* 3. Search and Filter Bar */}
-      <SearchBar
-        value={search}
-        onChangeText={setSearch}
-        placeholder="Search location by name or address..."
-      />
-
-      <View style={styles.filterPillsRow}>
-        <FilterPills
-          options={filterOptions}
-          selected={filterType}
-          onSelect={(val) => setFilterType(val as any)}
+      {/* 3. Search Bar */}
+      <View style={styles.searchContainer}>
+        <SearchBar
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search location by name or address..."
         />
       </View>
+
+      {/* Active Search Filter Reset */}
+      {search.trim().length > 0 ? (
+        <View style={styles.resultsInfoRow}>
+          <Text style={styles.resultsCountText}>
+            Showing <Text style={{ color: '#FFFFFF', fontWeight: '800' }}>{filteredWarehouses.length}</Text> of {warehouses.length} locations
+          </Text>
+          <TouchableOpacity
+            onPress={() => setSearch('')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.resetFilterText}>Clear Search</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       {/* 4. Warehouses List */}
       {loading ? (
@@ -147,8 +151,8 @@ export function WarehousesDirectoryView({
           icon="business-outline"
           title="No Locations Found"
           description={
-            search || filterType !== 'ALL'
-              ? 'No warehouses match the selected filters.'
+            search.trim().length > 0
+              ? 'No warehouses match your search query.'
               : 'No warehouse or showroom locations registered yet.'
           }
         />
@@ -205,60 +209,89 @@ export function WarehousesDirectoryView({
 
 const styles = StyleSheet.create({
   container: {
-    gap: 12,
+    gap: 10,
+    paddingBottom: 16,
   },
   summaryBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
-    borderRadius: 16,
+    padding: 14,
+    borderRadius: 14,
     backgroundColor: Colors.dark.card,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: Colors.dark.borderMedium,
   },
   summaryItem: {
     flex: 1,
     alignItems: 'center',
   },
   summaryLabel: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 10.5,
+    fontWeight: '700',
     color: Colors.dark.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   summaryValue: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '900',
     color: '#FFFFFF',
-    marginTop: 4,
+    marginTop: 3,
     fontFamily: 'monospace',
   },
   summarySub: {
-    fontSize: 10.5,
+    fontSize: 10,
     color: Colors.dark.textTertiary,
-    marginTop: 3,
+    marginTop: 2,
   },
   summaryDivider: {
     width: 1,
-    height: 42,
+    height: 38,
     backgroundColor: Colors.dark.border,
   },
   actionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 4,
+    gap: 12,
+    marginTop: 2,
+    marginBottom: 2,
   },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 15.5,
     fontWeight: '800',
     color: '#FFFFFF',
     letterSpacing: -0.3,
   },
-  filterPillsRow: {
-    marginBottom: 4,
+  sectionSubtitle: {
+    fontSize: 11,
+    color: Colors.dark.textSecondary,
+    marginTop: 1,
+  },
+  addLocationBtn: {
+    height: 38,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+  },
+  searchContainer: {
+    marginBottom: 2,
+  },
+  resultsInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+    paddingHorizontal: 2,
+  },
+  resultsCountText: {
+    fontSize: 11.5,
+    color: Colors.dark.textSecondary,
+  },
+  resetFilterText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#38BDF8',
   },
   loadingContainer: {
     alignItems: 'center',

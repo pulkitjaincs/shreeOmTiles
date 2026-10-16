@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform, StatusBar, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/lib/auth-context';
@@ -13,6 +13,7 @@ interface HeaderProps {
     icon: keyof typeof Ionicons.glyphMap;
     onPress: () => void;
   };
+  onBack?: () => void;
   showBrand?: boolean;
 }
 
@@ -20,6 +21,7 @@ export function Header({
   title,
   subtitle,
   rightAction,
+  onBack,
   showBrand = true,
 }: HeaderProps) {
   const { user } = useAuth();
@@ -33,22 +35,59 @@ export function Header({
     <View style={[styles.header, { paddingTop: topPadding }]}>
       <View style={styles.headerContent}>
         <View style={styles.left}>
-          {showBrand ? (
+          {onBack ? (
+            <View style={styles.backRow}>
+              <TouchableOpacity
+                style={styles.backBtn}
+                onPress={onBack}
+                activeOpacity={0.7}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+              <View style={{ flex: 1 }}>
+                {title ? (
+                  <Text style={styles.pageTitle} numberOfLines={1}>
+                    {title}
+                  </Text>
+                ) : null}
+                {subtitle ? (
+                  <Text style={styles.pageSubtitle} numberOfLines={1}>
+                    {subtitle}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+          ) : showBrand ? (
             <View style={styles.brandContainer}>
               <View style={styles.logoBadge}>
-                <Text style={styles.logoText}>SO</Text>
+                <Image
+                  source={require('@/assets/images/icon.png')}
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                />
               </View>
-              <View>
-                <Text style={styles.brandTitle}>{title || 'Shree Om Tiles'}</Text>
-                <Text style={styles.brandSubtitle}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.brandTitle} numberOfLines={1}>
+                  {title || 'Shree Om Tiles'}
+                </Text>
+                <Text style={styles.brandSubtitle} numberOfLines={1}>
                   {subtitle || (user?.role ? `${user.role} Portal` : 'Tiles & Sanitaryware')}
                 </Text>
               </View>
             </View>
           ) : (
             <View>
-              {title ? <Text style={styles.pageTitle}>{title}</Text> : null}
-              {subtitle ? <Text style={styles.pageSubtitle}>{subtitle}</Text> : null}
+              {title ? (
+                <Text style={styles.pageTitle} numberOfLines={1}>
+                  {title}
+                </Text>
+              ) : null}
+              {subtitle ? (
+                <Text style={styles.pageSubtitle} numberOfLines={1}>
+                  {subtitle}
+                </Text>
+              ) : null}
             </View>
           )}
         </View>
@@ -92,24 +131,41 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
   },
+  backRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.dark.cardElevated,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   brandContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
   logoBadge: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: '#FFFFFF',
+    width: 36,
+    height: 36,
+    borderRadius: 9,
+    backgroundColor: '#000000',
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoText: {
-    color: '#09090B',
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: -0.5,
+  logoImage: {
+    width: 34,
+    height: 34,
+    borderRadius: 7,
   },
   brandTitle: {
     color: '#FFFFFF',

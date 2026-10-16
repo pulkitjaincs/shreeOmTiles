@@ -73,6 +73,56 @@ export default function TransactionsPage() {
   const [isCreditModalOpen, setIsCreditModalOpen] = useState(false);
   const [creditPartyId, setCreditPartyId] = useState('');
 
+  // Helper to format pending items: pending invoices + unsettled credit ledgers
+  const formatPendingList = useCallback(
+    (pData: { invoices: PendingItem[]; ledgers: PendingCreditLedger[] }) => {
+      return [
+        ...pData.invoices.map((inv) => ({
+          id: inv.id,
+          invoiceNo: inv.invoiceNo,
+          partyId: inv.partyId,
+          partyName: inv.partyName,
+          partyPhone: inv.partyPhone,
+          total: inv.total,
+          paid: inv.paid,
+          remainingDue: inv.remainingDue,
+          createdAt: inv.createdAt,
+          status: inv.status,
+          isCreditLedger: false,
+          creditType: 'RECEIVABLE' as const,
+        })),
+        ...pData.ledgers
+          .filter(
+            (cl) =>
+              cl.type === 'PAYABLE' ||
+              (!cl.invoiceId &&
+                !pData.invoices.some(
+                  (inv) =>
+                    inv.id === cl.invoiceId ||
+                    (cl.invoiceNo && inv.invoiceNo === cl.invoiceNo),
+                )),
+          )
+          .map((cl) => ({
+            id: cl.id,
+            invoiceNo:
+              cl.invoiceNo ||
+              (cl.type === 'PAYABLE' ? 'Store Payable' : 'Direct Party Credit'),
+            partyId: cl.partyId,
+            partyName: cl.partyName || 'Party',
+            partyPhone: cl.partyPhone || '',
+            total: cl.amountDue,
+            paid: 0,
+            remainingDue: cl.amountDue,
+            createdAt: cl.createdAt,
+            status: cl.status,
+            isCreditLedger: true,
+            creditType: cl.type as 'RECEIVABLE' | 'PAYABLE',
+          })),
+      ];
+    },
+    [],
+  );
+
   // Load All Data
   const loadData = useCallback(async (force = false) => {
     try {
@@ -95,6 +145,7 @@ export default function TransactionsPage() {
         })),
         cachedApiRequest<{ invoices: PendingItem[]; ledgers: PendingCreditLedger[] }>('/payments/pending', {
           forceRefresh: force,
+          onRevalidate: (fresh) => setPendingItems(formatPendingList(fresh)),
         }).catch(() => ({
           invoices: [],
           ledgers: [],
@@ -113,48 +164,7 @@ export default function TransactionsPage() {
       setStats(statsData);
       setCreditLedgers(creditsData);
       setParties(partiesData);
-
-      // Unify pending items: pending invoices + unsettled credit ledgers
-      const formattedPending: PendingItem[] = [
-        ...pendingData.invoices.map((inv) => ({
-          id: inv.id,
-          invoiceNo: inv.invoiceNo,
-          partyId: inv.partyId,
-          partyName: inv.partyName,
-          partyPhone: inv.partyPhone,
-          total: inv.total,
-          paid: inv.paid,
-          remainingDue: inv.remainingDue,
-          createdAt: inv.createdAt,
-          status: inv.status,
-          isCreditLedger: false,
-          creditType: 'RECEIVABLE' as const,
-        })),
-        ...pendingData.ledgers
-          .filter(
-            (cl) =>
-              cl.type === 'PAYABLE' ||
-              (!cl.invoiceId &&
-                !pendingData.invoices.some(
-                  (inv) => inv.id === cl.invoiceId || (cl.invoiceNo && inv.invoiceNo === cl.invoiceNo),
-                )),
-          )
-          .map((cl) => ({
-            id: cl.id,
-            invoiceNo: cl.invoiceNo || (cl.type === 'PAYABLE' ? 'Store Payable' : 'Direct Party Credit'),
-            partyId: cl.partyId,
-            partyName: cl.partyName || 'Party',
-            partyPhone: cl.partyPhone || '',
-            total: cl.amountDue,
-            paid: 0,
-            remainingDue: cl.amountDue,
-            createdAt: cl.createdAt,
-            status: cl.status,
-            isCreditLedger: true,
-            creditType: cl.type as 'RECEIVABLE' | 'PAYABLE',
-          })),
-      ];
-      setPendingItems(formattedPending);
+      setPendingItems(formatPendingList(pendingData));
     } catch (err) {
       console.error('Failed to load transactions data:', err);
     } finally {

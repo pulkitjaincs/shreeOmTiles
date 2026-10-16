@@ -49,32 +49,49 @@ export function ReceivablesHealthCard({
       <View style={styles.miniGrid}>
         {/* Unpaid */}
         <View style={[styles.miniCard, { borderColor: 'rgba(255, 255, 255, 0.12)' }]}>
-          <Text style={styles.miniLabel}>Unpaid Invoices</Text>
-          <Text style={styles.miniVal}>{formatINR(data.unpaid?.total)}</Text>
-          <Text style={styles.miniSub}>
-            {data.unpaid?.count || 0} bills awaiting payment
+          <Text style={styles.miniLabel} numberOfLines={1}>Unpaid</Text>
+          <Text
+            style={styles.miniVal}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
+          >
+            {formatINR(data.unpaid?.total)}
+          </Text>
+          <Text style={styles.miniSub} numberOfLines={1}>
+            {data.unpaid?.count || 0} bills
           </Text>
         </View>
 
         {/* Partial */}
         <View style={[styles.miniCard, { borderColor: 'rgba(245, 158, 11, 0.3)' }]}>
-          <Text style={[styles.miniLabel, { color: '#FCD34D' }]}>Partially Paid</Text>
-          <Text style={[styles.miniVal, { color: '#F59E0B' }]}>
+          <Text style={[styles.miniLabel, { color: '#FCD34D' }]} numberOfLines={1}>Partial</Text>
+          <Text
+            style={[styles.miniVal, { color: '#F59E0B' }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
+          >
             {formatINR(data.partial?.total)}
           </Text>
-          <Text style={styles.miniSub}>
-            {data.partial?.count || 0} with balance remaining
+          <Text style={styles.miniSub} numberOfLines={1}>
+            {data.partial?.count || 0} bills
           </Text>
         </View>
 
         {/* Overdue */}
         <View style={[styles.miniCard, { borderColor: 'rgba(239, 68, 68, 0.3)' }]}>
-          <Text style={[styles.miniLabel, { color: '#FCA5A5' }]}>Overdue</Text>
-          <Text style={[styles.miniVal, { color: '#EF4444' }]}>
+          <Text style={[styles.miniLabel, { color: '#FCA5A5' }]} numberOfLines={1}>Overdue</Text>
+          <Text
+            style={[styles.miniVal, { color: '#EF4444' }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
+          >
             {formatINR(data.overdue?.total)}
           </Text>
-          <Text style={styles.miniSub}>
-            {data.overdue?.count || 0} overdue beyond grace
+          <Text style={styles.miniSub} numberOfLines={1}>
+            {data.overdue?.count || 0} overdue
           </Text>
         </View>
       </View>
@@ -83,10 +100,12 @@ export function ReceivablesHealthCard({
       {data.topPending && data.topPending.length > 0 && (
         <Card style={styles.topCard}>
           <Text style={styles.topTitle}>Top Accounts with Pending Dues</Text>
-          {data.topPending.map((debtor) => (
-            <View key={debtor.partyId} style={styles.debtorRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.debtorName}>{debtor.partyName}</Text>
+          {data.topPending.map((debtor, idx) => (
+            <View key={`debtor-${debtor.partyId || 'party'}-${debtor.invoiceNo || idx}`} style={styles.debtorRow}>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Text style={styles.debtorName} numberOfLines={1} ellipsizeMode="tail">
+                  {debtor.partyName || 'Customer'}
+                </Text>
                 <View style={styles.debtorMeta}>
                   <Text style={styles.debtorPhone}>{debtor.phone || 'No Phone'}</Text>
                   {debtor.invoiceNo ? (
@@ -94,8 +113,15 @@ export function ReceivablesHealthCard({
                   ) : null}
                 </View>
               </View>
-              <View style={{ alignItems: 'flex-end', gap: 3 }}>
-                <Text style={styles.debtorAmount}>{formatINR(debtor.amountDue)}</Text>
+              <View style={{ alignItems: 'flex-end', gap: 2 }}>
+                <Text
+                  style={styles.debtorAmount}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.75}
+                >
+                  {formatINR(debtor.amountDue)}
+                </Text>
                 <View style={styles.debtorBadge}>
                   <Text style={styles.debtorBadgeText}>{debtor.status || 'PENDING'}</Text>
                 </View>
@@ -152,25 +178,25 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#141417',
     borderWidth: 1,
-    borderRadius: 14,
-    padding: 10,
+    borderRadius: 12,
+    padding: 8,
   },
   miniLabel: {
-    fontSize: 9.5,
+    fontSize: 9,
     fontWeight: '700',
     color: Colors.dark.textSecondary,
     textTransform: 'uppercase',
+    letterSpacing: 0.2,
   },
   miniVal: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '900',
     color: '#FFFFFF',
-    marginVertical: 4,
+    marginVertical: 3,
   },
   miniSub: {
-    fontSize: 9.5,
+    fontSize: 9,
     color: Colors.dark.textTertiary,
-    lineHeight: 12,
   },
   topCard: {
     padding: 14,

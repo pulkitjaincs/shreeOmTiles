@@ -123,7 +123,8 @@ export function CreditAgeingRow({ parties }: CreditAgeingRowProps) {
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 10,
+    marginVertical: 8,
+    marginHorizontal: -16,
   },
   scrollContent: {
     paddingHorizontal: 16,
@@ -138,6 +139,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.dark.card,
     justifyContent: 'space-between',
     minHeight: 88,
+    marginBottom: 0,
   },
   cardHeader: {
     flexDirection: 'row',

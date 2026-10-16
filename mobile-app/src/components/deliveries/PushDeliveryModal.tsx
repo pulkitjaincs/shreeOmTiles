@@ -176,70 +176,80 @@ export function PushDeliveryModal({
           </TouchableOpacity>
         </View>
 
-        {dispatchItems.map((item, idx) => (
-          <Card
-            key={idx}
-            style={[styles.dispatchItemCard, !item.selected && styles.dispatchItemCardInactive]}
-          >
-            <View style={styles.dispatchItemRow}>
-              <TouchableOpacity
-                style={[styles.checkbox, item.selected && styles.checkboxDone]}
-                onPress={() => {
-                  setDispatchItems((prev) =>
-                    prev.map((it, i) => (i === idx ? { ...it, selected: !it.selected } : it)),
-                  );
-                }}
-              >
-                {item.selected ? <Ionicons name="checkmark" size={16} color="#FFFFFF" /> : null}
-              </TouchableOpacity>
+        {dispatchItems.map((item, idx) => {
+          const toggleSelection = () => {
+            setDispatchItems((prev) =>
+              prev.map((it, i) => (i === idx ? { ...it, selected: !it.selected } : it)),
+            );
+          };
 
-              <View style={{ flex: 1 }}>
-                <Text
-                  style={[styles.dispatchItemName, !item.selected && styles.dispatchItemNameDim]}
+          return (
+            <Card
+              key={idx}
+              style={[styles.dispatchItemCard, !item.selected && styles.dispatchItemCardInactive]}
+            >
+              <View style={styles.dispatchItemRow}>
+                <TouchableOpacity
+                  style={styles.itemTapArea}
+                  onPress={toggleSelection}
+                  activeOpacity={0.7}
                 >
-                  {item.productName}
-                </Text>
-                <Text style={styles.dispatchItemSub}>
-                  From: {item.warehouseName || 'Warehouse'} {item.batchNo ? `• Lot: ${item.batchNo}` : ''}
-                </Text>
-                <Text style={styles.dispatchItemMax}>
-                  Max Available: {item.maxQty} {item.unit}
-                </Text>
-              </View>
+                  <View style={[styles.checkbox, item.selected && styles.checkboxDone]}>
+                    {item.selected ? <Ionicons name="checkmark" size={15} color="#FFFFFF" /> : null}
+                  </View>
 
-              {/* Quantity Stepper */}
-              {item.selected ? (
-                <View style={styles.dispatchStepper}>
-                  <TouchableOpacity
-                    style={styles.dispatchStepBtn}
-                    onPress={() => {
-                      setDispatchItems((prev) =>
-                        prev.map((it, i) =>
-                          i === idx ? { ...it, dispatchQty: Math.max(1, it.dispatchQty - 1) } : it,
-                        ),
-                      );
-                    }}
-                  >
-                    <Text style={styles.dispatchStepBtnText}>-</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.dispatchStepVal}>{item.dispatchQty}</Text>
-                  <TouchableOpacity
-                    style={styles.dispatchStepBtn}
-                    onPress={() => {
-                      setDispatchItems((prev) =>
-                        prev.map((it, i) =>
-                          i === idx ? { ...it, dispatchQty: Math.min(it.maxQty, it.dispatchQty + 1) } : it,
-                        ),
-                      );
-                    }}
-                  >
-                    <Text style={styles.dispatchStepBtnText}>+</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : null}
-            </View>
-          </Card>
-        ))}
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={[styles.dispatchItemName, !item.selected && styles.dispatchItemNameDim]}
+                      numberOfLines={1}
+                    >
+                      {item.productName}
+                    </Text>
+                    <Text style={styles.dispatchItemSub} numberOfLines={1}>
+                      From: {item.warehouseName || 'Warehouse'}{item.batchNo ? ` • Lot: ${item.batchNo}` : ''}
+                    </Text>
+                    <Text style={styles.dispatchItemMax}>
+                      Max Available: {item.maxQty} {item.unit}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+
+                {/* Quantity Stepper */}
+                {item.selected ? (
+                  <View style={styles.dispatchStepper}>
+                    <TouchableOpacity
+                      style={styles.dispatchStepBtn}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      onPress={() => {
+                        setDispatchItems((prev) =>
+                          prev.map((it, i) =>
+                            i === idx ? { ...it, dispatchQty: Math.max(1, it.dispatchQty - 1) } : it,
+                          ),
+                        );
+                      }}
+                    >
+                      <Text style={styles.dispatchStepBtnText}>-</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.dispatchStepVal}>{item.dispatchQty}</Text>
+                    <TouchableOpacity
+                      style={styles.dispatchStepBtn}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      onPress={() => {
+                        setDispatchItems((prev) =>
+                          prev.map((it, i) =>
+                            i === idx ? { ...it, dispatchQty: Math.min(it.maxQty, it.dispatchQty + 1) } : it,
+                          ),
+                        );
+                      }}
+                    >
+                      <Text style={styles.dispatchStepBtnText}>+</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+              </View>
+            </Card>
+          );
+        })}
 
         <Input
           label="Vehicle Number / Transport Type"
@@ -344,6 +354,12 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   dispatchItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  itemTapArea: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,

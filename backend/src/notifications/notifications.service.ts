@@ -38,7 +38,11 @@ export class NotificationsService {
    * Send a raw push notification via Expo Push API
    */
   async sendExpoPush(payload: PushPayload): Promise<boolean> {
-    if (!payload.to || !payload.to.startsWith('ExponentPushToken[')) {
+    const isValidToken =
+      typeof payload.to === 'string' &&
+      /^Expo(nent)?PushToken\[.+\]$/.test(payload.to.trim());
+
+    if (!isValidToken) {
       this.logger.debug(
         `Skipping invalid or missing push token: ${payload.to}`,
       );

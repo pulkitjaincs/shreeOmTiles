@@ -131,37 +131,60 @@ export function SalesTimelineCard({
               <View style={styles.barsContainer}>
                 {(activeSeries === 'all' || activeSeries === 'invoiced') && (
                   <View style={styles.barWrapper}>
-                    <View
-                      style={[
-                        styles.barFill,
-                        { width: `${Math.max(invPct, 2)}%`, backgroundColor: '#FFFFFF' },
-                      ]}
-                    />
-                    <Text style={styles.barText}>{formatINR(invVal)}</Text>
+                    <View style={styles.barTrack}>
+                      <View
+                        style={[
+                          styles.barFill,
+                          { width: `${Math.max(invPct, 2)}%`, backgroundColor: '#FFFFFF' },
+                        ]}
+                      />
+                    </View>
+                    <Text
+                      style={styles.barText}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}
+                    >
+                      {formatINR(invVal)}
+                    </Text>
                   </View>
                 )}
                 {(activeSeries === 'all' || activeSeries === 'collected') && (
                   <View style={styles.barWrapper}>
-                    <View
-                      style={[
-                        styles.barFill,
-                        { width: `${Math.max(colPct, 2)}%`, backgroundColor: '#10B981' },
-                      ]}
-                    />
-                    <Text style={[styles.barText, { color: '#10B981' }]}>
+                    <View style={styles.barTrack}>
+                      <View
+                        style={[
+                          styles.barFill,
+                          { width: `${Math.max(colPct, 2)}%`, backgroundColor: '#10B981' },
+                        ]}
+                      />
+                    </View>
+                    <Text
+                      style={[styles.barText, { color: '#10B981' }]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}
+                    >
                       {formatINR(colVal)}
                     </Text>
                   </View>
                 )}
                 {(activeSeries === 'all' || activeSeries === 'credit') && creVal > 0 && showSeriesToggle && (
                   <View style={styles.barWrapper}>
-                    <View
-                      style={[
-                        styles.barFill,
-                        { width: `${Math.max(crePct, 2)}%`, backgroundColor: '#EF4444' },
-                      ]}
-                    />
-                    <Text style={[styles.barText, { color: '#EF4444' }]}>
+                    <View style={styles.barTrack}>
+                      <View
+                        style={[
+                          styles.barFill,
+                          { width: `${Math.max(crePct, 2)}%`, backgroundColor: '#EF4444' },
+                        ]}
+                      />
+                    </View>
+                    <Text
+                      style={[styles.barText, { color: '#EF4444' }]}
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}
+                    >
                       {formatINR(creVal)}
                     </Text>
                   </View>
@@ -301,11 +324,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  barFill: {
+  barTrack: {
+    flex: 1,
     height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.07)',
+    overflow: 'hidden',
+  },
+  barFill: {
+    height: '100%',
     borderRadius: 3,
   },
   barText: {
+    width: 68,
+    textAlign: 'right',
     fontSize: 9.5,
     color: Colors.dark.textTertiary,
     fontFamily: 'monospace',

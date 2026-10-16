@@ -95,20 +95,29 @@ export function SalesStaffPerformance({
                     {staffName.charAt(0).toUpperCase()}
                   </Text>
                 </View>
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, marginRight: 8 }}>
                   <View style={styles.nameRow}>
-                    <Text style={styles.name}>{staffName}</Text>
+                    <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">
+                      {staffName}
+                    </Text>
                     <View style={styles.roleBadge}>
                       <Text style={styles.roleText}>{s.role || 'SALESMAN'}</Text>
                     </View>
                   </View>
-                  {phone ? <Text style={styles.phone}>{phone}</Text> : null}
-                  <Text style={styles.subText}>
+                  {phone ? <Text style={styles.phone} numberOfLines={1}>{phone}</Text> : null}
+                  <Text style={styles.subText} numberOfLines={1} ellipsizeMode="tail">
                     {count} invoices • Avg ₹{Math.round(aov).toLocaleString('en-IN')}
                   </Text>
                 </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={styles.total}>{formatINR(total)}</Text>
+                <View style={{ alignItems: 'flex-end', flexShrink: 0 }}>
+                  <Text
+                    style={styles.total}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.75}
+                  >
+                    {formatINR(total)}
+                  </Text>
                   <Text style={styles.shareText}>{sharePct}% share</Text>
                 </View>
               </View>
@@ -205,12 +214,14 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#FFFFFF',
+    flexShrink: 1,
   },
   roleBadge: {
     backgroundColor: Colors.dark.cardElevated,
     paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 4,
+    flexShrink: 0,
   },
   roleText: {
     fontSize: 9,
@@ -231,6 +242,7 @@ const styles = StyleSheet.create({
     fontSize: 14.5,
     fontWeight: '800',
     color: '#10B981',
+    flexShrink: 0,
   },
   shareText: {
     fontSize: 10,

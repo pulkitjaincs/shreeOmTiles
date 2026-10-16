@@ -7,11 +7,12 @@ export function formatINR(val?: number | string | null): string {
   const num = typeof val === 'string' ? parseFloat(val) : val;
   if (isNaN(num)) return '₹0';
   
-  // Format with Indian numbering system (lakhs & crores)
+  const hasDecimals = num % 1 !== 0;
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
-    maximumFractionDigits: 0,
+    minimumFractionDigits: hasDecimals ? 2 : 0,
+    maximumFractionDigits: 2,
   }).format(num);
 }
 

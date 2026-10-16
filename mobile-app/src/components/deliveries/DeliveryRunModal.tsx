@@ -1,325 +1,418 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Linking, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Colors } from '@/constants/theme';
-import { formatINR } from '@/lib/formatters';
+import { formatINR, formatDate, cleanPhoneNumber } from '@/lib/formatters';
 import { Delivery } from './types';
 
 interface DeliveryRunModalProps {
   delivery: Delivery | null;
   visible: boolean;
   onClose: () => void;
-  onToggleItemPickup: (deliveryId: string, itemIdx: number, currentPicked: boolean | undefined) => void;
-  onUpdateStatus: (deliveryId: string, status: string) => void;
-  onOpenCollectCash: (delivery: Delivery) => void;
-  onOpenAddTrip: (delivery: Delivery) => void;
+  onToggleItemPickup?: (deliveryId: string, itemIdx: number, currentPicked: boolean | undefined) => void;
+  onUpdateStatus?: (deliveryId: string, status: string) => void;
+  onOpenCollectCash?: (delivery: Delivery) => void;
 }
 
 export function DeliveryRunModal({
   delivery,
   visible,
   onClose,
-  onToggleItemPickup,
-  onUpdateStatus,
-  onOpenCollectCash,
-  onOpenAddTrip,
 }: DeliveryRunModalProps) {
   if (!delivery) return null;
+
+  const partyPhone = delivery.invoice?.party?.phone;
+  const partyAddress = delivery.invoice?.party?.address;
+  const isSelfPickup =
+    !delivery.driverId ||
+    Boolean(
+      delivery.notes &&
+        /customer\s*picked\s*up|self-pickup|counter\s*pickup/i.test(delivery.notes),
+    );
+
+  const deliveredItems =
+    delivery.items && delivery.items.length > 0
+      ? delivery.items
+      : (delivery.invoice?.items || []).map((it: any) => ({
+          productId: it.productId,
+          productName: it.product?.name || 'Product',
+          unit: it.product?.unit || 'unit',
+          warehouseName: it.warehouse?.name || 'Warehouse',
+          warehouseAddress: it.warehouse?.address || '',
+          batchNo: it.batchNo,
+          qty: it.qty,
+          pickedUp: true,
+        }));
+
+  const cashCollectedNum = Number(delivery.cashCollected || 0);
+
+  const handleCall = (phone?: string) => {
+    const clean = cleanPhoneNumber(phone);
+    if (clean) {
+      Linking.openURL(`tel:${clean}`).catch(() => {
+        Alert.alert('Error', 'Unable to initiate phone call');
+      });
+    }
+  };
+
+  const handleMap = (address?: string) => {
+    if (address) {
+      Linking.openURL(
+        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`,
+      ).catch(() => {
+        Alert.alert('Error', 'Unable to open Google Maps');
+      });
+    }
+  };
 
   return (
     <BottomSheetModal
       visible={visible}
       onClose={onClose}
-      title={`Run: Invoice #${delivery.invoice?.invoiceNo}`}
-      subtitle={`Customer: ${delivery.invoice?.party?.name || 'Counter Sale'}`}
+      title={`Run Details: #${delivery.invoice?.invoiceNo || 'N/A'}`}
+      subtitle={`Customer: ${delivery.invoice?.party?.name || 'Walk-in Customer'}`}
       maxHeightPercent={0.92}
     >
-      <View>
-        <View style={styles.detailsHeader}>
-          <View>
-            <Text style={styles.detailsDriver}>
-              Driver: {delivery.driver?.name || 'Unassigned'}
-            </Text>
-            <Text style={styles.detailsStatusText}>
-              Current: {delivery.status.replace(/_/g, ' ')}
+      <View style={styles.modalContent}>
+        {/* Top Header Card */}
+        <Card style={styles.summaryCard}>
+          <View style={styles.summaryTopRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.summaryLabel}>Delivery Fulfillment</Text>
+              <Text style={styles.summaryDriverName} numberOfLines={1}>
+                {isSelfPickup
+                  ? 'Customer Self-Pickup (Showroom Counter)'
+                  : delivery.driver?.name
+                  ? `Driver: ${delivery.driver.name}`
+                  : 'Delivered (Direct)'}
+              </Text>
+            </View>
+            <StatusBadge status={delivery.status} size="sm" />
+          </View>
+
+          {/* Quick Contact & Navigation */}
+          <View style={styles.contactRow}>
+            {partyPhone ? (
+              <TouchableOpacity
+                style={styles.actionChip}
+                onPress={() => handleCall(partyPhone)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="call" size={12} color="#38BDF8" />
+                <Text style={styles.actionChipText}>{partyPhone}</Text>
+              </TouchableOpacity>
+            ) : null}
+
+            {partyAddress ? (
+              <TouchableOpacity
+                style={[styles.actionChip, { flex: 1 }]}
+                onPress={() => handleMap(partyAddress)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="location" size={12} color="#F59E0B" />
+                <Text style={styles.actionChipText} numberOfLines={1}>
+                  {partyAddress}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+
+          {/* Delivered Timestamp */}
+          <View style={styles.dateMetaRow}>
+            <Ionicons name="calendar-outline" size={12} color={Colors.dark.textTertiary} />
+            <Text style={styles.dateMetaText}>
+              Delivered on {formatDate(delivery.cashCollectedAt || delivery.createdAt)}
             </Text>
           </View>
-          <StatusBadge status={delivery.status} />
-        </View>
+        </Card>
 
-        {/* Warehouse Pickup Checklist */}
-        <Text style={styles.modalSectionTitle}>Warehouse Pickup Checklist</Text>
-        <Text style={styles.modalSectionSub}>
-          Tap each item to mark as picked up from the warehouse. Once marked, items are locked.
+        {/* Payment & Cash Custody Status */}
+        <Card style={styles.paymentCard}>
+          <View style={styles.paymentRow}>
+            <View>
+              <Text style={styles.paymentLabel}>Payment Settlement</Text>
+              <Text style={styles.paymentValue}>
+                {cashCollectedNum > 0
+                  ? formatINR(delivery.cashCollected)
+                  : Number(delivery.amountToCollect || 0) === 0
+                  ? 'Prepaid (₹0 Dues)'
+                  : `Dues: ${formatINR(delivery.amountToCollect)}`}
+              </Text>
+            </View>
+
+            {cashCollectedNum > 0 ? (
+              delivery.cashHandedOver ? (
+                <View style={styles.settledBadge}>
+                  <Ionicons name="checkmark-done" size={12} color="#10B981" />
+                  <Text style={styles.settledBadgeText}>Office Received</Text>
+                </View>
+              ) : (
+                <View style={styles.custodyBadge}>
+                  <Ionicons name="wallet-outline" size={12} color="#F59E0B" />
+                  <Text style={styles.custodyBadgeText}>With Driver</Text>
+                </View>
+              )
+            ) : (
+              <View style={styles.settledBadge}>
+                <Ionicons name="checkmark-circle" size={12} color="#10B981" />
+                <Text style={styles.settledBadgeText}>Fully Settled</Text>
+              </View>
+            )}
+          </View>
+        </Card>
+
+        {/* Delivered Items Manifest */}
+        <Text style={styles.sectionTitle}>
+          Delivered Line Items ({deliveredItems.length})
         </Text>
 
-        {(delivery.items || []).map((it, idx) => (
-          <Card
-            key={idx}
-            style={[styles.pickupItemCard, it.pickedUp && styles.pickupItemCardDone]}
-          >
-            <View style={styles.pickupRow}>
-              <TouchableOpacity
-                style={[styles.checkbox, it.pickedUp && styles.checkboxDone]}
-                onPress={() => onToggleItemPickup(delivery.id, idx, it.pickedUp)}
-                disabled={it.pickedUp}
-              >
-                {it.pickedUp ? <Ionicons name="checkmark" size={16} color="#FFFFFF" /> : null}
-              </TouchableOpacity>
+        {deliveredItems.map((it: any, idx: number) => (
+          <Card key={idx} style={styles.itemCard}>
+            <View style={styles.itemRow}>
+              <View style={styles.checkCircle}>
+                <Ionicons name="checkmark" size={14} color="#10B981" />
+              </View>
 
               <View style={{ flex: 1 }}>
-                <Text style={[styles.pickupItemName, it.pickedUp && styles.strikethrough]}>
-                  {it.productName}
+                <Text style={styles.itemName}>{it.productName}</Text>
+                <Text style={styles.itemSub}>
+                  Origin: {it.warehouseName || 'Warehouse'}
+                  {it.batchNo ? ` • Batch: ${it.batchNo}` : ''}
                 </Text>
-                <Text style={styles.pickupWarehouseName}>
-                  From: {it.warehouseName || 'Warehouse'}
-                </Text>
-                {it.warehouseAddress ? (
-                  <Text style={styles.pickupWarehouseAddr}>{it.warehouseAddress}</Text>
-                ) : null}
               </View>
 
               <View style={{ alignItems: 'flex-end' }}>
-                <Text style={styles.pickupQty}>
+                <Text style={styles.itemQty}>
                   {it.qty} {it.unit}
                 </Text>
-                {it.pickedUp ? (
-                  <View style={styles.lockedBadge}>
-                    <Ionicons name="lock-closed" size={10} color="#10B981" />
-                    <Text style={styles.lockedText}>Picked</Text>
-                  </View>
-                ) : (
-                  <Text style={styles.pendingPickText}>Pending</Text>
-                )}
+                <View style={styles.deliveredPill}>
+                  <Text style={styles.deliveredPillText}>Delivered</Text>
+                </View>
               </View>
             </View>
           </Card>
         ))}
 
-        {/* Delivery Progression Actions */}
-        <Text style={styles.modalSectionTitle}>Workflow Progression</Text>
-        <View style={styles.progressionRow}>
-          {delivery.status === 'ASSIGNED' ? (
-            <Button
-              title="Mark: Out for Pickup"
-              variant="primary"
-              onPress={() => onUpdateStatus(delivery.id, 'OUT_FOR_PICKUP')}
-              style={{ flex: 1 }}
-            />
-          ) : null}
+        {/* Optional Notes */}
+        {delivery.notes ? (
+          <View style={styles.notesBox}>
+            <Text style={styles.notesLabel}>Fulfillment Notes</Text>
+            <Text style={styles.notesText}>{delivery.notes}</Text>
+          </View>
+        ) : null}
 
-          {delivery.status === 'OUT_FOR_PICKUP' ? (
-            <Button
-              title="Mark: Out for Delivery"
-              variant="primary"
-              onPress={() => onUpdateStatus(delivery.id, 'OUT_FOR_DELIVERY')}
-              style={{ flex: 1 }}
-            />
-          ) : null}
-
-          {delivery.status === 'OUT_FOR_DELIVERY' ? (
-            Number(delivery.amountToCollect || 0) > 0 ? (
-              <Button
-                title="Mark: Delivered & Collect Cash"
-                variant="primary"
-                onPress={() => {
-                  onClose();
-                  onOpenCollectCash(delivery);
-                }}
-                style={{ flex: 1 }}
-              />
-            ) : (
-              <Button
-                title="Mark: Order Delivered"
-                variant="primary"
-                onPress={() => {
-                  onUpdateStatus(delivery.id, 'DELIVERED');
-                  onClose();
-                }}
-                style={{ flex: 1 }}
-              />
-            )
-          ) : null}
-        </View>
-
-        {/* Trips List & Add Trip */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.modalSectionTitle}>Internal Vehicle Trips</Text>
-          <Button
-            title="+ Add Trip"
-            size="sm"
-            variant="outline"
-            onPress={() => onOpenAddTrip(delivery)}
-          />
-        </View>
-
-        {((delivery as any).trips || []).length > 0 ? (
-          (delivery as any).trips?.map((tr: any) => (
-            <Card key={tr.id} style={styles.tripCard}>
-              <View style={styles.summaryRow}>
-                <Text style={styles.tripTitle}>
-                  Trip #{tr.tripNo} • {tr.vehicle || 'Vehicle'}
-                </Text>
-                <Text style={styles.tripCost}>{formatINR(tr.cost)}</Text>
-              </View>
-              {tr.notes ? <Text style={styles.tripNotes}>{tr.notes}</Text> : null}
-            </Card>
-          ))
-        ) : (
-          <Text style={styles.noTripsText}>No internal vehicle trips logged yet</Text>
-        )}
+        {/* Close Button */}
+        <Button
+          title="Done & Close"
+          variant="secondary"
+          size="md"
+          onPress={onClose}
+          style={{ marginTop: 16 }}
+        />
       </View>
     </BottomSheetModal>
   );
 }
 
 const styles = StyleSheet.create({
-  detailsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.dark.border,
+  modalContent: {
+    paddingBottom: 16,
   },
-  detailsDriver: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  detailsStatusText: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  modalSectionTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginTop: 14,
-    marginBottom: 4,
-    textTransform: 'uppercase',
-  },
-  modalSectionSub: {
-    fontSize: 11,
-    color: Colors.dark.textTertiary,
-    marginBottom: 10,
-  },
-  pickupItemCard: {
+  summaryCard: {
     padding: 12,
-    marginBottom: 8,
     backgroundColor: Colors.dark.card,
     borderRadius: 12,
-  },
-  pickupItemCardDone: {
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    backgroundColor: 'rgba(16, 185, 129, 0.05)',
-  },
-  pickupRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: Colors.dark.border,
-    alignItems: 'center',
-    justifyContent: 'center',
+    marginBottom: 10,
   },
-  checkboxDone: {
-    backgroundColor: '#10B981',
-    borderColor: '#10B981',
-  },
-  pickupItemName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  strikethrough: {
-    textDecorationLine: 'line-through',
-    color: Colors.dark.textTertiary,
-  },
-  pickupWarehouseName: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  pickupWarehouseAddr: {
-    fontSize: 10,
-    color: Colors.dark.textTertiary,
-  },
-  pickupQty: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  lockedBadge: {
+  summaryTopRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    marginTop: 3,
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 8,
   },
-  lockedText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#10B981',
-  },
-  pendingPickText: {
-    fontSize: 10,
-    color: '#F59E0B',
+  summaryLabel: {
+    fontSize: 10.5,
+    color: Colors.dark.textTertiary,
     fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  summaryDriverName: {
+    fontSize: 13.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
     marginTop: 2,
   },
-  progressionRow: {
+  contactRow: {
     flexDirection: 'row',
     gap: 8,
-    marginVertical: 10,
+    marginTop: 10,
+    flexWrap: 'wrap',
   },
-  sectionHeaderRow: {
+  actionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: Colors.dark.cardElevated,
+    borderRadius: 6,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  actionChipText: {
+    fontSize: 11,
+    color: Colors.dark.textSecondary,
+    fontWeight: '600',
+  },
+  dateMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 8,
+  },
+  dateMetaText: {
+    fontSize: 11,
+    color: Colors.dark.textTertiary,
+  },
+  paymentCard: {
+    padding: 12,
+    backgroundColor: Colors.dark.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    marginBottom: 14,
+  },
+  paymentRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 14,
-    marginBottom: 6,
   },
-  tripCard: {
+  paymentLabel: {
+    fontSize: 10.5,
+    color: Colors.dark.textTertiary,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  paymentValue: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    fontFamily: 'monospace',
+    marginTop: 2,
+  },
+  settledBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  settledBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  custodyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  custodyBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#F59E0B',
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: Colors.dark.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 8,
+  },
+  itemCard: {
     padding: 10,
     marginBottom: 6,
     backgroundColor: Colors.dark.card,
     borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
   },
-  summaryRow: {
+  itemRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 10,
   },
-  tripTitle: {
-    fontSize: 12,
+  checkCircle: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  itemName: {
+    fontSize: 12.5,
     fontWeight: '700',
     color: '#FFFFFF',
   },
-  tripCost: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: Colors.dark.textSecondary,
-  },
-  tripNotes: {
+  itemSub: {
     fontSize: 10.5,
     color: Colors.dark.textTertiary,
-    marginTop: 4,
+    marginTop: 1,
   },
-  noTripsText: {
-    fontSize: 11,
+  itemQty: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  deliveredPill: {
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    borderRadius: 4,
+    paddingVertical: 1,
+    paddingHorizontal: 5,
+    marginTop: 2,
+  },
+  deliveredPillText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  notesBox: {
+    padding: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    marginTop: 8,
+  },
+  notesLabel: {
+    fontSize: 10,
     color: Colors.dark.textTertiary,
-    fontStyle: 'italic',
-    paddingVertical: 4,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  notesText: {
+    fontSize: 11.5,
+    color: Colors.dark.textSecondary,
+    marginTop: 2,
   },
 });
