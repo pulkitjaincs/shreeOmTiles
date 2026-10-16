@@ -100,8 +100,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="flex items-center gap-1.5">
           <button
             onClick={handleQuickRefresh}
+            disabled={isRefreshing}
             title="Refresh current page"
-            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-xl transition cursor-pointer"
+            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-xl transition cursor-pointer disabled:opacity-50"
             aria-label="Refresh current screen data"
           >
             <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
@@ -145,8 +146,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className="flex items-center gap-1">
               <button
                 onClick={handleQuickRefresh}
+                disabled={isRefreshing}
                 title="Refresh dashboard data"
-                className="hidden md:flex p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-xl transition cursor-pointer"
+                className="flex p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-xl transition cursor-pointer disabled:opacity-50"
                 aria-label="Refresh dashboard data"
               >
                 <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
@@ -154,6 +156,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="md:hidden p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl"
+                aria-label="Close menu"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -202,14 +205,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
             </div>
             <div className="flex items-center gap-1 shrink-0">
-              <button
-                onClick={handleQuickRefresh}
-                title="Refresh Page Data"
-                className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition cursor-pointer"
-                aria-label="Refresh data"
-              >
-                <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
-              </button>
               <button
                 onClick={() => setIsSettingsOpen(true)}
                 title="Store Settings & Profile"
