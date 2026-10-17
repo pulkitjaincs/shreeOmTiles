@@ -1,18 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
 import { apiRequest, cachedApiRequest } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { 
   ShoppingCart, 
   Plus, 
   Search, 
-  Building2, 
-  Package, 
-  Calendar, 
-  FileText, 
-  Clock, 
-  CheckCircle2, 
   X,
   RotateCcw,
   Eye,
@@ -88,28 +82,11 @@ export default function PurchasesPage() {
 
   const loadData = useCallback(async (force = false) => {
     try {
-      const [purchList, prodList, whList, partyList] = await Promise.all([
-        cachedApiRequest<PurchaseRecord[]>('/purchases', {
-          forceRefresh: force,
-          onRevalidate: (fresh) => setPurchases(fresh),
-        }).catch(() => []),
-        cachedApiRequest<Product[]>('/products', {
-          forceRefresh: force,
-          onRevalidate: (fresh) => setProducts(fresh),
-        }).catch(() => []),
-        cachedApiRequest<Warehouse[]>('/warehouses', {
-          forceRefresh: force,
-          onRevalidate: (fresh) => setWarehouses(fresh),
-        }).catch(() => []),
-        cachedApiRequest<Party[]>('/parties', {
-          forceRefresh: force,
-          onRevalidate: (fresh) => setParties(fresh),
-        }).catch(() => []),
-      ]);
+      const purchList = await cachedApiRequest<PurchaseRecord[]>('/purchases', {
+        forceRefresh: force,
+        onRevalidate: (fresh) => setPurchases(fresh),
+      }).catch(() => []);
       setPurchases(purchList);
-      setProducts(prodList);
-      setWarehouses(whList);
-      setParties(partyList);
     } catch (err) {
       console.error('Failed to load purchases data', err);
     } finally {
@@ -117,11 +94,44 @@ export default function PurchasesPage() {
     }
   }, []);
 
+  // Lazy-load products, warehouses, and parties only when creating a purchase
+  const loadModalData = useCallback(async () => {
+    if (products.length > 0 && warehouses.length > 0 && parties.length > 0) return;
+    try {
+      const [prodList, whList, partyList] = await Promise.all([
+        cachedApiRequest<Product[]>('/products', {
+          onRevalidate: (fresh) => setProducts(fresh),
+        }).catch(() => []),
+        cachedApiRequest<Warehouse[]>('/warehouses', {
+          onRevalidate: (fresh) => setWarehouses(fresh),
+        }).catch(() => []),
+        cachedApiRequest<Party[]>('/parties', {
+          onRevalidate: (fresh) => setParties(fresh),
+        }).catch(() => []),
+      ]);
+      setProducts(prodList);
+      setWarehouses(whList);
+      setParties(partyList);
+    } catch (err) {
+      console.error('Failed to load purchase modal dependencies', err);
+    }
+  }, [products.length, warehouses.length, parties.length]);
+
+  const handleOpenCreateModal = () => {
+    void loadModalData();
+    setShowCreateModal(true);
+  };
+
   useEffect(() => {
-    loadData();
+    const timer = setTimeout(() => {
+      void loadData();
+    }, 0);
     const handleRefresh = () => loadData(true);
     window.addEventListener('app:refresh-active-page', handleRefresh);
-    return () => window.removeEventListener('app:refresh-active-page', handleRefresh);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('app:refresh-active-page', handleRefresh);
+    };
   }, [loadData]);
 
   // Aggregate stats
@@ -136,9 +146,11 @@ export default function PurchasesPage() {
     );
   }, [purchases]);
 
+  const deferredSearch = useDeferredValue(search);
+
   const filteredPurchases = useMemo(() => {
-    if (!search.trim()) return purchases;
-    const q = search.toLowerCase().trim();
+    if (!deferredSearch.trim()) return purchases;
+    const q = deferredSearch.toLowerCase().trim();
     return purchases.filter((p) => {
       const pNo = p.purchaseNo?.toLowerCase() || '';
       const vBill = p.vendorBillNo?.toLowerCase() || '';
@@ -146,7 +158,7 @@ export default function PurchasesPage() {
       const sPhone = p.party?.phone || '';
       return pNo.includes(q) || vBill.includes(q) || sName.includes(q) || sPhone.includes(q);
     });
-  }, [purchases, search]);
+  }, [purchases, deferredSearch]);
 
   const handleCreateDebitNote = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -192,7 +204,7 @@ export default function PurchasesPage() {
         </div>
         {!isSupervisor && (
           <Button
-            onClick={() => setShowCreateModal(true)}
+            onClick={handleOpenCreateModal}
             className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs px-4 py-2 rounded-xl inline-flex items-center gap-1.5 shadow-sm active:scale-98"
           >
             <Plus className="h-4 w-4" />

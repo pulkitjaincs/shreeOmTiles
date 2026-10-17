@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Colors } from '@/constants/theme';
-import { mobileApiRequest, invalidateMobileApiCache, cachedMobileApiRequest } from '@/lib/api';
+import { invalidateMobileApiCache, cachedMobileApiRequest } from '@/lib/api';
 import { formatINR, formatDate } from '@/lib/formatters';
 import { useAuth } from '@/lib/auth-context';
 import { Warehouse } from '@/components/stock/types';
@@ -23,6 +23,45 @@ export interface PurchasesViewProps {
   parties?: Party[];
 }
 
+function getPurchasePaidAmount(p: any): number {
+  if (p.amountPaid !== undefined && p.amountPaid !== null) {
+    return Number(p.amountPaid);
+  }
+  if (Array.isArray(p.payments) && p.payments.length > 0) {
+    return p.payments.reduce((sum: number, pay: any) => sum + Number(pay.amount || 0), 0);
+  }
+  if (p.paymentMode === 'CASH' || p.paymentMode === 'BANK_TRANSFER' || p.paymentMode === 'UPI') {
+    const hasUnpaidCredit =
+      Array.isArray(p.creditLedgers) &&
+      p.creditLedgers.some((c: any) => c.status !== 'SETTLED');
+    if (!hasUnpaidCredit && (!p.creditLedgers || p.creditLedgers.length === 0)) {
+      return Number(p.total || 0);
+    }
+  }
+  return 0;
+}
+
+function getPurchaseDueAmount(p: any): number {
+  if (Array.isArray(p.creditLedgers) && p.creditLedgers.length > 0) {
+    return p.creditLedgers.reduce(
+      (sum: number, c: any) => (c.status !== 'SETTLED' ? sum + Number(c.amountDue || 0) : sum),
+      0,
+    );
+  }
+  const paid = getPurchasePaidAmount(p);
+  return Math.max(0, Number(p.total || 0) - paid);
+}
+
+function getPurchaseStatus(p: any): string {
+  if (p.paymentStatus) return p.paymentStatus;
+  const due = getPurchaseDueAmount(p);
+  const paid = getPurchasePaidAmount(p);
+  const total = Number(p.total || 0);
+  if (due <= 0.01 && (paid >= total || total === 0)) return 'PAID';
+  if (paid > 0.01) return 'PARTIAL';
+  return 'UNPAID';
+}
+
 export function PurchasesView({
   onRefreshStock,
   warehouses,
@@ -31,7 +70,6 @@ export function PurchasesView({
   const { user } = useAuth();
   const isSupervisor = user?.role === 'SUPERVISOR';
   const isDirectorOrAdmin = user?.role === 'OWNER' || (user?.role as any) === 'DIRECTOR' || user?.role === 'ADMIN';
-  const isOwnerOrAdmin = isDirectorOrAdmin;
   const isAccountant = user?.role === 'ACCOUNTANT';
   const canRecordPurchase = isDirectorOrAdmin || isAccountant;
 
@@ -83,48 +121,12 @@ export function PurchasesView({
     }
   };
 
-  const getPurchasePaidAmount = (p: any): number => {
-    if (p.amountPaid !== undefined && p.amountPaid !== null) {
-      return Number(p.amountPaid);
-    }
-    if (Array.isArray(p.payments) && p.payments.length > 0) {
-      return p.payments.reduce((sum: number, pay: any) => sum + Number(pay.amount || 0), 0);
-    }
-    if (p.paymentMode === 'CASH' || p.paymentMode === 'BANK_TRANSFER' || p.paymentMode === 'UPI') {
-      const hasUnpaidCredit =
-        Array.isArray(p.creditLedgers) &&
-        p.creditLedgers.some((c: any) => c.status !== 'SETTLED');
-      if (!hasUnpaidCredit && (!p.creditLedgers || p.creditLedgers.length === 0)) {
-        return Number(p.total || 0);
-      }
-    }
-    return 0;
-  };
 
-  const getPurchaseDueAmount = (p: any): number => {
-    if (Array.isArray(p.creditLedgers) && p.creditLedgers.length > 0) {
-      return p.creditLedgers.reduce(
-        (sum: number, c: any) => (c.status !== 'SETTLED' ? sum + Number(c.amountDue || 0) : sum),
-        0,
-      );
-    }
-    const paid = getPurchasePaidAmount(p);
-    return Math.max(0, Number(p.total || 0) - paid);
-  };
-
-  const getPurchaseStatus = (p: any): string => {
-    if (p.paymentStatus) return p.paymentStatus;
-    const due = getPurchaseDueAmount(p);
-    const paid = getPurchasePaidAmount(p);
-    const total = Number(p.total || 0);
-    if (due <= 0.01 && (paid >= total || total === 0)) return 'PAID';
-    if (paid > 0.01) return 'PARTIAL';
-    return 'UNPAID';
-  };
+  const deferredSearch = useDeferredValue(search);
 
   const filteredPurchases = useMemo(() => {
-    if (!search.trim()) return purchases;
-    const q = search.toLowerCase().trim();
+    if (!deferredSearch.trim()) return purchases;
+    const q = deferredSearch.toLowerCase().trim();
     return purchases.filter(
       (item) =>
         item.purchaseNo?.toLowerCase().includes(q) ||
@@ -133,11 +135,20 @@ export function PurchasesView({
         item.party?.name?.toLowerCase().includes(q) ||
         item.party?.phone?.includes(q),
     );
-  }, [purchases, search]);
+  }, [purchases, deferredSearch]);
 
-  const totalBilled = purchases.reduce((sum, p) => sum + Number(p.total || 0), 0);
-  const totalPaid = purchases.reduce((sum, p) => sum + getPurchasePaidAmount(p), 0);
-  const totalPayable = purchases.reduce((sum, p) => sum + getPurchaseDueAmount(p), 0);
+  const totalBilled = useMemo(
+    () => purchases.reduce((sum, p) => sum + Number(p.total || 0), 0),
+    [purchases],
+  );
+  const totalPaid = useMemo(
+    () => purchases.reduce((sum, p) => sum + getPurchasePaidAmount(p), 0),
+    [purchases],
+  );
+  const totalPayable = useMemo(
+    () => purchases.reduce((sum, p) => sum + getPurchaseDueAmount(p), 0),
+    [purchases],
+  );
 
   return (
     <View style={styles.container}>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
 import { apiRequest, cachedApiRequest } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { 
@@ -10,12 +10,9 @@ import {
   Download, 
   CheckCircle2, 
   ArrowRight, 
-  Clock, 
   X,
   Eye,
-  Loader2,
-  Calendar,
-  Share2
+  Loader2
 } from 'lucide-react';
 import { Product, Party } from '@/components/invoices/types';
 import { CreateQuotationModal } from '@/components/quotations/create-quotation-modal';
@@ -65,7 +62,6 @@ export default function QuotationsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [viewingQuotation, setViewingQuotation] = useState<QuotationRecord | null>(null);
   const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
-  const [convertingId, setConvertingId] = useState<string | null>(null);
 
   // Conversion Confirmation Dialog State
   const [convertTarget, setConvertTarget] = useState<QuotationRecord | null>(null);
@@ -75,32 +71,20 @@ export default function QuotationsPage() {
 
   const loadData = useCallback(async (force = false) => {
     try {
-      const [quoteRes, prodList, partyList] = await Promise.all([
-        cachedApiRequest<{ data: QuotationRecord[] } | QuotationRecord[]>('/quotations', {
-          forceRefresh: force,
-          onRevalidate: (fresh) => {
-            const list = Array.isArray(fresh)
-              ? fresh
-              : (fresh as { data?: QuotationRecord[] })?.data || [];
-            setQuotations(list);
-          },
-        }).catch(() => []),
-        cachedApiRequest<Product[]>('/products', {
-          forceRefresh: force,
-          onRevalidate: (fresh) => setProducts(fresh),
-        }).catch(() => []),
-        cachedApiRequest<Party[]>('/parties', {
-          forceRefresh: force,
-          onRevalidate: (fresh) => setParties(fresh),
-        }).catch(() => []),
-      ]);
+      const quoteRes = await cachedApiRequest<{ data: QuotationRecord[] } | QuotationRecord[]>('/quotations', {
+        forceRefresh: force,
+        onRevalidate: (fresh) => {
+          const list = Array.isArray(fresh)
+            ? fresh
+            : (fresh as { data?: QuotationRecord[] })?.data || [];
+          setQuotations(list);
+        },
+      }).catch(() => []);
 
       const list = Array.isArray(quoteRes)
         ? quoteRes
         : (quoteRes as { data?: QuotationRecord[] })?.data || [];
       setQuotations(list);
-      setProducts(prodList);
-      setParties(partyList);
     } catch (err) {
       console.error('Failed to load quotations data', err);
     } finally {
@@ -108,18 +92,49 @@ export default function QuotationsPage() {
     }
   }, []);
 
+  // Lazy-load products and parties only when creating a quotation
+  const loadModalData = useCallback(async () => {
+    if (products.length > 0 && parties.length > 0) return;
+    try {
+      const [prodList, partyList] = await Promise.all([
+        cachedApiRequest<Product[]>('/products', {
+          onRevalidate: (fresh) => setProducts(fresh),
+        }).catch(() => []),
+        cachedApiRequest<Party[]>('/parties', {
+          onRevalidate: (fresh) => setParties(fresh),
+        }).catch(() => []),
+      ]);
+      setProducts(prodList);
+      setParties(partyList);
+    } catch (err) {
+      console.error('Failed to load quotation modal dependencies', err);
+    }
+  }, [products.length, parties.length]);
+
+  const handleOpenCreateModal = () => {
+    void loadModalData();
+    setShowCreateModal(true);
+  };
+
   useEffect(() => {
-    loadData();
+    const timer = setTimeout(() => {
+      void loadData();
+    }, 0);
     const handleRefresh = () => loadData(true);
     window.addEventListener('app:refresh-active-page', handleRefresh);
-    return () => window.removeEventListener('app:refresh-active-page', handleRefresh);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('app:refresh-active-page', handleRefresh);
+    };
   }, [loadData]);
 
+  const deferredSearch = useDeferredValue(search);
+
   const filteredQuotes = useMemo(() => {
+    const query = deferredSearch.toLowerCase().trim();
     return quotations.filter((q) => {
       if (statusFilter !== 'ALL' && q.status !== statusFilter) return false;
-      if (search.trim()) {
-        const query = search.toLowerCase().trim();
+      if (query) {
         const qNo = q.quotationNo?.toLowerCase() || '';
         const cName = (q.party?.name || q.customerName || '').toLowerCase();
         const cPhone = q.party?.phone || q.customerPhone || '';
@@ -127,7 +142,7 @@ export default function QuotationsPage() {
       }
       return true;
     });
-  }, [quotations, search, statusFilter]);
+  }, [quotations, deferredSearch, statusFilter]);
 
   const handleDownloadPdf = async (quote: QuotationRecord) => {
     setDownloadingPdfId(quote.id);
@@ -206,7 +221,7 @@ export default function QuotationsPage() {
           </p>
         </div>
         <Button
-          onClick={() => setShowCreateModal(true)}
+          onClick={handleOpenCreateModal}
           className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-xs px-4 py-2 rounded-xl inline-flex items-center gap-1.5 shadow-sm active:scale-98"
         >
           <Plus className="h-4 w-4" />

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
 import { cachedApiRequest } from '@/lib/api';
 import { useAuth } from '@/components/auth-provider';
 import { Button } from '@/components/ui/button';
@@ -52,59 +52,66 @@ export default function PartiesPage() {
   }, []);
 
   useEffect(() => {
-    let ignore = false;
-    cachedApiRequest<Party[]>('/parties?includeUnsaved=true', {
-      onRevalidate: (fresh) => {
-        if (!ignore) setParties(fresh);
-      },
-    })
-      .then((data) => {
-        if (!ignore) setParties(data);
-      })
-      .catch((err) => {
-        console.error(err);
-      })
-      .finally(() => {
-        if (!ignore) setLoading(false);
-      });
-
-    const handleRefresh = () => {
-      loadParties(true);
-    };
+    const timer = setTimeout(() => {
+      void loadParties();
+    }, 0);
+    const handleRefresh = () => loadParties(true);
     window.addEventListener('app:refresh-active-page', handleRefresh);
     return () => {
-      ignore = true;
+      clearTimeout(timer);
       window.removeEventListener('app:refresh-active-page', handleRefresh);
     };
   }, [loadParties]);
 
-  // Helper to compute party dues (RECEIVABLE - PAYABLE store credit)
-  const getPartyTotalDue = (party: Party) => {
-    return (party.creditLedgers || [])
-      .filter((c) => c.status !== 'SETTLED')
-      .reduce((sum, c) => {
+  // --- PERF: compute due/payable ONCE per party per data load, store in a Map ---
+  // Previously getPartyTotalDue / getPartyPayable were called 6-8x per party per
+  // render (filter pill counts × 3 + filtered.map() row + ageing loop). Now every
+  // consumer reads O(1) from this memoised Map.
+  const partyMeta = useMemo(() => {
+    const map = new Map<string, { due: number; payable: number }>();
+    for (const p of parties) {
+      let due = 0;
+      let payable = 0;
+      for (const c of p.creditLedgers || []) {
+        if (c.status === 'SETTLED') continue;
         const amt = Number(c.amountDue || 0);
-        return c.type === 'RECEIVABLE' ? sum + amt : sum - amt;
-      }, 0);
-  };
+        if (c.type === 'RECEIVABLE') due += amt;
+        else { due -= amt; payable += amt; }
+      }
+      map.set(p.id, { due, payable });
+    }
+    return map;
+  }, [parties]);
 
-  const getPartyPayable = (party: Party) => {
-    return (party.creditLedgers || [])
-      .filter((c) => c.status !== 'SETTLED' && c.type === 'PAYABLE')
-      .reduce((sum, c) => sum + Number(c.amountDue || 0), 0);
-  };
-
-  // Filter Counts
+  // Filter Counts — all read from pre-computed map, zero re-derivation
   const registeredCount = useMemo(() => parties.filter((p) => p.isSaved !== false).length, [parties]);
   const unregisteredCount = useMemo(() => parties.filter((p) => p.isSaved === false).length, [parties]);
 
-  const duesCount = useMemo(() => parties.filter((p) => getPartyTotalDue(p) > 0.01).length, [parties]);
-  const payablesCount = useMemo(() => parties.filter((p) => getPartyTotalDue(p) < -0.01 || getPartyPayable(p) > 0.01).length, [parties]);
-  const clearedCount = useMemo(() => parties.filter((p) => Math.abs(getPartyTotalDue(p)) <= 0.01 && getPartyPayable(p) <= 0.01).length, [parties]);
+  const duesCount = useMemo(
+    () => parties.filter((p) => (partyMeta.get(p.id)?.due ?? 0) > 0.01).length,
+    [parties, partyMeta],
+  );
+  const payablesCount = useMemo(
+    () => parties.filter((p) => {
+      const m = partyMeta.get(p.id);
+      return (m?.due ?? 0) < -0.01 || (m?.payable ?? 0) > 0.01;
+    }).length,
+    [parties, partyMeta],
+  );
+  const clearedCount = useMemo(
+    () => parties.filter((p) => {
+      const m = partyMeta.get(p.id);
+      return Math.abs(m?.due ?? 0) <= 0.01 && (m?.payable ?? 0) <= 0.01;
+    }).length,
+    [parties, partyMeta],
+  );
 
-  // Search & Multi-dimensional Filter
+  // Defer search input so the UI stays instant while typing even with 1000s of rows
+  const deferredSearch = useDeferredValue(search);
+
+  // Search & Multi-dimensional Filter — uses deferredSearch so keystroke lag is zero
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = deferredSearch.trim().toLowerCase();
     return parties.filter((p) => {
       // 1. Search Query
       if (q) {
@@ -120,24 +127,27 @@ export default function PartiesPage() {
       if (regFilter === 'REGISTERED' && p.isSaved === false) return false;
       if (regFilter === 'UNREGISTERED' && p.isSaved !== false) return false;
 
-      // 3. Balance Due Filter
-      const totalDue = getPartyTotalDue(p);
-      const payable = getPartyPayable(p);
+      // 3. Balance Due Filter — reads from pre-computed map (O(1))
+      const m = partyMeta.get(p.id);
+      const totalDue = m?.due ?? 0;
+      const payable = m?.payable ?? 0;
       if (dueFilter === 'DUES' && totalDue <= 0.01) return false;
       if (dueFilter === 'PAYABLES' && !(totalDue < -0.01 || payable > 0.01)) return false;
       if (dueFilter === 'CLEARED' && !(Math.abs(totalDue) <= 0.01 && payable <= 0.01)) return false;
 
       return true;
     });
-  }, [parties, search, regFilter, dueFilter]);
+  }, [parties, deferredSearch, regFilter, dueFilter, partyMeta]);
 
   // Ageing Buckets Calculation (Only un-settled RECEIVABLES across all customers)
+  // Runs once per data load, not on every search/filter change
   const ageing = useMemo(() => {
     let totalReceivables = 0;
     let b0to15 = 0;
     let b15to30 = 0;
     let b30to60 = 0;
     let b60plus = 0;
+    const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
     for (const p of parties) {
       for (const cl of p.creditLedgers || []) {
@@ -145,7 +155,7 @@ export default function PartiesPage() {
           const amt = Number(cl.amountDue || 0);
           totalReceivables += amt;
           const dueTime = cl.dueDate ? new Date(cl.dueDate).getTime() : nowTime;
-          const daysOverdue = Math.max(0, Math.floor((nowTime - dueTime) / (1000 * 60 * 60 * 24)));
+          const daysOverdue = Math.max(0, Math.floor((nowTime - dueTime) / MS_PER_DAY));
           if (daysOverdue <= 15) b0to15 += amt;
           else if (daysOverdue <= 30) b15to30 += amt;
           else if (daysOverdue <= 60) b30to60 += amt;
@@ -357,8 +367,9 @@ export default function PartiesPage() {
                 </tr>
               ) : (
                 filtered.map((party) => {
-                  const totalDue = getPartyTotalDue(party);
-                  const partyPayable = getPartyPayable(party);
+                  const m = partyMeta.get(party.id);
+                  const totalDue = m?.due ?? 0;
+                  const partyPayable = m?.payable ?? 0;
                   const isDue = totalDue > 0.01;
                   const isPayable = totalDue < -0.01 || partyPayable > 0.01;
                   const payableAmt = totalDue < -0.01 ? Math.abs(totalDue) : partyPayable;

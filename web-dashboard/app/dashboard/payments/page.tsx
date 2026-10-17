@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
 import { apiRequest, cachedApiRequest } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { 
@@ -407,23 +407,40 @@ export default function TransactionsPage() {
     }
   };
 
+  // Deferred search keeps keyboard input instant while filtering runs on idle frames
+  const deferredSearch = useDeferredValue(search);
+
   // Filters for tables (Separated Dues vs Payables)
-  const customerDues = pendingItems.filter((item) => item.creditType === 'RECEIVABLE');
-  const storePayables = pendingItems.filter((item) => item.creditType === 'PAYABLE');
-
-  const filteredDues = customerDues.filter(
-    (item) =>
-      item.partyName.toLowerCase().includes(search.toLowerCase()) ||
-      item.partyPhone.includes(search) ||
-      (item.invoiceNo && item.invoiceNo.toLowerCase().includes(search.toLowerCase()))
+  const customerDues = useMemo(
+    () => pendingItems.filter((item) => item.creditType === 'RECEIVABLE'),
+    [pendingItems]
+  );
+  const storePayables = useMemo(
+    () => pendingItems.filter((item) => item.creditType === 'PAYABLE'),
+    [pendingItems]
   );
 
-  const filteredPayables = storePayables.filter(
-    (item) =>
-      item.partyName.toLowerCase().includes(search.toLowerCase()) ||
-      item.partyPhone.includes(search) ||
-      (item.invoiceNo && item.invoiceNo.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filteredDues = useMemo(() => {
+    const q = deferredSearch.toLowerCase().trim();
+    if (!q) return customerDues;
+    return customerDues.filter(
+      (item) =>
+        item.partyName.toLowerCase().includes(q) ||
+        item.partyPhone.includes(q) ||
+        (item.invoiceNo && item.invoiceNo.toLowerCase().includes(q))
+    );
+  }, [customerDues, deferredSearch]);
+
+  const filteredPayables = useMemo(() => {
+    const q = deferredSearch.toLowerCase().trim();
+    if (!q) return storePayables;
+    return storePayables.filter(
+      (item) =>
+        item.partyName.toLowerCase().includes(q) ||
+        item.partyPhone.includes(q) ||
+        (item.invoiceNo && item.invoiceNo.toLowerCase().includes(q))
+    );
+  }, [storePayables, deferredSearch]);
 
   const filteredPayments = useMemo(() => {
     let base = payments;
@@ -433,22 +450,26 @@ export default function TransactionsPage() {
         return pDate && pDate.slice(0, 10) === selectedDate;
       });
     }
+    const q = deferredSearch.toLowerCase().trim();
+    if (!q) return base;
     return base.filter((p) => {
       const partyName = p.invoice?.party?.name || p.party?.name || '';
       const invNo = p.invoice?.invoiceNo || '';
       const utr = p.upiUtr || '';
-      const q = search.toLowerCase();
       return partyName.toLowerCase().includes(q) || invNo.toLowerCase().includes(q) || utr.toLowerCase().includes(q);
     });
-  }, [payments, dateFilterMode, selectedDate, search]);
+  }, [payments, dateFilterMode, selectedDate, deferredSearch]);
 
-  const filteredCredits = creditLedgers.filter((cl) => {
-    const partyName = cl.party?.name || '';
-    const invNo = cl.invoice?.invoiceNo || '';
-    const notes = cl.notes || '';
-    const q = search.toLowerCase();
-    return partyName.toLowerCase().includes(q) || invNo.toLowerCase().includes(q) || notes.toLowerCase().includes(q);
-  });
+  const filteredCredits = useMemo(() => {
+    const q = deferredSearch.toLowerCase().trim();
+    if (!q) return creditLedgers;
+    return creditLedgers.filter((cl) => {
+      const partyName = cl.party?.name || '';
+      const invNo = cl.invoice?.invoiceNo || '';
+      const notes = cl.notes || '';
+      return partyName.toLowerCase().includes(q) || invNo.toLowerCase().includes(q) || notes.toLowerCase().includes(q);
+    });
+  }, [creditLedgers, deferredSearch]);
 
   return (
     <div className="space-y-6">

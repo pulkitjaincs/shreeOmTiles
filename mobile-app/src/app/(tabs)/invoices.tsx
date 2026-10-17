@@ -60,16 +60,18 @@ export default function InvoicesScreen() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  // Modals state
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [detailsInvoice, setDetailsInvoice] = useState<any>(null);
   const [returnInvoice, setReturnInvoice] = useState<any>(null);
   const [deleteInvoiceTarget, setDeleteInvoiceTarget] = useState<any>(null);
   const [createdInvoiceSuccess, setCreatedInvoiceSuccess] = useState<Invoice | null>(null);
 
+  // Parties are loaded lazily — only when the create modal is first opened.
+  // See loadPartiesLazy() below.
+
   const loadData = useCallback(async (force = false) => {
     try {
-      const [invData, prodData, whData, partyData, stockData] = await Promise.all([
+      const [invData, prodData, whData, stockData] = await Promise.all([
         cachedMobileApiRequest<any[]>('/invoices', {
           forceRefresh: force,
           onRevalidate: (fresh) => {
@@ -85,10 +87,6 @@ export default function InvoicesScreen() {
           forceRefresh: force,
           onRevalidate: (fresh) => setWarehouses(fresh || []),
         }).catch(() => []),
-        cachedMobileApiRequest<Party[]>('/parties', {
-          forceRefresh: force,
-          onRevalidate: (fresh) => setParties(fresh || []),
-        }).catch(() => []),
         cachedMobileApiRequest<StockLedger[]>('/stock', {
           forceRefresh: force,
           onRevalidate: (fresh) => setStockList(fresh || []),
@@ -99,7 +97,6 @@ export default function InvoicesScreen() {
       setInvoices(list);
       setProducts(prodData || []);
       setWarehouses(whData || []);
-      setParties(partyData || []);
       setStockList(stockData || []);
     } catch (err: any) {
       console.warn('Failed to load invoices data', err.message);
@@ -108,6 +105,27 @@ export default function InvoicesScreen() {
       setRefreshing(false);
     }
   }, []);
+
+  // Lazy-load parties only when the Create Invoice modal is about to open.
+  // /parties carries full creditLedger arrays and can be several MB — loading it
+  // eagerly on every tab focus was the main bottleneck of the invoices screen.
+  const loadPartiesLazy = useCallback(async () => {
+    if (parties.length > 0) return; // already loaded, skip
+    try {
+      const data = await cachedMobileApiRequest<Party[]>('/parties', {
+        onRevalidate: (fresh) => setParties(fresh || []),
+      });
+      setParties(data || []);
+    } catch (err: any) {
+      console.warn('Failed to lazy-load parties:', err.message);
+    }
+  }, [parties.length]);
+
+  useEffect(() => {
+    if (createModalOpen) {
+      void loadPartiesLazy();
+    }
+  }, [createModalOpen, loadPartiesLazy]);
 
   useFocusEffect(
     useCallback(() => {
@@ -229,7 +247,10 @@ export default function InvoicesScreen() {
           {!isSupervisor ? (
             <TouchableOpacity
               style={styles.newBillAction}
-              onPress={() => setCreateModalOpen(true)}
+              onPress={() => {
+                void loadPartiesLazy();
+                setCreateModalOpen(true);
+              }}
               activeOpacity={0.8}
             >
               <Ionicons name="add" size={16} color="#09090B" />

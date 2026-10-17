@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import dynamic from 'next/dynamic';
+import { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/components/auth-provider';
 import { cachedApiRequest } from '@/lib/api';
@@ -59,19 +58,31 @@ export default function ProductsPage() {
   }, []);
 
   useEffect(() => {
-    loadData();
+    const timer = setTimeout(() => {
+      void loadData();
+    }, 0);
     const handleRefresh = () => {
       loadData(true);
     };
     window.addEventListener('app:refresh-active-page', handleRefresh);
-    return () => window.removeEventListener('app:refresh-active-page', handleRefresh);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('app:refresh-active-page', handleRefresh);
+    };
   }, [loadData]);
 
-  const filtered = products.filter(
-    (p) =>
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.category.toLowerCase().includes(search.toLowerCase()) ||
-      (p.hsnCode && p.hsnCode.includes(search))
+  // Deferred search: keeps the input instant, expensive filter runs on idle frames
+  const deferredSearch = useDeferredValue(search);
+
+  const filtered = useMemo(
+    () =>
+      products.filter(
+        (p) =>
+          p.name.toLowerCase().includes(deferredSearch.toLowerCase()) ||
+          p.category.toLowerCase().includes(deferredSearch.toLowerCase()) ||
+          (p.hsnCode && p.hsnCode.includes(deferredSearch))
+      ),
+    [products, deferredSearch],
   );
 
   return (

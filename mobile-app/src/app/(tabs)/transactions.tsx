@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
 import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import {
   View,
@@ -461,6 +461,9 @@ export default function TransactionsScreen() {
     setCreditModalOpen(true);
   };
 
+  // Deferred search keeps all filter memos from running synchronously on each keystroke
+  const deferredSearch = useDeferredValue(search);
+
   // Separated Dues vs Payables
   const customerDues = useMemo(
     () => pendingItems.filter((item) => item.creditType === 'RECEIVABLE'),
@@ -472,27 +475,27 @@ export default function TransactionsScreen() {
   );
 
   const filteredDues = useMemo(() => {
-    const q = search.toLowerCase().trim();
+    const q = deferredSearch.toLowerCase().trim();
     return customerDues.filter(
       (item) =>
         item.partyName.toLowerCase().includes(q) ||
         item.partyPhone.includes(q) ||
         (item.invoiceNo && item.invoiceNo.toLowerCase().includes(q)),
     );
-  }, [customerDues, search]);
+  }, [customerDues, deferredSearch]);
 
   const filteredPayables = useMemo(() => {
-    const q = search.toLowerCase().trim();
+    const q = deferredSearch.toLowerCase().trim();
     return storePayables.filter(
       (item) =>
         item.partyName.toLowerCase().includes(q) ||
         item.partyPhone.includes(q) ||
         (item.invoiceNo && item.invoiceNo.toLowerCase().includes(q)),
     );
-  }, [storePayables, search]);
+  }, [storePayables, deferredSearch]);
 
   const filteredPayments = useMemo(() => {
-    const q = search.toLowerCase().trim();
+    const q = deferredSearch.toLowerCase().trim();
     let base = payments;
     if (dateFilterMode === 'specific' && selectedDate) {
       base = base.filter((p) => {
@@ -512,7 +515,7 @@ export default function TransactionsScreen() {
         (modeFilter === 'BANK_TRANSFER' && p.mode === 'BANK');
       return matchesSearch && matchesMode;
     });
-  }, [payments, search, modeFilter, dateFilterMode, selectedDate]);
+  }, [payments, deferredSearch, modeFilter, dateFilterMode, selectedDate]);
 
   const filteredInflows = useMemo(() => {
     return filteredPayments.filter(
@@ -521,14 +524,14 @@ export default function TransactionsScreen() {
   }, [filteredPayments]);
 
   const filteredCredits = useMemo(() => {
-    const q = search.toLowerCase().trim();
+    const q = deferredSearch.toLowerCase().trim();
     return creditLedgers.filter((cl) => {
       const partyName = cl.party?.name || '';
       const invNo = cl.invoice?.invoiceNo || '';
       const notes = cl.notes || '';
       return partyName.toLowerCase().includes(q) || invNo.toLowerCase().includes(q) || notes.toLowerCase().includes(q);
     });
-  }, [creditLedgers, search]);
+  }, [creditLedgers, deferredSearch]);
 
   return (
     <View style={styles.screen}>

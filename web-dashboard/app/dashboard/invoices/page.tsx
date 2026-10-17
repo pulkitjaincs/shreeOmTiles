@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useDeferredValue } from 'react';
 import { useAuth } from '@/components/auth-provider';
 import { apiRequest, cachedApiRequest } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -235,12 +235,18 @@ export default function InvoicesPage() {
     }
   };
 
+  // Deferred search: keeps the input instant, expensive filter runs on idle frames
+  const deferredSearch = useDeferredValue(search);
+
   // Filtered Invoices
+  // PERF: Date boundary objects are hoisted ABOVE the .filter() call so they are
+  // created once per memo execution — not once per invoice (5000+ allocations).
   const filteredInvoices = useMemo(() => {
-    const cleanSearch = search.toLowerCase().trim();
-    const cleanPhoneSearch = search.replace(/\D/g, '');
+    const cleanSearch = deferredSearch.toLowerCase().trim();
+    const cleanPhoneSearch = deferredSearch.replace(/\D/g, '');
     const now = new Date();
 
+    // --- Hoist all Date objects here (outside the .filter callback) ---
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
     const endOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
@@ -251,6 +257,11 @@ export default function InvoicesPage() {
     startOfWeek.setHours(0, 0, 0, 0);
 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    // Custom date range parsed once
+    const customFrom = customFromDate ? (() => { const d = new Date(customFromDate); d.setHours(0,0,0,0); return d; })() : null;
+    const customTo = customToDate ? (() => { const d = new Date(customToDate); d.setHours(23,59,59,999); return d; })() : null;
+    // -------------------------------------------------------------------
 
     return invoices.filter((inv) => {
       // Multi-field Search
@@ -279,7 +290,7 @@ export default function InvoicesPage() {
         if (!matchesDirect && !matchesSplit) return false;
       }
 
-      // Date Presets
+      // Date Presets — compare against pre-computed boundaries
       const createdAt = new Date(inv.createdAt);
       if (datePreset === 'TODAY') {
         if (createdAt < startOfToday) return false;
@@ -290,21 +301,13 @@ export default function InvoicesPage() {
       } else if (datePreset === 'THIS_MONTH') {
         if (createdAt < startOfMonth) return false;
       } else if (datePreset === 'CUSTOM') {
-        if (customFromDate) {
-          const from = new Date(customFromDate);
-          from.setHours(0, 0, 0, 0);
-          if (createdAt < from) return false;
-        }
-        if (customToDate) {
-          const to = new Date(customToDate);
-          to.setHours(23, 59, 59, 999);
-          if (createdAt > to) return false;
-        }
+        if (customFrom && createdAt < customFrom) return false;
+        if (customTo && createdAt > customTo) return false;
       }
 
       return true;
     });
-  }, [invoices, search, datePreset, customFromDate, customToDate, statusFilter, modeFilter]);
+  }, [invoices, deferredSearch, datePreset, customFromDate, customToDate, statusFilter, modeFilter]);
 
   const hasActiveFilters =
     search.trim() !== '' ||

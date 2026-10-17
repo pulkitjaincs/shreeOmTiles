@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Colors } from '@/constants/theme';
-import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
+import { cachedMobileApiRequest } from '@/lib/api';
 import { formatINR, formatDate } from '@/lib/formatters';
 import { CreateExpenseModal } from './CreateExpenseModal';
 
@@ -42,9 +42,11 @@ export function ExpensesView() {
     loadExpenses();
   }, [loadExpenses]);
 
+  const deferredSearch = useDeferredValue(search);
+
   const filteredExpenses = useMemo(() => {
-    if (!search.trim()) return expenses;
-    const q = search.toLowerCase();
+    if (!deferredSearch.trim()) return expenses;
+    const q = deferredSearch.toLowerCase().trim();
     return expenses.filter(
       (item) =>
         item.title?.toLowerCase().includes(q) ||
@@ -53,13 +55,22 @@ export function ExpensesView() {
         item.category?.toLowerCase().includes(q) ||
         item.paidTo?.toLowerCase().includes(q),
     );
-  }, [expenses, search]);
+  }, [expenses, deferredSearch]);
 
-  const totalExpenseAmt = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
-  const cashExpenseAmt = expenses
-    .filter((e) => e.paymentMode === 'CASH')
-    .reduce((sum, e) => sum + Number(e.amount || 0), 0);
-  const digitalExpenseAmt = totalExpenseAmt - cashExpenseAmt;
+  const { totalExpenseAmt, cashExpenseAmt, digitalExpenseAmt } = useMemo(() => {
+    let total = 0;
+    let cash = 0;
+    for (const e of expenses) {
+      const amt = Number(e.amount || 0);
+      total += amt;
+      if (e.paymentMode === 'CASH') cash += amt;
+    }
+    return {
+      totalExpenseAmt: total,
+      cashExpenseAmt: cash,
+      digitalExpenseAmt: total - cash,
+    };
+  }, [expenses]);
 
   return (
     <View style={styles.container}>

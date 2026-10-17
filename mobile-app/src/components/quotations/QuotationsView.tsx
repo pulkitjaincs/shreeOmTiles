@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
 import {
   View,
   Text,
@@ -30,30 +30,15 @@ export function QuotationsView() {
   const loadQuotations = useCallback(async (force = false) => {
     setLoading(true);
     try {
-      const [res, pList, prList] = await Promise.all([
-        cachedMobileApiRequest<any>('/quotations', {
-          forceRefresh: force,
-          onRevalidate: (fresh) => {
-            const list = Array.isArray(fresh) ? fresh : fresh?.data || [];
-            setQuotations(list);
-          },
-        }),
-        cachedMobileApiRequest<Party[]>('/parties', {
-          forceRefresh: force,
-          onRevalidate: (fresh) => setParties(fresh || []),
-        }).catch(() => []),
-        cachedMobileApiRequest<Product[]>('/products', {
-          forceRefresh: force,
-          onRevalidate: (fresh) => setProducts(fresh || []),
-        }).catch(() => []),
-      ]);
-
+      const res = await cachedMobileApiRequest<any>('/quotations', {
+        forceRefresh: force,
+        onRevalidate: (fresh) => {
+          const list = Array.isArray(fresh) ? fresh : fresh?.data || [];
+          setQuotations(list);
+        },
+      });
       const list = Array.isArray(res) ? res : res?.data || [];
-      const partiesList = Array.isArray(pList) ? pList : (pList as any)?.data || [];
-      const productsList = Array.isArray(prList) ? prList : (prList as any)?.data || [];
       setQuotations(list);
-      setParties(partiesList);
-      setProducts(productsList);
     } catch (err: any) {
       console.warn('Quotations load error:', err.message);
     } finally {
@@ -61,13 +46,42 @@ export function QuotationsView() {
     }
   }, []);
 
+  // Lazy-load parties and products only when creating a quotation
+  const loadModalData = useCallback(async () => {
+    if (parties.length > 0 && products.length > 0) return;
+    try {
+      const [pList, prList] = await Promise.all([
+        cachedMobileApiRequest<Party[]>('/parties', {
+          onRevalidate: (fresh) => setParties(fresh || []),
+        }).catch(() => []),
+        cachedMobileApiRequest<Product[]>('/products', {
+          onRevalidate: (fresh) => setProducts(fresh || []),
+        }).catch(() => []),
+      ]);
+      const partiesList = Array.isArray(pList) ? pList : (pList as any)?.data || [];
+      const productsList = Array.isArray(prList) ? prList : (prList as any)?.data || [];
+      setParties(partiesList);
+      setProducts(productsList);
+    } catch (err: any) {
+      console.warn('Quotations modal deps load error:', err.message);
+    }
+  }, [parties.length, products.length]);
+
+  useEffect(() => {
+    if (createModalVisible) {
+      void loadModalData();
+    }
+  }, [createModalVisible, loadModalData]);
+
   useEffect(() => {
     loadQuotations();
   }, [loadQuotations]);
 
+  const deferredSearch = useDeferredValue(search);
+
   const filteredQuotations = useMemo(() => {
-    if (!search.trim()) return quotations;
-    const q = search.toLowerCase();
+    if (!deferredSearch.trim()) return quotations;
+    const q = deferredSearch.toLowerCase().trim();
     return quotations.filter(
       (item) =>
         item.quotationNo?.toLowerCase().includes(q) ||
@@ -77,7 +91,7 @@ export function QuotationsView() {
         item.customerPhone?.includes(q) ||
         item.party?.phone?.includes(q),
     );
-  }, [quotations, search]);
+  }, [quotations, deferredSearch]);
 
   const handleConvert = (quote: any) => {
     Alert.alert(

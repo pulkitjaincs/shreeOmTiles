@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
 import { useFocusEffect } from 'expo-router';
 import {
   View,
@@ -170,8 +170,10 @@ export default function StockScreen() {
     [stocks],
   );
 
+  const deferredSearch = useDeferredValue(search);
+
   const filteredStocks = useMemo(() => {
-    const q = search.toLowerCase().trim();
+    const q = deferredSearch.toLowerCase().trim();
     return inStockBatches.filter((s) => {
       const matchesCat =
         selectedCategory === 'ALL' || s.product?.category === selectedCategory;
@@ -182,10 +184,15 @@ export default function StockScreen() {
         (s.batchNo?.toLowerCase().includes(q) ?? false);
       return matchesCat && matchesSearch;
     });
-  }, [inStockBatches, search, selectedCategory]);
+  }, [inStockBatches, deferredSearch, selectedCategory]);
 
   const categoryOptions = useMemo(() => {
-    const cats = Array.from(new Set(products.map((p) => p.category).filter(Boolean)));
+    const counts = new Map<string, number>();
+    for (const p of products) {
+      if (p.category) {
+        counts.set(p.category, (counts.get(p.category) || 0) + 1);
+      }
+    }
     return [
       {
         label: 'All Categories',
@@ -194,10 +201,10 @@ export default function StockScreen() {
         icon: 'grid-outline' as const,
         color: '#FFFFFF',
       },
-      ...cats.map((c) => ({
+      ...Array.from(counts.entries()).map(([c, count]) => ({
         label: c,
         value: c,
-        count: products.filter((p) => p.category === c).length,
+        count,
         icon: 'folder-outline' as const,
         color: '#38BDF8',
       })),
@@ -205,16 +212,17 @@ export default function StockScreen() {
   }, [products]);
 
   const filteredProducts = useMemo(() => {
-    const q = search.toLowerCase().trim();
+    const q = deferredSearch.toLowerCase().trim();
     return products.filter((p) => {
       const matchesSearch =
-        p.name?.toLowerCase().includes(q) ||
-        p.category?.toLowerCase().includes(q) ||
+        !q ||
+        (p.name?.toLowerCase().includes(q) ?? false) ||
+        (p.category?.toLowerCase().includes(q) ?? false) ||
         (p.hsnCode && p.hsnCode.includes(q));
       const matchesCat = selectedCategory === 'ALL' || p.category === selectedCategory;
       return matchesSearch && matchesCat;
     });
-  }, [products, search, selectedCategory]);
+  }, [products, deferredSearch, selectedCategory]);
 
   return (
     <View style={styles.screen}>
