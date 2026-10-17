@@ -303,15 +303,6 @@ export class InvoicesService {
         Math.round((totalAmount - upfrontAmount) * 100) / 100,
       );
 
-      // If created by a salesman, credit and partial payments are strictly forbidden
-      const creator = await tx.user.findUnique({ where: { id: salesmanId } });
-      if (creator?.role === Role.SALESMAN) {
-        if (data.paymentMode === PaymentMode.CREDIT || balanceCredit > 0) {
-          throw new ForbiddenException(
-            'Salesmen are not authorized to offer credit or partial payments. All sales must be 100% paid upfront via Cash or UPI.',
-          );
-        }
-      }
 
       let initialStatus: InvoiceStatus;
       if (balanceCredit === 0 && upfrontAmount > 0) {

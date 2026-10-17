@@ -168,7 +168,7 @@ export function CreatePurchaseModal({
           phone: newSupplierPhone.trim(),
           address: newSupplierAddress.trim() || undefined,
           gstin: newSupplierGstin.trim() || undefined,
-          category: 'SUPPLIER',
+          isSaved: true,
         };
       } else {
         payload.partyId = partyId;

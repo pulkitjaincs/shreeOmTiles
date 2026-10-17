@@ -23,7 +23,7 @@ export interface Party {
   address?: string;
   gstin?: string;
   isSaved?: boolean;
-  category?: 'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER' | 'SUPPLIER';
+  category?: 'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER';
 }
 
 export interface StockLedgerRecord {

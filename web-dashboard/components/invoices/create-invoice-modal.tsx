@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { apiRequest } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { 
@@ -56,6 +56,7 @@ export function CreateInvoiceModal({
   const [newParty, setNewParty] = useState({ name: '', phone: '', address: '' });
   const [paymentMode, setPaymentMode] = useState('UPI');
   const [amountPaidNowInput, setAmountPaidNowInput] = useState<string>('');
+  const [isAmountCustom, setIsAmountCustom] = useState(false);
   const [taxRate, setTaxRate] = useState<number | ''>(18);
   const [transportCost, setTransportCost] = useState<number | ''>('');
   const [transportGstRate, setTransportGstRate] = useState<number>(0);
@@ -122,7 +123,8 @@ export function CreateInvoiceModal({
       ]);
       setFormError('');
       setPartyId('');
-      setAmountPaidNowInput('0');
+      setAmountPaidNowInput('');
+      setIsAmountCustom(false);
       setCustomerMode('EXISTING');
       setCustomerSearch('');
       setIsCustomerDropdownOpen(false);
@@ -257,11 +259,13 @@ export function CreateInvoiceModal({
 
   // Upfront Payment & Credit Calculations
   const calculatedGrandTotal = Math.max(0, Number(grandTotal.toFixed(2)));
-  const parsedPaidNow = amountPaidNowInput === '' ? 0 : Number(amountPaidNowInput);
-  const effectivePaidNow =
-    !isNaN(parsedPaidNow)
-      ? Math.max(0, Math.min(parsedPaidNow, calculatedGrandTotal))
-      : 0;
+  const effectivePaidNow = useMemo(() => {
+    if (paymentMode === 'CREDIT') return 0;
+    if (!isAmountCustom) return calculatedGrandTotal;
+    const parsed = parseFloat(amountPaidNowInput);
+    if (isNaN(parsed) || parsed < 0) return 0;
+    return Math.min(parsed, calculatedGrandTotal);
+  }, [paymentMode, isAmountCustom, calculatedGrandTotal, amountPaidNowInput]);
   const balanceCredit = Math.max(0, Number((calculatedGrandTotal - effectivePaidNow).toFixed(2)));
 
   const validateAndBuildPayload = () => {
@@ -649,8 +653,10 @@ export function CreateInvoiceModal({
                   onChange={(nextMode) => {
                     setPaymentMode(nextMode);
                     if (nextMode === 'CREDIT') {
+                      setIsAmountCustom(true);
                       setAmountPaidNowInput('0');
-                    } else if (amountPaidNowInput === '0') {
+                    } else if (paymentMode === 'CREDIT') {
+                      setIsAmountCustom(false);
                       setAmountPaidNowInput('');
                     }
                   }}
@@ -669,7 +675,10 @@ export function CreateInvoiceModal({
                   {calculatedGrandTotal > 0 && (
                     <button
                       type="button"
-                      onClick={() => setAmountPaidNowInput(calculatedGrandTotal.toFixed(2))}
+                      onClick={() => {
+                        setIsAmountCustom(false);
+                        setAmountPaidNowInput(calculatedGrandTotal.toFixed(2));
+                      }}
                       className="text-[0.625rem] text-primary hover:underline font-semibold"
                     >
                       Full Pay
@@ -681,9 +690,20 @@ export function CreateInvoiceModal({
                   min="0"
                   max={calculatedGrandTotal}
                   step="0.01"
-                  placeholder="0.00"
-                  value={amountPaidNowInput}
-                  onChange={(e) => setAmountPaidNowInput(e.target.value)}
+                  placeholder={calculatedGrandTotal > 0 ? calculatedGrandTotal.toFixed(2) : "0.00"}
+                  value={
+                    paymentMode === 'CREDIT'
+                      ? '0'
+                      : isAmountCustom
+                      ? amountPaidNowInput
+                      : calculatedGrandTotal > 0
+                      ? calculatedGrandTotal.toFixed(2)
+                      : ''
+                  }
+                  onChange={(e) => {
+                    setIsAmountCustom(true);
+                    setAmountPaidNowInput(e.target.value);
+                  }}
                   className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-[0.8125rem] text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
                 <span className="text-[0.625rem] text-muted-foreground block mt-1">

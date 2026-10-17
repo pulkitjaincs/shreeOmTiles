@@ -62,7 +62,8 @@ export function CreateInvoiceModal({
   const [transportCost, setTransportCost] = useState<string>('0');
   const [transportGstRate, setTransportGstRate] = useState<number>(0);
   const [paymentMode, setPaymentMode] = useState<'UPI' | 'CASH' | 'CREDIT' | 'BANK_TRANSFER'>('UPI');
-  const [amountPaidNow, setAmountPaidNow] = useState<string>('0');
+  const [amountPaidNow, setAmountPaidNow] = useState<string>('');
+  const [isAmountCustom, setIsAmountCustom] = useState(false);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [refreshingStock, setRefreshingStock] = useState(false);
@@ -106,7 +107,8 @@ export function CreateInvoiceModal({
     setTransportCost('0');
     setTransportGstRate(0);
     setPaymentMode('UPI');
-    setAmountPaidNow('0');
+    setAmountPaidNow('');
+    setIsAmountCustom(false);
     setNotes('');
     setUpiPreviewData(null);
   }, []);
@@ -322,10 +324,13 @@ export function CreateInvoiceModal({
     };
   }, [items, taxRate, transportCost, transportGstRate]);
 
-  const parsedPaid = amountPaidNow === '' ? 0 : Number(amountPaidNow);
-  const effectivePaidNow = paymentMode !== 'CREDIT' && Number.isFinite(parsedPaid)
-    ? Math.max(0, Math.min(parsedPaid, grandTotal))
-    : 0;
+  const effectivePaidNow = useMemo(() => {
+    if (paymentMode === 'CREDIT') return 0;
+    if (!isAmountCustom) return grandTotal;
+    const parsed = parseFloat(amountPaidNow);
+    if (isNaN(parsed) || parsed < 0) return 0;
+    return Math.min(parsed, grandTotal);
+  }, [paymentMode, isAmountCustom, grandTotal, amountPaidNow]);
   const balanceDue = Math.max(0, Number((grandTotal - effectivePaidNow).toFixed(2)));
 
 
@@ -542,8 +547,13 @@ export function CreateInvoiceModal({
                 key={mode}
                 onPress={() => {
                   setPaymentMode(mode);
-                  if (mode === 'CREDIT') setAmountPaidNow('0');
-                  else if (paymentMode === 'CREDIT' && amountPaidNow === '0') setAmountPaidNow('');
+                  if (mode === 'CREDIT') {
+                    setIsAmountCustom(true);
+                    setAmountPaidNow('0');
+                  } else if (paymentMode === 'CREDIT') {
+                    setIsAmountCustom(false);
+                    setAmountPaidNow('');
+                  }
                 }}
                 style={[styles.toggleBtn, isSelected && styles.toggleBtnActive]}
               >
@@ -559,13 +569,25 @@ export function CreateInvoiceModal({
           <>
             <Input
               label="Amount Paid Now (₹)"
-              placeholder={String(Math.round(grandTotal * 100) / 100)}
-              value={amountPaidNow}
-              onChangeText={setAmountPaidNow}
+              placeholder={grandTotal > 0 ? grandTotal.toFixed(2) : '0.00'}
+              value={
+                isAmountCustom
+                  ? amountPaidNow
+                  : grandTotal > 0
+                  ? grandTotal.toFixed(2)
+                  : ''
+              }
+              onChangeText={(val) => {
+                setIsAmountCustom(true);
+                setAmountPaidNow(val);
+              }}
               keyboardType="decimal-pad"
             />
             <TouchableOpacity
-              onPress={() => setAmountPaidNow(grandTotal.toFixed(2))}
+              onPress={() => {
+                setIsAmountCustom(false);
+                setAmountPaidNow(grandTotal.toFixed(2));
+              }}
               style={styles.fullPayBtn}
             >
               <Text style={styles.fullPayText}>Full Pay ({formatINR(grandTotal)})</Text>
