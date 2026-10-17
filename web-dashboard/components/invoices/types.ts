@@ -133,6 +133,25 @@ export interface Invoice {
   items: InvoiceItemDetail[];
   refundInvoices?: RefundInvoiceDetail[];
   deliveries?: { id: string; status: string }[];
+  payments?: PaymentReceipt[];
+}
+
+export interface PaymentReceipt {
+  id: string;
+  mode: string;
+  amount: number | string;
+  status: string;
+  paidAt?: string;
+  upiUtr?: string;
+  notes?: string;
+}
+
+export interface PaymentSplitItem {
+  mode: 'CASH' | 'UPI' | 'BANK_TRANSFER';
+  amount: string;
+  upiTxnRef?: string;
+  upiUtr?: string;
+  notes?: string;
 }
 
 export interface PreviewUpiData {
@@ -153,4 +172,4 @@ export interface UpiAccount {
 export type CustomerMode = 'EXISTING' | 'NEW_SAVED' | 'UNREGISTERED';
 export type DatePreset = 'ALL' | 'TODAY' | 'YESTERDAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'CUSTOM';
 export type InvoiceStatusFilter = 'ALL' | 'PAID' | 'PARTIAL' | 'CREATED';
-export type PaymentModeFilter = 'ALL' | 'UPI' | 'CASH' | 'CREDIT' | 'CHEQUE';
+export type PaymentModeFilter = 'ALL' | 'UPI' | 'CASH' | 'CREDIT' | 'SPLIT';

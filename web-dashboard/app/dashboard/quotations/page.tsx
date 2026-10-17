@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Product, Party } from '@/components/invoices/types';
 import { CreateQuotationModal } from '@/components/quotations/create-quotation-modal';
+import { MultiPaymentSplitSelector, SplitRow } from '@/components/shared/multi-payment-split-selector';
 import { formatINR, formatDate } from '@/lib/formatters';
 
 interface QuotationItem {
@@ -68,8 +69,7 @@ export default function QuotationsPage() {
 
   // Conversion Confirmation Dialog State
   const [convertTarget, setConvertTarget] = useState<QuotationRecord | null>(null);
-  const [convertPaymentMode, setConvertPaymentMode] = useState('CASH');
-  const [convertAmountPaid, setConvertAmountPaid] = useState<number | ''>(0);
+  const [convertSplits, setConvertSplits] = useState<SplitRow[]>([{ mode: 'CASH', amount: '0' }]);
   const [convertSubmitting, setConvertSubmitting] = useState(false);
   const [convertError, setConvertError] = useState('');
 
@@ -152,6 +152,18 @@ export default function QuotationsPage() {
     e.preventDefault();
     if (!convertTarget) return;
 
+    const validSplits = convertSplits.filter((s) => {
+      const p = parseFloat(s.amount);
+      return !isNaN(p) && p > 0;
+    });
+    const totalPaid = validSplits.reduce((acc, s) => acc + parseFloat(s.amount), 0);
+    const resolvedMode =
+      validSplits.length > 1
+        ? 'SPLIT'
+        : validSplits.length === 1
+        ? validSplits[0].mode
+        : 'CREDIT';
+
     setConvertSubmitting(true);
     setConvertError('');
 
@@ -159,8 +171,14 @@ export default function QuotationsPage() {
       await apiRequest(`/quotations/${convertTarget.id}/convert-to-invoice`, {
         method: 'POST',
         body: JSON.stringify({
-          paymentMode: convertPaymentMode,
-          amountPaidNow: Number(convertAmountPaid) || 0,
+          paymentMode: resolvedMode,
+          amountPaidNow: totalPaid,
+          payments: validSplits.map((s) => ({
+            mode: s.mode,
+            amount: parseFloat(s.amount),
+            upiUtr: s.upiUtr?.trim() || undefined,
+            notes: s.notes?.trim() || undefined,
+          })),
         }),
       });
 
@@ -340,8 +358,7 @@ export default function QuotationsPage() {
                           <button
                             onClick={() => {
                               setConvertTarget(q);
-                              setConvertAmountPaid(0);
-                              setConvertPaymentMode('CASH');
+                              setConvertSplits([{ mode: 'CASH', amount: String(q.total) }]);
                               setConvertError('');
                             }}
                             className="px-2.5 py-1.5 rounded-lg text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-xs font-semibold inline-flex items-center gap-1 transition active:scale-98"
@@ -511,42 +528,14 @@ export default function QuotationsPage() {
               </button>
             </div>
 
-            <form onSubmit={handleExecuteConversion} className="space-y-3.5">
-              <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">
-                  Payment Mode
-                </label>
-                <select
-                  value={convertPaymentMode}
-                  onChange={(e) => setConvertPaymentMode(e.target.value)}
-                  className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                >
-                  <option value="CASH">Cash</option>
-                  <option value="UPI">UPI / Online</option>
-                  <option value="CREDIT">Credit (Pay Later)</option>
-                  <option value="CHEQUE">Cheque</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">
-                  Initial Payment Received (₹)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  max={Number(convertTarget.total)}
-                  step="0.01"
-                  value={convertAmountPaid}
-                  onChange={(e) =>
-                    setConvertAmountPaid(e.target.value === '' ? '' : Number(e.target.value))
-                  }
-                  className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm font-bold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                />
-                <span className="text-[10px] text-muted-foreground mt-1 block">
-                  Remaining balance will automatically be booked as driver collection / customer ledger credit.
-                </span>
-              </div>
+            <form onSubmit={handleExecuteConversion} className="space-y-4">
+              <MultiPaymentSplitSelector
+                totalAmount={Number(convertTarget.total) || 0}
+                splits={convertSplits}
+                onChange={setConvertSplits}
+                allowCredit={true}
+                creditLabel="Balance Due (Customer Credit / Pay Later)"
+              />
 
               {convertError && (
                 <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-600 dark:text-rose-400">

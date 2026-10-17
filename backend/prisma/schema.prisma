@@ -55,6 +55,7 @@ enum PaymentMode {
   UPI
   CREDIT
   BANK_TRANSFER
+  SPLIT
 }
 
 enum PaymentStatus {

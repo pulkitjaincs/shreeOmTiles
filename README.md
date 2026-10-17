@@ -113,8 +113,7 @@ dhraERP/
 │   ├── eas.json              # EAS cloud build & OTA update profiles
 │   └── README.md             # Detailed Mobile Application documentation
 │
-├── scripts/                  # Automated test & seed infrastructure
-│   ├── e2e-frontend-runner.js # Full Playwright multi-role browser test suite (8 enterprise milestones)
+├── scripts/                  # Data import scripts
 │   └── inventory_master.csv  # Tile master catalog data for bulk import
 │
 └── README.md                 # Root Monorepo master documentation (this file)
@@ -311,31 +310,7 @@ npx expo start -c
 | **Salesman** | `9876543211` | `sales123` | Rapid counter billing, Instant UPI QR modal, Estimates, Party statements |
 | **Driver** | `9876543212` | `driver123` | Road cockpit, Manifest list, Delivery challans, Payment logging |
 
----
 
-## 🧪 Automated Multi-Role E2E Testing Suite
-
-The repository contains an enterprise-grade automated browser verification test suite in `scripts/e2e-frontend-runner.js` powered by Playwright. It systematically exercises the complete end-to-end B2B order lifecycle by authenticating as each of the 5 key business personas in turn:
-
-```bash
-# 1. Truncate all 27 tables & seed initial owner (Vijay Jain - 9212610962)
-node backend/prisma/clean-test-db.js
-
-# 2. Run Playwright end-to-end test runner across all roles
-node scripts/e2e-frontend-runner.js
-```
-
-### Lifecycle Milestones Tested & Verified:
-1. **Owner Setup**: Warehouse creation & initial tile catalog SKU creation.
-2. **Staff Provisioning**: Owner provisions `ADMIN`, `SALESMAN`, `SUPERVISOR`, and `DRIVER` via UI modal.
-3. **Admin Operations**: Customer party creation and operating expense recording.
-4. **Salesman Invoicing**: Counter sales invoice generation with dynamic GST and upfront UPI QR.
-5. **Admin Logistics**: Vehicle assignment and delivery manifest push.
-6. **Supervisor Loading Check**: Warehouse supervisor verifies physical loading (with price masking) and locks status.
-7. **Driver Execution**: Driver sets trip `IN_TRANSIT`, marks `DELIVERED`, and collects cash payment.
-8. **Owner Settlement & Ledger Reconciliation**: Handover settlement approval, till drawer reconciliation, invoice marked `PAID`, and customer statement verified.
-
----
 
 ## ⚡ Over-The-Air (OTA) Instant Mobile Updates
 

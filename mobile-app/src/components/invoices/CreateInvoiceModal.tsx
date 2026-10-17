@@ -14,10 +14,11 @@ import { Input } from '@/components/ui/Input';
 import { Colors } from '@/constants/theme';
 import { formatINR } from '@/lib/formatters';
 import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
-import { Product, Warehouse, Party, StockLedger, InvoiceLineItem, UpiAccount } from './types';
+import { Product, Warehouse, Party, StockLedger, InvoiceLineItem, UpiAccount, PaymentSplitItem } from './types';
 import { CustomerSelector } from './CustomerSelector';
 import { InvoiceLineItemCard } from './InvoiceLineItemCard';
 import { CounterUpiModal } from './CounterUpiModal';
+import { MultiPaymentSplitSelector } from '@/components/ui/MultiPaymentSplitSelector';
 
 interface CreateInvoiceModalProps {
   visible: boolean;
@@ -61,9 +62,9 @@ export function CreateInvoiceModal({
   const [taxRate, setTaxRate] = useState<number>(18);
   const [transportCost, setTransportCost] = useState<string>('0');
   const [transportGstRate, setTransportGstRate] = useState<number>(0);
-  const [paymentMode, setPaymentMode] = useState<'UPI' | 'CASH' | 'CREDIT' | 'BANK_TRANSFER'>('UPI');
-  const [amountPaidNow, setAmountPaidNow] = useState<string>('');
-  const [isAmountCustom, setIsAmountCustom] = useState(false);
+  const [paymentSplits, setPaymentSplits] = useState<PaymentSplitItem[]>([
+    { mode: 'UPI', amount: '' },
+  ]);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [refreshingStock, setRefreshingStock] = useState(false);
@@ -106,9 +107,7 @@ export function CreateInvoiceModal({
     setTaxRate(18);
     setTransportCost('0');
     setTransportGstRate(0);
-    setPaymentMode('UPI');
-    setAmountPaidNow('');
-    setIsAmountCustom(false);
+    setPaymentSplits([{ mode: 'UPI', amount: '' }]);
     setNotes('');
     setUpiPreviewData(null);
   }, []);
@@ -299,15 +298,21 @@ export function CreateInvoiceModal({
     };
   }, [items, taxRate, transportCost, transportGstRate]);
 
+  const validSplits = useMemo(() => {
+    return paymentSplits.filter((s) => {
+      const parsed = parseFloat(s.amount);
+      return !isNaN(parsed) && parsed > 0;
+    });
+  }, [paymentSplits]);
+
   const effectivePaidNow = useMemo(() => {
-    if (paymentMode === 'CREDIT') return 0;
-    if (!isAmountCustom) return grandTotal;
-    const parsed = parseFloat(amountPaidNow);
-    if (isNaN(parsed) || parsed < 0) return 0;
-    return Math.min(parsed, grandTotal);
-  }, [paymentMode, isAmountCustom, grandTotal, amountPaidNow]);
+    return validSplits.reduce((sum, s) => sum + parseFloat(s.amount), 0);
+  }, [validSplits]);
+
   const balanceDue = Math.max(0, Number((grandTotal - effectivePaidNow).toFixed(2)));
 
+  const upiSplit = validSplits.find((s) => s.mode === 'UPI');
+  const upiSplitAmount = upiSplit ? parseFloat(upiSplit.amount) : 0;
 
   const fetchPreviewQr = async (amt: number, targetAcc?: UpiAccount | null) => {
     const acc = targetAcc !== undefined ? targetAcc : selectedUpiAccount;
@@ -371,14 +376,19 @@ export function CreateInvoiceModal({
       }
     }
 
-    const finalMode = modeOverride || paymentMode;
-    const finalPaid = finalMode !== 'CREDIT' ? effectivePaidNow : 0;
-
     // Upfront UPI QR checkout flow: show dynamic exact QR before creating DB invoice
-    if (finalMode === 'UPI' && !modeOverride && finalPaid > 0) {
-      await fetchPreviewQr(finalPaid, selectedUpiAccount);
+    if (upiSplitAmount > 0 && !modeOverride && !upiPreviewData) {
+      await fetchPreviewQr(upiSplitAmount, selectedUpiAccount);
       return;
     }
+
+    const resolvedMode =
+      modeOverride ||
+      (validSplits.length > 1
+        ? 'SPLIT'
+        : validSplits.length === 1
+        ? validSplits[0].mode
+        : 'CREDIT');
 
     setSubmitting(true);
     try {
@@ -386,7 +396,7 @@ export function CreateInvoiceModal({
         taxRate,
         transportCost: numTransportCost,
         transportGstRate,
-        paymentMode: finalMode,
+        paymentMode: resolvedMode,
         notes: notes.trim() || undefined,
         items: items.map((it) => ({
           productId: it.productId,
@@ -394,7 +404,13 @@ export function CreateInvoiceModal({
           unitPrice: Number(it.unitPrice),
           discount: Number(it.discount || 0),
         })),
-        amountPaidNow: finalPaid,
+        amountPaidNow: effectivePaidNow,
+        payments: validSplits.map((s) => ({
+          mode: s.mode,
+          amount: parseFloat(s.amount),
+          upiUtr: s.upiUtr?.trim() || undefined,
+          notes: s.notes?.trim() || undefined,
+        })),
       };
 
       if (customerMode === 'existing') {
@@ -506,62 +522,14 @@ export function CreateInvoiceModal({
           keyboardType="decimal-pad"
         />
 
-        <Text style={styles.fieldLabel}>Payment Mode</Text>
-        <View style={styles.tabToggle}>
-          {(['UPI', 'CASH', 'BANK_TRANSFER', 'CREDIT'] as const).map((mode) => {
-            const isSelected = paymentMode === mode;
-            return (
-              <TouchableOpacity
-                key={mode}
-                onPress={() => {
-                  setPaymentMode(mode);
-                  if (mode === 'CREDIT') {
-                    setIsAmountCustom(true);
-                    setAmountPaidNow('0');
-                  } else if (paymentMode === 'CREDIT') {
-                    setIsAmountCustom(false);
-                    setAmountPaidNow('');
-                  }
-                }}
-                style={[styles.toggleBtn, isSelected && styles.toggleBtnActive]}
-              >
-                <Text style={[styles.toggleText, isSelected && styles.toggleTextActive]}>
-                  {mode}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {paymentMode !== 'CREDIT' ? (
-          <>
-            <Input
-              label="Amount Paid Now (₹)"
-              placeholder={grandTotal > 0 ? grandTotal.toFixed(2) : '0.00'}
-              value={
-                isAmountCustom
-                  ? amountPaidNow
-                  : grandTotal > 0
-                  ? grandTotal.toFixed(2)
-                  : ''
-              }
-              onChangeText={(val) => {
-                setIsAmountCustom(true);
-                setAmountPaidNow(val);
-              }}
-              keyboardType="decimal-pad"
-            />
-            <TouchableOpacity
-              onPress={() => {
-                setIsAmountCustom(false);
-                setAmountPaidNow(grandTotal.toFixed(2));
-              }}
-              style={styles.fullPayBtn}
-            >
-              <Text style={styles.fullPayText}>Full Pay ({formatINR(grandTotal)})</Text>
-            </TouchableOpacity>
-          </>
-        ) : null}
+        <MultiPaymentSplitSelector
+          totalAmount={grandTotal}
+          splits={paymentSplits}
+          onChange={setPaymentSplits}
+          allowCredit={true}
+          onPreviewUpi={(amt) => void fetchPreviewQr(amt, selectedUpiAccount)}
+          previewUpiLoading={loadingQr}
+        />
 
         <Input
           label="Internal Billing Notes"
@@ -600,7 +568,7 @@ export function CreateInvoiceModal({
             <Text style={styles.grandTotalLabel}>Grand Total</Text>
             <Text style={styles.grandTotalVal}>{formatINR(grandTotal)}</Text>
           </View>
-          {balanceDue > 0 && paymentMode !== 'CREDIT' ? (
+          {balanceDue > 0 ? (
             <View style={styles.balanceDueRow}>
               <Text style={styles.balanceDueLabel}>Remaining Due</Text>
               <Text style={styles.balanceDueValue}>{formatINR(balanceDue)}</Text>
@@ -614,8 +582,8 @@ export function CreateInvoiceModal({
               ? 'Generating UPI QR...'
               : submitting
               ? 'Generating Invoice...'
-              : paymentMode === 'UPI' && effectivePaidNow > 0
-              ? `Proceed to UPI QR (${formatINR(effectivePaidNow)})`
+              : upiSplitAmount > 0
+              ? `Proceed to UPI QR (${formatINR(upiSplitAmount)})`
               : `Generate Invoice (${formatINR(grandTotal)})`
           }
           onPress={() => handleCreateInvoice()}
@@ -629,7 +597,7 @@ export function CreateInvoiceModal({
       <CounterUpiModal
         visible={Boolean(upiPreviewData)}
         onClose={() => setUpiPreviewData(null)}
-        amount={upiPreviewData?.amount || effectivePaidNow}
+        amount={upiPreviewData?.amount || upiSplitAmount || effectivePaidNow}
         balanceDue={balanceDue}
         upiPreviewData={upiPreviewData}
         upiAccounts={upiAccounts}
@@ -643,10 +611,10 @@ export function CreateInvoiceModal({
         }}
         loadingQr={loadingQr}
         submitting={submitting}
-        onConfirmUpi={() => handleCreateInvoice('UPI')}
+        onConfirmUpi={() => handleCreateInvoice()}
         onPayCashInstead={() => {
           setUpiPreviewData(null);
-          setPaymentMode('CASH');
+          setPaymentSplits([{ mode: 'CASH', amount: grandTotal.toFixed(2) }]);
           handleCreateInvoice('CASH');
         }}
       />

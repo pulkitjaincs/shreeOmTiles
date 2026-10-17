@@ -95,12 +95,14 @@ export function PartyFormModal({
     }
   };
 
+  if (!visible) return null;
+
   return (
     <BottomSheetModal
       visible={visible}
       onClose={onClose}
-      title={party ? 'Edit Customer / Party' : 'Add Customer / Party'}
-      subtitle="Register customer in directory for fast counter billing"
+      title={party ? 'Edit Party' : 'Add Party / Customer'}
+      subtitle="Register party in directory for fast counter billing & procurement"
     >
       <View>
         <Input
@@ -141,7 +143,7 @@ export function PartyFormModal({
           onChangeText={setAddress}
         />
         <Button
-          title={submitting ? 'Saving...' : party ? 'Save Customer Changes' : 'Add Customer Profile'}
+          title={submitting ? 'Saving...' : party ? 'Save Party Changes' : 'Register Party Profile'}
           onPress={handleSubmit}
           loading={submitting}
           variant="primary"

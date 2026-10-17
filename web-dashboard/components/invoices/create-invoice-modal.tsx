@@ -7,7 +7,6 @@ import {
   X, 
   Trash2, 
   Search, 
-  Building2, 
   Layers, 
   UserCheck, 
   UserPlus, 
@@ -22,13 +21,13 @@ import {
   Product,
   Party,
   StockLedgerRecord,
-  StockOptionAllocation,
   FormLineItem,
   Invoice,
   PreviewUpiData,
   UpiAccount,
   CustomerMode
 } from './types';
+import { MultiPaymentSplitSelector, SplitRow } from '@/components/shared/multi-payment-split-selector';
 
 interface CreateInvoiceModalProps {
   isOpen: boolean;
@@ -55,8 +54,9 @@ export function CreateInvoiceModal({
   const [partyId, setPartyId] = useState('');
   const [newParty, setNewParty] = useState({ name: '', phone: '', address: '' });
   const [paymentMode, setPaymentMode] = useState('UPI');
-  const [amountPaidNowInput, setAmountPaidNowInput] = useState<string>('');
-  const [isAmountCustom, setIsAmountCustom] = useState(false);
+  const [paymentSplits, setPaymentSplits] = useState<SplitRow[]>([
+    { mode: 'UPI', amount: '' },
+  ]);
   const [taxRate, setTaxRate] = useState<number | ''>(18);
   const [transportCost, setTransportCost] = useState<number | ''>('');
   const [transportGstRate, setTransportGstRate] = useState<number>(0);
@@ -81,7 +81,7 @@ export function CreateInvoiceModal({
       if (forProd.length > 0) {
         return forProd.reduce(
           (sum, s) =>
-            sum + Number(s.quantity ?? (s as any).availableQuantity ?? 0),
+            sum + Number(s.quantity ?? 0),
           0,
         );
       }
@@ -123,8 +123,7 @@ export function CreateInvoiceModal({
       ]);
       setFormError('');
       setPartyId('');
-      setAmountPaidNowInput('');
-      setIsAmountCustom(false);
+      setPaymentSplits([{ mode: 'CASH', amount: '' }]);
       setCustomerMode('EXISTING');
       setCustomerSearch('');
       setIsCustomerDropdownOpen(false);
@@ -259,14 +258,25 @@ export function CreateInvoiceModal({
 
   // Upfront Payment & Credit Calculations
   const calculatedGrandTotal = Math.max(0, Number(grandTotal.toFixed(2)));
+
+  const totalSplitsAmount = useMemo(() => {
+    return paymentSplits.reduce((sum, s) => {
+      const parsed = parseFloat(s.amount);
+      return sum + (isNaN(parsed) || parsed < 0 ? 0 : parsed);
+    }, 0);
+  }, [paymentSplits]);
+
   const effectivePaidNow = useMemo(() => {
-    if (paymentMode === 'CREDIT') return 0;
-    if (!isAmountCustom) return calculatedGrandTotal;
-    const parsed = parseFloat(amountPaidNowInput);
-    if (isNaN(parsed) || parsed < 0) return 0;
-    return Math.min(parsed, calculatedGrandTotal);
-  }, [paymentMode, isAmountCustom, calculatedGrandTotal, amountPaidNowInput]);
+    if (paymentSplits.length === 0) return 0;
+    return Math.min(totalSplitsAmount, calculatedGrandTotal);
+  }, [totalSplitsAmount, calculatedGrandTotal, paymentSplits.length]);
+
   const balanceCredit = Math.max(0, Number((calculatedGrandTotal - effectivePaidNow).toFixed(2)));
+
+  const upiSplit = useMemo(() => {
+    return paymentSplits.find((s) => s.mode === 'UPI' && parseFloat(s.amount) > 0);
+  }, [paymentSplits]);
+  const upiSplitAmount = upiSplit ? parseFloat(upiSplit.amount) : 0;
 
   const validateAndBuildPayload = () => {
     if (customerMode === 'EXISTING' && !partyId) {
@@ -311,6 +321,25 @@ export function CreateInvoiceModal({
       discount: Number(item.discount || 0),
     }));
 
+    const validPayments = paymentSplits
+      .filter((s) => {
+        const val = parseFloat(s.amount);
+        return !isNaN(val) && val > 0;
+      })
+      .map((s) => ({
+        mode: s.mode,
+        amount: Math.round(parseFloat(s.amount) * 100) / 100,
+        upiUtr: s.upiUtr,
+        notes: s.notes,
+      }));
+
+    const primaryMode =
+      validPayments.length === 0
+        ? 'CREDIT'
+        : validPayments.length === 1
+        ? validPayments[0].mode
+        : 'SPLIT';
+
     return {
       partyId: customerMode === 'EXISTING' ? partyId : undefined,
       newParty:
@@ -322,8 +351,9 @@ export function CreateInvoiceModal({
               isSaved: customerMode === 'NEW_SAVED',
             }
           : undefined,
-      paymentMode,
+      paymentMode: primaryMode,
       amountPaidNow: effectivePaidNow,
+      payments: validPayments,
       taxRate: activeTaxRate,
       transportCost: numTransportCost,
       transportGstRate: transportGstRate,
@@ -338,7 +368,6 @@ export function CreateInvoiceModal({
     try {
       const payload = validateAndBuildPayload();
       if (modeOverride) payload.paymentMode = modeOverride;
-      payload.amountPaidNow = effectivePaidNow;
 
       const createdInvoice = await apiRequest<Invoice>('/invoices', {
         method: 'POST',
@@ -357,12 +386,13 @@ export function CreateInvoiceModal({
   const fetchPreviewQr = useCallback(
     async (account?: UpiAccount | null) => {
       const target = account !== undefined ? account : selectedUpiAccount;
+      const targetAmount = upiSplitAmount > 0 ? upiSplitAmount : effectivePaidNow;
       setPreviewUpiLoading(true);
       try {
         const data = await apiRequest<PreviewUpiData>('/invoices/preview-upi-qr', {
           method: 'POST',
           body: JSON.stringify({
-            amount: effectivePaidNow,
+            amount: targetAmount,
             vpa: target?.upiId,
             merchantName: target?.merchantName,
           }),
@@ -376,7 +406,7 @@ export function CreateInvoiceModal({
         setPreviewUpiLoading(false);
       }
     },
-    [effectivePaidNow, selectedUpiAccount],
+    [upiSplitAmount, effectivePaidNow, selectedUpiAccount],
   );
 
   const handleFormSubmit = async (e: React.FormEvent) => {
@@ -390,11 +420,11 @@ export function CreateInvoiceModal({
       return;
     }
 
-    if (paymentMode === 'UPI' && effectivePaidNow > 0) {
+    if (upiSplitAmount > 0) {
       setShowUpiCheckoutModal(true);
       void fetchPreviewQr(selectedUpiAccount);
     } else {
-      executeCreateInvoice(paymentMode);
+      executeCreateInvoice();
     }
   };
 
@@ -644,72 +674,21 @@ export function CreateInvoiceModal({
               )}
             </div>
 
-            {/* Payment, Tax & Transport Controls */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3 bg-muted/30 p-4 rounded-[1rem] border border-border">
-              <div>
-                <label className="block text-[0.75rem] font-medium text-foreground mb-1">Payment Method</label>
-                <ThemedSelect
-                  value={paymentMode}
-                  onChange={(nextMode) => {
-                    setPaymentMode(nextMode);
-                    if (nextMode === 'CREDIT') {
-                      setIsAmountCustom(true);
-                      setAmountPaidNowInput('0');
-                    } else if (paymentMode === 'CREDIT') {
-                      setIsAmountCustom(false);
-                      setAmountPaidNowInput('');
-                    }
-                  }}
-                  options={[
-                    { value: 'UPI', label: 'UPI (QR Code)', badge: 'Live QR' },
-                    { value: 'CASH', label: 'Cash in Hand' },
-                    { value: 'CREDIT', label: 'Full Credit (Pay Later)' },
-                    { value: 'CHEQUE', label: 'Cheque' },
-                  ]}
-                />
-              </div>
+            {/* Multi-Payment Split Selector */}
+            <MultiPaymentSplitSelector
+              totalAmount={calculatedGrandTotal}
+              splits={paymentSplits}
+              onChange={setPaymentSplits}
+              allowCredit={true}
+              onPreviewUpi={() => {
+                setShowUpiCheckoutModal(true);
+                void fetchPreviewQr(selectedUpiAccount);
+              }}
+              previewUpiLoading={previewUpiLoading}
+            />
 
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[0.75rem] font-medium text-foreground">Amount Paid Now (₹)</label>
-                  {calculatedGrandTotal > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsAmountCustom(false);
-                        setAmountPaidNowInput(calculatedGrandTotal.toFixed(2));
-                      }}
-                      className="text-[0.625rem] text-primary hover:underline font-semibold"
-                    >
-                      Full Pay
-                    </button>
-                  )}
-                </div>
-                <input
-                  type="number"
-                  min="0"
-                  max={calculatedGrandTotal}
-                  step="0.01"
-                  placeholder={calculatedGrandTotal > 0 ? calculatedGrandTotal.toFixed(2) : "0.00"}
-                  value={
-                    paymentMode === 'CREDIT'
-                      ? '0'
-                      : isAmountCustom
-                      ? amountPaidNowInput
-                      : calculatedGrandTotal > 0
-                      ? calculatedGrandTotal.toFixed(2)
-                      : ''
-                  }
-                  onChange={(e) => {
-                    setIsAmountCustom(true);
-                    setAmountPaidNowInput(e.target.value);
-                  }}
-                  className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-[0.8125rem] text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                />
-                <span className="text-[0.625rem] text-muted-foreground block mt-1">
-                  {balanceCredit > 0 ? `Due: ₹${balanceCredit.toFixed(2)}` : 'Settled'}
-                </span>
-              </div>
+            {/* Tax & Transport Controls */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-muted/30 p-4 rounded-[1rem] border border-border">
 
               <div>
                 <div className="flex items-center justify-between mb-1">
@@ -1073,15 +1052,13 @@ export function CreateInvoiceModal({
                 disabled={submitting}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-[0.75rem] shadow-xs active:scale-98"
               >
-                {paymentMode === 'UPI' && effectivePaidNow > 0 ? (
+                {upiSplitAmount > 0 ? (
                   <>
                     <QrCode className="h-4 w-4 mr-2" />
-                    Collect ₹{effectivePaidNow.toFixed(2)} via UPI QR
+                    Collect ₹{upiSplitAmount.toFixed(2)} via UPI QR
                   </>
-                ) : paymentMode === 'CASH' && effectivePaidNow > 0 ? (
-                  `Collect ₹${effectivePaidNow.toFixed(2)} Cash & Issue Invoice`
                 ) : effectivePaidNow > 0 ? (
-                  `Collect ₹${effectivePaidNow.toFixed(2)} Advance & Issue Invoice`
+                  `Collect ₹${effectivePaidNow.toFixed(2)} & Issue Invoice`
                 ) : (
                   'Issue Credit Invoice'
                 )}

@@ -23,18 +23,65 @@ export class ExpensesService {
     const fy = this.getFinancialYear(expDate);
 
     return this.prisma.$transaction(async (tx) => {
+      if (data.splits && data.splits.length > 0) {
+        const splits = data.splits.filter((s) => Number(s.amount) > 0);
+        if (splits.length > 1) {
+          const totalAmt = splits.reduce((sum, s) => sum + Number(s.amount), 0);
+          const createdList: any[] = [];
+          for (let i = 0; i < splits.length; i++) {
+            const split = splits[i];
+            const seq = await tx.expenseSequence.upsert({
+              where: { financialYear: fy },
+              update: { lastNumber: { increment: 1 } },
+              create: { financialYear: fy, lastNumber: 1 },
+            });
+            const expenseNo = `EXP-${fy}-${String(seq.lastNumber).padStart(4, '0')}`;
+            const splitNote = [
+              `[Split ${i + 1}/${splits.length}]`,
+              data.title ? `${data.title} - ` : '',
+              data.notes || '',
+              `(Total ₹${totalAmt.toFixed(2)})`,
+            ]
+              .join(' ')
+              .trim();
+
+            const exp = await tx.expense.create({
+              data: {
+                expenseNo,
+                category: data.category,
+                amount: new Prisma.Decimal(Number(split.amount).toFixed(2)),
+                paymentMode: split.mode,
+                paidTo: data.paidTo || null,
+                notes: splitNote,
+                expenseDate: expDate,
+                createdById: userId,
+              },
+              include: {
+                createdBy: { select: { id: true, name: true, phone: true } },
+              },
+            });
+            createdList.push(exp);
+          }
+          return createdList;
+        } else if (splits.length === 1) {
+          data.amount = splits[0].amount;
+          data.paymentMode = splits[0].mode;
+        }
+      }
+
       const seq = await tx.expenseSequence.upsert({
         where: { financialYear: fy },
         update: { lastNumber: { increment: 1 } },
         create: { financialYear: fy, lastNumber: 1 },
       });
       const expenseNo = `EXP-${fy}-${String(seq.lastNumber).padStart(4, '0')}`;
+      const finalAmount = data.amount || 0;
 
       return tx.expense.create({
         data: {
           expenseNo,
           category: data.category,
-          amount: new Prisma.Decimal(data.amount.toFixed(2)),
+          amount: new Prisma.Decimal(finalAmount.toFixed(2)),
           paymentMode: data.paymentMode || 'CASH',
           paidTo: data.paidTo || null,
           notes: data.notes

@@ -2,18 +2,27 @@
  * Utility formatters matching web-dashboard
  */
 
+const INR_WHOLE = new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 2,
+});
+
+const INR_DECIMAL = new Intl.NumberFormat('en-IN', {
+  style: 'currency',
+  currency: 'INR',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
 export function formatINR(val?: number | string | null): string {
   if (val === undefined || val === null || val === '') return '₹0';
   const num = typeof val === 'string' ? parseFloat(val) : val;
   if (isNaN(num)) return '₹0';
-  
+
   const hasDecimals = num % 1 !== 0;
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    minimumFractionDigits: hasDecimals ? 2 : 0,
-    maximumFractionDigits: 2,
-  }).format(num);
+  return (hasDecimals ? INR_DECIMAL : INR_WHOLE).format(num);
 }
 
 export function formatDate(val?: string | Date | null): string {

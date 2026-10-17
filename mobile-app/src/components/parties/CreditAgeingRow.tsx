@@ -10,7 +10,7 @@ interface CreditAgeingRowProps {
   parties: Party[];
 }
 
-export function CreditAgeingRow({ parties }: CreditAgeingRowProps) {
+export const CreditAgeingRow = React.memo(function CreditAgeingRow({ parties }: CreditAgeingRowProps) {
   const [now] = useState(() => Date.now());
 
   const buckets: CreditAgeingBuckets = useMemo(() => {
@@ -46,6 +46,7 @@ export function CreditAgeingRow({ parties }: CreditAgeingRowProps) {
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
+      nestedScrollEnabled={true}
       style={styles.container}
       contentContainerStyle={styles.scrollContent}
     >
@@ -56,7 +57,7 @@ export function CreditAgeingRow({ parties }: CreditAgeingRowProps) {
           <Ionicons name="wallet-outline" size={14} color={Colors.dark.textSecondary} />
         </View>
         <Text style={styles.val}>{formatINR(buckets.totalReceivables)}</Text>
-        <Text style={styles.subText}>Across all customers</Text>
+        <Text style={styles.subText}>Across all accounts</Text>
       </Card>
 
       {/* 2. 0-15 Days (Current) */}
@@ -120,7 +121,7 @@ export function CreditAgeingRow({ parties }: CreditAgeingRowProps) {
       </Card>
     </ScrollView>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

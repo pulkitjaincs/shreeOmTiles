@@ -9,6 +9,7 @@ import {
   RefreshControl,
   Alert,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/lib/auth-context';
@@ -368,6 +369,10 @@ export default function StockScreen() {
           data={filteredProducts}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.listContent}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={Platform.OS !== 'web'}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />
           }

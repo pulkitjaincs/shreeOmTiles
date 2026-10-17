@@ -13,7 +13,6 @@
 6. [Design System & Theme Provider](#design-system--theme-provider)
 7. [Environment Variables](#environment-variables)
 8. [Local Development & Production Build](#local-development--production-build)
-9. [Automated Multi-Role E2E Testing (Playwright)](#automated-multi-role-e2e-testing-playwright)
 
 ---
 
@@ -207,27 +206,5 @@ npm run start
 ```
 *Web Dashboard will be available at `http://localhost:3000`.*
 
----
 
-## 🧪 Automated Multi-Role E2E Testing (Playwright)
-
-The web dashboard is verified by an automated browser test suite simulating all five business personas across the complete wholesale order lifecycle:
-
-```bash
-# 1. Reset test database with clean owner account
-node backend/prisma/clean-test-db.js
-
-# 2. Run multi-role end-to-end browser test runner (headless or headed)
-node scripts/e2e-frontend-runner.js
-```
-
-### Lifecycle Milestones Tested:
-1. **Owner Setup**: Warehouse creation & initial tile catalog creation.
-2. **Staff Provisioning**: Owner provisions `ADMIN`, `SALESMAN`, `SUPERVISOR`, and `DRIVER` via UI modal.
-3. **Admin Operations**: Customer party creation and operating expense recording.
-4. **Salesman Invoicing**: Counter sales invoice generation with dynamic GST and upfront UPI QR.
-5. **Admin Logistics**: Vehicle assignment and delivery manifest push.
-6. **Supervisor Loading Check**: Warehouse supervisor verifies physical loading (with price masking) and locks status.
-7. **Driver Execution**: Driver sets trip `IN_TRANSIT`, marks `DELIVERED`, and collects cash payment.
-8. **Owner Settlement & Ledger Reconciliation**: Handover settlement approval, till drawer reconciliation, invoice marked `PAID`, and customer statement verified.
 

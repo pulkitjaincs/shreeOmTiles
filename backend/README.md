@@ -373,18 +373,14 @@ npx prisma generate
 # 3. Synchronize database schema with Neon PostgreSQL
 npx prisma db push
 
-# 4. (Optional) Run seed script to populate test data
+# 4. (Optional) Run seed script to populate demo data
 npx prisma db seed
 
-# 5. Clean Database & Fresh Owner Provisioning (Testing)
-# Truncates all 27 database tables with RESTART IDENTITY CASCADE and seeds initial Owner:
-node prisma/clean-test-db.js
-
-# 6. Bulk Master Inventory CSV Importer
+# 5. Bulk Master Inventory CSV Importer
 # Parses tile catalog, godown batches, and square-feet rates from CSV:
 node prisma/import-inventory.js
 
-# 7. Start development server in watch mode with SWC
+# 6. Start development server in watch mode with SWC
 npm run start:dev
 ```
 

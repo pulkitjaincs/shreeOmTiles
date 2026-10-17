@@ -14,7 +14,7 @@ interface WarehouseStockCardProps {
   onAdjust?: (item: StockItem) => void;
 }
 
-export function WarehouseStockCard({
+export const WarehouseStockCard = React.memo(function WarehouseStockCard({
   item,
   isOwnerOrAdmin = false,
   isSupervisor = false,
@@ -91,7 +91,7 @@ export function WarehouseStockCard({
       ) : null}
     </Card>
   );
-}
+});
 
 const styles = StyleSheet.create({
   stockCard: {

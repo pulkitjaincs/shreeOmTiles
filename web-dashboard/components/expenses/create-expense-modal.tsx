@@ -5,6 +5,7 @@ import { apiRequest } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { ThemedSelect } from '@/components/ui/themed-select';
 import { X, Wallet, Loader2 } from 'lucide-react';
+import { MultiPaymentSplitSelector, SplitRow, PaymentMethodType } from '@/components/shared/multi-payment-split-selector';
 
 interface CreateExpenseModalProps {
   isOpen: boolean;
@@ -19,7 +20,11 @@ export function CreateExpenseModal({
 }: CreateExpenseModalProps) {
   const [category, setCategory] = useState('PANTRY_REFRESHMENTS');
   const [amount, setAmount] = useState<number | ''>('');
-  const [paymentMode, setPaymentMode] = useState('CASH');
+  const [paymentMode, setPaymentMode] = useState<PaymentMethodType>('CASH');
+  const [isSplit, setIsSplit] = useState(false);
+  const [splits, setSplits] = useState<SplitRow[]>([
+    { mode: 'CASH', amount: '' },
+  ]);
   const [paidTo, setPaidTo] = useState('');
   const [notes, setNotes] = useState('');
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0]);
@@ -36,6 +41,23 @@ export function CreateExpenseModal({
       return;
     }
 
+    const validSplits = isSplit
+      ? splits.filter((s) => {
+          const p = parseFloat(s.amount);
+          return !isNaN(p) && p > 0;
+        })
+      : [];
+
+    if (isSplit) {
+      const totalSplit = validSplits.reduce((acc, s) => acc + parseFloat(s.amount), 0);
+      if (validSplits.length === 0 || Math.abs(totalSplit - Number(amount)) > 0.01) {
+        setError(
+          `Split payment total (₹${totalSplit.toFixed(2)}) must exactly match the expense amount (₹${Number(amount).toFixed(2)})`,
+        );
+        return;
+      }
+    }
+
     setSubmitting(true);
     setError('');
 
@@ -45,10 +67,22 @@ export function CreateExpenseModal({
         body: JSON.stringify({
           category,
           amount: Number(amount),
-          paymentMode,
+          paymentMode: isSplit
+            ? validSplits.length > 1
+              ? 'SPLIT'
+              : validSplits[0]?.mode || paymentMode
+            : paymentMode,
           paidTo: paidTo.trim() || undefined,
           notes: notes.trim() || undefined,
           expenseDate: new Date(expenseDate).toISOString(),
+          splits: isSplit
+            ? validSplits.map((s) => ({
+                mode: s.mode,
+                amount: parseFloat(s.amount),
+                upiUtr: s.upiUtr?.trim() || undefined,
+                notes: s.notes?.trim() || undefined,
+              }))
+            : undefined,
         }),
       });
 
@@ -117,35 +151,58 @@ export function CreateExpenseModal({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-foreground mb-1">
-                Payment Mode
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1">
+              Date *
+            </label>
+            <input
+              type="date"
+              required
+              value={expenseDate}
+              onChange={(e) => setExpenseDate(e.target.value)}
+              className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs font-semibold text-foreground">
+                Payment Mode *
               </label>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isSplit) {
+                    setSplits([
+                      { mode: paymentMode, amount: amount ? String(amount) : '' },
+                    ]);
+                  }
+                  setIsSplit(!isSplit);
+                }}
+                className="text-[0.6875rem] text-primary hover:underline font-semibold"
+              >
+                {isSplit ? '← Single Mode' : '⇄ Split Payment Modes'}
+              </button>
+            </div>
+
+            {isSplit ? (
+              <MultiPaymentSplitSelector
+                totalAmount={Number(amount) || 0}
+                splits={splits}
+                onChange={setSplits}
+                allowCredit={false}
+              />
+            ) : (
               <select
                 value={paymentMode}
-                onChange={(e) => setPaymentMode(e.target.value)}
+                onChange={(e) => setPaymentMode(e.target.value as PaymentMethodType)}
                 className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               >
                 <option value="CASH">Cash Drawer</option>
                 <option value="UPI">UPI / Online</option>
-                <option value="CHEQUE">Cheque</option>
-                <option value="NEFT">Bank Transfer</option>
+                <option value="BANK_TRANSFER">Bank Transfer / NEFT</option>
               </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-foreground mb-1">
-                Date
-              </label>
-              <input
-                type="date"
-                required
-                value={expenseDate}
-                onChange={(e) => setExpenseDate(e.target.value)}
-                className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            </div>
+            )}
           </div>
 
           <div>

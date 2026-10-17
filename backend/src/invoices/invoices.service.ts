@@ -278,30 +278,71 @@ export class InvoicesService {
       }
 
       // 3. Calculate upfront payment and credit balance
-      // If amountPaidNow is explicitly provided, use it (bounded between 0 and totalAmount)
-      // Otherwise: if CASH or UPI, full amount is paid upfront; if CREDIT, 0 paid upfront
-      let upfrontAmount = 0;
-      if (data.amountPaidNow !== undefined && data.amountPaidNow !== null) {
-        upfrontAmount = Math.max(
-          0,
-          Math.min(Number(data.amountPaidNow), totalAmount),
-        );
-      } else {
-        if (
-          data.paymentMode === PaymentMode.CASH ||
-          data.paymentMode === PaymentMode.UPI
-        ) {
-          upfrontAmount = totalAmount;
-        } else {
-          upfrontAmount = 0;
-        }
+      // Support both multi-payment splits array and legacy single payment fields
+      let paymentSplits: Array<{
+        mode: PaymentMode;
+        amount: number;
+        upiTxnRef?: string;
+        upiUtr?: string;
+        notes?: string;
+      }> = [];
+
+      if (data.payments && data.payments.length > 0) {
+        paymentSplits = data.payments
+          .filter((p) => Number(p.amount) > 0)
+          .map((p) => ({
+            mode: p.mode,
+            amount: Number(p.amount),
+            upiTxnRef: p.upiTxnRef,
+            upiUtr: p.upiUtr,
+            notes: p.notes,
+          }));
+      } else if (
+        data.amountPaidNow !== undefined &&
+        data.amountPaidNow !== null &&
+        Number(data.amountPaidNow) > 0 &&
+        data.paymentMode !== PaymentMode.CREDIT
+      ) {
+        const actualMode = data.paymentMode || PaymentMode.CASH;
+        paymentSplits = [
+          {
+            mode: actualMode,
+            amount: Number(data.amountPaidNow),
+          },
+        ];
+      } else if (
+        data.paymentMode === PaymentMode.CASH ||
+        data.paymentMode === PaymentMode.UPI
+      ) {
+        paymentSplits = [
+          {
+            mode: data.paymentMode,
+            amount: totalAmount,
+          },
+        ];
       }
-      // Round to 2 decimal places
+
+      const rawUpfrontAmount = paymentSplits.reduce(
+        (sum, p) => sum + Number(p.amount),
+        0,
+      );
+      // Cap upfront payment to totalAmount
+      let upfrontAmount = Math.max(0, Math.min(rawUpfrontAmount, totalAmount));
       upfrontAmount = Math.round(upfrontAmount * 100) / 100;
+
       const balanceCredit = Math.max(
         0,
         Math.round((totalAmount - upfrontAmount) * 100) / 100,
       );
+
+      let effectiveInvoicePaymentMode: PaymentMode;
+      if (paymentSplits.length === 0) {
+        effectiveInvoicePaymentMode = PaymentMode.CREDIT;
+      } else if (paymentSplits.length === 1) {
+        effectiveInvoicePaymentMode = paymentSplits[0].mode;
+      } else {
+        effectiveInvoicePaymentMode = PaymentMode.SPLIT;
+      }
 
       let initialStatus: InvoiceStatus;
       if (balanceCredit === 0 && upfrontAmount > 0) {
@@ -334,7 +375,7 @@ export class InvoicesService {
           invoiceNo,
           partyId: party.id,
           salesmanId,
-          paymentMode: data.paymentMode,
+          paymentMode: effectiveInvoicePaymentMode,
           status: initialStatus,
           notes: data.notes,
           quotationId: data.quotationId || null,
@@ -367,22 +408,23 @@ export class InvoicesService {
         });
       }
 
-      // 4. If any amount was paid upfront (Cash, UPI, etc.), record a confirmed payment immediately
-      if (upfrontAmount > 0) {
-        const actualMode =
-          data.paymentMode === PaymentMode.CREDIT
-            ? PaymentMode.CASH
-            : data.paymentMode || PaymentMode.UPI;
+      // 4. If any amount was paid upfront (Cash, UPI, Bank Transfer, etc.), record confirmed payments immediately
+      for (const split of paymentSplits) {
+        if (split.amount <= 0) continue;
         await tx.payment.create({
           data: {
             invoiceId: invoice.id,
             partyId: party.id,
-            mode: actualMode,
-            amount: new Prisma.Decimal(upfrontAmount.toFixed(2)),
+            mode: split.mode,
+            amount: new Prisma.Decimal(split.amount.toFixed(2)),
             status: PaymentStatus.CONFIRMED,
             paidAt: new Date(),
             confirmedById: salesmanId,
-            notes: `Upfront payment of ₹${upfrontAmount.toFixed(2)} on invoice creation`,
+            upiTxnRef: split.upiTxnRef,
+            upiUtr: split.upiUtr,
+            notes:
+              split.notes ||
+              `Upfront ${split.mode} payment of ₹${split.amount.toFixed(2)} for ${invoiceNo}`,
           },
         });
       }
@@ -488,6 +530,16 @@ export class InvoicesService {
           createdAt: true,
         },
         orderBy: { createdAt: 'desc' as const },
+      },
+      payments: {
+        select: {
+          id: true,
+          mode: true,
+          amount: true,
+          status: true,
+          paidAt: true,
+          upiUtr: true,
+        },
       },
     };
 
@@ -705,7 +757,7 @@ export class InvoicesService {
     const itemsList = invoice.items
       .map(
         (i) =>
-          `• ${i.product?.name || 'Item'} (${i.qty} ${i.product?.unit || 'unit'}) [WH: ${i.warehouse?.name || 'Standard'}]`,
+          `• ${i.product?.name || 'Item'} (${Number(i.qty)} ${i.product?.unit || 'unit'}) [WH: ${i.warehouse?.name || 'Standard'}]`,
       )
       .join('\n');
     const driverMessage = `Delivery for Invoice #${invoice.invoiceNo}\nCustomer: ${customerName} (${customerPhone})\nAddress: ${invoice.party.address || 'Counter Pickup'}\nItems:\n${itemsList}`;
@@ -760,7 +812,8 @@ export class InvoicesService {
       for (const rItem of refund.items) {
         if (rItem.productId) {
           const key = `${rItem.productId}_${rItem.batchNo || ''}`;
-          itemReturnStats[key] = (itemReturnStats[key] || 0) + rItem.qty;
+          itemReturnStats[key] =
+            (itemReturnStats[key] || 0) + Number(rItem.qty);
         }
       }
     }
@@ -768,7 +821,7 @@ export class InvoicesService {
     const itemsWithReturnStats = invoice.items.map((item) => {
       const key = `${item.productId}_${item.batchNo || ''}`;
       const returnedQty = itemReturnStats[key] || 0;
-      const remainingReturnable = Math.max(0, item.qty - returnedQty);
+      const remainingReturnable = Math.max(0, Number(item.qty) - returnedQty);
       return {
         ...item,
         returnedQty,
@@ -835,7 +888,7 @@ export class InvoicesService {
         for (const pItem of prevRefund.items) {
           const pKey = `${pItem.productId}_${pItem.batchNo || ''}`;
           previouslyReturnedByProduct[pKey] =
-            (previouslyReturnedByProduct[pKey] || 0) + pItem.qty;
+            (previouslyReturnedByProduct[pKey] || 0) + Number(pItem.qty);
         }
       }
 
@@ -853,10 +906,10 @@ export class InvoicesService {
           );
         }
         const prevReturned = previouslyReturnedByProduct[key] || 0;
-        const availableToReturn = purchasedItem.qty - prevReturned;
+        const availableToReturn = Number(purchasedItem.qty) - prevReturned;
         if (retItem.qty > availableToReturn) {
           throw new BadRequestException(
-            `Cannot return ${retItem.qty} units of "${purchasedItem.product?.name || 'Item'}". Already returned: ${prevReturned}, purchased: ${purchasedItem.qty}, max returnable: ${availableToReturn}.`,
+            `Cannot return ${retItem.qty} units of "${purchasedItem.product?.name || 'Item'}". Already returned: ${prevReturned}, purchased: ${Number(purchasedItem.qty)}, max returnable: ${availableToReturn}.`,
           );
         }
       }

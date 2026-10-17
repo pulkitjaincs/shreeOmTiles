@@ -9,6 +9,7 @@ import { InvoicesService } from '../invoices/invoices.service';
 import { Prisma, QuotationStatus, PaymentMode } from '@prisma/client';
 import { PaginationParams } from '../common/interfaces/pagination.interface';
 import { generateQuotationPdf } from './pdf/quotation-pdf.generator';
+import { PaymentSplitDto } from '../common/dto/payment-split.dto';
 
 @Injectable()
 export class QuotationsService {
@@ -178,6 +179,7 @@ export class QuotationsService {
     salesmanId: string,
     paymentMode?: PaymentMode,
     amountPaidNow?: number,
+    payments?: PaymentSplitDto[],
   ) {
     const quotation = await this.findOne(id);
 
@@ -243,6 +245,7 @@ export class QuotationsService {
       quotationId: quotation.id,
       paymentMode: effectivePaymentMode,
       amountPaidNow: amountPaidNow !== undefined ? amountPaidNow : 0,
+      payments: payments && payments.length > 0 ? payments : undefined,
       taxRate: Number(quotation.taxRate),
       transportCost: Number(quotation.transportCost),
       transportGstRate: Number(quotation.transportGstRate),

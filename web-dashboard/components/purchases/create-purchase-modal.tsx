@@ -15,6 +15,7 @@ import {
   Loader2 
 } from 'lucide-react';
 import { Product, Warehouse, Party } from '@/components/invoices/types';
+import { MultiPaymentSplitSelector, SplitRow } from '@/components/shared/multi-payment-split-selector';
 
 interface PurchaseLineItem {
   productId: string;
@@ -50,8 +51,7 @@ export function CreatePurchaseModal({
   const [newSupplierAddress, setNewSupplierAddress] = useState('');
   const [newSupplierGstin, setNewSupplierGstin] = useState('');
 
-  const [paymentMode, setPaymentMode] = useState('CREDIT');
-  const [amountPaidNow, setAmountPaidNow] = useState<number | ''>(0);
+  const [paymentSplits, setPaymentSplits] = useState<SplitRow[]>([]);
   const [taxRate, setTaxRate] = useState<number | ''>(0);
   const [transportCost, setTransportCost] = useState<number | ''>(0);
   const [notes, setNotes] = useState('');
@@ -105,7 +105,18 @@ export function CreatePurchaseModal({
   const taxAmount = (subtotal * numTaxRate) / 100;
   const numTransport = transportCost === '' ? 0 : Number(transportCost);
   const grandTotal = subtotal + taxAmount + numTransport;
-  const numPaidNow = amountPaidNow === '' ? 0 : Number(amountPaidNow);
+
+  const validSplits = paymentSplits.filter((s) => {
+    const p = parseFloat(s.amount);
+    return !isNaN(p) && p > 0;
+  });
+  const numPaidNow = validSplits.reduce((acc, s) => acc + parseFloat(s.amount), 0);
+  const resolvedPaymentMode =
+    validSplits.length > 1
+      ? 'SPLIT'
+      : validSplits.length === 1
+      ? validSplits[0].mode
+      : 'CREDIT';
   const balanceDue = Math.max(0, grandTotal - numPaidNow);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -147,8 +158,14 @@ export function CreatePurchaseModal({
     try {
       const payload: Record<string, unknown> = {
         vendorBillNo: vendorBillNo.trim() || undefined,
-        paymentMode,
+        paymentMode: resolvedPaymentMode,
         amountPaidNow: numPaidNow,
+        payments: validSplits.map((s) => ({
+          mode: s.mode,
+          amount: parseFloat(s.amount),
+          upiUtr: s.upiUtr?.trim() || undefined,
+          notes: s.notes?.trim() || undefined,
+        })),
         taxRate: numTaxRate,
         transportCost: numTransport,
         notes: notes.trim() || undefined,
@@ -408,42 +425,19 @@ export function CreatePurchaseModal({
             </div>
           </div>
 
-          {/* Payment & Additional Costs */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-foreground mb-1">
-                Payment Mode
-              </label>
-              <ThemedSelect
-                value={paymentMode}
-                onChange={(v) => setPaymentMode(v)}
-                options={[
-                  { value: 'CREDIT', label: 'Credit (Pay Later)' },
-                  { value: 'CASH', label: 'Cash' },
-                  { value: 'UPI', label: 'UPI / Online' },
-                  { value: 'CHEQUE', label: 'Cheque' },
-                  { value: 'NEFT', label: 'NEFT / RTGS / Bank' },
-                ]}
-              />
-            </div>
+          {/* Payment Breakdown */}
+          <div className="space-y-1">
+            <MultiPaymentSplitSelector
+              totalAmount={grandTotal}
+              splits={paymentSplits}
+              onChange={setPaymentSplits}
+              allowCredit={true}
+              creditLabel="Balance Due to Vendor (Payable Credit)"
+            />
+          </div>
 
-            <div>
-              <label className="block text-xs font-medium text-foreground mb-1">
-                Amount Paid Now (₹)
-              </label>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                value={amountPaidNow}
-                onChange={(e) =>
-                  setAmountPaidNow(e.target.value === '' ? '' : Number(e.target.value))
-                }
-                className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            </div>
-
+          {/* Additional Costs & Notes */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-semibold text-foreground">
@@ -482,7 +476,7 @@ export function CreatePurchaseModal({
               />
             </div>
 
-            <div className="sm:col-span-4">
+            <div className="sm:col-span-2">
               <label className="block text-xs font-medium text-foreground mb-1">Notes</label>
               <input
                 type="text"
@@ -518,7 +512,7 @@ export function CreatePurchaseModal({
             </div>
             {numPaidNow > 0 && (
               <div className="flex justify-between text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-                <span>Amount Paid Now ({paymentMode}):</span>
+                <span>Amount Paid Now ({resolvedPaymentMode}):</span>
                 <span>₹{numPaidNow.toFixed(2)}</span>
               </div>
             )}

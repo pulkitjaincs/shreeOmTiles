@@ -1,4 +1,6 @@
+import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsBoolean,
   IsEnum,
   IsNotEmpty,
@@ -6,8 +8,10 @@ import {
   IsOptional,
   IsString,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import { PaymentMode, CreditType, PaymentType } from '@prisma/client';
+import { PaymentSplitDto } from '../../common/dto/payment-split.dto';
 
 export class CreatePaymentDto {
   @IsString()
@@ -19,8 +23,8 @@ export class CreatePaymentDto {
   partyId?: string;
 
   @IsEnum(PaymentMode)
-  @IsNotEmpty()
-  mode: PaymentMode;
+  @IsOptional()
+  mode?: PaymentMode;
 
   @IsEnum(PaymentType)
   @IsOptional()
@@ -28,7 +32,14 @@ export class CreatePaymentDto {
 
   @IsNumber()
   @Min(0.01)
-  amount: number;
+  @IsOptional()
+  amount?: number;
+
+  @IsArray()
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => PaymentSplitDto)
+  splits?: PaymentSplitDto[];
 
   @IsString()
   @IsOptional()

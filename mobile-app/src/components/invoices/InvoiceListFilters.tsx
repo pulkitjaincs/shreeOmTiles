@@ -76,7 +76,7 @@ export function InvoiceListFilters({
             { label: 'UPI QR', value: 'UPI', icon: 'qr-code-outline', color: '#38BDF8' },
             { label: 'Cash', value: 'CASH', icon: 'cash-outline', color: '#10B981' },
             { label: 'Credit', value: 'CREDIT', icon: 'card-outline', color: '#EF4444' },
-            { label: 'Cheque', value: 'CHEQUE', icon: 'document-text-outline', color: '#F59E0B' },
+            { label: 'Split (Multi)', value: 'SPLIT', icon: 'git-merge-outline', color: '#A78BFA' },
           ]}
           onSelect={onPaymentModeChange}
           icon="wallet-outline"

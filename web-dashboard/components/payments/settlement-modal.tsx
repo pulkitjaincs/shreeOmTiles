@@ -7,13 +7,13 @@ import {
   Banknote,
   ArrowUpRight,
   Plus,
-  QrCode,
   X,
   Loader2,
   UserPlus,
 } from 'lucide-react';
 import { ThemedSelect } from '@/components/ui/themed-select';
 import { Party, UpiPreviewData, UpiAccount } from './types';
+import { MultiPaymentSplitSelector, SplitRow, PaymentMethodType } from '@/components/shared/multi-payment-split-selector';
 
 interface SettlementModalProps {
   isOpen: boolean;
@@ -26,7 +26,7 @@ interface SettlementModalProps {
   initialInvoiceId?: string;
   initialAmount?: string;
   initialNotes?: string;
-  initialMode?: 'UPI' | 'CASH';
+  initialMode?: PaymentMethodType;
 }
 
 export function SettlementModal({
@@ -46,9 +46,9 @@ export function SettlementModal({
   const [selectedPartyId, setSelectedPartyId] = useState(initialPartyId || parties[0]?.id || '');
   const [selectedInvoiceId, setSelectedInvoiceId] = useState(initialInvoiceId || '');
   const [collectAmount, setCollectAmount] = useState(initialAmount || '');
-  const [collectMode, setCollectMode] = useState<'UPI' | 'CASH'>(
-    initialMode || (initialDirection === 'PAY' ? 'CASH' : 'UPI'),
-  );
+  const [splits, setSplits] = useState<SplitRow[]>([
+    { mode: initialMode || (initialDirection === 'PAY' ? 'CASH' : 'UPI'), amount: initialAmount || '' },
+  ]);
   const [collectUtr, setCollectUtr] = useState('');
   const [collectNotes, setCollectNotes] = useState(initialNotes || '');
   const [collectSubmitting, setCollectSubmitting] = useState(false);
@@ -56,7 +56,6 @@ export function SettlementModal({
 
   // Refs to prevent dependency loop glitches and state overwrites
   const prevOpenRef = useRef(false);
-  const currentModeRef = useRef<'UPI' | 'CASH'>(initialMode || (initialDirection === 'PAY' ? 'CASH' : 'UPI'));
   const selectedUpiAccountRef = useRef<UpiAccount | null>(null);
 
   // Dynamic UPI Preview State
@@ -76,7 +75,7 @@ export function SettlementModal({
 
   const generateUpiQr = useCallback(
     async (amountNum: number, note?: string, account?: UpiAccount | null) => {
-      if (isNaN(amountNum) || amountNum <= 0 || currentModeRef.current !== 'UPI') {
+      if (isNaN(amountNum) || amountNum <= 0) {
         setUpiPreview(null);
         return;
       }
@@ -92,10 +91,7 @@ export function SettlementModal({
             merchantName: target?.merchantName,
           }),
         });
-        // Only set preview if user is still in UPI mode
-        if (currentModeRef.current === 'UPI') {
-          setUpiPreview(data);
-        }
+        setUpiPreview(data);
       } catch (err) {
         console.error('Failed to generate UPI QR:', err);
       } finally {
@@ -114,8 +110,7 @@ export function SettlementModal({
       setCollectAmount(initialAmount || '');
 
       const resolvedMode = initialMode || (initialDirection === 'PAY' ? 'CASH' : 'UPI');
-      setCollectMode(resolvedMode);
-      currentModeRef.current = resolvedMode;
+      setSplits([{ mode: resolvedMode, amount: initialAmount || '' }]);
 
       setCollectUtr('');
       setCollectNotes(initialNotes || '');
@@ -151,8 +146,6 @@ export function SettlementModal({
       void fetchUpiAccounts();
     } else if (!isOpen) {
       prevOpenRef.current = false;
-      setUpiPreview(null);
-      setUpiLoading(false);
     }
   }, [
     isOpen,
@@ -168,28 +161,16 @@ export function SettlementModal({
 
   if (!isOpen) return null;
 
-  const handleModeChange = (newMode: 'UPI' | 'CASH') => {
-    setCollectMode(newMode);
-    currentModeRef.current = newMode;
-    if (newMode === 'CASH') {
-      setUpiPreview(null);
-      setUpiLoading(false);
-      setCollectUtr('');
-    } else {
-      const num = parseFloat(collectAmount);
-      if (!isNaN(num) && num > 0 && modalDirection === 'COLLECT') {
-        void generateUpiQr(num, collectNotes, selectedUpiAccountRef.current);
-      }
-    }
-  };
-
   const handleCollectAmountChange = (val: string) => {
     setCollectAmount(val);
     const num = parseFloat(val);
-    if (!isNaN(num) && num > 0 && currentModeRef.current === 'UPI' && modalDirection === 'COLLECT') {
-      void generateUpiQr(num, collectNotes, selectedUpiAccountRef.current);
-    } else {
-      setUpiPreview(null);
+    if (splits.length === 1) {
+      setSplits([{ ...splits[0], amount: val }]);
+      if (splits[0].mode === 'UPI' && !isNaN(num) && num > 0 && modalDirection === 'COLLECT') {
+        void generateUpiQr(num, collectNotes, selectedUpiAccountRef.current);
+      } else {
+        setUpiPreview(null);
+      }
     }
   };
 
@@ -232,8 +213,12 @@ export function SettlementModal({
 
   const handleSubmitCollectPayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    const amtNum = parseFloat(collectAmount);
-    if (isNaN(amtNum) || amtNum <= 0) {
+    const validSplits = splits.filter((s) => {
+      const a = parseFloat(s.amount);
+      return !isNaN(a) && a > 0;
+    });
+    const totalAmount = validSplits.reduce((acc, s) => acc + parseFloat(s.amount), 0);
+    if (totalAmount <= 0) {
       setCollectError('Please enter a valid amount greater than ₹0');
       return;
     }
@@ -248,20 +233,28 @@ export function SettlementModal({
       const targetParty = parties.find((p) => p.id === selectedPartyId);
       const defaultNote =
         modalDirection === 'PAY'
-          ? `Payment of ₹${amtNum.toFixed(2)} made to ${targetParty?.name || 'Party'}`
-          : `Payment of ₹${amtNum.toFixed(2)} received from ${targetParty?.name || 'Customer'}`;
+          ? `Payment of ₹${totalAmount.toFixed(2)} made to ${targetParty?.name || 'Party'}`
+          : `Payment of ₹${totalAmount.toFixed(2)} received from ${targetParty?.name || 'Customer'}`;
+
+      const primaryUtr = validSplits.find((s) => s.mode === 'UPI' && s.upiUtr)?.upiUtr || collectUtr.trim() || undefined;
 
       await apiRequest('/payments', {
         method: 'POST',
         body: JSON.stringify({
           invoiceId: selectedInvoiceId || undefined,
           partyId: selectedPartyId || undefined,
-          amount: amtNum,
+          amount: totalAmount,
           type: modalDirection === 'PAY' ? 'OUTFLOW' : 'INFLOW',
-          mode: modalDirection === 'PAY' ? 'CASH' : collectMode,
-          upiUtr: modalDirection === 'PAY' ? undefined : (collectUtr.trim() || undefined),
+          mode: validSplits.length > 1 ? 'SPLIT' : validSplits[0]?.mode,
+          upiUtr: primaryUtr,
           notes: collectNotes.trim() || defaultNote,
           autoConfirm: true,
+          splits: validSplits.map((s) => ({
+            mode: s.mode,
+            amount: parseFloat(s.amount),
+            upiUtr: s.upiUtr?.trim() || (s.mode === 'UPI' ? collectUtr.trim() || undefined : undefined),
+            notes: s.notes?.trim() || undefined,
+          })),
         }),
       });
 
@@ -450,47 +443,28 @@ export function SettlementModal({
               </span>
             </div>
 
-            {/* Collection Mode Selector (Only needed when collecting funds from customer) */}
-            {modalDirection === 'COLLECT' && (
-              <div>
-                <label className="block text-xs font-medium text-foreground mb-1.5">
-                  Collection Mode *
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => handleModeChange('UPI')}
-                    className={`p-3 rounded-[0.75rem] border flex items-center justify-center gap-2 text-xs font-bold transition-all active:scale-98 ${
-                      collectMode === 'UPI'
-                        ? 'border-primary bg-primary/10 text-primary shadow-xs'
-                        : 'border-border/60 bg-muted/40 text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    <QrCode className="h-4 w-4" />
-                    UPI (Dynamic QR)
-                  </button>
+            {/* Multi-Payment Split Selector */}
+            <MultiPaymentSplitSelector
+              totalAmount={parseFloat(collectAmount) || 0}
+              splits={splits}
+              onChange={(newSplits) => {
+                setSplits(newSplits);
+                const upiRow = newSplits.find((s) => s.mode === 'UPI');
+                const upiVal = upiRow ? parseFloat(upiRow.amount) : 0;
+                if (!isNaN(upiVal) && upiVal > 0 && modalDirection === 'COLLECT') {
+                  void generateUpiQr(upiVal, collectNotes, selectedUpiAccountRef.current);
+                } else {
+                  setUpiPreview(null);
+                }
+              }}
+              allowCredit={false}
+              onPreviewUpi={(amt) => void generateUpiQr(amt, collectNotes, selectedUpiAccountRef.current)}
+              previewUpiLoading={upiLoading}
+            />
 
-                  <button
-                    type="button"
-                    onClick={() => handleModeChange('CASH')}
-                    className={`p-3 rounded-[0.75rem] border flex items-center justify-center gap-2 text-xs font-bold transition-all active:scale-98 ${
-                      collectMode === 'CASH'
-                        ? 'border-emerald-500 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 shadow-xs'
-                        : 'border-border/60 bg-muted/40 text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    <Banknote className="h-4 w-4" />
-                    Cash in Hand
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* MODES DETAILS */}
-            {modalDirection === 'COLLECT' && (
-              collectMode === 'UPI' ? (
+            {/* UPI QR Display if COLLECT and UPI mode is in splits */}
+            {modalDirection === 'COLLECT' && splits.some((s) => s.mode === 'UPI') && (
               <div className="p-4 rounded-[0.875rem] border border-primary/20 bg-muted/30 text-center space-y-3">
-                {/* ON-THE-SPOT UPI SELECTOR */}
                 {upiAccounts.length > 0 && (
                   <div className="space-y-1.5 text-left mb-2">
                     <div className="flex items-center justify-between">
@@ -507,7 +481,8 @@ export function SettlementModal({
                         const acc = upiAccounts.find((a) => a.id === val) || null;
                         setSelectedUpiAccount(acc);
                         selectedUpiAccountRef.current = acc;
-                        const num = parseFloat(collectAmount);
+                        const upiRow = splits.find((s) => s.mode === 'UPI');
+                        const num = upiRow ? parseFloat(upiRow.amount) : 0;
                         if (!isNaN(num) && num > 0) {
                           void generateUpiQr(num, collectNotes, acc);
                         }
@@ -544,7 +519,7 @@ export function SettlementModal({
                       />
                     </div>
                     <div className="mt-2 text-xs text-foreground font-semibold">
-                      Amount Pre-filled:{' '}
+                      UPI Split Amount:{' '}
                       <span className="text-emerald-600 dark:text-emerald-400 font-bold font-mono">
                         ₹{upiPreview.amount.toFixed(2)}
                       </span>
@@ -561,7 +536,7 @@ export function SettlementModal({
                   </div>
                 ) : (
                   <div className="py-6 text-xs text-muted-foreground">
-                    Enter an amount above to generate the live QR code
+                    Enter an amount for the UPI split row above to generate the live QR code
                   </div>
                 )}
 
@@ -575,30 +550,7 @@ export function SettlementModal({
                   />
                 </div>
               </div>
-            ) : (
-              <div className="p-4 rounded-[0.875rem] border border-emerald-500/25 bg-emerald-500/10 space-y-3">
-                <div className="flex items-center gap-2 text-xs text-emerald-800 dark:text-emerald-300 font-bold">
-                  <Banknote className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-                  Cash In Hand Collection
-                </div>
-                <p className="text-[0.6875rem] text-muted-foreground leading-relaxed">
-                  Collect physical cash directly from customer and record the inflow into store register drawer.
-                </p>
-                <div className="p-3 rounded-[0.75rem] bg-background/80 border border-emerald-500/20 flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground font-medium">Exact Cash Received:</span>
-                  <span className="text-base font-bold font-mono text-emerald-600 dark:text-emerald-400">
-                    ₹{parseFloat(collectAmount || '0').toFixed(2)}
-                  </span>
-                </div>
-                <input
-                  type="text"
-                  placeholder="Cash receipt number / Drawer note (optional)"
-                  className="w-full rounded-[0.625rem] border border-input bg-background px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring font-mono"
-                  value={collectUtr}
-                  onChange={(e) => setCollectUtr(e.target.value)}
-                />
-              </div>
-            ))}
+            )}
 
             {/* Optional Notes */}
             <div>
@@ -644,7 +596,7 @@ export function SettlementModal({
                       Disbursing...
                     </span>
                   ) : (
-                    `Confirm Payment Made (Outflow) ₹${parseFloat(collectAmount || '0').toFixed(2)}`
+                    `Confirm Payment Made (Outflow) ₹${splits.reduce((acc, s) => acc + (parseFloat(s.amount) || 0), 0).toFixed(2)}`
                   )}
                 </Button>
               ) : (
@@ -659,10 +611,8 @@ export function SettlementModal({
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                       Settling...
                     </span>
-                  ) : collectMode === 'CASH' ? (
-                    `Confirm Cash Received & Settle ₹${parseFloat(collectAmount || '0').toFixed(2)}`
                   ) : (
-                    `Confirm UPI Received & Settle ₹${parseFloat(collectAmount || '0').toFixed(2)}`
+                    `Confirm Settlement Received ₹${splits.reduce((acc, s) => acc + (parseFloat(s.amount) || 0), 0).toFixed(2)}`
                   )}
                 </Button>
               )}

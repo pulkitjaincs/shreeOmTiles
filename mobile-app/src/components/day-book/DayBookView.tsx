@@ -9,7 +9,7 @@ import {
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Colors } from '@/constants/theme';
-import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
+import { cachedMobileApiRequest } from '@/lib/api';
 import { formatINR, formatDate } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
 

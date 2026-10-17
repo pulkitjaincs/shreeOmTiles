@@ -407,7 +407,7 @@ export async function generateInvoicePdf(
   let sNo = 1;
 
   for (const item of invoice.items || []) {
-    totalQty += item.qty;
+    totalQty += Number(item.qty);
     const itemTotal = Number(item.total);
     const itemPrice = Number(item.unitPrice);
 
@@ -578,7 +578,19 @@ export async function generateInvoicePdf(
     font: fontRegular,
     color: darkGray,
   });
-  page.drawText(safePdfText(invoice.paymentMode || 'Credit'), {
+  let paymentModeDisplay = invoice.paymentMode || 'Credit';
+  if (Array.isArray(invoice.payments) && invoice.payments.length > 1) {
+    const parts = (
+      invoice.payments as unknown as Array<{ mode: string; amount: unknown }>
+    )
+      .filter((p) => Number(p.amount) > 0)
+      .map(
+        (p) =>
+          `${p.mode}: ₹${Math.round(Number(p.amount)).toLocaleString('en-IN')}`,
+      );
+    paymentModeDisplay = `Split (${parts.join(', ')})`;
+  }
+  page.drawText(safePdfText(paymentModeDisplay), {
     x: wordsLeftX,
     y: currentY - 74,
     size: 8.5,

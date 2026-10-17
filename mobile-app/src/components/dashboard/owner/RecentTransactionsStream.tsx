@@ -23,7 +23,7 @@ export function RecentTransactionsStream({
             <View style={styles.liveDot} />
             <Text style={styles.title}>Recent Confirmed Transactions</Text>
           </View>
-          <Text style={styles.sub}>Verified physical cash & digital UPI credits</Text>
+          <Text style={styles.sub}>Verified physical cash, bank transfers & digital UPI credits</Text>
         </View>
         {onViewLedger ? (
           <TouchableOpacity onPress={onViewLedger}>
@@ -58,6 +58,8 @@ export function RecentTransactionsStream({
                         ? 'arrow-up-circle-outline'
                         : tx.mode === 'UPI'
                         ? 'qr-code-outline'
+                        : tx.mode === 'BANK_TRANSFER' || tx.mode === 'BANK'
+                        ? 'business-outline'
                         : 'cash-outline'
                     }
                     size={17}
@@ -83,7 +85,7 @@ export function RecentTransactionsStream({
                     {isOutflow ? (
                       <View style={[styles.sourceBadge, styles.badgeAmber]}>
                         <Text style={[styles.sourceText, { color: '#FCD34D' }]} numberOfLines={1}>
-                          Store Paid Out ({tx.mode})
+                          Store Paid Out ({tx.mode === 'BANK_TRANSFER' ? 'Bank' : tx.mode})
                         </Text>
                       </View>
                     ) : isDriverHandover ? (
@@ -96,6 +98,12 @@ export function RecentTransactionsStream({
                     ) : isCash ? (
                       <View style={[styles.sourceBadge, styles.badgeMuted]}>
                         <Text style={styles.sourceText} numberOfLines={1}>Counter Cash</Text>
+                      </View>
+                    ) : tx.mode === 'BANK_TRANSFER' || tx.mode === 'BANK' ? (
+                      <View style={[styles.sourceBadge, { backgroundColor: 'rgba(99, 102, 241, 0.15)', borderColor: 'rgba(99, 102, 241, 0.3)' }]}>
+                        <Text style={[styles.sourceText, { color: '#818CF8' }]} numberOfLines={1}>
+                          Bank Transfer Inflow
+                        </Text>
                       </View>
                     ) : (
                       <View style={[styles.sourceBadge, styles.badgeSky]}>

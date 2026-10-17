@@ -22,15 +22,20 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('theme') as Theme | null;
-      if (stored === 'light' || stored === 'dark' || stored === 'system') {
-        setThemeState(stored);
+    const timer = setTimeout(() => {
+      try {
+        const stored = localStorage.getItem('theme') as Theme | null;
+        if (stored === 'light' || stored === 'dark' || stored === 'system') {
+          setThemeState(stored);
+        }
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
-    }
-    setMounted(true);
+      setMounted(true);
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {

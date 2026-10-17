@@ -14,6 +14,14 @@ export const API_BASE =
       });
 
 export const CACHE_PREFIX = 'dhra_mobile_cache:';
+
+// Default network timeout. Heavy list endpoints can pass a larger `timeoutMs`.
+const DEFAULT_REQUEST_TIMEOUT_MS = 15000;
+
+// Android's AsyncStorage (SQLite) cannot read a single row larger than ~2MB back
+// ("Row too big to fit into CursorWindow") and the whole DB is capped at ~6MB.
+// Anything bigger than this is kept in memory by the screen only, never persisted.
+const MAX_PERSISTED_CACHE_CHARS = 1_500_000;
 let memToken: string | null = null;
 let memUser: AuthUser | null = null;
 
@@ -162,9 +170,24 @@ export function setOnUnauthorizedHandler(handler: UnauthorizedHandler | null) {
 
 export async function mobileApiRequest<T = any>(
   endpoint: string,
-  options: RequestInit = {},
+  options: RequestInit & { timeoutMs?: number } = {},
 ): Promise<T> {
-  const { ttlMs: _ttl, forceRefresh: _force, onRevalidate: _onRev, headers: optHeaders, ...restOptions } = options as any;
+  const {
+    ttlMs: _ttl,
+    forceRefresh: _force,
+    onRevalidate: _onRev,
+    timeoutMs,
+    headers: optHeaders,
+    ...restOptions
+  } = options as any;
+
+  const requestTimeoutMs =
+    typeof timeoutMs === 'number' && timeoutMs > 0 ? timeoutMs : DEFAULT_REQUEST_TIMEOUT_MS;
+  const requestMethod = String(restOptions.method || 'GET').toUpperCase();
+  // Only reads are safe to replay. Retrying a POST/PATCH/DELETE after a timeout can
+  // apply it twice on the server (duplicate customers, duplicate payments, ...).
+  const isIdempotent = requestMethod === 'GET' || requestMethod === 'HEAD';
+  const maxAttempts = isIdempotent ? 3 : 1;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -179,17 +202,50 @@ export async function mobileApiRequest<T = any>(
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const url = `${API_BASE}${cleanEndpoint}`;
 
+  const callerSignal = (restOptions as any)?.signal as AbortSignal | undefined;
+  if (callerSignal?.aborted) {
+    const abortErr = new Error('Aborted');
+    abortErr.name = 'AbortError';
+    throw abortErr;
+  }
+
   let res: Response;
   for (let attempt = 0; ; attempt += 1) {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 15000);
+    const timer = setTimeout(() => controller.abort(), requestTimeoutMs);
+    const onCallerAbort = () => {
+      try {
+        controller.abort();
+      } catch {
+        // ignore
+      }
+    };
+    if (callerSignal) {
+      callerSignal.addEventListener('abort', onCallerAbort, { once: true });
+    }
+
     try {
       res = await fetch(url, { ...restOptions, headers, signal: controller.signal });
       clearTimeout(timer);
+      if (callerSignal) {
+        callerSignal.removeEventListener('abort', onCallerAbort);
+      }
       break;
-    } catch (error) {
+    } catch (error: any) {
       clearTimeout(timer);
-      if (attempt >= 2) throw error;
+      if (callerSignal) {
+        callerSignal.removeEventListener('abort', onCallerAbort);
+      }
+      if (callerSignal?.aborted) {
+        throw error;
+      }
+      const timedOut = error?.name === 'AbortError';
+      // A timeout means the server/network is slow: replaying the request would only
+      // multiply the wait (and re-download a large body), so fail fast instead.
+      if (timedOut) {
+        throw new Error('The server took too long to respond. Please check your connection and try again.');
+      }
+      if (attempt + 1 >= maxAttempts) throw error;
       await new Promise((resolve) => setTimeout(resolve, 1500));
     }
   }
@@ -278,6 +334,7 @@ export async function mobileApiRequest<T = any>(
 
 export interface CachedMobileRequestOptions<T = any> extends RequestInit {
   ttlMs?: number;
+  timeoutMs?: number;
   forceRefresh?: boolean;
   onRevalidate?: (freshData: T) => void;
 }
@@ -287,6 +344,12 @@ async function fetchAndCacheMobile<T>(
   options: CachedMobileRequestOptions<T>,
   cacheKey: string,
 ): Promise<T> {
+  if (options.signal?.aborted) {
+    const abortErr = new Error('Aborted');
+    abortErr.name = 'AbortError';
+    return Promise.reject(abortErr);
+  }
+
   if (!cacheKeyGenerations.has(cacheKey)) {
     cacheKeyGenerations.set(cacheKey, globalMutationEpoch);
   }
@@ -299,7 +362,9 @@ async function fetchAndCacheMobile<T>(
     revalidateListeners.get(cacheKey)!.add(options.onRevalidate);
   }
 
-  if (pendingMobileRequests.has(cacheKey)) {
+  if (options.forceRefresh) {
+    pendingMobileRequests.delete(cacheKey);
+  } else if (pendingMobileRequests.has(cacheKey)) {
     return pendingMobileRequests.get(cacheKey) as Promise<T>;
   }
 
@@ -311,12 +376,21 @@ async function fetchAndCacheMobile<T>(
       }
 
       try {
-        await AsyncStorage.setItem(
-          cacheKey,
-          JSON.stringify({ data: fresh, timestamp: Date.now() }),
-        );
+        const serialized = JSON.stringify({ data: fresh, timestamp: Date.now() });
+        if (serialized.length <= MAX_PERSISTED_CACHE_CHARS) {
+          await AsyncStorage.setItem(cacheKey, serialized);
+        } else {
+          // Too large to read back reliably on Android SQLite CursorWindow: drop stale copy
+          await AsyncStorage.removeItem(cacheKey);
+        }
       } catch {
-        await invalidateMobileApiCache();
+        // A failed write must only drop THIS entry. Wiping every cache here (the old
+        // behaviour) also cleared the in-flight map and every screen's listeners.
+        try {
+          await AsyncStorage.removeItem(cacheKey);
+        } catch {
+          // ignore: cache is best effort
+        }
       }
 
       // Notify all registered listeners for this cache key
@@ -347,7 +421,8 @@ function revalidateMobileInBackground<T>(
   options: CachedMobileRequestOptions<T>,
   cacheKey: string,
 ): void {
-  fetchAndCacheMobile<T>(endpoint, options, cacheKey).catch((err) => {
+  fetchAndCacheMobile<T>(endpoint, options, cacheKey).catch((err: any) => {
+    if (err?.name === 'AbortError') return;
     console.warn(`[Mobile SWR] Background revalidation failed for ${endpoint}:`, err);
   });
 }

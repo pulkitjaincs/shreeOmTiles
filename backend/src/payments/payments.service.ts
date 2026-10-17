@@ -18,6 +18,14 @@ import { PaginationParams } from '../common/interfaces/pagination.interface';
 import { generateUpiIntentQr } from '../common/utils/upi.util';
 import { NotificationsService } from '../notifications/notifications.service';
 
+export type PaymentWithRelations = Prisma.PaymentGetPayload<{
+  include: {
+    invoice: { include: { party: true } };
+    party: true;
+    confirmedBy: { select: { id: true; name: true } };
+  };
+}>;
+
 @Injectable()
 export class PaymentsService {
   constructor(
@@ -38,28 +46,76 @@ export class PaymentsService {
     const paymentType =
       data.type || (data.invoiceId ? PaymentType.INFLOW : PaymentType.INFLOW);
 
+    // Normalize splits from either data.splits or legacy single payment
+    let splits: Array<{
+      mode: PaymentMode;
+      amount: number;
+      upiTxnRef?: string;
+      upiUtr?: string;
+      notes?: string;
+    }> = [];
+
+    if (data.splits && data.splits.length > 0) {
+      splits = data.splits
+        .filter((s) => Number(s.amount) > 0)
+        .map((s) => ({
+          mode: s.mode,
+          amount: Number(s.amount),
+          upiTxnRef: s.upiTxnRef || data.upiTxnRef,
+          upiUtr: s.upiUtr || data.upiUtr,
+          notes: s.notes || data.notes,
+        }));
+    } else if (data.mode && data.amount && Number(data.amount) > 0) {
+      splits = [
+        {
+          mode: data.mode,
+          amount: Number(data.amount),
+          upiTxnRef: data.upiTxnRef,
+          upiUtr: data.upiUtr,
+          notes: data.notes,
+        },
+      ];
+    }
+
+    if (splits.length === 0) {
+      throw new BadRequestException(
+        'At least one payment split with a positive amount is required',
+      );
+    }
+
+    const totalSplitAmount = splits.reduce(
+      (sum, s) => sum + Number(s.amount),
+      0,
+    );
+
     if (data.autoConfirm) {
-      const payment = await this.prisma.$transaction(async (tx) => {
-        const txPayment = await tx.payment.create({
-          data: {
-            invoiceId: data.invoiceId || null,
-            partyId: partyId || null,
-            mode: data.mode,
-            type: paymentType,
-            amount: new Prisma.Decimal(data.amount.toFixed(2)),
-            upiTxnRef: data.upiTxnRef,
-            upiUtr: data.upiUtr,
-            notes: data.notes,
-            status: PaymentStatus.CONFIRMED,
-            paidAt: new Date(),
-            confirmedById: userId || null,
-          },
-          include: {
-            invoice: { include: { party: true } },
-            party: true,
-            confirmedBy: { select: { id: true, name: true } },
-          },
-        });
+      const createdPayments = await this.prisma.$transaction(async (tx) => {
+        const txPayments: PaymentWithRelations[] = [];
+        for (const split of splits) {
+          const p = await tx.payment.create({
+            data: {
+              invoiceId: data.invoiceId || null,
+              partyId: partyId || null,
+              mode: split.mode,
+              type: paymentType,
+              amount: new Prisma.Decimal(split.amount.toFixed(2)),
+              upiTxnRef: split.upiTxnRef,
+              upiUtr: split.upiUtr,
+              notes: split.notes,
+              status: PaymentStatus.CONFIRMED,
+              paidAt: new Date(),
+              confirmedById: userId || null,
+            },
+            include: {
+              invoice: { include: { party: true } },
+              party: true,
+              confirmedBy: { select: { id: true, name: true } },
+            },
+          });
+          txPayments.push(p);
+        }
+
+        const primaryPayment = txPayments[0];
 
         // 1. If tied to an invoice, recalculate invoice status & update credit ledger
         if (data.invoiceId) {
@@ -103,7 +159,7 @@ export class PaymentsService {
           if (creditEntry) {
             const remainingDue = Math.max(
               0,
-              Number(creditEntry.amountDue) - Number(data.amount),
+              Number(creditEntry.amountDue) - totalSplitAmount,
             );
             await tx.creditLedger.update({
               where: { id: creditEntry.id },
@@ -147,7 +203,7 @@ export class PaymentsService {
             paymentType === PaymentType.OUTFLOW
               ? CreditType.PAYABLE
               : CreditType.RECEIVABLE;
-          let remainingPayment = Number(data.amount);
+          let remainingPayment = totalSplitAmount;
           const creditEntries = await tx.creditLedger.findMany({
             where: {
               partyId,
@@ -178,58 +234,65 @@ export class PaymentsService {
                 amountDue: new Prisma.Decimal(remainingPayment.toFixed(2)),
                 type: CreditType.PAYABLE,
                 status: 'UNPAID',
-                notes: `Advance customer overpayment from Payment #${txPayment.id.slice(0, 8)}`,
+                notes: `Advance customer overpayment from Payment #${primaryPayment?.id ? primaryPayment.id.slice(0, 8) : ''}`,
               },
             });
           }
         }
 
-        return txPayment;
+        return txPayments;
       });
 
       // Notify Owner & Admin about payment / settlement
-      const partyName =
-        payment.party?.name || payment.invoice?.party?.name || 'Party';
-      const formattedAmount = Math.round(Number(payment.amount)).toLocaleString(
-        'en-IN',
-      );
-      const modeText = payment.mode ? `via ${payment.mode}` : '';
-      const isOutflow = payment.type === PaymentType.OUTFLOW;
+      const primary = createdPayments[0];
+      const partyName: string =
+        primary?.party?.name || primary?.invoice?.party?.name || 'Party';
+      const formattedAmount =
+        Math.round(totalSplitAmount).toLocaleString('en-IN');
+      const isOutflow = paymentType === PaymentType.OUTFLOW;
 
       void this.notifications.notifyAdmins(
         isOutflow ? 'Store Payable Settled' : 'Payment Received!',
         isOutflow
-          ? `₹${formattedAmount} paid to ${partyName} ${modeText}.`
-          : `₹${formattedAmount} received from ${partyName} ${modeText}.`,
+          ? `₹${formattedAmount} paid to ${partyName}.`
+          : `₹${formattedAmount} received from ${partyName}.`,
         {
           type: 'PAYMENT_RECEIVED',
-          paymentId: payment.id,
-          invoiceId: payment.invoiceId,
-          partyId: payment.partyId,
+          paymentId: primary?.id,
+          invoiceId: primary?.invoiceId || undefined,
+          partyId: partyId || undefined,
         },
       );
 
-      return payment;
+      return createdPayments.length === 1
+        ? createdPayments[0]
+        : createdPayments;
     }
 
-    return this.prisma.payment.create({
-      data: {
-        invoiceId: data.invoiceId || null,
-        partyId: partyId || null,
-        mode: data.mode,
-        type: paymentType,
-        amount: new Prisma.Decimal(data.amount.toFixed(2)),
-        upiTxnRef: data.upiTxnRef,
-        upiUtr: data.upiUtr,
-        notes: data.notes,
-        status: PaymentStatus.PENDING,
-      },
-      include: {
-        invoice: { include: { party: true } },
-        party: true,
-        confirmedBy: { select: { id: true, name: true } },
-      },
-    });
+    const pendingPayments: PaymentWithRelations[] = await Promise.all(
+      splits.map((split) =>
+        this.prisma.payment.create({
+          data: {
+            invoiceId: data.invoiceId || null,
+            partyId: partyId || null,
+            mode: split.mode,
+            type: paymentType,
+            amount: new Prisma.Decimal(split.amount.toFixed(2)),
+            upiTxnRef: split.upiTxnRef,
+            upiUtr: split.upiUtr,
+            notes: split.notes,
+            status: PaymentStatus.PENDING,
+          },
+          include: {
+            invoice: { include: { party: true } },
+            party: true,
+            confirmedBy: { select: { id: true, name: true } },
+          },
+        }),
+      ),
+    );
+
+    return pendingPayments.length === 1 ? pendingPayments[0] : pendingPayments;
   }
 
   async findAll(pagination?: PaginationParams): Promise<any> {
@@ -512,6 +575,7 @@ export class PaymentsService {
       outflowAgg,
       cashAgg,
       upiAgg,
+      bankAgg,
       receivablesAgg,
       payablesAgg,
     ] = await Promise.all([
@@ -545,6 +609,14 @@ export class PaymentsService {
         },
         _sum: { amount: true },
       }),
+      this.prisma.payment.aggregate({
+        where: {
+          status: PaymentStatus.CONFIRMED,
+          mode: PaymentMode.BANK_TRANSFER,
+          type: PaymentType.INFLOW,
+        },
+        _sum: { amount: true },
+      }),
       this.prisma.creditLedger.aggregate({
         where: { status: { not: 'SETTLED' }, type: CreditType.RECEIVABLE },
         _sum: { amountDue: true },
@@ -566,6 +638,7 @@ export class PaymentsService {
       totalPaidOut: Number(outflowAgg._sum.amount || 0),
       cashCollected: Number(cashAgg._sum.amount || 0),
       upiCollected: Number(upiAgg._sum.amount || 0),
+      bankCollected: Number(bankAgg._sum.amount || 0),
       pendingReceivables: Number(receivablesAgg._sum.amountDue || 0),
       creditsOwed: Number(payablesAgg._sum.amountDue || 0),
     };

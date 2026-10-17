@@ -84,7 +84,12 @@ export class QuotationsController {
   @Roles(Role.OWNER, Role.ADMIN, Role.SALESMAN, Role.ACCOUNTANT)
   convertToInvoice(
     @Param('id') id: string,
-    @Body() body: { paymentMode?: PaymentMode; amountPaidNow?: number },
+    @Body()
+    body: {
+      paymentMode?: PaymentMode;
+      amountPaidNow?: number;
+      payments?: any[];
+    },
     @Request() req: RequestWithUser,
   ) {
     return this.quotationsService.convertToInvoice(
@@ -92,6 +97,7 @@ export class QuotationsController {
       req.user.id,
       body.paymentMode,
       body.amountPaidNow,
+      body.payments,
     );
   }
 }

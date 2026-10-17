@@ -20,7 +20,7 @@ export function RecentTransactionsStream({
             <h2 className="text-[1rem] font-bold text-foreground">Recent Confirmed Transactions</h2>
           </div>
           <p className="text-[0.75rem] text-muted-foreground mt-0.5">
-            Verified physical cash received from drivers, counter collections, and digital UPI credits.
+            Verified physical cash, bank transfers, and digital UPI inflows.
           </p>
         </div>
 
@@ -72,7 +72,7 @@ export function RecentTransactionsStream({
                   <td className="py-2.5 px-3.5">
                     {tx.type === 'OUTFLOW' ? (
                       <span className="px-2 py-0.5 rounded-full font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 inline-flex items-center gap-1 text-[0.6875rem]">
-                        Store Paid Out ({tx.mode})
+                        Store Paid Out ({tx.mode === 'BANK_TRANSFER' ? 'Bank' : tx.mode})
                       </span>
                     ) : tx.driverName ? (
                       <span className="px-2 py-0.5 rounded-full font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 inline-flex items-center gap-1 text-[0.6875rem]">
@@ -80,8 +80,12 @@ export function RecentTransactionsStream({
                         Handed by {tx.driverName}
                       </span>
                     ) : tx.mode === 'CASH' ? (
-                      <span className="px-2 py-0.5 rounded-full font-semibold bg-muted text-muted-foreground border border-border text-[0.6875rem]">
+                      <span className="px-2 py-0.5 rounded-full font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 text-[0.6875rem]">
                         Counter Cash
+                      </span>
+                    ) : tx.mode === 'BANK_TRANSFER' || tx.mode === 'BANK' ? (
+                      <span className="px-2 py-0.5 rounded-full font-semibold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20 text-[0.6875rem]">
+                        Bank Transfer Inflow
                       </span>
                     ) : (
                       <span className="px-2 py-0.5 rounded-full font-semibold bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 text-[0.6875rem]">

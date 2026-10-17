@@ -75,8 +75,10 @@ export const InvoiceListCard = React.memo(function InvoiceListCard({
       <View style={styles.cardBottom}>
         <View style={styles.badgeRow}>
           {!isSupervisor ? (
-            <View style={styles.modeBadge}>
-              <Text style={styles.modeText}>{invoice.paymentMode || 'CASH'}</Text>
+            <View style={[styles.modeBadge, invoice.paymentMode === 'SPLIT' && styles.splitBadge]}>
+              <Text style={[styles.modeText, invoice.paymentMode === 'SPLIT' && styles.splitText]}>
+                {invoice.paymentMode || 'CASH'}
+              </Text>
             </View>
           ) : null}
           {!isSupervisor && refundedTotal > 0 ? (
@@ -140,6 +142,14 @@ const styles = StyleSheet.create({
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, flexWrap: 'wrap' },
   modeBadge: { backgroundColor: Colors.dark.secondary, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
   modeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
+  splitBadge: {
+    backgroundColor: 'rgba(167, 139, 250, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(167, 139, 250, 0.3)',
+  },
+  splitText: {
+    color: '#A78BFA',
+  },
   refundText: { color: '#F87171', fontSize: 10, fontWeight: '700' },
   salesmanText: { color: Colors.dark.textTertiary, fontSize: 11 },
   actionsRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginLeft: 8 },

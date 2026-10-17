@@ -18,7 +18,7 @@ interface ProductCatalogCardProps {
   onDelete: (productId: string, productName: string) => void;
 }
 
-export function ProductCatalogCard({
+export const ProductCatalogCard = React.memo(function ProductCatalogCard({
   item,
   stocks,
   isOwnerOrAdmin,
@@ -177,7 +177,7 @@ export function ProductCatalogCard({
       ) : null}
     </Card>
   );
-}
+});
 
 const styles = StyleSheet.create({
   productCard: {

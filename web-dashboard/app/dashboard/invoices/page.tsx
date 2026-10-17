@@ -9,7 +9,6 @@ import {
   Search, 
   Download, 
   X, 
-  Building2, 
   RotateCcw, 
   CheckCircle2, 
   Eye, 
@@ -17,7 +16,6 @@ import {
   FileText, 
   Loader2, 
   MessageCircle,
-  ChevronDown,
   Trash2,
 } from 'lucide-react';
 import { ThemedSelect } from '@/components/ui/themed-select';
@@ -25,7 +23,6 @@ import { ThemedSelect } from '@/components/ui/themed-select';
 import {
   Invoice,
   Product,
-  Warehouse,
   Party,
   StockLedgerRecord,
   DatePreset,
@@ -105,12 +102,17 @@ export default function InvoicesPage() {
   }, []);
 
   useEffect(() => {
-    loadInitialData();
+    const timer = setTimeout(() => {
+      void loadInitialData();
+    }, 0);
     const handleRefresh = () => {
       loadInitialData(true);
     };
     window.addEventListener('app:refresh-active-page', handleRefresh);
-    return () => window.removeEventListener('app:refresh-active-page', handleRefresh);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('app:refresh-active-page', handleRefresh);
+    };
   }, [loadInitialData]);
 
   const refreshStock = async () => {
@@ -268,7 +270,14 @@ export default function InvoicesPage() {
       if (statusFilter !== 'ALL' && inv.status !== statusFilter) return false;
 
       // Mode
-      if (modeFilter !== 'ALL' && inv.paymentMode !== modeFilter) return false;
+      if (modeFilter !== 'ALL') {
+        const matchesDirect = inv.paymentMode === modeFilter;
+        const matchesSplit =
+          inv.paymentMode === 'SPLIT' &&
+          Array.isArray(inv.payments) &&
+          inv.payments.some((p) => p.mode === modeFilter);
+        if (!matchesDirect && !matchesSplit) return false;
+      }
 
       // Date Presets
       const createdAt = new Date(inv.createdAt);
@@ -396,7 +405,7 @@ export default function InvoicesPage() {
                   { value: 'CASH', label: 'Cash' },
                   { value: 'UPI', label: 'UPI' },
                   { value: 'CREDIT', label: 'Credit' },
-                  { value: 'CHEQUE', label: 'Cheque' },
+                  { value: 'SPLIT', label: 'Split Payments' },
                 ]}
               />
             </div>
@@ -534,9 +543,27 @@ export default function InvoicesPage() {
                     ) : (
                       <>
                         <td className="py-3 px-3.5">
-                          <span className="px-2 py-0.5 rounded text-[0.6875rem] font-medium bg-muted text-muted-foreground border border-border">
-                            {inv.paymentMode || 'CASH'}
-                          </span>
+                          {inv.paymentMode === 'SPLIT' ? (
+                            <span
+                              className="px-2 py-0.5 rounded text-[0.6875rem] font-semibold bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 cursor-help"
+                              title={
+                                inv.payments && inv.payments.length > 0
+                                  ? inv.payments
+                                      .map(
+                                        (p) =>
+                                          `${p.mode}: ₹${Math.round(Number(p.amount)).toLocaleString('en-IN')}`,
+                                      )
+                                      .join(' | ')
+                                  : 'Split Payment'
+                              }
+                            >
+                              Split {inv.payments && inv.payments.length > 0 ? `(${inv.payments.map((p) => p.mode).join('+')})` : ''}
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded text-[0.6875rem] font-medium bg-muted text-muted-foreground border border-border">
+                              {inv.paymentMode || 'CASH'}
+                            </span>
+                          )}
                         </td>
                         <td className="py-3 px-3.5 font-bold text-foreground">
                           <div>{formatINR(inv.total)}</div>

@@ -26,13 +26,25 @@ export class PartiesController {
   constructor(private readonly partiesService: PartiesService) {}
 
   @Post()
-  @Roles(Role.OWNER, Role.ADMIN, Role.SALESMAN, Role.ACCOUNTANT, Role.SUPERVISOR)
+  @Roles(
+    Role.OWNER,
+    Role.ADMIN,
+    Role.SALESMAN,
+    Role.ACCOUNTANT,
+    Role.SUPERVISOR,
+  )
   create(@Body() createPartyDto: CreatePartyDto) {
     return this.partiesService.create(createPartyDto);
   }
 
   @Get()
-  @Roles(Role.OWNER, Role.ADMIN, Role.SALESMAN, Role.ACCOUNTANT, Role.SUPERVISOR)
+  @Roles(
+    Role.OWNER,
+    Role.ADMIN,
+    Role.SALESMAN,
+    Role.ACCOUNTANT,
+    Role.SUPERVISOR,
+  )
   findAll(
     @Query('search') search?: string,
     @Query('includeUnsaved') includeUnsaved?: string,
@@ -48,13 +60,25 @@ export class PartiesController {
   }
 
   @Get(':id')
-  @Roles(Role.OWNER, Role.ADMIN, Role.SALESMAN, Role.ACCOUNTANT, Role.SUPERVISOR)
+  @Roles(
+    Role.OWNER,
+    Role.ADMIN,
+    Role.SALESMAN,
+    Role.ACCOUNTANT,
+    Role.SUPERVISOR,
+  )
   findOne(@Param('id') id: string) {
     return this.partiesService.findOne(id);
   }
 
   @Get(':id/statement-pdf')
-  @Roles(Role.OWNER, Role.ADMIN, Role.SALESMAN, Role.ACCOUNTANT, Role.SUPERVISOR)
+  @Roles(
+    Role.OWNER,
+    Role.ADMIN,
+    Role.SALESMAN,
+    Role.ACCOUNTANT,
+    Role.SUPERVISOR,
+  )
   async downloadStatementPdf(
     @Param('id') id: string,
     @Query('startDate') startDate: string,
@@ -80,7 +104,13 @@ export class PartiesController {
   }
 
   @Patch(':id')
-  @Roles(Role.OWNER, Role.ADMIN, Role.SALESMAN, Role.ACCOUNTANT, Role.SUPERVISOR)
+  @Roles(
+    Role.OWNER,
+    Role.ADMIN,
+    Role.SALESMAN,
+    Role.ACCOUNTANT,
+    Role.SUPERVISOR,
+  )
   update(@Param('id') id: string, @Body() updatePartyDto: UpdatePartyDto) {
     return this.partiesService.update(id, updatePartyDto);
   }

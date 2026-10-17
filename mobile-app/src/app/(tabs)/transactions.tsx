@@ -55,7 +55,7 @@ interface DayBookResponse {
     };
   };
   transactions: {
-    payments: Array<{
+    payments: {
       id: string;
       type: string;
       mode: string;
@@ -64,8 +64,8 @@ interface DayBookResponse {
       refNo: string;
       time: string;
       notes?: string;
-    }>;
-    expenses: Array<{
+    }[];
+    expenses: {
       id: string;
       expenseNo?: string;
       category: string;
@@ -74,15 +74,15 @@ interface DayBookResponse {
       paidTo?: string;
       time: string;
       notes?: string;
-    }>;
-    purchases: Array<{
+    }[];
+    purchases: {
       id: string;
       purchaseNo: string;
       partyName?: string;
       total: number;
       paymentMode: string;
       time: string;
-    }>;
+    }[];
   };
 }
 
@@ -135,6 +135,7 @@ export default function TransactionsScreen() {
     totalPaidOut: 0,
     cashCollected: 0,
     upiCollected: 0,
+    bankCollected: 0,
     pendingReceivables: 0,
     creditsOwed: 0,
   });
@@ -180,6 +181,7 @@ export default function TransactionsScreen() {
           totalPaidOut: 0,
           cashCollected: 0,
           upiCollected: 0,
+          bankCollected: 0,
           pendingReceivables: 0,
           creditsOwed: 0,
         })),
@@ -451,27 +453,7 @@ export default function TransactionsScreen() {
     setSettleModalOpen(true);
   };
 
-  // Open Collect Modal from Header (Customer paying store)
-  const handleOpenGeneralCollect = () => {
-    setSettleDirection('COLLECT');
-    setSelectedPartyId('');
-    setSettleInvoiceId('');
-    setSettleInvoiceNo('');
-    setSettleAmount('');
-    setSettleNotes('');
-    setSettleModalOpen(true);
-  };
 
-  // Open Pay Modal from Header (Store paying vendor/party)
-  const handleOpenGeneralPay = () => {
-    setSettleDirection('PAY');
-    setSelectedPartyId('');
-    setSettleInvoiceId('');
-    setSettleInvoiceNo('');
-    setSettleAmount('');
-    setSettleNotes('');
-    setSettleModalOpen(true);
-  };
 
   // Open Record Credit Modal
   const handleOpenRecordCredit = (partyId?: string) => {
@@ -524,7 +506,10 @@ export default function TransactionsScreen() {
       const utr = p.upiUtr || p.upiTxnRef || '';
       const matchesSearch =
         partyName.toLowerCase().includes(q) || invNo.toLowerCase().includes(q) || utr.toLowerCase().includes(q);
-      const matchesMode = modeFilter === 'ALL' || p.mode === modeFilter;
+      const matchesMode =
+        modeFilter === 'ALL' ||
+        p.mode === modeFilter ||
+        (modeFilter === 'BANK_TRANSFER' && p.mode === 'BANK');
       return matchesSearch && matchesMode;
     });
   }, [payments, search, modeFilter, dateFilterMode, selectedDate]);
@@ -549,7 +534,7 @@ export default function TransactionsScreen() {
     <View style={styles.screen}>
       <Header
         title="Transactions & Ledger"
-        subtitle="Sales, Dues, Store Payables & UPI Inflows"
+        subtitle="Sales, Dues, Store Payables & Multi-Method Inflows"
         rightAction={{
           icon: 'add',
           onPress: () => handleOpenRecordCredit(),
@@ -796,8 +781,9 @@ export default function TransactionsScreen() {
                     { label: 'All Modes', value: 'ALL' },
                     { label: 'UPI', value: 'UPI' },
                     { label: 'Cash', value: 'CASH' },
-                    { label: 'Credit', value: 'CREDIT' },
                     { label: 'Bank Transfer', value: 'BANK_TRANSFER' },
+                    { label: 'Split', value: 'SPLIT' },
+                    { label: 'Credit', value: 'CREDIT' },
                   ]}
                   selected={modeFilter}
                   onSelect={setModeFilter}

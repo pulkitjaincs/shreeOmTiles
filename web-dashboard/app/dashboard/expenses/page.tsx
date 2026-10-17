@@ -1,17 +1,14 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { apiRequest, cachedApiRequest } from '@/lib/api';
+import { cachedApiRequest } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { 
   Wallet, 
   Plus, 
   Search, 
-  Calendar, 
   Tag, 
-  Banknote, 
   X,
-  CreditCard
 } from 'lucide-react';
 import { CreateExpenseModal } from '@/components/expenses/create-expense-modal';
 import { formatINR, formatDate } from '@/lib/formatters';
@@ -72,10 +69,15 @@ export default function ExpensesPage() {
   }, []);
 
   useEffect(() => {
-    loadExpenses();
+    const timer = setTimeout(() => {
+      void loadExpenses();
+    }, 0);
     const handleRefresh = () => loadExpenses(true);
     window.addEventListener('app:refresh-active-page', handleRefresh);
-    return () => window.removeEventListener('app:refresh-active-page', handleRefresh);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('app:refresh-active-page', handleRefresh);
+    };
   }, [loadExpenses]);
 
   const totalExpense = useMemo(() => {
@@ -164,7 +166,7 @@ export default function ExpensesPage() {
             {formatINR(onlineExpense)}
           </span>
           <span className="text-[11px] text-muted-foreground block">
-            Electronic payouts & cheque settlements
+            Electronic payouts & bank transfers
           </span>
         </div>
       </div>

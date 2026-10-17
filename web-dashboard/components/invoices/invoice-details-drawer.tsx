@@ -12,6 +12,9 @@ import {
   User, 
   Layers,
   Trash2,
+  Banknote,
+  QrCode,
+  Building2,
 } from 'lucide-react';
 import { Invoice } from './types';
 import { formatINR, formatDateTime, formatDate } from '@/lib/formatters';
@@ -180,9 +183,13 @@ export function InvoiceDetailsDrawer({
             </span>
             <div className="text-[0.75rem] space-y-1">
               {!isSupervisor && (
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Payment Mode:</span>
-                  <span className="font-semibold text-foreground">{invoice.paymentMode}</span>
+                  <span className="font-semibold text-foreground">
+                    {invoice.paymentMode === 'SPLIT' && invoice.payments && invoice.payments.length > 1
+                      ? `Split (${invoice.payments.map((p) => p.mode).join(' + ')})`
+                      : invoice.paymentMode || 'CREDIT'}
+                  </span>
                 </div>
               )}
               <div className="flex justify-between">
@@ -368,6 +375,48 @@ export function InvoiceDetailsDrawer({
             </table>
           </div>
         </div>
+
+        {/* PAYMENT BREAKDOWN & RECEIPTS */}
+        {!isSupervisor && invoice.payments && invoice.payments.length > 0 && (
+          <div className="space-y-2 pt-2">
+            <h3 className="text-[0.75rem] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Banknote className="h-4 w-4 text-emerald-500" />
+              Payment Receipts & Settlement ({invoice.payments.length})
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {invoice.payments.map((p, pIdx) => (
+                <div
+                  key={p.id || pIdx}
+                  className="rounded-[0.75rem] border border-border bg-card p-3 flex items-center justify-between shadow-2xs"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-1.5 rounded-[0.5rem] bg-primary/10 text-primary">
+                      {p.mode === 'UPI' ? (
+                        <QrCode className="h-4 w-4" />
+                      ) : p.mode === 'CASH' ? (
+                        <Banknote className="h-4 w-4" />
+                      ) : (
+                        <Building2 className="h-4 w-4" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-[0.8125rem] font-semibold text-foreground">
+                        {p.mode}
+                      </div>
+                      <div className="text-[0.6875rem] text-muted-foreground">
+                        {p.paidAt ? formatDateTime(p.paidAt) : 'Confirmed'}
+                        {p.upiUtr ? ` • UTR: ${p.upiUtr}` : ''}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right font-mono font-bold text-[0.875rem] text-emerald-600 dark:text-emerald-400">
+                    {formatINR(p.amount)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ATTACHED REFUND INVOICES / CREDIT NOTES SECTION */}
         {invoice.refundInvoices && invoice.refundInvoices.length > 0 && (

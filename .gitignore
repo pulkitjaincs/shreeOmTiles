@@ -40,5 +40,4 @@ Thumbs.db
 **/.turbo/
 **/.cache/
 *.tsbuildinfo
-e2e-screenshots/
 

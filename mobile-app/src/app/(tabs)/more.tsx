@@ -10,19 +10,19 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useAuth } from '@/lib/auth-context';
-import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
+import { mobileApiRequest, cachedMobileApiRequest, subscribeToAppSync } from '@/lib/api';
 import { getCacheStats, clearMobileAppCache, CacheStats } from '@/lib/cache-manager';
 import { Colors } from '@/constants/theme';
 import { Header } from '@/components/ui/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { SectionErrorBoundary } from '@/components/ui/SectionErrorBoundary';
 import { getInitials } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 
 import { Party, PartiesDirectoryView } from '@/components/parties';
 import { Warehouse } from '@/components/warehouses';
-import { StockItem } from '@/components/stock/types';
 
 import {
   StaffUser,
@@ -66,14 +66,33 @@ export default function MoreScreen() {
     return () => backSub.remove();
   }, [activeSection]);
 
+  // Helper to safely unpack party list from raw array or enveloped API responses
+  const extractPartyList = (data: any): Party[] => {
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.data)) return data.data;
+    if (Array.isArray(data?.parties)) return data.parties;
+    if (Array.isArray(data?.result)) return data.result;
+    if (Array.isArray(data?.data?.parties)) return data.data.parties;
+    return [];
+  };
+
   // Parties State
   const [parties, setParties] = useState<Party[]>([]);
   const [partiesLoading, setPartiesLoading] = useState(false);
+  const [partiesError, setPartiesError] = useState<string | null>(null);
+  const partiesInFlightRef = React.useRef(false);
+  const isMountedRef = React.useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      partiesInFlightRef.current = false;
+    };
+  }, []);
 
   // Warehouses State
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [stocks, setStocks] = useState<StockItem[]>([]);
-  const [warehousesLoading, setWarehousesLoading] = useState(false);
 
   // Staff State
   const [staffList, setStaffList] = useState<StaffUser[]>([]);
@@ -133,50 +152,76 @@ export default function MoreScreen() {
     );
   };
 
-  // Load Parties
+  // Load Parties with graceful API fallback & inFlight protection
   const loadParties = useCallback(async (force = false) => {
-    setPartiesLoading(true);
+    if (partiesInFlightRef.current && !force) return;
+    partiesInFlightRef.current = true;
+    if (isMountedRef.current) setPartiesLoading(true);
+
     try {
-      const data = await cachedMobileApiRequest<any>('/parties?includeUnsaved=true', {
-        forceRefresh: force,
-        onRevalidate: (fresh) => {
-          const list = Array.isArray(fresh) ? fresh : (fresh as any)?.data || [];
-          setParties(list);
-        },
-      });
-      const list = Array.isArray(data) ? data : (data as any)?.data || [];
-      setParties(list);
+      let data: any;
+      try {
+        data = await cachedMobileApiRequest<any>('/parties?includeUnsaved=true', {
+          forceRefresh: force,
+          timeoutMs: 45000,
+          onRevalidate: (fresh) => {
+            if (!isMountedRef.current) return;
+            const list = extractPartyList(fresh);
+            if (list.length > 0) {
+              setParties(list);
+              setPartiesError(null);
+            }
+          },
+        });
+      } catch (primaryErr: any) {
+        console.warn('[More] Primary parties load failed, trying fallback /parties:', primaryErr?.message);
+        data = await cachedMobileApiRequest<any>('/parties', {
+          forceRefresh: force,
+          timeoutMs: 45000,
+          onRevalidate: (fresh) => {
+            if (!isMountedRef.current) return;
+            const list = extractPartyList(fresh);
+            if (list.length > 0) {
+              setParties(list);
+              setPartiesError(null);
+            }
+          },
+        });
+      }
+
+      if (isMountedRef.current) {
+        const list = extractPartyList(data);
+        setParties(list);
+        setPartiesError(null);
+      }
     } catch (err: any) {
-      console.warn('Parties load failed', err.message);
+      console.warn('Parties load failed completely:', err?.message);
+      if (isMountedRef.current) {
+        setPartiesError(err?.message || 'Could not load customers. Please try again.');
+      }
     } finally {
-      setPartiesLoading(false);
+      partiesInFlightRef.current = false;
+      if (isMountedRef.current) {
+        setPartiesLoading(false);
+      }
     }
   }, []);
 
-  // Load Warehouses & Live Stock
+  // Load Warehouses
   const loadWarehouses = useCallback(async (force = false) => {
-    setWarehousesLoading(true);
     try {
-      const [whData, stockData] = await Promise.all([
-        cachedMobileApiRequest<Warehouse[]>('/warehouses', {
-          forceRefresh: force,
-          onRevalidate: (fresh) => setWarehouses(fresh || []),
-        }),
-        cachedMobileApiRequest<any[]>('/stock', {
-          forceRefresh: force,
-          onRevalidate: (fresh) => {
-            const list = Array.isArray(fresh) ? fresh : (fresh as any)?.data || [];
-            setStocks(list);
-          },
-        }),
-      ]);
-      setWarehouses(whData || []);
-      const stockList = Array.isArray(stockData) ? stockData : (stockData as any)?.data || [];
-      setStocks(stockList);
+      const whData = await cachedMobileApiRequest<Warehouse[]>('/warehouses', {
+        forceRefresh: force,
+        onRevalidate: (fresh) => {
+          if (!isMountedRef.current) return;
+          setWarehouses(fresh || []);
+        },
+      });
+      if (isMountedRef.current) {
+        setWarehouses(whData || []);
+      }
     } catch (err: any) {
       console.warn('Warehouses load failed', err.message);
-    } finally {
-      setWarehousesLoading(false);
     }
   }, []);
 
@@ -273,8 +318,16 @@ export default function MoreScreen() {
     if (activeSection === 'SETTINGS') loadSettings();
   }, [activeSection, loadCacheStats, loadParties, loadWarehouses, loadStaff, loadSettings]);
 
+  // The mount effect above already loads the initial section; without this guard the
+  // very first focus fired a second, duplicate load of the same (large) data.
+  const skipInitialFocusRef = React.useRef(true);
+
   useFocusEffect(
     useCallback(() => {
+      if (skipInitialFocusRef.current) {
+        skipInitialFocusRef.current = false;
+        return;
+      }
       const current = activeSectionRef.current;
       if (current === 'MENU') loadCacheStats();
       else if (current === 'PARTIES') loadParties();
@@ -285,6 +338,36 @@ export default function MoreScreen() {
       else if (current === 'SETTINGS') loadSettings();
     }, [loadCacheStats, loadParties, loadWarehouses, loadStaff, loadSettings]),
   );
+
+  useEffect(() => {
+    if (activeSection !== 'PARTIES' && activeSection !== 'PURCHASES') {
+      partiesInFlightRef.current = false;
+      setPartiesLoading(false);
+    }
+  }, [activeSection]);
+
+  const handleRefreshParties = useCallback(() => {
+    void loadParties(true);
+  }, [loadParties]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToAppSync(() => {
+      const current = activeSectionRef.current;
+      if (current === 'PARTIES') {
+        void loadParties(true);
+      } else if (current === 'PURCHASES') {
+        void loadParties(true);
+        void loadWarehouses(true);
+      } else if (current === 'STAFF') {
+        void loadStaff(true);
+      } else if (current === 'SETTINGS') {
+        void loadSettings(true);
+      } else if (current === 'MENU') {
+        void loadCacheStats();
+      }
+    });
+    return () => unsubscribe();
+  }, [loadParties, loadWarehouses, loadStaff, loadSettings, loadCacheStats]);
 
   // Set Primary UPI Account
   const handleSetPrimaryUpi = async (upiAccId: string) => {
@@ -347,7 +430,7 @@ export default function MoreScreen() {
   const getSectionTitle = () => {
     switch (activeSection) {
       case 'PARTIES':
-        return 'Customer Parties';
+        return 'Customer & Supplier Parties';
       case 'DAY_BOOK':
         return 'Daily Till Book';
       case 'QUOTATIONS':
@@ -368,7 +451,7 @@ export default function MoreScreen() {
   const getSectionSubtitle = () => {
     switch (activeSection) {
       case 'PARTIES':
-        return 'Directory & Statements';
+        return 'Directory & 360° Statements';
       case 'DAY_BOOK':
         return 'Cash reconciliation & till stream';
       case 'QUOTATIONS':
@@ -395,7 +478,21 @@ export default function MoreScreen() {
         onBack={activeSection !== 'MENU' ? () => setActiveSection('MENU') : undefined}
       />
 
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
+      <SectionErrorBoundary key={activeSection} onReset={() => setActiveSection('MENU')}>
+      {activeSection === 'PARTIES' ? (
+        <View style={styles.partiesContainer}>
+          <PartiesDirectoryView
+            parties={parties}
+            loading={partiesLoading}
+            onRefresh={handleRefreshParties}
+            isOwnerOrAdmin={isDirector || isAdmin}
+            isSalesman={isSalesman}
+            error={partiesError}
+            onRetry={() => loadParties(true)}
+          />
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
         {/* ========================================================================= */}
         {/* VIEW 1: MENU OVERVIEW                                                     */}
         {/* ========================================================================= */}
@@ -648,18 +745,6 @@ export default function MoreScreen() {
           </View>
         ) : null}
 
-        {/* ========================================================================= */}
-        {/* VIEW 2: PARTIES DIRECTORY                                                 */}
-        {/* ========================================================================= */}
-        {activeSection === 'PARTIES' ? (
-          <PartiesDirectoryView
-            parties={parties}
-            loading={partiesLoading}
-            onRefresh={() => loadParties(true)}
-            isOwnerOrAdmin={isDirector || isAdmin}
-            isSalesman={isSalesman}
-          />
-        ) : null}
 
         {/* ========================================================================= */}
         {/* VIEW 3: STAFF ROSTER                                                      */}
@@ -726,29 +811,37 @@ export default function MoreScreen() {
         {/* ========================================================================= */}
         {activeSection === 'EXPENSES' ? <ExpensesView /> : null}
       </ScrollView>
+      )}
+      </SectionErrorBoundary>
 
-      {/* Settings & Staff Modals */}
-      <StaffFormModal
-        visible={staffModalOpen}
-        onClose={() => {
-          setStaffModalOpen(false);
-          setEditingStaff(null);
-        }}
-        onSuccess={() => loadStaff(true)}
-        staff={editingStaff}
-      />
+      {/* Settings & Staff Modals - conditionally mounted */}
+      {staffModalOpen && (
+        <StaffFormModal
+          visible={staffModalOpen}
+          onClose={() => {
+            setStaffModalOpen(false);
+            setEditingStaff(null);
+          }}
+          onSuccess={() => loadStaff(true)}
+          staff={editingStaff}
+        />
+      )}
 
-      <ResetPasswordModal
-        user={resetModalUser}
-        onClose={() => setResetModalUser(null)}
-        onSuccess={() => loadStaff(true)}
-      />
+      {Boolean(resetModalUser) && (
+        <ResetPasswordModal
+          user={resetModalUser}
+          onClose={() => setResetModalUser(null)}
+          onSuccess={() => loadStaff(true)}
+        />
+      )}
 
-      <AddUpiModal
-        visible={upiAccountModalOpen}
-        onClose={() => setUpiAccountModalOpen(false)}
-        onSuccess={() => loadSettings(true)}
-      />
+      {upiAccountModalOpen && (
+        <AddUpiModal
+          visible={upiAccountModalOpen}
+          onClose={() => setUpiAccountModalOpen(false)}
+          onSuccess={() => loadSettings(true)}
+        />
+      )}
     </View>
   );
 }
@@ -757,6 +850,9 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: Colors.dark.background,
+  },
+  partiesContainer: {
+    flex: 1,
   },
   scrollContainer: {
     padding: 16,

@@ -18,6 +18,7 @@ import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
 import { formatINR } from '@/lib/formatters';
 import { Product, Warehouse } from '@/components/stock/types';
 import { Party } from '@/components/parties/types';
+import { MultiPaymentSplitSelector, PaymentSplitItem } from '@/components/ui/MultiPaymentSplitSelector';
 
 export interface PurchaseModalItem {
   id: string;
@@ -39,13 +40,6 @@ export interface CreatePurchaseModalProps {
 }
 
 const TAX_RATES = [0, 5, 12, 18, 28];
-
-const PAYMENT_MODES: { label: string; value: 'CREDIT' | 'CASH' | 'UPI' | 'BANK_TRANSFER'; icon: keyof typeof Ionicons.glyphMap }[] = [
-  { label: 'Credit (Pay Later)', value: 'CREDIT', icon: 'time-outline' },
-  { label: 'Cash', value: 'CASH', icon: 'cash-outline' },
-  { label: 'UPI / QR', value: 'UPI', icon: 'qr-code-outline' },
-  { label: 'Bank Transfer', value: 'BANK_TRANSFER', icon: 'business-outline' },
-];
 
 export function resolveProductCost(prod?: Product): number {
   if (!prod) return 0;
@@ -96,8 +90,9 @@ export function CreatePurchaseModal({
   const [destinationWarehouseId, setDestinationWarehouseId] = useState('');
   const [taxRate, setTaxRate] = useState<number>(0);
   const [transportCost, setTransportCost] = useState('0');
-  const [paymentMode, setPaymentMode] = useState<'CREDIT' | 'CASH' | 'UPI' | 'BANK_TRANSFER'>('CREDIT');
-  const [amountPaidNow, setAmountPaidNow] = useState('0');
+  const [paymentSplits, setPaymentSplits] = useState<PaymentSplitItem[]>([
+    { mode: 'BANK_TRANSFER', amount: '0' },
+  ]);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -167,8 +162,7 @@ export function CreatePurchaseModal({
     loadPrerequisites();
     setVendorBillNo('');
     setNotes('');
-    setPaymentMode('CREDIT');
-    setAmountPaidNow('0');
+    setPaymentSplits([{ mode: 'BANK_TRANSFER', amount: '0' }]);
     setTaxRate(0);
     setTransportCost('0');
     setNewPartyName('');
@@ -288,18 +282,17 @@ export function CreatePurchaseModal({
   const transportCostNum = parseFloat(transportCost) || 0;
   const totalAmount = Math.round((subtotal + taxAmount + transportCostNum) * 100) / 100;
 
-  const paidAmountNum = parseFloat(amountPaidNow) || 0;
-  const balanceDue = Math.max(0, totalAmount - paidAmountNum);
+  const validSplits = useMemo(() => {
+    return paymentSplits.filter(
+      (s) => s.amount !== '' && !isNaN(parseFloat(s.amount)) && parseFloat(s.amount) > 0,
+    );
+  }, [paymentSplits]);
 
-  // Switch payment mode
-  const handlePaymentModeChange = (mode: 'CREDIT' | 'CASH' | 'UPI' | 'BANK_TRANSFER') => {
-    setPaymentMode(mode);
-    if (mode === 'CREDIT') {
-      setAmountPaidNow('0');
-    } else {
-      setAmountPaidNow(String(totalAmount));
-    }
-  };
+  const totalPaid = useMemo(() => {
+    return validSplits.reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
+  }, [validSplits]);
+
+  const balanceDue = Math.max(0, Math.round((totalAmount - totalPaid) * 100) / 100);
 
   // Submit Handler with validations
   const handleSubmit = async () => {
@@ -349,14 +342,14 @@ export function CreatePurchaseModal({
     }
 
     // 3. Paid amount validation
-    if (isNaN(paidAmountNum) || paidAmountNum < 0) {
+    if (isNaN(totalPaid) || totalPaid < 0) {
       Alert.alert('Invalid Paid Amount', 'Upfront paid amount cannot be negative.');
       return;
     }
-    if (paidAmountNum > totalAmount + 0.05) {
+    if (totalPaid > totalAmount + 0.05) {
       Alert.alert(
         'Excessive Payment',
-        `Upfront paid amount (${formatINR(paidAmountNum)}) cannot exceed total purchase amount (${formatINR(totalAmount)}).`,
+        `Upfront paid amount (${formatINR(totalPaid)}) cannot exceed total purchase amount (${formatINR(totalAmount)}).`,
       );
       return;
     }
@@ -364,10 +357,22 @@ export function CreatePurchaseModal({
     // 4. Submit to API
     setSubmitting(true);
     try {
+      const resolvedMode =
+        validSplits.length === 0
+          ? 'CREDIT'
+          : validSplits.length === 1
+          ? validSplits[0].mode
+          : 'SPLIT';
+
       const payload: any = {
         vendorBillNo: vendorBillNo.trim() || undefined,
-        paymentMode,
-        amountPaidNow: paidAmountNum,
+        paymentMode: resolvedMode,
+        amountPaidNow: totalPaid,
+        payments: validSplits.map((s) => ({
+          mode: s.mode,
+          amount: parseFloat(s.amount) || 0,
+          referenceNo: s.referenceNo?.trim() || undefined,
+        })),
         taxRate,
         transportCost: transportCostNum,
         notes: notes.trim() || undefined,
@@ -558,6 +563,20 @@ export function CreatePurchaseModal({
           icon="receipt-outline"
         />
 
+        <Select
+          label="Receiving Warehouse *"
+          placeholder="Select receiving warehouse"
+          value={destinationWarehouseId}
+          onChange={handleDestinationWarehouseChange}
+          searchPlaceholder="Search warehouse..."
+          icon="business-outline"
+          options={warehouses.map((w) => ({
+            value: w.id,
+            label: w.name,
+            subLabel: w.type ? `${w.type} Warehouse` : undefined,
+          }))}
+        />
+
         {/* ---------------------------------------------------- */}
         {/* SECTION 3: LINE ITEMS                                */}
         {/* ---------------------------------------------------- */}
@@ -708,70 +727,13 @@ export function CreatePurchaseModal({
         {/* ---------------------------------------------------- */}
         <Text style={styles.sectionHeader}>5. Payment & Settlement</Text>
 
-        <Text style={styles.fieldLabel}>Payment Mode *</Text>
-        <View style={styles.paymentModeGrid}>
-          {PAYMENT_MODES.map((pm) => {
-            const isSelected = paymentMode === pm.value;
-            return (
-              <TouchableOpacity
-                key={pm.value}
-                style={[styles.paymentModeCard, isSelected && styles.paymentModeCardActive]}
-                onPress={() => handlePaymentModeChange(pm.value)}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name={pm.icon}
-                  size={16}
-                  color={isSelected ? '#09090B' : Colors.dark.textSecondary}
-                />
-                <Text
-                  style={[
-                    styles.paymentModeText,
-                    isSelected && styles.paymentModeTextActive,
-                  ]}
-                >
-                  {pm.label}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        <Input
-          label="Upfront Paid Amount (₹) *"
-          placeholder="0"
-          value={amountPaidNow}
-          onChangeText={(t) => setAmountPaidNow(t.replace(/[^0-9.]/g, ''))}
-          keyboardType="decimal-pad"
-          icon="cash-outline"
+        <MultiPaymentSplitSelector
+          totalAmount={totalAmount}
+          splits={paymentSplits}
+          onChange={setPaymentSplits}
+          balanceLabel="Credit Payable"
+          allowZero={true}
         />
-
-        {/* Quick Amount Chips */}
-        <View style={styles.quickChipsRow}>
-          <TouchableOpacity
-            style={styles.chipBtn}
-            onPress={() => setAmountPaidNow('0')}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.chipBtnText}>₹0 (Credit)</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.chipBtn}
-            onPress={() => setAmountPaidNow(String(totalAmount))}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.chipBtnText}>Full ({formatINR(totalAmount)})</Text>
-          </TouchableOpacity>
-          {totalAmount > 0 ? (
-            <TouchableOpacity
-              style={styles.chipBtn}
-              onPress={() => setAmountPaidNow(String(Math.round(totalAmount / 2)))}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.chipBtnText}>50% ({formatINR(Math.round(totalAmount / 2))})</Text>
-            </TouchableOpacity>
-          ) : null}
-        </View>
 
         {/* Notes */}
         <Input
@@ -810,7 +772,7 @@ export function CreatePurchaseModal({
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Paid Upfront Now:</Text>
             <Text style={[styles.summaryValue, { color: '#10B981' }]}>
-              {formatINR(paidAmountNum)}
+              {formatINR(totalPaid)}
             </Text>
           </View>
           <View style={styles.summaryRow}>

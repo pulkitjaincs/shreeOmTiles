@@ -7,8 +7,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { CategorySplitCard } from '../shared/CategorySplitCard';
 
 interface PaymentCategoryBreakdownProps {
-  paymentSplit: Array<{ name: string; value: number; count: number }>;
-  categorySplit: Array<{ name: string; value: number }>;
+  paymentSplit: { name: string; value: number; count: number }[];
+  categorySplit: { name: string; value: number }[];
   onViewTransactions?: () => void;
   onManageCatalog?: () => void;
 }
@@ -47,16 +47,33 @@ export function PaymentCategoryBreakdown({
             paymentSplit.map((pm, idx) => {
               const count = pm.count || 0;
               const pct = Math.round((Number(pm.value || 0) / totalPaymentRevenue) * 100);
-              const isUpi = pm.name === 'UPI';
-              const isCash = pm.name === 'CASH';
-              const color = isUpi ? '#38BDF8' : isCash ? '#10B981' : '#F59E0B';
+
+              const getModeDetails = (mode: string) => {
+                switch (mode?.toUpperCase()) {
+                  case 'UPI':
+                    return { label: 'UPI', color: '#38BDF8' };
+                  case 'CASH':
+                    return { label: 'Cash', color: '#10B981' };
+                  case 'BANK_TRANSFER':
+                  case 'BANK':
+                    return { label: 'Bank Transfer', color: '#818CF8' };
+                  case 'SPLIT':
+                    return { label: 'Split Payment', color: '#A855F7' };
+                  case 'CREDIT':
+                    return { label: 'Credit', color: '#EF4444' };
+                  default:
+                    return { label: mode || 'Other', color: '#94A3B8' };
+                }
+              };
+
+              const { label, color } = getModeDetails(pm.name);
 
               return (
                 <View key={idx} style={styles.row}>
                   <View style={styles.rowMeta}>
                     <View style={styles.labelRow}>
                       <View style={[styles.dot, { backgroundColor: color }]} />
-                      <Text style={styles.name} numberOfLines={1}>{pm.name}</Text>
+                      <Text style={styles.name} numberOfLines={1}>{label}</Text>
                       <Text style={styles.countText} numberOfLines={1}>({count} inv)</Text>
                     </View>
                     <Text style={styles.amount} numberOfLines={1}>

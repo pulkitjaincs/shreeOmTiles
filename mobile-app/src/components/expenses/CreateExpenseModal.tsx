@@ -12,6 +12,8 @@ import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Button } from '@/components/ui/Button';
 import { Colors } from '@/constants/theme';
 import { mobileApiRequest } from '@/lib/api';
+import { formatINR } from '@/lib/formatters';
+import { MultiPaymentSplitSelector, PaymentSplitItem } from '@/components/ui/MultiPaymentSplitSelector';
 
 const CATEGORIES = [
   { label: 'Misc', value: 'MISC' },
@@ -43,6 +45,10 @@ export function CreateExpenseModal({
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('MISC');
   const [paymentMode, setPaymentMode] = useState('CASH');
+  const [isSplit, setIsSplit] = useState(false);
+  const [paymentSplits, setPaymentSplits] = useState<PaymentSplitItem[]>([
+    { mode: 'CASH', amount: '' },
+  ]);
   const [paidTo, setPaidTo] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -58,6 +64,25 @@ export function CreateExpenseModal({
       return;
     }
 
+    const validSplits = paymentSplits.filter(
+      (s) => s.amount !== '' && !isNaN(parseFloat(s.amount)) && parseFloat(s.amount) > 0,
+    );
+
+    if (isSplit) {
+      if (validSplits.length === 0) {
+        Alert.alert('Payment Split Required', 'Please allocate at least one payment method amount.');
+        return;
+      }
+      const allocated = validSplits.reduce((sum, s) => sum + (parseFloat(s.amount) || 0), 0);
+      if (Math.abs(allocated - numAmt) > 0.05) {
+        Alert.alert(
+          'Split Allocation Mismatch',
+          `Allocated payment total (${formatINR(allocated)}) must match expense amount (${formatINR(numAmt)}).`,
+        );
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       const trimmedTitle = title.trim();
@@ -66,22 +91,40 @@ export function CreateExpenseModal({
         ? (trimmedNotes ? `${trimmedTitle} - ${trimmedNotes}` : trimmedTitle)
         : (trimmedNotes || undefined);
 
+      const resolvedMode = !isSplit
+        ? paymentMode
+        : validSplits.length > 1
+        ? 'SPLIT'
+        : validSplits[0].mode;
+
+      const payload: any = {
+        title: trimmedTitle,
+        amount: numAmt,
+        category,
+        paymentMode: resolvedMode,
+        paidTo: paidTo.trim() || undefined,
+        notes: combinedNotes,
+      };
+
+      if (isSplit) {
+        payload.splits = validSplits.map((s) => ({
+          mode: s.mode,
+          amount: parseFloat(s.amount) || 0,
+          referenceNo: s.referenceNo?.trim() || undefined,
+        }));
+      }
+
       await mobileApiRequest('/expenses', {
         method: 'POST',
-        body: JSON.stringify({
-          title: trimmedTitle,
-          amount: numAmt,
-          category,
-          paymentMode,
-          paidTo: paidTo.trim() || undefined,
-          notes: combinedNotes,
-        }),
+        body: JSON.stringify(payload),
       });
       Alert.alert('Success', 'Expense recorded successfully');
       setTitle('');
       setAmount('');
       setPaidTo('');
       setNotes('');
+      setIsSplit(false);
+      setPaymentSplits([{ mode: 'CASH', amount: '' }]);
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -143,27 +186,54 @@ export function CreateExpenseModal({
           ))}
         </View>
 
-        {/* Payment Mode */}
-        <Text style={styles.inputLabel}>Disbursed Via</Text>
-        <View style={styles.chipRow}>
-          {MODES.map((m) => (
-            <TouchableOpacity
-              key={m.value}
-              style={[styles.chip, paymentMode === m.value && styles.chipActive]}
-              onPress={() => setPaymentMode(m.value)}
-              activeOpacity={0.7}
-            >
-              <Text
-                style={[
-                  styles.chipText,
-                  paymentMode === m.value && styles.chipTextActive,
-                ]}
-              >
-                {m.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
+        {/* Payment Mode / Split */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, marginBottom: 5 }}>
+          <Text style={[styles.inputLabel, { marginTop: 0, marginBottom: 0 }]}>Disbursed Via</Text>
+          <TouchableOpacity
+            onPress={() => {
+              const nextSplit = !isSplit;
+              setIsSplit(nextSplit);
+              if (nextSplit) {
+                setPaymentSplits([{ mode: 'CASH', amount: amount || '' }]);
+              }
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={{ fontSize: 11, fontWeight: '700', color: '#38BDF8' }}>
+              {isSplit ? 'Single Mode' : '+ Split Modes'}
+            </Text>
+          </TouchableOpacity>
         </View>
+
+        {!isSplit ? (
+          <View style={styles.chipRow}>
+            {MODES.map((m) => (
+              <TouchableOpacity
+                key={m.value}
+                style={[styles.chip, paymentMode === m.value && styles.chipActive]}
+                onPress={() => setPaymentMode(m.value)}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.chipText,
+                    paymentMode === m.value && styles.chipTextActive,
+                  ]}
+                >
+                  {m.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : (
+          <MultiPaymentSplitSelector
+            totalAmount={parseFloat(amount) || 0}
+            splits={paymentSplits}
+            onChange={setPaymentSplits}
+            balanceLabel="Remaining to allocate"
+            allowZero={false}
+          />
+        )}
 
         {/* Paid To */}
         <Text style={styles.inputLabel}>Paid To (Beneficiary)</Text>

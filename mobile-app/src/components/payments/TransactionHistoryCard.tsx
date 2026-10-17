@@ -75,9 +75,51 @@ export function TransactionHistoryCard({
                 {isInflow ? 'INFLOW' : 'OUTFLOW'}
               </Text>
             </View>
-            <View style={styles.modeBadge}>
-              <Text style={styles.modeBadgeText}>{payment.mode}</Text>
-            </View>
+            {(() => {
+              const mode = payment.mode?.toUpperCase();
+              const isUpi = mode === 'UPI';
+              const isCash = mode === 'CASH';
+              const isBank = mode === 'BANK_TRANSFER' || mode === 'BANK';
+              const isSplit = mode === 'SPLIT';
+
+              const color = isUpi
+                ? '#38BDF8'
+                : isCash
+                ? '#10B981'
+                : isBank
+                ? '#818CF8'
+                : isSplit
+                ? '#A855F7'
+                : Colors.dark.textSecondary;
+
+              const bg = isUpi
+                ? 'rgba(56, 189, 248, 0.12)'
+                : isCash
+                ? 'rgba(16, 185, 129, 0.12)'
+                : isBank
+                ? 'rgba(99, 102, 241, 0.12)'
+                : isSplit
+                ? 'rgba(168, 85, 247, 0.12)'
+                : 'transparent';
+
+              const border = isUpi
+                ? 'rgba(56, 189, 248, 0.3)'
+                : isCash
+                ? 'rgba(16, 185, 129, 0.3)'
+                : isBank
+                ? 'rgba(99, 102, 241, 0.3)'
+                : isSplit
+                ? 'rgba(168, 85, 247, 0.3)'
+                : Colors.dark.border;
+
+              return (
+                <View style={[styles.modeBadge, { backgroundColor: bg, borderColor: border }]}>
+                  <Text style={[styles.modeBadgeText, { color }]}>
+                    {isBank ? 'BANK' : payment.mode}
+                  </Text>
+                </View>
+              );
+            })()}
           </View>
 
           <Text style={styles.partyTitle} numberOfLines={1}>

@@ -52,7 +52,7 @@ export function PaymentStatsGrid({
           ₹{stats.totalCollected.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
         </div>
         <span className="text-[0.625rem] text-emerald-800/80 dark:text-emerald-300/80 mt-0.5 block">
-          Total Inflows (Cash + UPI)
+          Total Inflows (Cash, UPI, Bank Transfer)
         </span>
       </div>
 
@@ -113,7 +113,7 @@ export function PaymentStatsGrid({
         </span>
       </div>
 
-      {/* 6. Cash vs UPI Breakdown */}
+      {/* 6. Collection Split */}
       <div className="p-4 rounded-[1rem] border border-primary/30 bg-primary/10 shadow-xs col-span-2 sm:col-span-1 flex flex-col justify-between">
         <span className="text-[0.6875rem] font-semibold text-primary uppercase tracking-wider block">
           Collection Split
@@ -122,15 +122,23 @@ export function PaymentStatsGrid({
           <div className="flex items-center justify-between text-xs font-semibold text-foreground">
             <span className="text-muted-foreground">Cash:</span>
             <span className="font-mono text-emerald-600 dark:text-emerald-400">
-              ₹{stats.cashCollected.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              ₹{(stats.cashCollected || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
             </span>
           </div>
           <div className="flex items-center justify-between text-xs font-semibold text-foreground">
             <span className="text-muted-foreground">UPI:</span>
             <span className="font-mono text-primary">
-              ₹{stats.upiCollected.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              ₹{(stats.upiCollected || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
             </span>
           </div>
+          {(stats.bankCollected ?? 0) > 0 && (
+            <div className="flex items-center justify-between text-xs font-semibold text-foreground">
+              <span className="text-muted-foreground">Bank:</span>
+              <span className="font-mono text-indigo-600 dark:text-indigo-400">
+                ₹{(stats.bankCollected || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </div>

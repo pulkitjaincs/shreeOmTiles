@@ -177,7 +177,28 @@ export interface PreviewUpiData {
   qrDataUrl: string;
 }
 
+export type PaymentMethodType = 'CASH' | 'UPI' | 'BANK_TRANSFER';
+
+export interface PaymentSplitItem {
+  id?: string;
+  mode: PaymentMethodType;
+  amount: string;
+  upiUtr?: string;
+  referenceNo?: string;
+  notes?: string;
+}
+
+export interface PaymentReceipt {
+  id: string;
+  amount: number | string;
+  mode: string;
+  type: string;
+  upiUtr?: string;
+  notes?: string;
+  createdAt: string;
+}
+
 export type CustomerMode = 'EXISTING' | 'NEW_SAVED' | 'UNREGISTERED';
 export type DatePreset = 'ALL' | 'TODAY' | 'YESTERDAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'CUSTOM';
 export type InvoiceStatusFilter = 'ALL' | 'PAID' | 'PARTIAL' | 'CREATED' | 'REFUNDED';
-export type PaymentModeFilter = 'ALL' | 'UPI' | 'CASH' | 'CREDIT' | 'CHEQUE';
+export type PaymentModeFilter = 'ALL' | 'UPI' | 'CASH' | 'CREDIT' | 'SPLIT';

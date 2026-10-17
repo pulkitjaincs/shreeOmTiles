@@ -157,6 +157,31 @@ export function InvoiceDetailsModal({
           );
         })}
 
+        {!isSupervisor && (invoice.payments || []).length > 0 ? (
+          <>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.modalSectionTitle}>Payment Receipts ({invoice.payments.length})</Text>
+            </View>
+            {(invoice.payments || []).map((pm: any, idx: number) => (
+              <View key={pm.id || idx} style={styles.itemDetailRow}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.itemDetailName}>
+                    {pm.mode} {pm.status && pm.status !== 'CONFIRMED' ? `(${pm.status})` : ''}
+                  </Text>
+                  <Text style={styles.itemDetailSub}>
+                    {pm.referenceNo ? `Ref: ${pm.referenceNo} · ` : ''}{formatDate(pm.createdAt)}
+                  </Text>
+                </View>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={[styles.itemDetailTotal, { color: Colors.dark.statusPaid }]}>
+                    {formatINR(pm.amount)}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </>
+        ) : null}
+
         {(invoice.refundInvoices || []).length > 0 ? (
           <>
             <Text style={styles.modalSectionTitle}>Attached Credit Notes ({invoice.refundInvoices.length})</Text>

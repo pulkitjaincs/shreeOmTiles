@@ -18,10 +18,6 @@ import {
   Calendar,
   ArrowLeft,
   ArrowRight,
-  Wallet,
-  QrCode,
-  Building2,
-  RefreshCw,
 } from 'lucide-react';
 import { PaymentStatsGrid } from '@/components/payments/payment-stats-grid';
 import { 
@@ -34,7 +30,6 @@ import {
 } from '@/components/payments/types';
 import { SettlementModal } from '@/components/payments/settlement-modal';
 import { CreditLedgerModal } from '@/components/payments/credit-ledger-modal';
-import { formatINR, formatDateTime } from '@/lib/formatters';
 
 export interface DayBookResponse {
   date: string;
@@ -107,6 +102,7 @@ export default function TransactionsPage() {
     totalPaidOut: 0,
     cashCollected: 0,
     upiCollected: 0,
+    bankCollected: 0,
     pendingReceivables: 0,
     creditsOwed: 0,
   });
@@ -195,6 +191,7 @@ export default function TransactionsPage() {
           totalPaidOut: 0,
           cashCollected: 0,
           upiCollected: 0,
+          bankCollected: 0,
           pendingReceivables: 0,
           creditsOwed: 0,
         })),
@@ -225,15 +222,20 @@ export default function TransactionsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [formatPendingList]);
 
   useEffect(() => {
-    loadData();
+    const timer = setTimeout(() => {
+      void loadData();
+    }, 0);
     const handleRefresh = () => {
       loadData(true);
     };
     window.addEventListener('app:refresh-active-page', handleRefresh);
-    return () => window.removeEventListener('app:refresh-active-page', handleRefresh);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('app:refresh-active-page', handleRefresh);
+    };
   }, [loadData]);
 
   // Load Day Book reconciliation data for selectedDate
@@ -250,21 +252,33 @@ export default function TransactionsPage() {
   }, []);
 
   useEffect(() => {
+    let timer: NodeJS.Timeout | null = null;
     if (activeTab === 'daybook' || dateFilterMode === 'specific') {
-      fetchDayBook(selectedDate);
+      timer = setTimeout(() => {
+        void fetchDayBook(selectedDate);
+      }, 0);
     }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
   }, [selectedDate, activeTab, dateFilterMode, fetchDayBook]);
 
   // Support direct redirect / link: /dashboard/payments?tab=daybook
   useEffect(() => {
+    let timer: NodeJS.Timeout | null = null;
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab');
       if (tabParam === 'daybook') {
-        setActiveTab('daybook');
-        setDateFilterMode('specific');
+        timer = setTimeout(() => {
+          setActiveTab('daybook');
+          setDateFilterMode('specific');
+        }, 0);
       }
     }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
   }, []);
 
   const handleShiftDay = (days: number) => {
@@ -274,15 +288,21 @@ export default function TransactionsPage() {
     setDateFilterMode('specific');
   };
 
+  const yesterdayStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().slice(0, 10);
+  }, []);
+
+  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
+
   const handleToday = () => {
-    setSelectedDate(new Date().toISOString().slice(0, 10));
+    setSelectedDate(todayStr);
     setDateFilterMode('specific');
   };
 
   const handleYesterday = () => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    setSelectedDate(d.toISOString().slice(0, 10));
+    setSelectedDate(yesterdayStr);
     setDateFilterMode('specific');
   };
 
@@ -519,7 +539,7 @@ export default function TransactionsPage() {
             onClick={handleYesterday}
             className={`text-xs h-7 px-2.5 rounded-xl ${
               dateFilterMode === 'specific' &&
-              selectedDate === new Date(Date.now() - 86400000).toISOString().slice(0, 10)
+              selectedDate === yesterdayStr
                 ? 'bg-muted font-bold text-foreground'
                 : 'text-muted-foreground'
             }`}
@@ -533,7 +553,7 @@ export default function TransactionsPage() {
             onClick={handleToday}
             className={`text-xs h-7 px-2.5 rounded-xl ${
               dateFilterMode === 'specific' &&
-              selectedDate === new Date().toISOString().slice(0, 10)
+              selectedDate === todayStr
                 ? 'bg-primary/10 text-primary font-bold border-primary/30'
                 : 'text-muted-foreground'
             }`}
@@ -839,8 +859,20 @@ export default function TransactionsPage() {
                           {entry.subTitle}
                         </td>
                         <td className="py-3 px-4">
-                          <span className="text-[11px] px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border/50 font-medium">
-                            {entry.mode}
+                          <span
+                            className={`text-[11px] px-2 py-0.5 rounded-md font-medium border ${
+                              entry.mode === 'UPI'
+                                ? 'bg-primary/10 text-primary border-primary/20'
+                                : entry.mode === 'CASH'
+                                ? 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-400 border-emerald-500/20'
+                                : entry.mode === 'BANK_TRANSFER' || entry.mode === 'BANK'
+                                ? 'bg-indigo-500/10 text-indigo-800 dark:text-indigo-400 border-indigo-500/20'
+                                : entry.mode === 'SPLIT'
+                                ? 'bg-purple-500/10 text-purple-800 dark:text-purple-400 border-purple-500/20'
+                                : 'bg-muted text-muted-foreground border-border/50'
+                            }`}
+                          >
+                            {entry.mode === 'BANK_TRANSFER' ? 'BANK' : entry.mode}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right font-mono font-bold text-xs whitespace-nowrap">
@@ -1151,13 +1183,19 @@ export default function TransactionsPage() {
                           <td className="py-3.5 px-4">
                             <div className="flex items-center gap-1.5">
                               <span
-                                className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                                className={`px-2 py-0.5 rounded text-xs font-semibold border ${
                                   payment.mode === 'UPI'
-                                    ? 'bg-primary/10 text-primary border border-primary/20'
-                                    : 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-400 border border-emerald-500/20'
+                                    ? 'bg-primary/10 text-primary border-primary/20'
+                                    : payment.mode === 'CASH'
+                                    ? 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-400 border border-emerald-500/20'
+                                    : payment.mode === 'BANK_TRANSFER' || payment.mode === 'BANK'
+                                    ? 'bg-indigo-500/10 text-indigo-800 dark:text-indigo-400 border border-indigo-500/20'
+                                    : payment.mode === 'SPLIT'
+                                    ? 'bg-purple-500/10 text-purple-800 dark:text-purple-400 border border-purple-500/20'
+                                    : 'bg-muted text-muted-foreground border-border/50'
                                 }`}
                               >
-                                {payment.mode}
+                                {payment.mode === 'BANK_TRANSFER' ? 'BANK' : payment.mode}
                               </span>
                               {payment.type === 'OUTFLOW' ? (
                                 <span className="px-1.5 py-0.5 rounded text-[0.625rem] font-semibold bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20">

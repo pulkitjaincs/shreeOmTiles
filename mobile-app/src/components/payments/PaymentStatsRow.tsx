@@ -56,7 +56,7 @@ export function PaymentStatsRow({ stats, activeTab, onTabChange }: PaymentStatsR
             {formatINR(stats.totalCollected || 0)}
           </Text>
           <Text style={[styles.statMiniSub, { color: 'rgba(16, 185, 129, 0.75)' }]}>
-            Cash + UPI Inflows
+            Cash, UPI & Bank Transfer
           </Text>
         </Card>
       </TouchableOpacity>
@@ -148,7 +148,7 @@ export function PaymentStatsRow({ stats, activeTab, onTabChange }: PaymentStatsR
         </Card>
       </TouchableOpacity>
 
-      {/* 6. Collection Split (Cash vs UPI) */}
+      {/* 6. Collection Split (Cash, UPI, Bank) */}
       <Card
         style={[
           styles.statMiniCard,
@@ -170,6 +170,14 @@ export function PaymentStatsRow({ stats, activeTab, onTabChange }: PaymentStatsR
             {formatINR(stats.upiCollected || 0)}
           </Text>
         </View>
+        {(stats.bankCollected ?? 0) > 0 && (
+          <View style={styles.splitRow}>
+            <Text style={styles.splitLabel}>Bank:</Text>
+            <Text style={styles.splitValBank} numberOfLines={1} adjustsFontSizeToFit>
+              {formatINR(stats.bankCollected || 0)}
+            </Text>
+          </View>
+        )}
       </Card>
     </ScrollView>
   );
@@ -249,6 +257,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     color: '#38BDF8',
+    fontFamily: 'monospace',
+  },
+  splitValBank: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#818CF8',
     fontFamily: 'monospace',
   },
 });

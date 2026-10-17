@@ -17,6 +17,8 @@ import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
 import { formatINR } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
 import { Party, UpiAccount, UpiPreviewData } from './types';
+import { PaymentSplitItem } from '@/components/invoices/types';
+import { MultiPaymentSplitSelector } from '@/components/ui/MultiPaymentSplitSelector';
 import { SettlementSuccessData } from './SettlementSuccessModal';
 
 interface RecordSettlementModalProps {
@@ -49,6 +51,9 @@ export function RecordSettlementModal({
   const [direction, setDirection] = useState<'COLLECT' | 'PAY'>(initialDirection);
   const [selectedPartyId, setSelectedPartyId] = useState(initialPartyId || '');
   const [amount, setAmount] = useState(initialAmount || '');
+  const [splits, setSplits] = useState<PaymentSplitItem[]>([
+    { mode: initialDirection === 'PAY' ? 'CASH' : 'UPI', amount: initialAmount || '' },
+  ]);
   const [mode, setMode] = useState<'CASH' | 'UPI'>('CASH');
   const [utr, setUtr] = useState('');
   const [notes, setNotes] = useState(initialNotes || '');
@@ -78,7 +83,7 @@ export function RecordSettlementModal({
 
   const generateUpiQr = useCallback(
     async (amt: number, account?: UpiAccount | null) => {
-      if (isNaN(amt) || amt <= 0 || modeRef.current !== 'UPI') {
+      if (isNaN(amt) || amt <= 0) {
         setUpiPreview(null);
         return;
       }
@@ -95,7 +100,7 @@ export function RecordSettlementModal({
             merchantName: target?.merchantName,
           }),
         });
-        if (reqId === upiReqIdRef.current && modeRef.current === 'UPI') {
+        if (reqId === upiReqIdRef.current) {
           setUpiPreview(data);
         }
       } catch (err: any) {
@@ -120,6 +125,7 @@ export function RecordSettlementModal({
       setAmount(initialAmount || '');
 
       const defaultMode = initialDirection === 'PAY' ? 'CASH' : 'UPI';
+      setSplits([{ mode: defaultMode, amount: initialAmount || '' }]);
       setMode(defaultMode);
       modeRef.current = defaultMode;
 
@@ -145,13 +151,13 @@ export function RecordSettlementModal({
           selectedUpiAccountRef.current = primary;
 
           const amtNum = parseFloat(initialAmount || '0');
-          if (initialDirection === 'COLLECT' && modeRef.current === 'UPI' && !isNaN(amtNum) && amtNum > 0) {
+          if (initialDirection === 'COLLECT' && defaultMode === 'UPI' && !isNaN(amtNum) && amtNum > 0) {
             void generateUpiQr(amtNum, primary);
           }
         })
         .catch(() => {
           const amtNum = parseFloat(initialAmount || '0');
-          if (initialDirection === 'COLLECT' && modeRef.current === 'UPI' && !isNaN(amtNum) && amtNum > 0) {
+          if (initialDirection === 'COLLECT' && defaultMode === 'UPI' && !isNaN(amtNum) && amtNum > 0) {
             void generateUpiQr(amtNum, null);
           }
         });
@@ -164,11 +170,14 @@ export function RecordSettlementModal({
 
   const handleAmountChange = (val: string) => {
     setAmount(val);
-    const amtNum = parseFloat(val);
-    if (!isNaN(amtNum) && amtNum > 0 && modeRef.current === 'UPI' && direction === 'COLLECT') {
-      void generateUpiQr(amtNum, selectedUpiAccountRef.current);
-    } else {
-      setUpiPreview(null);
+    if (splits.length === 1) {
+      setSplits([{ ...splits[0], amount: val }]);
+      const amtNum = parseFloat(val);
+      if (splits[0].mode === 'UPI' && !isNaN(amtNum) && amtNum > 0 && direction === 'COLLECT') {
+        void generateUpiQr(amtNum, selectedUpiAccountRef.current);
+      } else {
+        setUpiPreview(null);
+      }
     }
   };
 
@@ -229,13 +238,13 @@ export function RecordSettlementModal({
   };
 
   const handleSubmit = async () => {
-    if (!selectedPartyId || !amount) {
+    const validSplits = splits.filter((s) => {
+      const a = parseFloat(s.amount);
+      return !isNaN(a) && a > 0;
+    });
+    const totalSplitAmount = validSplits.reduce((acc, s) => acc + parseFloat(s.amount), 0);
+    if (!selectedPartyId || totalSplitAmount <= 0) {
       Alert.alert('Required Fields', 'Please select a party and enter the settlement amount');
-      return;
-    }
-    const amtNum = parseFloat(amount);
-    if (isNaN(amtNum) || amtNum <= 0) {
-      Alert.alert('Invalid Amount', 'Amount must be greater than zero');
       return;
     }
 
@@ -247,30 +256,38 @@ export function RecordSettlementModal({
           ? `Disbursement to ${targetParty?.name || 'Party'}`
           : `Settlement received from ${targetParty?.name || 'Customer'}`;
 
+      const primaryUtr = validSplits.find((s) => s.mode === 'UPI' && s.upiUtr)?.upiUtr || utr.trim() || undefined;
+
       await mobileApiRequest('/payments', {
         method: 'POST',
         body: JSON.stringify({
           partyId: selectedPartyId,
           invoiceId: invoiceId || undefined,
           type: direction === 'COLLECT' ? 'INFLOW' : 'OUTFLOW',
-          mode: direction === 'PAY' ? 'CASH' : mode,
-          amount: amtNum,
-          upiTxnRef: direction === 'COLLECT' && utr.trim() ? utr.trim() : undefined,
-          upiUtr: direction === 'COLLECT' && utr.trim() ? utr.trim() : undefined,
+          mode: validSplits.length > 1 ? 'SPLIT' : validSplits[0]?.mode,
+          amount: totalSplitAmount,
+          upiTxnRef: primaryUtr,
+          upiUtr: primaryUtr,
           notes: notes.trim() || defaultNote,
           autoConfirm: true,
+          splits: validSplits.map((s) => ({
+            mode: s.mode,
+            amount: parseFloat(s.amount),
+            upiUtr: s.upiUtr?.trim() || (s.mode === 'UPI' ? utr.trim() || undefined : undefined),
+            notes: s.notes?.trim() || undefined,
+          })),
         }),
       });
 
       onClose();
       onSuccess({
         direction,
-        amount: amtNum,
+        amount: totalSplitAmount,
         partyName: targetParty?.name || 'Party',
         partyPhone: targetParty?.phone,
-        mode: direction === 'PAY' ? 'CASH' : mode,
+        mode: validSplits.length > 1 ? 'SPLIT' : validSplits[0]?.mode,
         invoiceNo: invoiceNo || undefined,
-        utr: direction === 'COLLECT' && utr.trim() ? utr.trim() : undefined,
+        utr: primaryUtr,
         notes: notes.trim() || defaultNote,
       });
     } catch (err: any) {
@@ -299,37 +316,39 @@ export function RecordSettlementModal({
           <TouchableOpacity
             style={[styles.dirBtn, direction === 'COLLECT' && styles.dirBtnActiveCollect]}
             onPress={() => {
-            setDirection('COLLECT');
-            const amtNum = parseFloat(amount);
-            if (mode === 'UPI' && !isNaN(amtNum) && amtNum > 0) {
-              void generateUpiQr(amtNum, selectedUpiAccount);
-            }
-          }}
-          activeOpacity={0.8}
-        >
-          <Ionicons
-            name="arrow-down-circle"
-            size={15}
-            color={direction === 'COLLECT' ? '#10B981' : Colors.dark.textSecondary}
-          />
-          <Text
-            style={[
-              styles.dirText,
-              direction === 'COLLECT' && { color: '#10B981', fontWeight: '800' },
-            ]}
+              setDirection('COLLECT');
+              setSplits([{ mode: 'UPI', amount }]);
+              const amtNum = parseFloat(amount);
+              if (!isNaN(amtNum) && amtNum > 0) {
+                void generateUpiQr(amtNum, selectedUpiAccount);
+              }
+            }}
+            activeOpacity={0.8}
           >
-            Collect (Inflow)
-          </Text>
-        </TouchableOpacity>
+            <Ionicons
+              name="arrow-down-circle"
+              size={15}
+              color={direction === 'COLLECT' ? '#10B981' : Colors.dark.textSecondary}
+            />
+            <Text
+              style={[
+                styles.dirText,
+                direction === 'COLLECT' && { color: '#10B981', fontWeight: '800' },
+              ]}
+            >
+              Collect (Inflow)
+            </Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.dirBtn, direction === 'PAY' && styles.dirBtnActivePay]}
-          onPress={() => {
-            setDirection('PAY');
-            setUpiPreview(null);
-          }}
-          activeOpacity={0.8}
-        >
+          <TouchableOpacity
+            style={[styles.dirBtn, direction === 'PAY' && styles.dirBtnActivePay]}
+            onPress={() => {
+              setDirection('PAY');
+              setSplits([{ mode: 'CASH', amount }]);
+              setUpiPreview(null);
+            }}
+            activeOpacity={0.8}
+          >
           <Ionicons
             name="arrow-up-circle"
             size={15}
@@ -477,34 +496,27 @@ export function RecordSettlementModal({
         )}
       </View>
 
-      {/* Payment Mode Selector (Only needed for collections) */}
-      {direction === 'COLLECT' && (
-        <>
-          <Text style={styles.fieldLabel}>Payment Mode</Text>
-          <View style={styles.modeToggleBar}>
-            {(['CASH', 'UPI'] as const).map((m) => (
-              <TouchableOpacity
-                key={m}
-                style={[styles.modeBtn, mode === m && styles.modeBtnActive]}
-                onPress={() => handleModeChange(m)}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name={m === 'CASH' ? 'cash-outline' : 'qr-code-outline'}
-                  size={14}
-                  color={mode === m ? '#09090B' : Colors.dark.textSecondary}
-                />
-                <Text style={[styles.modeText, mode === m && styles.modeTextActive]}>
-                  {m === 'CASH' ? 'Cash in Hand' : 'UPI (Dynamic QR)'}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </>
-      )}
+      {/* Multi-Payment Split Selector */}
+      <MultiPaymentSplitSelector
+        totalAmount={parseFloat(amount) || 0}
+        splits={splits}
+        onChange={(newSplits) => {
+          setSplits(newSplits);
+          const upiRow = newSplits.find((s) => s.mode === 'UPI');
+          const upiVal = upiRow ? parseFloat(upiRow.amount) : 0;
+          if (!isNaN(upiVal) && upiVal > 0 && direction === 'COLLECT') {
+            void generateUpiQr(upiVal, selectedUpiAccountRef.current);
+          } else {
+            setUpiPreview(null);
+          }
+        }}
+        allowCredit={false}
+        onPreviewUpi={(amt) => void generateUpiQr(amt, selectedUpiAccountRef.current)}
+        previewUpiLoading={upiLoading}
+      />
 
       {/* Dynamic UPI Section when Collecting via UPI */}
-      {direction === 'COLLECT' && mode === 'UPI' ? (
+      {direction === 'COLLECT' && splits.some((s) => s.mode === 'UPI') ? (
         <View style={styles.upiContainer}>
           {upiAccounts.length > 0 ? (
             <View style={{ marginBottom: 10 }}>
@@ -516,7 +528,8 @@ export function RecordSettlementModal({
                   const acc = upiAccounts.find((a) => a.id === id);
                   if (acc) {
                     setSelectedUpiAccount(acc);
-                    const amtNum = parseFloat(amount);
+                    const upiRow = splits.find((s) => s.mode === 'UPI');
+                    const amtNum = upiRow ? parseFloat(upiRow.amount) : 0;
                     if (!isNaN(amtNum) && amtNum > 0) {
                       void generateUpiQr(amtNum, acc);
                     }
@@ -566,7 +579,7 @@ export function RecordSettlementModal({
             <View style={styles.qrPromptBox}>
               <Ionicons name="qr-code-outline" size={32} color="#A1A1AA" />
               <Text style={styles.qrPromptText}>
-                Enter an amount above to generate live NPCI QR code
+                Enter an amount above for UPI to generate live NPCI QR code
               </Text>
             </View>
           )}
@@ -577,30 +590,6 @@ export function RecordSettlementModal({
             value={utr}
             onChangeText={setUtr}
             keyboardType="numeric"
-          />
-        </View>
-      ) : null}
-
-      {direction === 'COLLECT' && mode === 'CASH' ? (
-        <View style={styles.cashContainer}>
-          <View style={styles.cashHeaderRow}>
-            <Ionicons name="cash" size={20} color="#10B981" />
-            <Text style={styles.cashHeaderTitle}>Cash in Hand Collection</Text>
-          </View>
-          <Text style={styles.cashSubText}>
-            Collect physical cash directly from customer and record the deposit into store register drawer.
-          </Text>
-          <View style={styles.cashAmountBox}>
-            <Text style={styles.cashAmountLabel}>Exact Cash to Receive:</Text>
-            <Text style={styles.cashAmountVal}>
-              {amount ? formatINR(parseFloat(amount) || 0) : '₹0.00'}
-            </Text>
-          </View>
-          <Input
-            label="Cash Drawer Note / Slip No. (Optional)"
-            placeholder="e.g. Counter 1 Register Slip"
-            value={utr}
-            onChangeText={setUtr}
           />
         </View>
       ) : null}
@@ -622,10 +611,8 @@ export function RecordSettlementModal({
           submitting
             ? 'Recording...'
             : direction === 'COLLECT'
-            ? mode === 'CASH'
-              ? `Confirm Cash Received ${amount ? formatINR(parseFloat(amount) || 0) : ''}`
-              : `Confirm UPI Received ${amount ? formatINR(parseFloat(amount) || 0) : ''}`
-            : `Confirm & Disburse ${amount ? formatINR(parseFloat(amount) || 0) : ''}`
+            ? `Confirm Settlement Received ${formatINR(splits.reduce((acc, s) => acc + (parseFloat(s.amount) || 0), 0))}`
+            : `Confirm & Disburse ${formatINR(splits.reduce((acc, s) => acc + (parseFloat(s.amount) || 0), 0))}`
         }
         onPress={handleSubmit}
         loading={submitting}

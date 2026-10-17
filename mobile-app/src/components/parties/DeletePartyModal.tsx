@@ -23,7 +23,7 @@ export function DeletePartyModal({
 }: DeletePartyModalProps) {
   const [submitting, setSubmitting] = useState(false);
 
-  if (!party) return null;
+  if (!visible || !party) return null;
 
   const receivableDue = (party.creditLedgers || [])
     .filter((cl) => cl.status !== 'SETTLED' && cl.type === 'RECEIVABLE')
@@ -52,7 +52,7 @@ export function DeletePartyModal({
     <BottomSheetModal
       visible={visible}
       onClose={onClose}
-      title={hasPendingDues ? 'Deletion Prohibited' : 'Remove Customer'}
+      title={hasPendingDues ? 'Deletion Prohibited' : 'Remove Party'}
       subtitle={`Party: ${party.name} (${party.phone})`}
     >
       {hasPendingDues ? (
@@ -68,7 +68,7 @@ export function DeletePartyModal({
                 {payableDue > 0.01 && `${formatINR(payableDue)} (Store Credit / Payable)`}
               </Text>
               <Text style={styles.prohibitedDesc}>
-                Customer accounts cannot be deleted or removed while dues are pending. Under store safety policy, neither can the customer owe money to the shop, nor can the shop owe money to the customer.
+                Party accounts cannot be deleted or removed while dues are pending. Under store safety policy, neither can the party owe money to the business, nor can the business owe money to the party.
               </Text>
             </View>
           </View>
@@ -92,8 +92,8 @@ export function DeletePartyModal({
           </View>
 
           <Text style={styles.confirmText}>
-            Are you sure you want to permanently remove customer{' '}
-            <Text style={{ fontWeight: '700', color: Colors.dark.text }}>{party.name}</Text>? This will remove them from the active customer directory.
+            Are you sure you want to permanently remove party{' '}
+            <Text style={{ fontWeight: '700', color: Colors.dark.text }}>{party.name}</Text>? This will remove them from the active directory.
           </Text>
 
           <View style={styles.btnRow}>

@@ -12,7 +12,7 @@ export interface SettlementSuccessData {
   amount: number;
   partyName: string;
   partyPhone?: string;
-  mode: 'CASH' | 'UPI';
+  mode: string;
   invoiceNo?: string;
   utr?: string;
   notes?: string;
@@ -133,12 +133,26 @@ export function SettlementSuccessModal({
             <Text style={styles.detailLabel}>Payment Mode</Text>
             <View style={styles.modeBadge}>
               <Ionicons
-                name={data.mode === 'CASH' ? 'cash-outline' : 'qr-code-outline'}
+                name={
+                  data.mode === 'CASH'
+                    ? 'cash-outline'
+                    : data.mode === 'UPI'
+                    ? 'qr-code-outline'
+                    : data.mode === 'SPLIT'
+                    ? 'git-merge-outline'
+                    : 'business-outline'
+                }
                 size={12}
                 color={Colors.dark.text}
               />
               <Text style={styles.modeBadgeText}>
-                {data.mode === 'CASH' ? 'Cash in Hand' : 'UPI Transfer'}
+                {data.mode === 'CASH'
+                  ? 'Cash in Hand'
+                  : data.mode === 'UPI'
+                  ? 'UPI Transfer'
+                  : data.mode === 'SPLIT'
+                  ? 'Split Payment'
+                  : data.mode}
               </Text>
             </View>
           </View>

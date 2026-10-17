@@ -35,23 +35,33 @@ export function PaymentCategoryBreakdown({
             {paymentSplit.map((item) => {
               const totalSplit = paymentSplit.reduce((a, b) => a + b.value, 0) || 1;
               const pct = Math.round((item.value / totalSplit) * 100);
-              const isUpi = item.name === 'UPI';
-              const isCash = item.name === 'CASH';
-              const isCredit = item.name === 'CREDIT';
-              const colorClass = isUpi
-                ? 'bg-sky-500'
-                : isCash
-                ? 'bg-emerald-500'
-                : isCredit
-                ? 'bg-rose-500'
-                : 'bg-primary';
+              
+              const getModeDetails = (mode: string) => {
+                switch (mode?.toUpperCase()) {
+                  case 'UPI':
+                    return { label: 'UPI', colorClass: 'bg-sky-500' };
+                  case 'CASH':
+                    return { label: 'Cash', colorClass: 'bg-emerald-500' };
+                  case 'BANK_TRANSFER':
+                  case 'BANK':
+                    return { label: 'Bank Transfer', colorClass: 'bg-indigo-500' };
+                  case 'SPLIT':
+                    return { label: 'Split Payment', colorClass: 'bg-purple-500' };
+                  case 'CREDIT':
+                    return { label: 'Credit', colorClass: 'bg-rose-500' };
+                  default:
+                    return { label: mode || 'Other', colorClass: 'bg-primary' };
+                }
+              };
+
+              const { label, colorClass } = getModeDetails(item.name);
 
               return (
                 <div key={item.name} className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
                     <div className="flex items-center gap-2">
                       <span className={`h-2.5 w-2.5 rounded-full ${colorClass}`} />
-                      <span className="font-semibold text-foreground">{item.name}</span>
+                      <span className="font-semibold text-foreground">{label}</span>
                       <span className="text-muted-foreground text-[11px]">({item.count} invoices)</span>
                     </div>
                     <div className="font-mono font-bold text-foreground">

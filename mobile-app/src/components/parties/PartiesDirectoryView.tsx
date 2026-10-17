@@ -1,5 +1,14 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import React, { useState, useMemo, useCallback, useDeferredValue } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ActivityIndicator,
+  TouchableOpacity,
+  FlatList,
+  RefreshControl,
+  Platform,
+} from 'react-native';
 import { Button } from '@/components/ui/Button';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { FilterDropdown, FilterDropdownOption } from '@/components/ui/FilterDropdown';
@@ -12,6 +21,14 @@ import { PartyCard } from './PartyCard';
 import { PartyFormModal } from './PartyFormModal';
 import { PartyStatementDrawer } from './PartyStatementDrawer';
 import { DeletePartyModal } from './DeletePartyModal';
+import {
+  PartyRow,
+  PartyDueFilter,
+  PartyRegFilter,
+  buildPartyRows,
+  countRows,
+  filterPartyRows,
+} from './partyRows';
 import { Ionicons } from '@expo/vector-icons';
 
 interface PartiesDirectoryViewProps {
@@ -20,6 +37,8 @@ interface PartiesDirectoryViewProps {
   onRefresh: () => void;
   isOwnerOrAdmin: boolean;
   isSalesman: boolean;
+  error?: string | null;
+  onRetry?: () => void;
 }
 
 export function PartiesDirectoryView({
@@ -28,10 +47,12 @@ export function PartiesDirectoryView({
   onRefresh,
   isOwnerOrAdmin,
   isSalesman,
+  error,
+  onRetry,
 }: PartiesDirectoryViewProps) {
   const [search, setSearch] = useState('');
-  const [filterType, setFilterType] = useState<'ALL' | 'DUES' | 'PAYABLES' | 'CLEARED'>('ALL');
-  const [regFilter, setRegFilter] = useState<'ALL' | 'REGISTERED' | 'UNREGISTERED'>('ALL');
+  const [filterType, setFilterType] = useState<PartyDueFilter>('ALL');
+  const [regFilter, setRegFilter] = useState<PartyRegFilter>('ALL');
 
   // Modal States
   const [formModalOpen, setFormModalOpen] = useState(false);
@@ -39,309 +60,329 @@ export function PartiesDirectoryView({
   const [deletingParty, setDeletingParty] = useState<Party | null>(null);
   const [statementParty, setStatementParty] = useState<Party | null>(null);
 
-  // Ensure parties is always an array
-  const safeParties = useMemo(() => (Array.isArray(parties) ? parties : []), [parties]);
+  // Precompute rows & counts once per data load
+  const rows = useMemo(() => buildPartyRows(parties), [parties]);
+  const counts = useMemo(() => countRows(rows), [rows]);
 
-  // Helper to compute party dues and payables
-  const getPartyDue = (p: Party) => {
-    return (p.creditLedgers || [])
-      .filter((c) => c.status !== 'SETTLED')
-      .reduce((sum, c) => {
-        const amt = Number(c.amountDue || 0);
-        return c.type === 'RECEIVABLE' ? sum + amt : sum - amt;
-      }, 0);
-  };
-
-  const getPartyPayable = (p: Party) => {
-    return (p.creditLedgers || [])
-      .filter((c) => c.status !== 'SETTLED' && c.type === 'PAYABLE')
-      .reduce((sum, c) => sum + Number(c.amountDue || 0), 0);
-  };
-
-  const duesCount = useMemo(
-    () => safeParties.filter((p) => getPartyDue(p) > 0.01).length,
-    [safeParties],
-  );
-
-  const payablesCount = useMemo(
-    () => safeParties.filter((p) => getPartyDue(p) < -0.01 || getPartyPayable(p) > 0.01).length,
-    [safeParties],
-  );
-
-  const clearedCount = useMemo(
-    () => safeParties.filter((p) => Math.abs(getPartyDue(p)) <= 0.01 && getPartyPayable(p) <= 0.01).length,
-    [safeParties],
-  );
-
-  const registeredCount = useMemo(
-    () => safeParties.filter((p) => p.isSaved !== false).length,
-    [safeParties],
-  );
-
-  const unregisteredCount = useMemo(
-    () => safeParties.filter((p) => p.isSaved === false).length,
-    [safeParties],
-  );
+  // Keep search bar smooth and responsive even with thousands of accounts
+  const deferredSearch = useDeferredValue(search);
 
   const regFilterOptions = useMemo(
     () => [
-      { label: 'All Accounts', value: 'ALL' as const, count: safeParties.length },
-      { label: 'Saved Directory', value: 'REGISTERED' as const, count: registeredCount },
-      { label: 'Walk-ins', value: 'UNREGISTERED' as const, count: unregisteredCount },
+      { label: 'All Accounts', value: 'ALL' as const, count: counts.total },
+      { label: 'Saved Directory', value: 'REGISTERED' as const, count: counts.registered },
+      { label: 'Walk-ins', value: 'UNREGISTERED' as const, count: counts.unregistered },
     ],
-    [safeParties.length, registeredCount, unregisteredCount],
+    [counts],
   );
 
   const partyFilterOptions: FilterDropdownOption[] = useMemo(
     () => [
       {
-        label: 'All Customers',
+        label: 'All Parties',
         value: 'ALL',
-        count: safeParties.length,
+        count: counts.total,
         icon: 'people-outline',
         color: '#FFFFFF',
       },
       {
         label: 'Customer Dues',
         value: 'DUES',
-        count: duesCount,
+        count: counts.dues,
         icon: 'alert-circle-outline',
         color: '#EF4444',
       },
       {
         label: 'Store Payables',
         value: 'PAYABLES',
-        count: payablesCount,
+        count: counts.payables,
         icon: 'arrow-up-circle-outline',
         color: '#F59E0B',
       },
       {
         label: 'Cleared',
         value: 'CLEARED',
-        count: clearedCount,
+        count: counts.cleared,
         icon: 'checkmark-circle-outline',
         color: '#10B981',
       },
     ],
-    [safeParties.length, duesCount, payablesCount, clearedCount],
+    [counts],
   );
 
-  const filteredParties = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    const cleanQPhone = q.replace(/\D/g, '');
+  const filteredRows = useMemo(
+    () => filterPartyRows(rows, { search: deferredSearch, dueFilter: filterType, regFilter }),
+    [rows, deferredSearch, filterType, regFilter],
+  );
 
-    return safeParties.filter((p) => {
-      const name = (p.name || '').toLowerCase();
-      const phone = p.phone || '';
-      const gstin = (p.gstin || '').toLowerCase();
-      const address = (p.address || '').toLowerCase();
+  const keyExtractor = useCallback(
+    (item: PartyRow, index: number) => item.party.id || `party-${item.phone || index}`,
+    [],
+  );
 
-      const phoneDigits = phone.replace(/\D/g, '');
-      const matchesPhone =
-        phone.includes(q) ||
-        (cleanQPhone.length >= 3 && (
-          phoneDigits.includes(cleanQPhone) ||
-          cleanQPhone.includes(phoneDigits) ||
-          (cleanQPhone.length >= 10 && phoneDigits.includes(cleanQPhone.slice(-10)))
-        ));
+  const handleEditParty = useCallback((p: Party) => {
+    setEditingParty(p);
+    setFormModalOpen(true);
+  }, []);
 
-      const matchesSearch =
-        name.includes(q) ||
-        matchesPhone ||
-        gstin.includes(q) ||
-        address.includes(q);
-
-      if (!matchesSearch) return false;
-
-      // Registration filter
-      if (regFilter === 'REGISTERED' && p.isSaved === false) return false;
-      if (regFilter === 'UNREGISTERED' && p.isSaved !== false) return false;
-
-      const due = getPartyDue(p);
-      const payable = getPartyPayable(p);
-      if (filterType === 'DUES') return due > 0.01;
-      if (filterType === 'PAYABLES') return due < -0.01 || payable > 0.01;
-      if (filterType === 'CLEARED') return Math.abs(due) <= 0.01 && payable <= 0.01;
-      return true;
-    });
-  }, [safeParties, search, filterType, regFilter]);
-
-  return (
-    <View style={styles.container}>
-      {/* Header Info */}
-      <View style={styles.headerRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.sectionTitle}>Customer Directory ({safeParties.length})</Text>
-          <Text style={styles.sectionSubtitle}>
-            Accounts, 360° credit ledgers & WhatsApp reminders
-          </Text>
-        </View>
-        <TouchableOpacity
-          onPress={onRefresh}
-          disabled={loading}
-          style={styles.refreshBtn}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name="refresh-outline"
-            size={18}
-            color={loading ? Colors.dark.textSecondary : '#FFFFFF'}
-          />
-        </TouchableOpacity>
-      </View>
-
-      {/* Credit Ageing Buckets Cards (5 Cards matching Web Dashboard) */}
-      <CreditAgeingRow parties={safeParties} />
-
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <SearchBar
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Search customer name, phone, address, or GSTIN..."
-        />
-      </View>
-
-      {/* Registration Status Filter Pills */}
-      <View style={styles.filterPillsWrapper}>
-        <FilterPills
-          options={regFilterOptions}
-          selected={regFilter}
-          onSelect={(val) => setRegFilter(val as 'ALL' | 'REGISTERED' | 'UNREGISTERED')}
-        />
-      </View>
-
-      {/* Dropdown Filter + Add Customer Row */}
-      <View style={styles.dropdownActionRow}>
-        <FilterDropdown
-          label="Parties"
-          value={filterType}
-          options={partyFilterOptions}
-          onSelect={(val) => setFilterType(val as 'ALL' | 'DUES' | 'PAYABLES' | 'CLEARED')}
-          icon="funnel-outline"
-          containerStyle={{ flex: 1.15 }}
-          showCountOnTrigger
-        />
-
-        {!isSalesman ? (
-          <Button
-            title="+ Add Customer"
-            icon="person-add-outline"
-            size="sm"
-            variant="primary"
-            onPress={() => {
-              setEditingParty(null);
-              setFormModalOpen(true);
-            }}
-            style={styles.addCustomerBtn}
-          />
-        ) : null}
-      </View>
-
-      {/* Results Count & Reset Filter Indicator */}
-      <View style={styles.resultsInfoRow}>
-        <Text style={styles.resultsCountText}>
-          Showing <Text style={styles.resultsCountHighlight}>{filteredParties.length}</Text> of {safeParties.length} customer accounts
-        </Text>
-        {(filterType !== 'ALL' || regFilter !== 'ALL' || search.trim().length > 0) && (
-          <TouchableOpacity
-            onPress={() => {
-              setFilterType('ALL');
-              setRegFilter('ALL');
-              setSearch('');
-            }}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Text style={styles.resetFilterText}>Reset Filters</Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Parties List */}
-      {loading && safeParties.length === 0 ? (
-        <View style={styles.centerLoading}>
-          <ActivityIndicator size="small" color="#FFFFFF" />
-          <Text style={styles.loadingText}>Loading customer directory...</Text>
-        </View>
-      ) : filteredParties.length === 0 ? (
-        <EmptyState
-          icon="people-outline"
-          title="No Customers Found"
-          description={
-            search
-              ? 'No customer accounts match your search filter.'
-              : 'Your customer directory is currently empty.'
-          }
-        />
-      ) : (
-        filteredParties.map((party) => (
-          <PartyCard
-            key={party.id}
-            party={party}
-            onViewStatement={setStatementParty}
-            onEdit={(p) => {
-              setEditingParty(p);
-              setFormModalOpen(true);
-            }}
-            onDelete={setDeletingParty}
-            canEdit={!isSalesman}
-            canDelete={isOwnerOrAdmin}
-          />
-        ))
-      )}
-
-      {/* MODALS */}
-      {/* 1. Add / Edit Customer Modal */}
-      <PartyFormModal
-        visible={formModalOpen}
-        onClose={() => {
-          setFormModalOpen(false);
-          setEditingParty(null);
-        }}
-        onSuccess={onRefresh}
-        party={editingParty}
-      />
-
-      {/* 2. Customer 360° Statement Drawer */}
-      <PartyStatementDrawer
-        party={statementParty}
-        onClose={() => setStatementParty(null)}
-        onPartyDeleted={onRefresh}
+  const renderItem = useCallback(
+    ({ item }: { item: PartyRow }) => (
+      <PartyCard
+        party={item.party}
+        due={item.due}
+        payable={item.payable}
+        onViewStatement={setStatementParty}
+        onEdit={handleEditParty}
+        onDelete={setDeletingParty}
+        canEdit={!isSalesman}
         canDelete={isOwnerOrAdmin}
-        onEdit={
-          !isSalesman
-            ? (party) => {
-                setStatementParty(null);
-                setEditingParty(party);
+      />
+    ),
+    [isSalesman, isOwnerOrAdmin, handleEditParty],
+  );
+
+  const handleResetFilters = useCallback(() => {
+    setFilterType('ALL');
+    setRegFilter('ALL');
+    setSearch('');
+  }, []);
+
+  // Aging row only re-computes when parties array changes, immune to search typing
+  const renderAgingHeader = useMemo(() => {
+    return (
+      <View style={styles.agingWrapper}>
+        {error && rows.length > 0 ? (
+          <Text style={styles.staleText}>Couldn&apos;t refresh. Showing last loaded data.</Text>
+        ) : null}
+        <CreditAgeingRow parties={parties || []} />
+      </View>
+    );
+  }, [parties, error, rows.length]);
+
+  const renderEmpty = useMemo(() => {
+    if (error && rows.length === 0) {
+      return (
+        <EmptyState
+          icon="cloud-offline-outline"
+          title="Couldn't Load Parties"
+          description={error}
+          actionTitle="Try Again"
+          onAction={onRetry ?? onRefresh}
+        />
+      );
+    }
+    const isFiltered = search.trim().length > 0 || filterType !== 'ALL' || regFilter !== 'ALL';
+    return (
+      <EmptyState
+        icon="people-outline"
+        title={isFiltered ? 'No Matching Parties' : 'No Parties Found'}
+        description={
+          isFiltered
+            ? 'No party accounts match your active search or filters.'
+            : 'Your customer and supplier party directory is currently empty.'
+        }
+        actionTitle={
+          isFiltered
+            ? 'Reset Filters'
+            : !isSalesman
+            ? '+ Add Party'
+            : undefined
+        }
+        onAction={
+          isFiltered
+            ? handleResetFilters
+            : !isSalesman
+            ? () => {
+                setEditingParty(null);
                 setFormModalOpen(true);
               }
             : undefined
         }
-        onDelete={
-          isOwnerOrAdmin
-            ? (party) => {
-                setStatementParty(null);
-                setDeletingParty(party);
-              }
-            : undefined
-        }
       />
+    );
+  }, [error, rows.length, onRetry, onRefresh, search, filterType, regFilter, isSalesman, handleResetFilters]);
+
+  return (
+    <View style={styles.container}>
+      {/* 1. TOP CONTROLS (Pinned above FlatList: SearchBar never unmounts, keyboard never loses focus) */}
+      <View style={styles.topControls}>
+        {/* Header Row */}
+        <View style={styles.headerRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionTitle}>Customer & Supplier Parties ({counts.total})</Text>
+            <Text style={styles.sectionSubtitle}>
+              Accounts, 360° statements & credit balances
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={onRefresh}
+            disabled={loading}
+            style={styles.refreshBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name="refresh-outline"
+              size={18}
+              color={loading ? Colors.dark.textSecondary : '#FFFFFF'}
+            />
+          </TouchableOpacity>
+        </View>
+
+        {/* Search Bar - pinned outside FlatList */}
+        <SearchBar
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Search name, phone, address, or GSTIN..."
+          style={styles.searchBarOverride}
+        />
+
+        {/* Registration Status Filter Pills */}
+        <View style={styles.filterPillsWrapper}>
+          <FilterPills
+            options={regFilterOptions}
+            selected={regFilter}
+            onSelect={(val) => setRegFilter(val as 'ALL' | 'REGISTERED' | 'UNREGISTERED')}
+          />
+        </View>
+
+        {/* Dropdown Filter + Add Party Row */}
+        <View style={styles.dropdownActionRow}>
+          <FilterDropdown
+            label="Parties"
+            value={filterType}
+            options={partyFilterOptions}
+            onSelect={(val) => setFilterType(val as 'ALL' | 'DUES' | 'PAYABLES' | 'CLEARED')}
+            icon="funnel-outline"
+            containerStyle={{ flex: 1.15 }}
+            showCountOnTrigger
+          />
+
+          {!isSalesman ? (
+            <Button
+              title="+ Add Party"
+              icon="person-add-outline"
+              size="sm"
+              variant="primary"
+              onPress={() => {
+                setEditingParty(null);
+                setFormModalOpen(true);
+              }}
+              style={styles.addPartyBtn}
+            />
+          ) : null}
+        </View>
+
+        {/* Results Count & Reset Filter Indicator */}
+        <View style={styles.resultsInfoRow}>
+          <Text style={styles.resultsCountText}>
+            Showing <Text style={styles.resultsCountHighlight}>{filteredRows.length}</Text> of {counts.total} party accounts
+          </Text>
+          {(filterType !== 'ALL' || regFilter !== 'ALL' || search.trim().length > 0) && (
+            <TouchableOpacity
+              onPress={handleResetFilters}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.resetFilterText}>Reset Filters</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* 2. MAIN CONTENT AREA: Center spinner on initial empty load, else virtualized FlatList */}
+      {loading && rows.length === 0 ? (
+        <View style={styles.centerLoading}>
+          <ActivityIndicator size="large" color="#FFFFFF" />
+          <Text style={styles.loadingText}>Loading party directory & credit ledgers...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredRows}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+          ListHeaderComponent={renderAgingHeader}
+          ListEmptyComponent={renderEmpty}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          removeClippedSubviews={Platform.OS !== 'web'}
+          contentContainerStyle={styles.listContent}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl
+              refreshing={loading && rows.length > 0}
+              onRefresh={onRefresh}
+              tintColor="#FFFFFF"
+            />
+          }
+        />
+      )}
+
+      {/* MODALS - Conditionally mounted single instances */}
+      {/* 1. Add / Edit Customer Modal */}
+      {formModalOpen && (
+        <PartyFormModal
+          visible={formModalOpen}
+          onClose={() => {
+            setFormModalOpen(false);
+            setEditingParty(null);
+          }}
+          onSuccess={onRefresh}
+          party={editingParty}
+        />
+      )}
+
+      {/* 2. Customer 360° Statement Drawer */}
+      {Boolean(statementParty?.id) && (
+        <PartyStatementDrawer
+          visible={Boolean(statementParty?.id)}
+          party={statementParty}
+          onClose={() => setStatementParty(null)}
+          onPartyDeleted={onRefresh}
+          canDelete={isOwnerOrAdmin}
+          onEdit={
+            !isSalesman
+              ? (party) => {
+                  setStatementParty(null);
+                  setEditingParty(party);
+                  setFormModalOpen(true);
+                }
+              : undefined
+          }
+          onDelete={
+            isOwnerOrAdmin
+              ? (party) => {
+                  setStatementParty(null);
+                  setDeletingParty(party);
+                }
+              : undefined
+          }
+        />
+      )}
 
       {/* 3. Delete Customer Safety Modal (Zero-due validation) */}
-      <DeletePartyModal
-        party={deletingParty}
-        visible={Boolean(deletingParty)}
-        onClose={() => setDeletingParty(null)}
-        onSuccess={onRefresh}
-      />
+      {Boolean(deletingParty?.id) && (
+        <DeletePartyModal
+          party={deletingParty}
+          visible={Boolean(deletingParty?.id)}
+          onClose={() => setDeletingParty(null)}
+          onSuccess={onRefresh}
+        />
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    paddingBottom: 20,
+    flex: 1,
+  },
+  topControls: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    backgroundColor: Colors.dark.background,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
   },
   headerRow: {
     flexDirection: 'row',
@@ -371,14 +412,15 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
     marginTop: 2,
   },
-  searchContainer: {
-    marginTop: 4,
+  searchBarOverride: {
+    marginHorizontal: 0,
+    marginTop: 6,
     marginBottom: 8,
   },
   filterPillsWrapper: {
     marginHorizontal: -16,
     marginVertical: -2,
-    marginBottom: 4,
+    marginBottom: 6,
   },
   dropdownActionRow: {
     flexDirection: 'row',
@@ -386,7 +428,7 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 8,
   },
-  addCustomerBtn: {
+  addPartyBtn: {
     flex: 0.9,
     height: 38,
     borderRadius: 10,
@@ -395,7 +437,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 8,
     paddingHorizontal: 2,
   },
   resultsCountText: {
@@ -411,14 +453,29 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#38BDF8',
   },
+  agingWrapper: {
+    marginBottom: 8,
+  },
+  staleText: {
+    fontSize: 11,
+    color: '#F59E0B',
+    marginBottom: 6,
+    paddingHorizontal: 2,
+  },
+  listContent: {
+    paddingHorizontal: 16,
+    paddingTop: 4,
+    paddingBottom: 95,
+  },
   centerLoading: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 40,
+    paddingVertical: 60,
   },
   loadingText: {
-    fontSize: 12,
+    fontSize: 12.5,
     color: Colors.dark.textSecondary,
-    marginTop: 8,
+    marginTop: 12,
   },
 });

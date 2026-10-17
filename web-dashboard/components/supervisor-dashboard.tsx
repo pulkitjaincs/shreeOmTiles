@@ -12,9 +12,7 @@ import {
   Search,
   ShoppingCart,
   Edit3,
-  MapPin,
   Phone,
-  AlertTriangle,
   UserCheck,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
@@ -147,10 +145,15 @@ export default function SupervisorDashboard({
   }, [user?.scope]);
 
   useEffect(() => {
-    loadData();
+    const timer = setTimeout(() => {
+      void loadData();
+    }, 0);
     const handleRefresh = () => loadData(true);
     window.addEventListener('app:refresh-active-page', handleRefresh);
-    return () => window.removeEventListener('app:refresh-active-page', handleRefresh);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('app:refresh-active-page', handleRefresh);
+    };
   }, [loadData]);
 
   const handleManualRefresh = () => {

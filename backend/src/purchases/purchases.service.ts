@@ -177,7 +177,73 @@ export class PurchasesService {
         });
       }
 
-      // 4. Create Purchase Record
+      // 4. Calculate upfront payment and credit balance
+      let paymentSplits: Array<{
+        mode: PaymentMode;
+        amount: number;
+        upiTxnRef?: string;
+        upiUtr?: string;
+        notes?: string;
+      }> = [];
+
+      if (data.payments && data.payments.length > 0) {
+        paymentSplits = data.payments
+          .filter((p) => Number(p.amount) > 0)
+          .map((p) => ({
+            mode: p.mode,
+            amount: Number(p.amount),
+            upiTxnRef: p.upiTxnRef,
+            upiUtr: p.upiUtr,
+            notes: p.notes,
+          }));
+      } else if (
+        data.amountPaidNow !== undefined &&
+        data.amountPaidNow !== null &&
+        Number(data.amountPaidNow) > 0 &&
+        data.paymentMode !== PaymentMode.CREDIT
+      ) {
+        paymentSplits = [
+          {
+            mode: data.paymentMode || PaymentMode.BANK_TRANSFER,
+            amount: Number(data.amountPaidNow),
+          },
+        ];
+      } else if (
+        data.paymentMode === PaymentMode.CASH ||
+        data.paymentMode === PaymentMode.BANK_TRANSFER ||
+        data.paymentMode === PaymentMode.UPI
+      ) {
+        paymentSplits = [
+          {
+            mode: data.paymentMode,
+            amount: totalAmount,
+          },
+        ];
+      }
+
+      const rawAmountPaidNow = paymentSplits.reduce(
+        (sum, p) => sum + Number(p.amount),
+        0,
+      );
+      const amountPaidNow = Math.max(
+        0,
+        Math.min(rawAmountPaidNow, totalAmount),
+      );
+      const balancePayable = Math.max(
+        0,
+        Math.round((totalAmount - amountPaidNow) * 100) / 100,
+      );
+
+      let effectivePurchaseMode: PaymentMode;
+      if (paymentSplits.length === 0) {
+        effectivePurchaseMode = PaymentMode.CREDIT;
+      } else if (paymentSplits.length === 1) {
+        effectivePurchaseMode = paymentSplits[0].mode;
+      } else {
+        effectivePurchaseMode = PaymentMode.SPLIT;
+      }
+
+      // Create Purchase Record
       const purchase = await tx.purchase.create({
         data: {
           purchaseNo,
@@ -189,7 +255,7 @@ export class PurchasesService {
           tax: new Prisma.Decimal(taxAmount.toFixed(2)),
           transportCost: new Prisma.Decimal(transportCost.toFixed(2)),
           total: new Prisma.Decimal(totalAmount.toFixed(2)),
-          paymentMode: data.paymentMode || null,
+          paymentMode: effectivePurchaseMode,
           notes: data.notes,
           items: {
             create: purchaseItemsData,
@@ -203,28 +269,23 @@ export class PurchasesService {
       });
 
       // 5. Financial settlement (Paid vs Payable)
-      const amountPaidNow =
-        data.amountPaidNow !== undefined
-          ? Math.max(0, Math.min(Number(data.amountPaidNow), totalAmount))
-          : data.paymentMode === PaymentMode.CASH ||
-              data.paymentMode === PaymentMode.BANK_TRANSFER
-            ? totalAmount
-            : 0;
-
-      const balancePayable = Math.max(0, totalAmount - amountPaidNow);
-
-      if (amountPaidNow > 0) {
+      for (const split of paymentSplits) {
+        if (split.amount <= 0) continue;
         await tx.payment.create({
           data: {
             purchaseId: purchase.id,
             partyId: party.id,
-            mode: data.paymentMode || PaymentMode.BANK_TRANSFER,
-            amount: new Prisma.Decimal(amountPaidNow.toFixed(2)),
+            mode: split.mode,
+            amount: new Prisma.Decimal(split.amount.toFixed(2)),
             status: PaymentStatus.CONFIRMED,
             type: PaymentType.OUTFLOW,
             paidAt: new Date(),
             confirmedById: userId,
-            notes: `Supplier payment of ₹${amountPaidNow.toFixed(2)} for ${purchaseNo}`,
+            upiTxnRef: split.upiTxnRef,
+            upiUtr: split.upiUtr,
+            notes:
+              split.notes ||
+              `Supplier payment of ₹${split.amount.toFixed(2)} (${split.mode}) for ${purchaseNo}`,
           },
         });
       }

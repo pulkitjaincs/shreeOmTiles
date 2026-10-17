@@ -21,6 +21,7 @@ import { downloadAndSharePdf } from '@/lib/pdf';
 
 interface PartyStatementDrawerProps {
   party: Party | null;
+  visible?: boolean;
   onClose: () => void;
   onPartyDeleted: () => void;
   canDelete?: boolean;
@@ -30,6 +31,7 @@ interface PartyStatementDrawerProps {
 
 export function PartyStatementDrawer({
   party,
+  visible = true,
   onClose,
   onPartyDeleted,
   canDelete = false,
@@ -50,7 +52,7 @@ export function PartyStatementDrawer({
   const partyId = party?.id;
 
   useEffect(() => {
-    if (!partyId) {
+    if (!visible || !partyId) {
       setStatementData(null);
       return;
     }
@@ -58,31 +60,31 @@ export function PartyStatementDrawer({
     setStatementData(null);
     setTab('orders');
     setLoading(true);
-    let ignore = false;
+    const controller = new AbortController();
 
-    mobileApiRequest<any>(`/parties/${partyId}`)
+    mobileApiRequest<any>(`/parties/${partyId}`, { signal: controller.signal })
       .then((data) => {
-        if (!ignore) {
+        if (!controller.signal.aborted) {
           setStatementData(data);
         }
       })
       .catch((err: any) => {
-        if (!ignore) {
+        if (!controller.signal.aborted && err?.name !== 'AbortError') {
           Alert.alert('Error', err.message || 'Failed to load customer statement');
         }
       })
       .finally(() => {
-        if (!ignore) {
+        if (!controller.signal.aborted) {
           setLoading(false);
         }
       });
 
     return () => {
-      ignore = true;
+      controller.abort();
     };
-  }, [partyId]);
+  }, [visible, partyId]);
 
-  if (!party) return null;
+  if (!visible || !party || !partyId) return null;
 
   const invoices = statementData?.invoices || [];
   const ledgers = statementData?.creditLedgers || [];
@@ -215,7 +217,7 @@ export function PartyStatementDrawer({
 
   return (
     <BottomSheetModal
-      visible={Boolean(party)}
+      visible={visible && Boolean(party)}
       onClose={onClose}
       title={party.name}
       subtitle={`Phone: ${party.phone}${party.gstin ? ' • GST: ' + party.gstin : ''}${party.address ? ' • ' + party.address : ''}`}

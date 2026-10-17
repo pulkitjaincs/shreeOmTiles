@@ -254,8 +254,22 @@ export function SalesmanDashboardView({
 
         {recentInvoices.length > 0 ? (
           recentInvoices.slice(0, 8).map((inv) => {
-            const isUpi = inv.paymentMode === 'UPI';
-            const isCash = inv.paymentMode === 'CASH';
+            const getBadgeDetails = (mode?: string) => {
+              switch (mode?.toUpperCase()) {
+                case 'UPI':
+                  return { label: 'UPI', bg: 'rgba(56, 189, 248, 0.12)', border: 'rgba(56, 189, 248, 0.3)', text: '#38BDF8' };
+                case 'CASH':
+                  return { label: 'CASH', bg: 'rgba(16, 185, 129, 0.12)', border: 'rgba(16, 185, 129, 0.3)', text: '#10B981' };
+                case 'BANK_TRANSFER':
+                case 'BANK':
+                  return { label: 'BANK', bg: 'rgba(99, 102, 241, 0.12)', border: 'rgba(99, 102, 241, 0.3)', text: '#818CF8' };
+                case 'SPLIT':
+                  return { label: 'SPLIT', bg: 'rgba(168, 85, 247, 0.12)', border: 'rgba(168, 85, 247, 0.3)', text: '#A855F7' };
+                default:
+                  return { label: mode || 'PAID', bg: 'rgba(255, 255, 255, 0.05)', border: Colors.dark.border, text: Colors.dark.textSecondary };
+              }
+            };
+            const badge = getBadgeDetails(inv.paymentMode);
 
             return (
               <Card key={inv.id} style={styles.recentInvoiceCard}>
@@ -266,25 +280,17 @@ export function SalesmanDashboardView({
                       <View
                         style={[
                           styles.modeBadge,
-                          isUpi
-                            ? styles.modeBadgeUpi
-                            : isCash
-                            ? styles.modeBadgeCash
-                            : styles.modeBadgeDefault,
+                          { backgroundColor: badge.bg, borderColor: badge.border },
                         ]}
                       >
                         <Text
                           style={[
                             styles.modeBadgeText,
-                            isUpi
-                              ? { color: '#38BDF8' }
-                              : isCash
-                              ? { color: '#10B981' }
-                              : { color: Colors.dark.textSecondary },
+                            { color: badge.text },
                           ]}
                           numberOfLines={1}
                         >
-                          {inv.paymentMode || 'PAID'}
+                          {badge.label}
                         </Text>
                       </View>
                     </View>

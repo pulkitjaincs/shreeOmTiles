@@ -9,6 +9,8 @@ import { Party } from './types';
 
 interface PartyCardProps {
   party: Party;
+  due?: number;
+  payable?: number;
   onViewStatement: (party: Party) => void;
   onEdit: (party: Party) => void;
   onDelete: (party: Party) => void;
@@ -17,8 +19,10 @@ interface PartyCardProps {
   canEditOrDelete?: boolean;
 }
 
-export function PartyCard({
+export const PartyCard = React.memo(function PartyCard({
   party,
+  due,
+  payable,
   onViewStatement,
   onEdit,
   onDelete,
@@ -29,16 +33,22 @@ export function PartyCard({
   const allowEdit = canEdit !== undefined ? canEdit : canEditOrDelete;
   const allowDelete = canDelete !== undefined ? canDelete : canEditOrDelete;
 
-  const totalDue = (party.creditLedgers || [])
-    .filter((c) => c.status !== 'SETTLED')
-    .reduce((sum, c) => {
-      const amt = Number(c.amountDue || 0);
-      return c.type === 'RECEIVABLE' ? sum + amt : sum - amt;
-    }, 0);
+  const totalDue =
+    typeof due === 'number'
+      ? due
+      : (party.creditLedgers || [])
+          .filter((c) => c.status !== 'SETTLED')
+          .reduce((sum, c) => {
+            const amt = Number(c.amountDue || 0);
+            return c.type === 'RECEIVABLE' ? sum + amt : sum - amt;
+          }, 0);
 
-  const partyPayable = (party.creditLedgers || [])
-    .filter((c) => c.status !== 'SETTLED' && c.type === 'PAYABLE')
-    .reduce((sum, c) => sum + Number(c.amountDue || 0), 0);
+  const partyPayable =
+    typeof payable === 'number'
+      ? payable
+      : (party.creditLedgers || [])
+          .filter((c) => c.status !== 'SETTLED' && c.type === 'PAYABLE')
+          .reduce((sum, c) => sum + Number(c.amountDue || 0), 0);
 
   const orderCount = party._count?.invoices || 0;
 
@@ -53,25 +63,32 @@ export function PartyCard({
       Linking.openURL(`tel:${rawDigits}`).catch(() => {
         Alert.alert('Error', 'Unable to initiate phone call');
       });
+    } else {
+      Alert.alert('Notice', 'No phone number on record for this party');
     }
   };
 
   const handleWhatsAppAction = () => {
+    if (!party.phone) {
+      Alert.alert('Notice', 'No phone number on record for this party');
+      return;
+    }
+
     const msg = isDue
       ? `*PAYMENT REMINDER — SHREE OM TILES*\n\n` +
-        `Dear *${party.name || 'Customer'}*,\n\n` +
+        `Dear *${party.name || 'Party'}*,\n\n` +
         `This is a friendly reminder that you have an outstanding balance of *${formatINR(totalDue)}* on your account.\n\n` +
         `Kindly arrange payment clearance at your earliest convenience via UPI or Counter Cash.\n\n` +
         `Thank you for your business! 🙏\n` +
         `*Shree Om Tiles*`
       : isPayable
-      ? `*STORE CREDIT NOTICE — SHREE OM TILES*\n\n` +
-        `Dear *${party.name || 'Customer'}*,\n\n` +
-        `This is to inform you that you have an available store credit / payable balance of *${formatINR(payableAmt)}* with us at Shree Om Tiles.\n\n` +
+      ? `*STORE CREDIT / PAYABLE NOTICE — SHREE OM TILES*\n\n` +
+        `Dear *${party.name || 'Party'}*,\n\n` +
+        `This is to inform you that you have an available credit / payable balance of *${formatINR(payableAmt)}* with Shree Om Tiles.\n\n` +
         `You may redeem or adjust this balance against your next purchase or delivery.\n\n` +
         `Thank you for your continued partnership! 🙏\n` +
         `*Shree Om Tiles*`
-      : `Hello *${party.name || 'Customer'}*,\n\n` +
+      : `Hello *${party.name || 'Party'}*,\n\n` +
         `Greetings from *Shree Om Tiles*! 🙏\n\n` +
         `How may we assist you today?`;
 
@@ -97,7 +114,7 @@ export function PartyCard({
         <View style={styles.infoCol}>
           <View style={styles.nameHeaderRow}>
             <Text style={styles.partyName} numberOfLines={1}>
-              {party.name || 'Unnamed Customer'}
+              {party.name || 'Unnamed Party'}
             </Text>
             {party.isSaved === false && (
               <View style={styles.walkInBadge}>
@@ -124,12 +141,14 @@ export function PartyCard({
           <View style={styles.metaRow}>
             <TouchableOpacity onPress={handleCall} style={styles.phoneTouch} activeOpacity={0.7}>
               <Ionicons name="call-outline" size={11} color={Colors.dark.textSecondary} />
-              <Text style={styles.phoneText}>{party.phone}</Text>
+              <Text style={styles.phoneText}>{party.phone || 'No Phone'}</Text>
             </TouchableOpacity>
 
             <View style={styles.orderPill}>
               <Ionicons name="bag-handle-outline" size={10} color={Colors.dark.textSecondary} />
-              <Text style={styles.orderPillText}>{orderCount} orders</Text>
+              <Text style={styles.orderPillText}>
+                {orderCount > 0 ? `${orderCount} orders` : 'Directory profile'}
+              </Text>
             </View>
 
             {party.category && party.category !== 'RETAIL' ? (
@@ -206,7 +225,7 @@ export function PartyCard({
       </View>
     </Card>
   );
-}
+});
 
 const styles = StyleSheet.create({
   card: {
