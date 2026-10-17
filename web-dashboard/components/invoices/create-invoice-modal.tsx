@@ -432,8 +432,9 @@ export function CreateInvoiceModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 overflow-hidden animate-in fade-in">
-        <div className="w-full max-w-4xl rounded-[1.5rem] border border-border bg-card shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-foreground">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden animate-in fade-in">
+        <div className="fixed inset-0 bg-black/65 backdrop-blur-xs -z-10" />
+        <div className="w-full max-w-4xl rounded-[1.5rem] border border-border bg-background shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-foreground">
           <div className="shrink-0 flex items-center justify-between border-b border-border p-6">
             <div>
               <h2 className="text-[1.25rem] font-bold text-foreground">Create Tax Invoice</h2>
@@ -446,7 +447,11 @@ export function CreateInvoiceModal({
             </button>
           </div>
 
-          <form onSubmit={handleFormSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+          <form
+            onSubmit={handleFormSubmit}
+            className="flex-1 overflow-y-auto overscroll-contain p-6 space-y-6 [scrollbar-gutter:stable] [contain:paint]"
+            style={{ WebkitOverflowScrolling: 'touch' }}
+          >
             {/* Customer Selection */}
             <div className="rounded-[1rem] border border-border bg-muted/30 p-4 space-y-4">
               <div>
@@ -556,7 +561,7 @@ export function CreateInvoiceModal({
                         className="fixed inset-0 z-30"
                         onClick={() => setIsCustomerDropdownOpen(false)}
                       />
-                      <div className="absolute left-0 right-0 top-full mt-1.5 z-40 max-h-56 overflow-y-auto rounded-xl border border-border bg-card/98 backdrop-blur-2xl shadow-2xl divide-y divide-border/60">
+                      <div className="absolute left-0 right-0 top-full mt-1.5 z-40 max-h-56 overflow-y-auto rounded-xl border border-border bg-background shadow-2xl divide-y divide-border/60">
                       {parties.filter((p) => {
                         if (!customerSearch.trim()) return true;
                         const q = customerSearch.toLowerCase();
@@ -851,7 +856,7 @@ export function CreateInvoiceModal({
                                   });
                                 }}
                               />
-                              <div className="absolute left-0 right-0 top-full mt-1 z-30 max-h-52 overflow-y-auto rounded-xl border border-border bg-card/98 backdrop-blur-2xl shadow-xl divide-y divide-border/60">
+                              <div className="absolute left-0 right-0 top-full mt-1 z-30 max-h-52 overflow-y-auto rounded-xl border border-border bg-background shadow-xl divide-y divide-border/60">
                                 {products.filter((p) => {
                                   const term = (productSearchTerms[idx] || '').toLowerCase().trim();
                                   if (!term) return true;
@@ -1070,8 +1075,9 @@ export function CreateInvoiceModal({
 
       {/* COUNTER SCREEN: LIVE UPI QR PAYMENT COLLECTION MODAL */}
       {showUpiCheckoutModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in">
-          <div className="w-full max-w-md rounded-[1.5rem] border border-border bg-card p-[clamp(1.25rem,2vw,1.75rem)] shadow-2xl space-y-6 text-center text-foreground">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs -z-10" />
+          <div className="w-full max-w-md rounded-[1.5rem] border border-border bg-background p-[clamp(1.25rem,2vw,1.75rem)] shadow-2xl space-y-6 text-center text-foreground">
             <div className="flex items-center justify-between border-b border-border pb-3 text-left">
               <div>
                 <h3 className="text-[1rem] font-bold text-foreground flex items-center gap-2">

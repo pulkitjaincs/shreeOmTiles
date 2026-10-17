@@ -18,7 +18,9 @@ import {
   Calendar,
   ArrowLeft,
   ArrowRight,
+  MessageSquare,
 } from 'lucide-react';
+import { buildCustomerDuesReminderUrl } from '@/lib/whatsapp';
 import { PaymentStatsGrid } from '@/components/payments/payment-stats-grid';
 import { 
   PendingItem, 
@@ -1050,13 +1052,33 @@ export default function TransactionsPage() {
                       </td>
 
                       <td className="py-3.5 px-4 text-right">
-                        <Button
-                          onClick={() => handleOpenActionForPending(item)}
-                          className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs px-3.5 py-1.5 rounded-[0.625rem] shadow-sm inline-flex items-center gap-1.5 transition-all active:scale-98"
-                        >
-                          <Banknote className="h-3.5 w-3.5" />
-                          Collect Payment
-                        </Button>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              const url = buildCustomerDuesReminderUrl({
+                                phone: item.partyPhone,
+                                name: item.partyName,
+                                amount: item.remainingDue,
+                                invoiceNo: item.invoiceNo,
+                              });
+                              window.open(url, '_blank');
+                            }}
+                            title="Send WhatsApp payment reminder"
+                            className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-xs px-2.5 py-1.5 rounded-[0.625rem] inline-flex items-center gap-1.5 transition-all active:scale-98"
+                          >
+                            <MessageSquare className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">WhatsApp</span>
+                          </Button>
+                          <Button
+                            onClick={() => handleOpenActionForPending(item)}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs px-3.5 py-1.5 rounded-[0.625rem] shadow-sm inline-flex items-center gap-1.5 transition-all active:scale-98"
+                          >
+                            <Banknote className="h-3.5 w-3.5" />
+                            Collect Payment
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -1458,28 +1480,48 @@ export default function TransactionsPage() {
                                 Pay Party
                               </Button>
                             ) : (
-                              <Button
-                                onClick={() => {
-                                  handleOpenActionForPending({
-                                    id: cl.id,
-                                    invoiceNo: cl.invoice?.invoiceNo || 'Direct Customer Credit',
-                                    partyId: cl.partyId,
-                                    partyName: cl.party?.name || 'Party',
-                                    partyPhone: cl.party?.phone || '',
-                                    total: Number(cl.amountDue),
-                                    paid: 0,
-                                    remainingDue: Number(cl.amountDue),
-                                    createdAt: cl.createdAt,
-                                    status: cl.status,
-                                    isCreditLedger: true,
-                                    creditType: 'RECEIVABLE',
-                                  });
-                                }}
-                                className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs px-3 py-1 rounded-[0.5rem] shadow-sm inline-flex items-center gap-1 transition-all active:scale-98"
-                              >
-                                <Banknote className="h-3 w-3" />
-                                Collect
-                              </Button>
+                              <div className="flex items-center justify-end gap-1.5">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    const url = buildCustomerDuesReminderUrl({
+                                      phone: cl.party?.phone,
+                                      name: cl.party?.name || 'Customer',
+                                      amount: Number(cl.amountDue),
+                                      invoiceNo: cl.invoice?.invoiceNo,
+                                    });
+                                    window.open(url, '_blank');
+                                  }}
+                                  title="Send WhatsApp payment reminder"
+                                  className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-xs px-2 py-1 rounded-[0.5rem] inline-flex items-center gap-1 transition-all active:scale-98"
+                                >
+                                  <MessageSquare className="h-3 w-3" />
+                                  <span className="hidden sm:inline">WhatsApp</span>
+                                </Button>
+                                <Button
+                                  onClick={() => {
+                                    handleOpenActionForPending({
+                                      id: cl.id,
+                                      invoiceNo: cl.invoice?.invoiceNo || 'Direct Customer Credit',
+                                      partyId: cl.partyId,
+                                      partyName: cl.party?.name || 'Party',
+                                      partyPhone: cl.party?.phone || '',
+                                      total: Number(cl.amountDue),
+                                      paid: 0,
+                                      remainingDue: Number(cl.amountDue),
+                                      createdAt: cl.createdAt,
+                                      status: cl.status,
+                                      isCreditLedger: true,
+                                      creditType: 'RECEIVABLE',
+                                    });
+                                  }}
+                                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs px-3 py-1 rounded-[0.5rem] shadow-sm inline-flex items-center gap-1 transition-all active:scale-98"
+                                >
+                                  <Banknote className="h-3 w-3" />
+                                  Collect
+                                </Button>
+                              </div>
                             )
                           ) : (
                             <span className="text-xs text-muted-foreground font-medium">Settled</span>

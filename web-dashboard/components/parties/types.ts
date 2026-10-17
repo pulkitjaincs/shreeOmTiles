@@ -19,6 +19,19 @@ export interface Payment {
   amount: number;
   status: string;
   paidAt?: string;
+  notes?: string;
+  createdAt?: string;
+  invoice?: {
+    id: string;
+    invoiceNo: string;
+    total: number;
+  };
+  purchase?: {
+    id: string;
+    purchaseNo: string;
+    vendorBillNo?: string;
+    total: number;
+  };
 }
 
 export interface Delivery {
@@ -43,6 +56,26 @@ export interface PartyInvoice {
   };
 }
 
+export interface PartyPurchase {
+  id: string;
+  purchaseNo: string;
+  vendorBillNo?: string;
+  status: string;
+  total: number;
+  tax?: number;
+  subtotal?: number;
+  paymentMode?: string;
+  notes?: string;
+  createdAt: string;
+  items?: InvoiceItem[];
+  payments?: Payment[];
+  createdBy?: {
+    id: string;
+    name: string;
+    phone: string;
+  };
+}
+
 export interface PartyCreditLedger {
   id: string;
   amountDue: number;
@@ -50,10 +83,18 @@ export interface PartyCreditLedger {
   dueDate?: string;
   status: string;
   remindersSent: number;
+  notes?: string;
   createdAt: string;
   invoice?: {
     id: string;
     invoiceNo: string;
+    total: number;
+    createdAt: string;
+  };
+  purchase?: {
+    id: string;
+    purchaseNo: string;
+    vendorBillNo?: string;
     total: number;
     createdAt: string;
   };
@@ -68,6 +109,7 @@ export interface PartyDetail {
   category?: 'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER';
   createdAt: string;
   invoices?: PartyInvoice[];
+  purchases?: PartyPurchase[];
   creditLedgers?: PartyCreditLedger[];
   payments?: Payment[];
 }

@@ -9,7 +9,6 @@ import {
   Plus, 
   Trash2, 
   FileText, 
-  User, 
   Layers, 
   Loader2 
 } from 'lucide-react';
@@ -149,8 +148,9 @@ export function CreateQuotationModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 overflow-hidden animate-in fade-in">
-      <div className="w-full max-w-3xl rounded-[1.5rem] border border-border bg-card shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-foreground">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden animate-in fade-in">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-xs -z-10" />
+      <div className="w-full max-w-3xl rounded-[1.5rem] border border-border bg-background shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-foreground">
         {/* Header */}
         <div className="shrink-0 flex items-center justify-between border-b border-border p-6">
           <div className="flex items-center gap-3">
@@ -170,7 +170,11 @@ export function CreateQuotationModal({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+        <form
+          onSubmit={handleSubmit}
+          className="flex-1 overflow-y-auto overscroll-contain p-6 space-y-6 [scrollbar-gutter:stable] [contain:paint]"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
           {/* Customer Selection */}
           <div className="rounded-[1rem] border border-border bg-muted/30 p-4 space-y-3">
             <div className="flex items-center justify-between">

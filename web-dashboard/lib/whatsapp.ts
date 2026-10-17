@@ -1,10 +1,34 @@
-import { cleanPhoneNumber } from './formatters';
+import { cleanPhoneNumber, formatINR } from './formatters';
 
 export interface DispatchItemInfo {
   productName: string;
   qty: number;
   unit?: string;
   warehouseName?: string;
+}
+
+/**
+ * Builds customer dues payment reminder WhatsApp URL.
+ */
+export function buildCustomerDuesReminderUrl(params: {
+  phone?: string | null;
+  name: string;
+  amount: number;
+  invoiceNo?: string;
+}): string {
+  const { phone, name, amount, invoiceNo } = params;
+  const refText = invoiceNo ? ` (Ref #${invoiceNo})` : '';
+  const msg =
+    `Dear *${name || 'Customer'}*,\n\n` +
+    `This is a friendly payment reminder from *Shree Om Tiles* regarding your outstanding balance of *${formatINR(amount)}*${refText}.\n\n` +
+    `Kindly arrange payment clearance via UPI or Counter Cash at your convenience.\n\n` +
+    `Thank you for your business! 🙏\n` +
+    `*Shree Om Tiles*`;
+
+  const clean = cleanPhoneNumber(phone);
+  return clean
+    ? `https://wa.me/91${clean}?text=${encodeURIComponent(msg)}`
+    : `https://wa.me/?text=${encodeURIComponent(msg)}`;
 }
 
 /**

@@ -11,12 +11,16 @@ import {
   MapPin,
   Loader2,
   ShoppingBag,
+  ShoppingCart,
   CreditCard,
   Receipt,
   Calendar,
   CheckCircle2,
   MessageSquare,
   Download,
+  ArrowLeftRight,
+  ArrowUpRight,
+  ArrowDownLeft,
 } from 'lucide-react';
 import { Party, PartyDetail } from './types';
 
@@ -36,7 +40,7 @@ export function PartyStatementDrawer({
   const [partyData, setPartyData] = useState<PartyDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
-  const [activeTab, setActiveTab] = useState<'orders' | 'credits'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'purchases' | 'transactions' | 'credits'>('orders');
 
   const handleDownloadStatementPdf = async () => {
     if (!party) return;
@@ -99,20 +103,21 @@ export function PartyStatementDrawer({
     .filter((inv) => inv.status !== 'CANCELLED' && inv.status !== 'DRAFT')
     .reduce((sum, inv) => sum + Number(inv.total || 0), 0);
 
+  const lifetimePurchases = (partyData?.purchases || [])
+    .filter((p) => p.status !== 'CANCELLED')
+    .reduce((sum, p) => sum + Number(p.total || 0), 0);
+
+  const paymentsReceived = (partyData?.payments || [])
+    .filter((p) => p.status === 'CONFIRMED' && p.type === 'INFLOW')
+    .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+  const paymentsDisbursed = (partyData?.payments || [])
+    .filter((p) => p.status === 'CONFIRMED' && p.type === 'OUTFLOW')
+    .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
   const settledPayments =
-    partyData?.payments && partyData.payments.length > 0
-      ? Math.max(
-          0,
-          partyData.payments
-            .filter((p) => p.status === 'CONFIRMED')
-            .reduce(
-              (pSum, p) =>
-                p.type === 'OUTFLOW'
-                  ? pSum - Number(p.amount || 0)
-                  : pSum + Number(p.amount || 0),
-              0
-            )
-        )
+    paymentsReceived > 0 || paymentsDisbursed > 0
+      ? paymentsReceived
       : (partyData?.invoices || []).reduce((sum, inv) => {
           const paid = (inv.payments || [])
             .filter((p) => p.status === 'CONFIRMED')
@@ -146,10 +151,11 @@ export function PartyStatementDrawer({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 overflow-y-auto animate-in fade-in">
-      <div className="w-full max-w-4xl max-h-[88dvh] flex flex-col rounded-2xl border border-border bg-card shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
+      <div className="fixed inset-0 bg-black/65 backdrop-blur-xs -z-10" onClick={onClose} />
+      <div className="w-full max-w-4xl max-h-[88dvh] flex flex-col rounded-2xl border border-border bg-background shadow-2xl overflow-hidden">
         {/* Modal Header */}
-        <div className="p-6 border-b border-border/60 bg-card/90 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="p-6 border-b border-border/60 bg-background flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
             <div className="h-12 w-12 rounded-2xl bg-gradient-to-tr from-primary to-primary/80 flex items-center justify-center text-primary-foreground font-bold text-lg uppercase shadow-lg shadow-primary/25">
               {party.name.slice(0, 2)}
@@ -215,36 +221,48 @@ export function PartyStatementDrawer({
         </div>
 
         {/* Modal Body with Scroll */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div
+          className="flex-1 overflow-y-auto overscroll-contain p-6 space-y-6 [scrollbar-gutter:stable] [contain:paint]"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
           {loading ? (
             <div className="py-20 flex flex-col items-center justify-center gap-3 text-muted-foreground">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm">Fetching complete order and credit history...</p>
+              <p className="text-sm">Fetching complete order, purchase, and transaction history...</p>
             </div>
           ) : !partyData ? (
-            <div className="py-12 text-center text-muted-foreground">Unable to load customer history.</div>
+            <div className="py-12 text-center text-muted-foreground">Unable to load party history.</div>
           ) : (
             <>
               {/* Financial KPI Summary Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="p-4 rounded-xl border border-border/80 bg-muted/40">
                   <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider block">
-                    Lifetime Billing
+                    {lifetimePurchases > 0 ? 'Sales / Purchases' : 'Lifetime Sales'}
                   </span>
                   <div className="text-lg font-bold text-foreground mt-1">
                     ₹{lifetimeTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                   </div>
-                  <span className="text-[10px] text-muted-foreground mt-0.5 block">Across all orders</span>
+                  <span className="text-[10px] text-muted-foreground mt-0.5 block">
+                    {lifetimePurchases > 0
+                      ? `Purchases: ₹${lifetimePurchases.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
+                      : 'Across all customer orders'}
+                  </span>
                 </div>
 
                 <div className="p-4 rounded-xl border border-border/80 bg-muted/40">
                   <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider block">
-                    Total Orders
+                    Orders / Bills
                   </span>
                   <div className="text-lg font-bold text-foreground mt-1">
                     {partyData.invoices?.length || 0}
+                    {Boolean(partyData.purchases?.length) && (
+                      <span className="text-xs font-normal text-muted-foreground ml-1.5">
+                        (+{partyData.purchases?.length} purchases)
+                      </span>
+                    )}
                   </div>
-                  <span className="text-[10px] text-muted-foreground mt-0.5 block">Invoices generated</span>
+                  <span className="text-[10px] text-muted-foreground mt-0.5 block">Total recorded transactions</span>
                 </div>
 
                 {totalDues > 0.01 ? (
@@ -256,7 +274,7 @@ export function PartyStatementDrawer({
                       ₹{totalDues.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                     </div>
                     <span className="text-[10px] text-rose-600/70 dark:text-rose-400/70 mt-0.5 block">
-                      Pending in credit ledger
+                      Party owes store
                     </span>
                   </div>
                 ) : totalDues < -0.01 ? (
@@ -287,38 +305,64 @@ export function PartyStatementDrawer({
 
                 <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
                   <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">
-                    Total Received
+                    {paymentsDisbursed > 0 ? 'Inflows / Outflows' : 'Total Received'}
                   </span>
                   <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-1">
                     ₹{settledPayments.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                   </div>
-                  <span className="text-[10px] text-emerald-600/70 dark:text-emerald-400/70 mt-0.5 block">Confirmed payments</span>
+                  <span className="text-[10px] text-emerald-600/70 dark:text-emerald-400/70 mt-0.5 block">
+                    {paymentsDisbursed > 0
+                      ? `Paid Out: ₹${paymentsDisbursed.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
+                      : 'Confirmed payments'}
+                  </span>
                 </div>
               </div>
 
               {/* Tab Navigation */}
-              <div className="flex items-center gap-2 border-b border-border/60">
+              <div className="flex items-center gap-2 border-b border-border/60 overflow-x-auto">
                 <button
                   onClick={() => setActiveTab('orders')}
-                  className={`pb-3 px-3 text-sm font-semibold transition border-b-2 flex items-center gap-2 ${
+                  className={`pb-3 px-3 text-sm font-semibold transition border-b-2 flex items-center gap-2 whitespace-nowrap ${
                     activeTab === 'orders'
                       ? 'border-primary text-primary'
                       : 'border-transparent text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   <ShoppingBag className="h-4 w-4" />
-                  Orders Placed ({partyData.invoices?.length || 0})
+                  Orders ({partyData.invoices?.length || 0})
+                </button>
+                <button
+                  onClick={() => setActiveTab('purchases')}
+                  className={`pb-3 px-3 text-sm font-semibold transition border-b-2 flex items-center gap-2 whitespace-nowrap ${
+                    activeTab === 'purchases'
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <ShoppingCart className="h-4 w-4" />
+                  Purchases ({partyData.purchases?.length || 0})
+                </button>
+                <button
+                  onClick={() => setActiveTab('transactions')}
+                  className={`pb-3 px-3 text-sm font-semibold transition border-b-2 flex items-center gap-2 whitespace-nowrap ${
+                    activeTab === 'transactions'
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <ArrowLeftRight className="h-4 w-4" />
+                  Payments & Transactions ({partyData.payments?.length || 0})
                 </button>
                 <button
                   onClick={() => setActiveTab('credits')}
-                  className={`pb-3 px-3 text-sm font-semibold transition border-b-2 flex items-center gap-2 ${
+                  className={`pb-3 px-3 text-sm font-semibold transition border-b-2 flex items-center gap-2 whitespace-nowrap ${
                     activeTab === 'credits'
                       ? 'border-primary text-primary'
                       : 'border-transparent text-muted-foreground hover:text-foreground'
                   }`}
                 >
                   <CreditCard className="h-4 w-4" />
-                  Credit & Ledger History ({partyData.creditLedgers?.length || 0})
+                  Credit & Ledger ({partyData.creditLedgers?.length || 0})
                 </button>
               </div>
 
@@ -412,20 +456,193 @@ export function PartyStatementDrawer({
                 </div>
               )}
 
-              {/* TAB 2: CREDIT & LEDGER HISTORY */}
-              {activeTab === 'credits' && (
+              {/* TAB 2: PURCHASES / PROCUREMENT */}
+              {activeTab === 'purchases' && (
                 <div className="space-y-3">
-                  {!partyData.creditLedgers || partyData.creditLedgers.length === 0 ? (
+                  {!partyData.purchases || partyData.purchases.length === 0 ? (
                     <div className="py-12 text-center text-muted-foreground bg-muted/20 rounded-xl border border-border/80">
-                      <CheckCircle2 className="h-8 w-8 mx-auto text-emerald-500 mb-2" />
-                      <p className="text-sm">No credit transactions recorded. This customer has always paid upfront via Cash or UPI.</p>
+                      <ShoppingCart className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                      <p className="text-sm">No inward purchase bills recorded from this supplier yet.</p>
+                    </div>
+                  ) : (
+                    partyData.purchases.map((pur) => (
+                      <div
+                        key={pur.id}
+                        className="p-4 rounded-xl border border-border/80 bg-card/60 hover:border-border transition space-y-3"
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/60 pb-2.5">
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono font-bold text-foreground text-sm">
+                              {pur.purchaseNo}
+                            </span>
+                            {pur.vendorBillNo && (
+                              <span className="text-xs px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border/50 font-medium">
+                                Ref: {pur.vendorBillNo}
+                              </span>
+                            )}
+                            <span className="text-xs text-muted-foreground flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {new Date(pur.createdAt).toLocaleDateString('en-IN', {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric',
+                              })}
+                            </span>
+                            {pur.paymentMode && (
+                              <span className="text-[11px] px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border/50 font-medium">
+                                {pur.paymentMode}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <span className="text-[11px] px-2 py-0.5 rounded-full font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                              {pur.status}
+                            </span>
+                            <span className="font-bold font-mono text-foreground text-base">
+                              ₹{Number(pur.total).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Items Breakdown */}
+                        {pur.items && pur.items.length > 0 && (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                            {pur.items.map((item) => (
+                              <div
+                                key={item.id}
+                                className="text-xs flex items-center justify-between bg-muted/40 px-3 py-2 rounded-lg border border-border/60 text-foreground"
+                              >
+                                <div className="truncate pr-2">
+                                  <span className="font-medium text-foreground">
+                                    {item.product?.name || 'Item'}
+                                  </span>
+                                  <span className="text-muted-foreground ml-1.5 font-mono">
+                                    × {item.qty} {item.product?.unit || 'pcs'}
+                                  </span>
+                                </div>
+                                <span className="font-mono text-foreground font-semibold whitespace-nowrap">
+                                  ₹{Number(item.total).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {pur.createdBy && (
+                          <div className="text-[11px] text-muted-foreground flex items-center gap-1 pt-1">
+                            <span>Recorded by:</span>
+                            <span className="text-foreground font-medium">{pur.createdBy.name}</span>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {/* TAB 3: PAYMENTS & TRANSACTIONS */}
+              {activeTab === 'transactions' && (
+                <div className="space-y-3">
+                  {!partyData.payments || partyData.payments.length === 0 ? (
+                    <div className="py-12 text-center text-muted-foreground bg-muted/20 rounded-xl border border-border/80">
+                      <ArrowLeftRight className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                      <p className="text-sm">No payment records or financial transactions recorded yet.</p>
                     </div>
                   ) : (
                     <div className="rounded-xl border border-border/80 overflow-hidden bg-card/60">
                       <table className="w-full text-left text-xs text-foreground">
                         <thead className="bg-muted/50 text-muted-foreground uppercase tracking-wider border-b border-border/80">
                           <tr>
-                            <th className="py-3 px-4">Invoice Ref</th>
+                            <th className="py-3 px-4">Date & Time</th>
+                            <th className="py-3 px-4">Type</th>
+                            <th className="py-3 px-4">Mode</th>
+                            <th className="py-3 px-4">Reference / Linked</th>
+                            <th className="py-3 px-4">Amount</th>
+                            <th className="py-3 px-4 text-right">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/60">
+                          {partyData.payments.map((p) => {
+                            const isOutflow = p.type === 'OUTFLOW';
+                            const dateVal = p.paidAt || p.createdAt;
+                            return (
+                              <tr key={p.id} className="hover:bg-muted/30 transition">
+                                <td className="py-3 px-4 text-muted-foreground">
+                                  {dateVal ? new Date(dateVal).toLocaleDateString('en-IN', {
+                                    day: 'numeric',
+                                    month: 'short',
+                                    year: 'numeric',
+                                  }) : '—'}
+                                </td>
+                                <td className="py-3 px-4 font-semibold">
+                                  {isOutflow ? (
+                                    <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                                      <ArrowUpRight className="h-3 w-3" />
+                                      Disbursement / Paid
+                                    </span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                                      <ArrowDownLeft className="h-3 w-3" />
+                                      Inflow / Received
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span className="px-2 py-0.5 rounded-md bg-muted text-foreground border border-border/50 font-mono text-[11px]">
+                                    {p.mode}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 font-mono">
+                                  {p.invoice ? (
+                                    <span className="text-foreground">Inv #{p.invoice.invoiceNo}</span>
+                                  ) : p.purchase ? (
+                                    <span className="text-foreground font-semibold">
+                                      Pur #{p.purchase.purchaseNo}
+                                      {p.purchase.vendorBillNo && ` (Ref: ${p.purchase.vendorBillNo})`}
+                                    </span>
+                                  ) : (
+                                    <span className="text-muted-foreground">{p.notes || 'Counter / Direct Settlement'}</span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4 font-mono font-bold text-sm">
+                                  <span className={isOutflow ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}>
+                                    {isOutflow ? '- ' : '+ '}₹{Number(p.amount).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-right">
+                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                                    p.status === 'CONFIRMED'
+                                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                                      : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                                  }`}>
+                                    {p.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 4: CREDIT & LEDGER HISTORY */}
+              {activeTab === 'credits' && (
+                <div className="space-y-3">
+                  {!partyData.creditLedgers || partyData.creditLedgers.length === 0 ? (
+                    <div className="py-12 text-center text-muted-foreground bg-muted/20 rounded-xl border border-border/80">
+                      <CheckCircle2 className="h-8 w-8 mx-auto text-emerald-500 mb-2" />
+                      <p className="text-sm">No credit transactions recorded. This party has always settled balances upfront.</p>
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-border/80 overflow-hidden bg-card/60">
+                      <table className="w-full text-left text-xs text-foreground">
+                        <thead className="bg-muted/50 text-muted-foreground uppercase tracking-wider border-b border-border/80">
+                          <tr>
+                            <th className="py-3 px-4">Invoice / Purchase Ref</th>
                             <th className="py-3 px-4">Date Issued</th>
                             <th className="py-3 px-4">Due Date</th>
                             <th className="py-3 px-4">Amount Due</th>
@@ -444,7 +661,20 @@ export function PartyStatementDrawer({
                             return (
                               <tr key={cl.id} className="hover:bg-muted/30 transition">
                                 <td className="py-3 px-4 font-mono font-medium text-foreground">
-                                  {cl.invoice?.invoiceNo || 'Direct Credit'}
+                                  {cl.invoice?.invoiceNo ? (
+                                    <span>Inv #{cl.invoice.invoiceNo}</span>
+                                  ) : cl.purchase?.purchaseNo ? (
+                                    <span className="text-amber-700 dark:text-amber-300 font-semibold">
+                                      Pur #{cl.purchase.purchaseNo}
+                                      {cl.purchase.vendorBillNo && (
+                                        <span className="block text-[10px] text-muted-foreground font-normal">
+                                          Ref: {cl.purchase.vendorBillNo}
+                                        </span>
+                                      )}
+                                    </span>
+                                  ) : (
+                                    <span>Direct Credit</span>
+                                  )}
                                 </td>
                                 <td className="py-3 px-4 text-muted-foreground">
                                   {new Date(cl.createdAt).toLocaleDateString('en-IN', {
@@ -517,7 +747,7 @@ export function PartyStatementDrawer({
         </div>
 
         {/* Modal Footer */}
-        <div className="p-4 border-t border-border/60 bg-card/90 flex items-center justify-between">
+        <div className="p-4 border-t border-border/60 bg-background flex items-center justify-between">
           {totalDues > 0.01 ? (
             <button
               onClick={handleSendReminder}

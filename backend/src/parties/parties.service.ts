@@ -156,6 +156,20 @@ export class PartiesService {
             },
           },
         },
+        purchases: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            items: {
+              include: {
+                product: true,
+              },
+            },
+            payments: true,
+            createdBy: {
+              select: { id: true, name: true, phone: true },
+            },
+          },
+        },
         creditLedgers: {
           orderBy: { createdAt: 'desc' },
           include: {
@@ -167,10 +181,36 @@ export class PartiesService {
                 createdAt: true,
               },
             },
+            purchase: {
+              select: {
+                id: true,
+                purchaseNo: true,
+                vendorBillNo: true,
+                total: true,
+                createdAt: true,
+              },
+            },
           },
         },
         payments: {
           orderBy: { createdAt: 'desc' },
+          include: {
+            invoice: {
+              select: {
+                id: true,
+                invoiceNo: true,
+                total: true,
+              },
+            },
+            purchase: {
+              select: {
+                id: true,
+                purchaseNo: true,
+                vendorBillNo: true,
+                total: true,
+              },
+            },
+          },
         },
       },
     });
