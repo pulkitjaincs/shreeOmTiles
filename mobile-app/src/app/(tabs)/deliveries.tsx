@@ -11,7 +11,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useAuth } from '@/lib/auth-context';
-import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
+import { mobileApiRequest, cachedMobileApiRequest, subscribeToAppSync } from '@/lib/api';
 import { Colors } from '@/constants/theme';
 import { Header } from '@/components/ui/Header';
 import { SearchBar } from '@/components/ui/SearchBar';
@@ -37,7 +37,8 @@ export default function DeliveriesScreen() {
 
   const isDriver = role === 'DRIVER';
   const isSupervisor = role === 'SUPERVISOR';
-  const isOwnerOrAdmin = role === 'OWNER' || role === 'ADMIN';
+  const isDirectorOrAdmin = role === 'OWNER' || (role as any) === 'DIRECTOR' || role === 'ADMIN';
+  const isOwnerOrAdmin = isDirectorOrAdmin;
   const userWarehouseId = user?.scope;
 
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
@@ -94,6 +95,13 @@ export default function DeliveriesScreen() {
       loadData();
     }, [loadData]),
   );
+
+  useEffect(() => {
+    const unsubscribe = subscribeToAppSync(() => {
+      void loadData();
+    });
+    return () => unsubscribe();
+  }, [loadData]);
 
   const onRefresh = () => {
     setRefreshing(true);

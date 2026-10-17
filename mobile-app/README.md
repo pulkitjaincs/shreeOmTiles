@@ -1,6 +1,6 @@
 # Shree Om Tiles ERP - Mobile Application 📱
 
-> Native cross-platform mobile application engineered for field sales reps, warehouse drivers, godown supervisors, accountants, and business owners. Built with Expo SDK 57, React Native 0.86, React 19, Expo Router, native push notifications, and filesystem sharing.
+> Native cross-platform mobile application engineered for field sales reps, warehouse drivers, godown supervisors, accountants, and business directors. Built with Expo SDK 57, React Native 0.86, React 19, Expo Router, native push notifications, and filesystem sharing.
 
 ---
 
@@ -24,7 +24,7 @@
 ## ✨ Key Features
 
 - **Full Parity with Web ERP**: Complete feature set matching the desktop web dashboard including counter billing, vendor procurement, quotations, inventory inward/transfer, payment collection, customer dues, and driver manifests.
-- **Dynamic Role-Adaptive Cockpits**: Home tab dynamically switches between specialized dashboards for `OWNER`, `SALESMAN`, `DRIVER`, and `SUPERVISOR`.
+- **Dynamic Role-Adaptive Cockpits**: Home tab dynamically switches between specialized dashboards for `DIRECTOR`, `SALESMAN`, `DRIVER`, and `SUPERVISOR`.
 - **Integrated Transactions & Daily Till Book**: Merged cash drawer reconciliation and payment management into a unified Transactions tab (`src/app/(tabs)/transactions.tsx`) displaying opening till cash, cash in/out, expenses, digital collections, and verified closing cash with date-wise navigation.
 - **Price Estimates & Mobile Quotations**: Issue formal quotations on the go (`CreateQuotationModal.tsx`), multi-tile line items with box/sq. ft. calculations, download/share branded PDFs via WhatsApp, and convert quotes to active sales invoices with a single tap.
 - **Inward Purchases & Vendor Procurement**: Record incoming vendor bills on mobile (`CreatePurchaseModal.tsx`), assign destination warehouses, compute GST, and replenish inventory instantaneously.
@@ -32,7 +32,7 @@
 - **Supervisor Loading Verification**: Dedicated godown supervisor cockpit with **price-masked inventory** to verify and lock loaded items before driver departure.
 - **Logistics Delivery Challans**: 1-tap download and sharing of unpriced official Delivery Challans for drivers and warehouse dispatchers.
 - **Streamlined Returns & Credit Ledgers**: Process sales returns with item-level restocking, auto-reflecting credits in party statement ledgers without obsolete duplicate return invoice PDFs.
-- **Safe Transactional Invoice Deletion**: Owner/Admin modal to safely delete an invoice with automatic inventory replenishment back into the godown.
+- **Safe Transactional Invoice Deletion**: Director/Admin modal to safely delete an invoice with automatic inventory replenishment back into the godown.
 - **Counter Sales Invoicing with Upfront UPI QR**: Salesmen calculate tile boxes to sq. ft. on the go, issue tax invoices, and present high-contrast NPCI UPI QR codes directly to walk-in customers.
 - **Real-Time Push Notifications**: Instant heads-up alerts for new invoices, payments, credit notes, low stock warnings, and delivery assignments.
 - **Native Document Sharing & WhatsApp**: Download GST invoices, challans, quotes, and party statements directly to device storage and share via WhatsApp or print.
@@ -153,7 +153,7 @@ The home tab `src/app/(tabs)/index.tsx` dynamically evaluates the logged-in user
 - Dynamic box-to-square-feet rate converter.
 - Upfront NPCI UPI QR code generation to present to customers at point of sale.
 
-### 4. `OwnerDashboardView` (For Administrators & Owners)
+### 4. `OwnerDashboardView` / `DirectorDashboardView` (For Administrators & Directors)
 - Executive financial KPIs (Today's Sales, Month-to-Date Collections, Total Receivables).
 - Prominent **Pending Delivery Settlements** notification banner with 1-click review modal.
 - Live recent transactions stream and staff performance metrics.

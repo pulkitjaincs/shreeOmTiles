@@ -63,15 +63,16 @@ export function ExpensesView() {
 
   return (
     <View style={styles.container}>
-      {/* Top Header Row with Record Expense Button & Sync Refresh */}
+      {/* Top Header Row with Refresh & Record Expense Button */}
       <View style={styles.topRow}>
         <Button
           title=""
           icon="refresh-outline"
           variant="ghost"
           size="sm"
+          loading={loading && expenses.length > 0}
           onPress={() => loadExpenses(true)}
-          style={{ width: 38, height: 38, paddingHorizontal: 0, justifyContent: 'center', alignItems: 'center' }}
+          style={styles.refreshBtn}
         />
         <Button
           title="Record Expense"
@@ -79,7 +80,7 @@ export function ExpensesView() {
           variant="primary"
           size="sm"
           onPress={() => setModalOpen(true)}
-          style={{ flex: 1, height: 38 }}
+          style={styles.recordBtn}
         />
       </View>
 
@@ -164,7 +165,21 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   topRow: {
-    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  refreshBtn: {
+    width: 38,
+    height: 38,
+    paddingHorizontal: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  recordBtn: {
+    height: 38,
+    paddingHorizontal: 14,
   },
   kpiGrid: {
     flexDirection: 'row',

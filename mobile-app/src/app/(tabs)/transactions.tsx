@@ -10,7 +10,7 @@ import {
   RefreshControl,
   Alert,
 } from 'react-native';
-import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
+import { mobileApiRequest, cachedMobileApiRequest, subscribeToAppSync } from '@/lib/api';
 import { Colors } from '@/constants/theme';
 import { Header } from '@/components/ui/Header';
 import { SearchBar } from '@/components/ui/SearchBar';
@@ -315,6 +315,13 @@ export default function TransactionsScreen() {
     }, [loadData]),
   );
 
+  useEffect(() => {
+    const unsubscribe = subscribeToAppSync(() => {
+      void loadData();
+    });
+    return () => unsubscribe();
+  }, [loadData]);
+
   const loadDayBook = useCallback(async (date: string, force = false) => {
     setDayBookLoading(true);
     try {
@@ -447,7 +454,7 @@ export default function TransactionsScreen() {
   // Open Collect Modal from Header (Customer paying store)
   const handleOpenGeneralCollect = () => {
     setSettleDirection('COLLECT');
-    setSelectedPartyId(parties[0]?.id || '');
+    setSelectedPartyId('');
     setSettleInvoiceId('');
     setSettleInvoiceNo('');
     setSettleAmount('');
@@ -458,7 +465,7 @@ export default function TransactionsScreen() {
   // Open Pay Modal from Header (Store paying vendor/party)
   const handleOpenGeneralPay = () => {
     setSettleDirection('PAY');
-    setSelectedPartyId(parties[0]?.id || '');
+    setSelectedPartyId('');
     setSettleInvoiceId('');
     setSettleInvoiceNo('');
     setSettleAmount('');
@@ -468,7 +475,7 @@ export default function TransactionsScreen() {
 
   // Open Record Credit Modal
   const handleOpenRecordCredit = (partyId?: string) => {
-    setCreditPartyId(partyId || parties[0]?.id || '');
+    setCreditPartyId(partyId || '');
     setCreditModalOpen(true);
   };
 

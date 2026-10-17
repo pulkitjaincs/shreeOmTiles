@@ -47,7 +47,7 @@ export function RecordSettlementModal({
   initialNotes = '',
 }: RecordSettlementModalProps) {
   const [direction, setDirection] = useState<'COLLECT' | 'PAY'>(initialDirection);
-  const [selectedPartyId, setSelectedPartyId] = useState(initialPartyId || parties[0]?.id || '');
+  const [selectedPartyId, setSelectedPartyId] = useState(initialPartyId || '');
   const [amount, setAmount] = useState(initialAmount || '');
   const [mode, setMode] = useState<'CASH' | 'UPI'>('CASH');
   const [utr, setUtr] = useState('');
@@ -116,7 +116,7 @@ export function RecordSettlementModal({
     if (visible && !prevVisibleRef.current) {
       prevVisibleRef.current = true;
       setDirection(initialDirection);
-      setSelectedPartyId(initialPartyId || parties[0]?.id || '');
+      setSelectedPartyId(initialPartyId || '');
       setAmount(initialAmount || '');
 
       const defaultMode = initialDirection === 'PAY' ? 'CASH' : 'UPI';

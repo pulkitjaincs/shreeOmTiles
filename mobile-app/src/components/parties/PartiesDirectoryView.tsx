@@ -39,6 +39,9 @@ export function PartiesDirectoryView({
   const [deletingParty, setDeletingParty] = useState<Party | null>(null);
   const [statementParty, setStatementParty] = useState<Party | null>(null);
 
+  // Ensure parties is always an array
+  const safeParties = useMemo(() => (Array.isArray(parties) ? parties : []), [parties]);
+
   // Helper to compute party dues and payables
   const getPartyDue = (p: Party) => {
     return (p.creditLedgers || [])
@@ -56,37 +59,37 @@ export function PartiesDirectoryView({
   };
 
   const duesCount = useMemo(
-    () => parties.filter((p) => getPartyDue(p) > 0.01).length,
-    [parties],
+    () => safeParties.filter((p) => getPartyDue(p) > 0.01).length,
+    [safeParties],
   );
 
   const payablesCount = useMemo(
-    () => parties.filter((p) => getPartyDue(p) < -0.01 || getPartyPayable(p) > 0.01).length,
-    [parties],
+    () => safeParties.filter((p) => getPartyDue(p) < -0.01 || getPartyPayable(p) > 0.01).length,
+    [safeParties],
   );
 
   const clearedCount = useMemo(
-    () => parties.filter((p) => Math.abs(getPartyDue(p)) <= 0.01 && getPartyPayable(p) <= 0.01).length,
-    [parties],
+    () => safeParties.filter((p) => Math.abs(getPartyDue(p)) <= 0.01 && getPartyPayable(p) <= 0.01).length,
+    [safeParties],
   );
 
   const registeredCount = useMemo(
-    () => parties.filter((p) => p.isSaved !== false).length,
-    [parties],
+    () => safeParties.filter((p) => p.isSaved !== false).length,
+    [safeParties],
   );
 
   const unregisteredCount = useMemo(
-    () => parties.filter((p) => p.isSaved === false).length,
-    [parties],
+    () => safeParties.filter((p) => p.isSaved === false).length,
+    [safeParties],
   );
 
   const regFilterOptions = useMemo(
     () => [
-      { label: 'All Accounts', value: 'ALL' as const, count: parties.length },
+      { label: 'All Accounts', value: 'ALL' as const, count: safeParties.length },
       { label: 'Saved Directory', value: 'REGISTERED' as const, count: registeredCount },
       { label: 'Walk-ins', value: 'UNREGISTERED' as const, count: unregisteredCount },
     ],
-    [parties.length, registeredCount, unregisteredCount],
+    [safeParties.length, registeredCount, unregisteredCount],
   );
 
   const partyFilterOptions: FilterDropdownOption[] = useMemo(
@@ -94,7 +97,7 @@ export function PartiesDirectoryView({
       {
         label: 'All Customers',
         value: 'ALL',
-        count: parties.length,
+        count: safeParties.length,
         icon: 'people-outline',
         color: '#FFFFFF',
       },
@@ -120,17 +123,33 @@ export function PartiesDirectoryView({
         color: '#10B981',
       },
     ],
-    [parties.length, duesCount, payablesCount, clearedCount],
+    [safeParties.length, duesCount, payablesCount, clearedCount],
   );
 
   const filteredParties = useMemo(() => {
     const q = search.toLowerCase().trim();
-    return parties.filter((p) => {
+    const cleanQPhone = q.replace(/\D/g, '');
+
+    return safeParties.filter((p) => {
+      const name = (p.name || '').toLowerCase();
+      const phone = p.phone || '';
+      const gstin = (p.gstin || '').toLowerCase();
+      const address = (p.address || '').toLowerCase();
+
+      const phoneDigits = phone.replace(/\D/g, '');
+      const matchesPhone =
+        phone.includes(q) ||
+        (cleanQPhone.length >= 3 && (
+          phoneDigits.includes(cleanQPhone) ||
+          cleanQPhone.includes(phoneDigits) ||
+          (cleanQPhone.length >= 10 && phoneDigits.includes(cleanQPhone.slice(-10)))
+        ));
+
       const matchesSearch =
-        p.name.toLowerCase().includes(q) ||
-        p.phone.includes(q) ||
-        (p.gstin && p.gstin.toLowerCase().includes(q)) ||
-        (p.address && p.address.toLowerCase().includes(q));
+        name.includes(q) ||
+        matchesPhone ||
+        gstin.includes(q) ||
+        address.includes(q);
 
       if (!matchesSearch) return false;
 
@@ -145,14 +164,14 @@ export function PartiesDirectoryView({
       if (filterType === 'CLEARED') return Math.abs(due) <= 0.01 && payable <= 0.01;
       return true;
     });
-  }, [parties, search, filterType, regFilter]);
+  }, [safeParties, search, filterType, regFilter]);
 
   return (
     <View style={styles.container}>
       {/* Header Info */}
       <View style={styles.headerRow}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.sectionTitle}>Customer Directory ({parties.length})</Text>
+          <Text style={styles.sectionTitle}>Customer Directory ({safeParties.length})</Text>
           <Text style={styles.sectionSubtitle}>
             Accounts, 360° credit ledgers & WhatsApp reminders
           </Text>
@@ -173,19 +192,19 @@ export function PartiesDirectoryView({
       </View>
 
       {/* Credit Ageing Buckets Cards (5 Cards matching Web Dashboard) */}
-      <CreditAgeingRow parties={parties} />
+      <CreditAgeingRow parties={safeParties} />
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
         <SearchBar
           value={search}
           onChangeText={setSearch}
-          placeholder="Search customer name, phone, GSTIN..."
+          placeholder="Search customer name, phone, address, or GSTIN..."
         />
       </View>
 
       {/* Registration Status Filter Pills */}
-      <View style={{ marginBottom: 12 }}>
+      <View style={styles.filterPillsWrapper}>
         <FilterPills
           options={regFilterOptions}
           selected={regFilter}
@@ -223,7 +242,7 @@ export function PartiesDirectoryView({
       {/* Results Count & Reset Filter Indicator */}
       <View style={styles.resultsInfoRow}>
         <Text style={styles.resultsCountText}>
-          Showing <Text style={styles.resultsCountHighlight}>{filteredParties.length}</Text> of {parties.length} customer accounts
+          Showing <Text style={styles.resultsCountHighlight}>{filteredParties.length}</Text> of {safeParties.length} customer accounts
         </Text>
         {(filterType !== 'ALL' || regFilter !== 'ALL' || search.trim().length > 0) && (
           <TouchableOpacity
@@ -240,7 +259,7 @@ export function PartiesDirectoryView({
       </View>
 
       {/* Parties List */}
-      {loading ? (
+      {loading && safeParties.length === 0 ? (
         <View style={styles.centerLoading}>
           <ActivityIndicator size="small" color="#FFFFFF" />
           <Text style={styles.loadingText}>Loading customer directory...</Text>
@@ -266,7 +285,8 @@ export function PartiesDirectoryView({
               setFormModalOpen(true);
             }}
             onDelete={setDeletingParty}
-            canEditOrDelete={!isSalesman}
+            canEdit={!isSalesman}
+            canDelete={isOwnerOrAdmin}
           />
         ))
       )}
@@ -289,15 +309,23 @@ export function PartiesDirectoryView({
         onClose={() => setStatementParty(null)}
         onPartyDeleted={onRefresh}
         canDelete={isOwnerOrAdmin}
-        onEdit={(party) => {
-          setStatementParty(null);
-          setEditingParty(party);
-          setFormModalOpen(true);
-        }}
-        onDelete={(party) => {
-          setStatementParty(null);
-          setDeletingParty(party);
-        }}
+        onEdit={
+          !isSalesman
+            ? (party) => {
+                setStatementParty(null);
+                setEditingParty(party);
+                setFormModalOpen(true);
+              }
+            : undefined
+        }
+        onDelete={
+          isOwnerOrAdmin
+            ? (party) => {
+                setStatementParty(null);
+                setDeletingParty(party);
+              }
+            : undefined
+        }
       />
 
       {/* 3. Delete Customer Safety Modal (Zero-due validation) */}
@@ -346,6 +374,11 @@ const styles = StyleSheet.create({
   searchContainer: {
     marginTop: 4,
     marginBottom: 8,
+  },
+  filterPillsWrapper: {
+    marginHorizontal: -16,
+    marginVertical: -2,
+    marginBottom: 4,
   },
   dropdownActionRow: {
     flexDirection: 'row',

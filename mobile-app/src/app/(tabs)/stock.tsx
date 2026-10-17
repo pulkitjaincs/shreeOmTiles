@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/lib/auth-context';
-import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
+import { mobileApiRequest, cachedMobileApiRequest, subscribeToAppSync } from '@/lib/api';
 import { Colors } from '@/constants/theme';
 import { Header } from '@/components/ui/Header';
 import { SearchBar } from '@/components/ui/SearchBar';
@@ -33,7 +33,8 @@ import {
 
 export default function StockScreen() {
   const { user } = useAuth();
-  const isOwnerOrAdmin = user?.role === 'OWNER' || user?.role === 'ADMIN';
+  const isDirectorOrAdmin = user?.role === 'OWNER' || (user?.role as any) === 'DIRECTOR' || user?.role === 'ADMIN';
+  const isOwnerOrAdmin = isDirectorOrAdmin;
   const isSupervisor = user?.role === 'SUPERVISOR';
   const userWarehouseId = user?.scope;
 
@@ -98,6 +99,13 @@ export default function StockScreen() {
       loadData();
     }, [loadData]),
   );
+
+  useEffect(() => {
+    const unsubscribe = subscribeToAppSync(() => {
+      void loadData();
+    });
+    return () => unsubscribe();
+  }, [loadData]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -280,7 +288,10 @@ export default function StockScreen() {
           <View style={styles.secondaryActionsRow}>
             <TouchableOpacity
               style={styles.utilityBtn}
-              onPress={() => setAdjustModalOpen(true)}
+              onPress={() => {
+                setSelectedAdjustStock(null);
+                setAdjustModalOpen(true);
+              }}
               activeOpacity={0.7}
             >
               <Ionicons name="options-outline" size={13} color="#A855F7" />

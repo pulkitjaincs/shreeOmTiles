@@ -101,7 +101,7 @@ export function SalesStaffPerformance({
                       {staffName}
                     </Text>
                     <View style={styles.roleBadge}>
-                      <Text style={styles.roleText}>{s.role || 'SALESMAN'}</Text>
+                      <Text style={styles.roleText}>{s.role === 'OWNER' ? 'DIRECTOR' : (s.role || 'SALESMAN')}</Text>
                     </View>
                   </View>
                   {phone ? <Text style={styles.phone} numberOfLines={1}>{phone}</Text> : null}

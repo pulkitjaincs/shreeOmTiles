@@ -39,12 +39,12 @@ import { ExpensesView } from '@/components/expenses/ExpensesView';
 export default function MoreScreen() {
   const { user, logout, updateUser } = useAuth();
   const router = useRouter();
-  const isOwner = user?.role === 'OWNER';
+  const isDirector = user?.role === 'OWNER' || (user?.role as any) === 'DIRECTOR';
   const isAdmin = user?.role === 'ADMIN';
   const isAccountant = user?.role === 'ACCOUNTANT';
   const isSalesman = user?.role === 'SALESMAN';
   const isSupervisor = user?.role === 'SUPERVISOR';
-  const canViewFinances = isOwner || isAdmin || isAccountant;
+  const canViewFinances = isDirector || isAdmin || isAccountant;
 
   const [activeSection, setActiveSection] = useState<
     'MENU' | 'PARTIES' | 'STAFF' | 'SETTINGS' | 'DAY_BOOK' | 'QUOTATIONS' | 'PURCHASES' | 'EXPENSES'
@@ -89,11 +89,15 @@ export default function MoreScreen() {
   const loadParties = useCallback(async (force = false) => {
     setPartiesLoading(true);
     try {
-      const data = await cachedMobileApiRequest<Party[]>('/parties?includeUnsaved=true', {
+      const data = await cachedMobileApiRequest<any>('/parties?includeUnsaved=true', {
         forceRefresh: force,
-        onRevalidate: (fresh) => setParties(fresh || []),
+        onRevalidate: (fresh) => {
+          const list = Array.isArray(fresh) ? fresh : (fresh as any)?.data || [];
+          setParties(list);
+        },
       });
-      setParties(data || []);
+      const list = Array.isArray(data) ? data : (data as any)?.data || [];
+      setParties(list);
     } catch (err: any) {
       console.warn('Parties load failed', err.message);
     } finally {
@@ -130,7 +134,7 @@ export default function MoreScreen() {
 
   // Load Staff
   const loadStaff = useCallback(async (force = false) => {
-    if (!isOwner) return;
+    if (!isDirector) return;
     setStaffLoading(true);
     try {
       const data = await cachedMobileApiRequest<any>('/users', {
@@ -157,7 +161,7 @@ export default function MoreScreen() {
     } finally {
       setStaffLoading(false);
     }
-  }, [isOwner]);
+  }, [isDirector]);
 
   const handleToggleStaff = async (staff: StaffUser) => {
     try {
@@ -205,6 +209,11 @@ export default function MoreScreen() {
     }
   }, []);
 
+  const activeSectionRef = React.useRef(activeSection);
+  useEffect(() => {
+    activeSectionRef.current = activeSection;
+  }, [activeSection]);
+
   useEffect(() => {
     if (activeSection === 'PARTIES') loadParties();
     if (activeSection === 'PURCHASES') {
@@ -217,13 +226,14 @@ export default function MoreScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (activeSection === 'PARTIES') loadParties();
-      else if (activeSection === 'PURCHASES') {
+      const current = activeSectionRef.current;
+      if (current === 'PARTIES') loadParties();
+      else if (current === 'PURCHASES') {
         loadParties();
         loadWarehouses();
-      } else if (activeSection === 'STAFF') loadStaff();
-      else if (activeSection === 'SETTINGS') loadSettings();
-    }, [activeSection, loadParties, loadWarehouses, loadStaff, loadSettings]),
+      } else if (current === 'STAFF') loadStaff();
+      else if (current === 'SETTINGS') loadSettings();
+    }, [loadParties, loadWarehouses, loadStaff, loadSettings]),
   );
 
   // Set Primary UPI Account
@@ -351,7 +361,7 @@ export default function MoreScreen() {
                   <Text style={styles.userName}>{user?.name || 'Staff User'}</Text>
                   <Text style={styles.userPhone}>Phone: {user?.phone}</Text>
                   <View style={styles.roleTag}>
-                    <Text style={styles.roleTagText}>{user?.role || 'STAFF'}</Text>
+                    <Text style={styles.roleTagText}>{user?.role === 'OWNER' ? 'DIRECTOR' : (user?.role || 'STAFF')}</Text>
                   </View>
                 </View>
               </View>
@@ -378,7 +388,7 @@ export default function MoreScreen() {
               <Ionicons name="chevron-forward" size={18} color={Colors.dark.textTertiary} />
             </TouchableOpacity>
 
-            {/* 2. Quotations / Estimates (Salesmen, Accountants, Admins, Owners) */}
+            {/* 2. Quotations / Estimates (Salesmen, Accountants, Admins, Directors) */}
             <TouchableOpacity
               style={styles.menuItem}
               onPress={() => setActiveSection('QUOTATIONS')}
@@ -442,8 +452,8 @@ export default function MoreScreen() {
             ) : null}
 
 
-            {/* 3. Staff Management (Owner only) */}
-            {isOwner ? (
+            {/* 3. Staff Management (Director only) */}
+            {isDirector ? (
               <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => setActiveSection('STAFF')}
@@ -462,8 +472,8 @@ export default function MoreScreen() {
               </TouchableOpacity>
             ) : null}
 
-            {/* 4. Company & UPI Settings (Owner only) */}
-            {isOwner ? (
+            {/* 4. Company & UPI Settings (Director only) */}
+            {isDirector ? (
               <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => setActiveSection('SETTINGS')}
@@ -542,15 +552,15 @@ export default function MoreScreen() {
             parties={parties}
             loading={partiesLoading}
             onRefresh={() => loadParties(true)}
-            isOwnerOrAdmin={isOwner || isAdmin}
-            isSalesman={user?.role === 'SALESMAN'}
+            isOwnerOrAdmin={isDirector || isAdmin}
+            isSalesman={isSalesman}
           />
         ) : null}
 
         {/* ========================================================================= */}
         {/* VIEW 3: STAFF ROSTER                                                      */}
         {/* ========================================================================= */}
-        {activeSection === 'STAFF' && isOwner ? (
+        {activeSection === 'STAFF' && isDirector ? (
           <StaffDirectoryView
             staffList={staffList}
             loading={staffLoading}

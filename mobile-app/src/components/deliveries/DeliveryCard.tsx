@@ -276,7 +276,7 @@ export const DeliveryCard = React.memo(function DeliveryCard({
         </View>
       ) : null}
 
-      {/* Handover Notice / Verification for Owner: shown strictly if cashCollected > 0 & !cashHandedOver and NOT supervisor */}
+      {/* Handover Notice / Verification for Director: shown strictly if cashCollected > 0 & !cashHandedOver and NOT supervisor */}
       {!isSupervisor && cashCollectedNum > 0 && !delivery.cashHandedOver ? (
         <View style={styles.handoverBanner}>
           <View style={{ flex: 1 }}>
@@ -357,9 +357,9 @@ export const DeliveryCard = React.memo(function DeliveryCard({
         </>
       ) : null}
 
-      {/* Owner: Push Dispatch & Counter Pickup Buttons */}
+      {/* Director: Push Dispatch & Counter Pickup Buttons */}
       {isOwnerOrAdmin && isPendingPush ? (
-        <View style={styles.ownerActionsRow}>
+        <View style={styles.directorActionsRow}>
           <Button
             title="Dispatch Order"
             icon="paper-plane-outline"
@@ -674,7 +674,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(16, 185, 129, 0.12)',
     borderColor: 'rgba(16, 185, 129, 0.3)',
   },
-  ownerActionsRow: {
+  directorActionsRow: {
     flexDirection: 'row',
     gap: 8,
     marginTop: 8,

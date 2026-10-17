@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Colors } from '@/constants/theme';
-import { formatINR, cleanPhoneNumber, getInitials } from '@/lib/formatters';
+import { formatINR, getInitials, getWhatsAppUrl } from '@/lib/formatters';
 import { Party } from './types';
 
 interface PartyCardProps {
@@ -12,7 +12,9 @@ interface PartyCardProps {
   onViewStatement: (party: Party) => void;
   onEdit: (party: Party) => void;
   onDelete: (party: Party) => void;
-  canEditOrDelete: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  canEditOrDelete?: boolean;
 }
 
 export function PartyCard({
@@ -20,8 +22,13 @@ export function PartyCard({
   onViewStatement,
   onEdit,
   onDelete,
-  canEditOrDelete,
+  canEdit,
+  canDelete,
+  canEditOrDelete = true,
 }: PartyCardProps) {
+  const allowEdit = canEdit !== undefined ? canEdit : canEditOrDelete;
+  const allowDelete = canDelete !== undefined ? canDelete : canEditOrDelete;
+
   const totalDue = (party.creditLedgers || [])
     .filter((c) => c.status !== 'SETTLED')
     .reduce((sum, c) => {
@@ -36,40 +43,39 @@ export function PartyCard({
   const orderCount = party._count?.invoices || 0;
 
   const isDue = totalDue > 0.01;
-  const isPayable = totalDue < -0.01 || partyPayable > 0.01;
+  const isPayable = !isDue && (totalDue < -0.01 || partyPayable > 0.01);
   const payableAmt = totalDue < -0.01 ? Math.abs(totalDue) : partyPayable;
   const hasPendingLiability = isDue || isPayable;
 
   const handleCall = () => {
-    const clean = cleanPhoneNumber(party.phone);
-    if (clean) {
-      Linking.openURL(`tel:${clean}`);
+    const rawDigits = (party.phone || '').replace(/[^\d+]/g, '');
+    if (rawDigits) {
+      Linking.openURL(`tel:${rawDigits}`).catch(() => {
+        Alert.alert('Error', 'Unable to initiate phone call');
+      });
     }
   };
 
   const handleWhatsAppAction = () => {
-    const clean = cleanPhoneNumber(party.phone);
     const msg = isDue
       ? `*PAYMENT REMINDER — SHREE OM TILES*\n\n` +
-        `Dear *${party.name}*,\n\n` +
+        `Dear *${party.name || 'Customer'}*,\n\n` +
         `This is a friendly reminder that you have an outstanding balance of *${formatINR(totalDue)}* on your account.\n\n` +
         `Kindly arrange payment clearance at your earliest convenience via UPI or Counter Cash.\n\n` +
         `Thank you for your business! 🙏\n` +
         `*Shree Om Tiles*`
       : isPayable
       ? `*STORE CREDIT NOTICE — SHREE OM TILES*\n\n` +
-        `Dear *${party.name}*,\n\n` +
+        `Dear *${party.name || 'Customer'}*,\n\n` +
         `This is to inform you that you have an available store credit / payable balance of *${formatINR(payableAmt)}* with us at Shree Om Tiles.\n\n` +
         `You may redeem or adjust this balance against your next purchase or delivery.\n\n` +
         `Thank you for your continued partnership! 🙏\n` +
         `*Shree Om Tiles*`
-      : `Hello *${party.name}*,\n\n` +
+      : `Hello *${party.name || 'Customer'}*,\n\n` +
         `Greetings from *Shree Om Tiles*! 🙏\n\n` +
         `How may we assist you today?`;
 
-    const url = clean
-      ? `https://wa.me/91${clean}?text=${encodeURIComponent(msg)}`
-      : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    const url = getWhatsAppUrl(party.phone, msg);
 
     Linking.openURL(url).catch(() => {
       Alert.alert('Error', 'Unable to open WhatsApp');
@@ -91,7 +97,7 @@ export function PartyCard({
         <View style={styles.infoCol}>
           <View style={styles.nameHeaderRow}>
             <Text style={styles.partyName} numberOfLines={1}>
-              {party.name}
+              {party.name || 'Unnamed Customer'}
             </Text>
             {party.isSaved === false && (
               <View style={styles.walkInBadge}>
@@ -125,6 +131,12 @@ export function PartyCard({
               <Ionicons name="bag-handle-outline" size={10} color={Colors.dark.textSecondary} />
               <Text style={styles.orderPillText}>{orderCount} orders</Text>
             </View>
+
+            {party.category && party.category !== 'RETAIL' ? (
+              <View style={styles.categoryPill}>
+                <Text style={styles.categoryText}>{party.category}</Text>
+              </View>
+            ) : null}
 
             {party.gstin ? (
               <View style={styles.gstinPill}>
@@ -168,7 +180,7 @@ export function PartyCard({
           style={styles.actionBtn}
         />
 
-        {canEditOrDelete ? (
+        {allowEdit ? (
           <TouchableOpacity
             style={styles.iconBtn}
             onPress={() => onEdit(party)}
@@ -178,7 +190,7 @@ export function PartyCard({
           </TouchableOpacity>
         ) : null}
 
-        {canEditOrDelete ? (
+        {allowDelete ? (
           <TouchableOpacity
             style={[styles.iconBtn, hasPendingLiability && styles.iconBtnDisabled]}
             onPress={() => onDelete(party)}
@@ -246,6 +258,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1,
     borderColor: 'rgba(239, 68, 68, 0.3)',
+    flexShrink: 0,
   },
   duesBadgeRoseText: {
     fontSize: 11,
@@ -260,6 +273,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1,
     borderColor: 'rgba(16, 185, 129, 0.3)',
+    flexShrink: 0,
   },
   duesBadgeEmeraldText: {
     fontSize: 11,
@@ -273,6 +287,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1,
     borderColor: 'rgba(245, 158, 11, 0.3)',
+    flexShrink: 0,
   },
   duesBadgeAmberText: {
     fontSize: 11,
@@ -384,11 +399,26 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     borderWidth: 1,
     borderColor: 'rgba(245, 158, 11, 0.3)',
+    flexShrink: 0,
   },
   walkInBadgeText: {
     fontSize: 9,
-    fontFamily: 'Inter-Bold',
+    fontWeight: '800',
     color: '#F59E0B',
+    textTransform: 'uppercase',
+  },
+  categoryPill: {
+    backgroundColor: 'rgba(59, 130, 246, 0.12)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(59, 130, 246, 0.25)',
+  },
+  categoryText: {
+    fontSize: 9.5,
+    fontWeight: '700',
+    color: '#3B82F6',
     textTransform: 'uppercase',
   },
 });

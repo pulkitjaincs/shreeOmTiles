@@ -4,7 +4,7 @@ import * as Device from 'expo-device';
 import Constants from 'expo-constants';
 import { isRunningInExpoGo } from 'expo';
 import { router } from 'expo-router';
-import { mobileApiRequest } from './api';
+import { mobileApiRequest, invalidateMobileApiCache, notifyAppSync } from './api';
 
 // Configure foreground notification behavior safely
 try {
@@ -144,7 +144,32 @@ export function setupNotificationListeners(): () => void {
   try {
     // Foreground notification handler
     const notificationListener = Notifications.addNotificationReceivedListener((notification) => {
-      console.log('[Push] Received in foreground:', notification.request.content.title);
+      const data = notification.request.content.data;
+      console.log('[Push] Received in foreground:', notification.request.content.title, data);
+
+      if (data?.type) {
+        if (
+          data.type === 'DELIVERY_ASSIGNED' ||
+          data.type === 'CASH_COLLECTED' ||
+          data.type === 'CASH_HANDED_OVER' ||
+          data.type === 'DELIVERY_COMPLETED' ||
+          data.type === 'DELIVERY_CANCELLED'
+        ) {
+          void invalidateMobileApiCache('/delivery');
+          void invalidateMobileApiCache('/analytics');
+        } else if (data.type === 'NEW_INVOICE' || data.type === 'CREDIT_NOTE_ISSUED') {
+          void invalidateMobileApiCache('/invoices');
+          void invalidateMobileApiCache('/stock');
+          void invalidateMobileApiCache('/analytics');
+        } else if (data.type === 'PAYMENT_RECEIVED') {
+          void invalidateMobileApiCache('/payments');
+          void invalidateMobileApiCache('/parties');
+          void invalidateMobileApiCache('/analytics');
+        }
+      }
+
+      // Proactively notify subscribed active screens to refresh
+      notifyAppSync();
     });
 
     // Tapped notification interaction handler
@@ -159,13 +184,16 @@ export function setupNotificationListeners(): () => void {
         data?.type === 'DELIVERY_COMPLETED' ||
         data?.type === 'DELIVERY_CANCELLED'
       ) {
+        void invalidateMobileApiCache('/delivery');
         router.push('/(tabs)/deliveries');
       } else if (
         data?.type === 'NEW_INVOICE' ||
         data?.type === 'CREDIT_NOTE_ISSUED'
       ) {
+        void invalidateMobileApiCache('/invoices');
         router.push('/(tabs)/invoices');
       } else if (data?.type === 'PAYMENT_RECEIVED') {
+        void invalidateMobileApiCache('/payments');
         router.push('/(tabs)/transactions');
       }
     });

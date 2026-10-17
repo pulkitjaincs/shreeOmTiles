@@ -21,7 +21,7 @@ export interface AuthUser {
   id: string;
   name: string;
   phone: string;
-  role: 'OWNER' | 'ADMIN' | 'ACCOUNTANT' | 'SALESMAN' | 'DRIVER' | 'SUPERVISOR';
+  role: 'OWNER' | 'DIRECTOR' | 'ADMIN' | 'ACCOUNTANT' | 'SALESMAN' | 'DRIVER' | 'SUPERVISOR';
   scope?: string | null;
 }
 
@@ -72,25 +72,49 @@ export async function getMobileUser(): Promise<AuthUser | null> {
 const pendingMobileRequests = new Map<string, Promise<any>>();
 // Listeners map to notify multiple subscribers of fresh background data
 const revalidateListeners = new Map<string, Set<(freshData: any) => void>>();
-// Generation counter to detect and discard stale in-flight responses that resolve after a mutation
-const cacheGeneration = new Map<string, number>();
+// Generation counter and global epoch to detect and discard stale in-flight responses that resolve after a mutation
+let globalMutationEpoch = 1;
+const cacheKeyGenerations = new Map<string, number>();
 
 function getCacheGeneration(key: string): number {
-  return cacheGeneration.get(key) || 0;
+  return cacheKeyGenerations.get(key) || 0;
 }
 
 function bumpCacheGeneration(prefix?: string): void {
+  globalMutationEpoch += 1;
   if (!prefix) {
-    for (const k of cacheGeneration.keys()) {
-      cacheGeneration.set(k, (cacheGeneration.get(k) || 0) + 1);
+    for (const k of cacheKeyGenerations.keys()) {
+      cacheKeyGenerations.set(k, globalMutationEpoch);
     }
     return;
   }
-  for (const k of cacheGeneration.keys()) {
+  for (const k of cacheKeyGenerations.keys()) {
     if (k.includes(prefix)) {
-      cacheGeneration.set(k, (cacheGeneration.get(k) || 0) + 1);
+      cacheKeyGenerations.set(k, globalMutationEpoch);
     }
   }
+  cacheKeyGenerations.set(prefix, globalMutationEpoch);
+}
+
+// Global App Sync Event Emitter for reactive screen refreshes
+export type SyncListener = () => void;
+const syncListeners = new Set<SyncListener>();
+
+export function subscribeToAppSync(listener: SyncListener): () => void {
+  syncListeners.add(listener);
+  return () => {
+    syncListeners.delete(listener);
+  };
+}
+
+export function notifyAppSync(): void {
+  syncListeners.forEach((listener) => {
+    try {
+      listener();
+    } catch (err) {
+      console.warn('[Sync] Listener callback error:', err);
+    }
+  });
 }
 
 export async function clearMobileAuth(): Promise<void> {
@@ -118,8 +142,9 @@ export async function invalidateMobileApiCache(prefix?: string): Promise<void> {
     }
 
     const keys = await AsyncStorage.getAllKeys();
-    const target = prefix ? `${CACHE_PREFIX}${prefix}` : CACHE_PREFIX;
-    const toRemove = keys.filter((k) => k.startsWith(target));
+    const toRemove = keys.filter(
+      (k) => k.startsWith(CACHE_PREFIX) && (!prefix || k.includes(prefix)),
+    );
     if (toRemove.length > 0) {
       await AsyncStorage.multiRemove(toRemove);
     }
@@ -156,12 +181,16 @@ export async function mobileApiRequest<T = any>(
 
   let res: Response;
   for (let attempt = 0; ; attempt += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
     try {
-      res = await fetch(url, { ...restOptions, headers });
+      res = await fetch(url, { ...restOptions, headers, signal: controller.signal });
+      clearTimeout(timer);
       break;
     } catch (error) {
+      clearTimeout(timer);
       if (attempt >= 2) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 2500));
+      await new Promise((resolve) => setTimeout(resolve, 1500));
     }
   }
 
@@ -229,12 +258,19 @@ export async function mobileApiRequest<T = any>(
       await invalidateMobileApiCache('/quotations');
       await invalidateMobileApiCache('/invoices');
       await invalidateMobileApiCache('/analytics');
+      await invalidateMobileApiCache('/stock');
+      await invalidateMobileApiCache('/delivery');
+      await invalidateMobileApiCache('/payments');
+      await invalidateMobileApiCache('/parties');
     } else if (endpoint.includes('/users')) {
       await invalidateMobileApiCache('/users');
       await invalidateMobileApiCache('/analytics');
     } else if (endpoint.includes('/settings')) {
       await invalidateMobileApiCache('/settings');
     }
+
+    // Notify all active screens and subscribers that state has changed
+    notifyAppSync();
   }
 
   return res.json();
@@ -251,7 +287,10 @@ async function fetchAndCacheMobile<T>(
   options: CachedMobileRequestOptions<T>,
   cacheKey: string,
 ): Promise<T> {
-  const initialGen = getCacheGeneration(cacheKey);
+  if (!cacheKeyGenerations.has(cacheKey)) {
+    cacheKeyGenerations.set(cacheKey, globalMutationEpoch);
+  }
+  const initialGen = cacheKeyGenerations.get(cacheKey)!;
 
   if (options.onRevalidate) {
     if (!revalidateListeners.has(cacheKey)) {
@@ -321,6 +360,7 @@ function revalidateMobileInBackground<T>(
  *    and firing options.onRevalidate(freshData).
  * 3. Falls back to network on cache miss or forceRefresh: true.
  * 4. Deduplicates simultaneous in-flight requests and notifies all subscriber callbacks.
+ * 5. Uses user-scoped cache keys to prevent cross-account cache collisions on shared devices.
  */
 export async function cachedMobileApiRequest<T = any>(
   endpoint: string,
@@ -333,7 +373,9 @@ export async function cachedMobileApiRequest<T = any>(
 
   const ttlMs = options.ttlMs ?? 5_000;
   const forceRefresh = options.forceRefresh ?? false;
-  const cacheKey = `${CACHE_PREFIX}${endpoint}`;
+  const user = await getMobileUser();
+  const userPrefix = user?.id ? `${user.id}:` : '';
+  const cacheKey = `${CACHE_PREFIX}${userPrefix}${endpoint}`;
 
   if (!forceRefresh) {
     try {

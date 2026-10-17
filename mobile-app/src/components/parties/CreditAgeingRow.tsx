@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui/Card';
@@ -11,28 +11,24 @@ interface CreditAgeingRowProps {
 }
 
 export function CreditAgeingRow({ parties }: CreditAgeingRowProps) {
-  const [now, setNow] = useState(0);
-
-  useEffect(() => {
-    setNow(Date.now());
-  }, []);
+  const [now] = useState(() => Date.now());
 
   const buckets: CreditAgeingBuckets = useMemo(() => {
-    const currentTime = now > 0 ? now : 0;
+    const currentTime = now;
     let totalReceivables = 0;
     let b0to15 = 0;
     let b15to30 = 0;
     let b30to60 = 0;
     let b60plus = 0;
 
-    for (const p of parties) {
+    for (const p of parties || []) {
       for (const cl of p.creditLedgers || []) {
         if (cl.status !== 'SETTLED' && cl.type === 'RECEIVABLE') {
           const amt = Number(cl.amountDue || 0);
           totalReceivables += amt;
           const dueTime = cl.dueDate ? new Date(cl.dueDate).getTime() : currentTime;
           const daysOverdue =
-            currentTime > 0
+            currentTime > 0 && !isNaN(dueTime)
               ? Math.max(0, Math.floor((currentTime - dueTime) / (1000 * 60 * 60 * 24)))
               : 0;
           if (daysOverdue <= 15) b0to15 += amt;

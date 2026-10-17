@@ -58,3 +58,33 @@ export function getInitials(name?: string | null): string {
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
+
+export function getWhatsAppUrl(phone?: string | null, text?: string): string {
+  const msg = text ? encodeURIComponent(text) : '';
+  if (!phone) {
+    return msg ? `https://wa.me/?text=${msg}` : 'https://wa.me/';
+  }
+
+  const digits = phone.replace(/\D/g, '');
+  if (!digits || digits.length < 10) {
+    return msg ? `https://wa.me/?text=${msg}` : 'https://wa.me/';
+  }
+
+  // Exact 10-digit Indian phone number: add country code 91
+  if (digits.length === 10) {
+    return `https://wa.me/91${digits}${msg ? `?text=${msg}` : ''}`;
+  }
+
+  // 12-digit Indian phone with leading 91 (e.g. 919876543210)
+  if (digits.length === 12 && digits.startsWith('91')) {
+    return `https://wa.me/${digits}${msg ? `?text=${msg}` : ''}`;
+  }
+
+  // 11-digit Indian phone with leading 0 (e.g. 09876543210)
+  if (digits.length === 11 && digits.startsWith('0')) {
+    return `https://wa.me/91${digits.slice(1)}${msg ? `?text=${msg}` : ''}`;
+  }
+
+  // International phone number with country code already included
+  return `https://wa.me/${digits}${msg ? `?text=${msg}` : ''}`;
+}

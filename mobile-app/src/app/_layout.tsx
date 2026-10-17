@@ -6,15 +6,19 @@ import { Platform, StatusBar as RNStatusBar, Alert, AppState } from 'react-nativ
 import * as Updates from 'expo-updates';
 import { AuthProvider } from '@/lib/auth-context';
 import { setupNotificationListeners } from '@/lib/notifications';
-import { invalidateMobileApiCache } from '@/lib/api';
+import { notifyAppSync } from '@/lib/api';
 import { Colors } from '@/constants/theme';
 
 function AppStateSyncListenerWrapper() {
+  const appState = React.useRef(AppState.currentState);
+
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
-      if (nextAppState === 'active') {
-        invalidateMobileApiCache().catch(() => {});
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        // App resumed to foreground: revalidate active screen in background without destroying offline cache
+        notifyAppSync();
       }
+      appState.current = nextAppState;
     });
 
     return () => {

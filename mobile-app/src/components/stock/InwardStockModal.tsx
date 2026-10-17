@@ -40,15 +40,12 @@ export function InwardStockModal({
 
   useEffect(() => {
     if (visible) {
-      setSelectedProductId(initialProductId || products[0]?.id || '');
-      setSelectedWarehouseId(initialWarehouseId || warehouses[0]?.id || '');
-      const defaultLot =
-        initialBatchNo ||
-        `LOT-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
-      setBatchNo(defaultLot);
-      setQuantity('50');
+      setSelectedProductId(initialProductId || '');
+      setSelectedWarehouseId(initialWarehouseId || '');
+      setBatchNo(initialBatchNo || '');
+      setQuantity('');
     }
-  }, [visible, products, warehouses, initialProductId, initialWarehouseId, initialBatchNo]);
+  }, [visible, initialProductId, initialWarehouseId, initialBatchNo]);
 
   const selectedProduct = products.find((p) => p.id === selectedProductId);
 

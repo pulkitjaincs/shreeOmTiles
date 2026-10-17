@@ -16,7 +16,7 @@ import { DashboardData, DatePreset } from './types';
 import { DateFilterBar } from './shared/DateFilterBar';
 import { SalesTimelineCard } from './shared/SalesTimelineCard';
 
-// Owner Specific Components
+// Director Specific Components
 import { ExecutiveKpiGrid } from './owner/ExecutiveKpiGrid';
 import { DriverCashHandoverQueue } from './owner/DriverCashHandoverQueue';
 import { SalesStaffPerformance } from './owner/SalesStaffPerformance';
@@ -244,3 +244,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
 });
+
+export const DirectorDashboardView = OwnerDashboardView;
+export type DirectorDashboardViewProps = OwnerDashboardViewProps;

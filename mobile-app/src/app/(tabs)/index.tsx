@@ -8,7 +8,7 @@ import {
   Alert,
 } from 'react-native';
 import { useAuth } from '@/lib/auth-context';
-import { cachedMobileApiRequest, mobileApiRequest } from '@/lib/api';
+import { cachedMobileApiRequest, mobileApiRequest, subscribeToAppSync } from '@/lib/api';
 import { Colors } from '@/constants/theme';
 import { Header } from '@/components/ui/Header';
 import { cleanPhoneNumber } from '@/lib/formatters';
@@ -36,7 +36,7 @@ export default function DashboardScreen() {
   const [appliedDateFrom, setAppliedDateFrom] = useState('');
   const [appliedDateTo, setAppliedDateTo] = useState('');
 
-  // Analytics data for Owner/Admin and Salesman
+  // Analytics data for Director/Admin and Salesman
   const [analyticsData, setAnalyticsData] = useState<any>(null);
   // Driver active deliveries
   const [driverDeliveries, setDriverDeliveries] = useState<any[]>([]);
@@ -85,6 +85,13 @@ export default function DashboardScreen() {
     }, [loadData]),
   );
 
+  useEffect(() => {
+    const unsubscribe = subscribeToAppSync(() => {
+      void loadData();
+    });
+    return () => unsubscribe();
+  }, [loadData]);
+
   const onRefresh = () => {
     setRefreshing(true);
     loadData(true);
@@ -111,7 +118,7 @@ export default function DashboardScreen() {
     }
   };
 
-  // Owner/Admin: Handover Cash Approval
+  // Director/Admin: Handover Cash Approval
   const handleVerifyHandover = async (deliveryId: string) => {
     Alert.alert(
       'Verify Cash Handover',

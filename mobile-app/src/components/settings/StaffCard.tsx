@@ -23,11 +23,13 @@ export function StaffCard({
   onToggleStatus,
   onDelete,
 }: StaffCardProps) {
-  const isOwner = staff.role === 'OWNER';
+  const isDirector = staff.role === 'OWNER' || (staff.role as any) === 'DIRECTOR';
+  const isOwner = isDirector;
 
   const getRoleBadgeStyle = (role: string) => {
     switch (role) {
       case 'OWNER':
+      case 'DIRECTOR':
         return {
           bg: 'rgba(16, 185, 129, 0.12)',
           border: 'rgba(16, 185, 129, 0.25)',
@@ -97,7 +99,7 @@ export function StaffCard({
               ]}
             >
               <Text style={[styles.roleBadgeText, { color: roleStyle.text }]}>
-                {staff.role === 'OWNER' ? 'DIRECTOR' : staff.role}
+                {staff.role === 'OWNER' || (staff.role as any) === 'DIRECTOR' ? 'DIRECTOR' : staff.role}
               </Text>
             </View>
             <StatusBadge status={staff.active ? 'ACTIVE' : 'INACTIVE'} size="sm" />

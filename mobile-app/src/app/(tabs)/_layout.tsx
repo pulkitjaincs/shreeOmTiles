@@ -16,7 +16,8 @@ export default function TabsLayout() {
   const isSalesman = role === 'SALESMAN';
   const isAccountant = role === 'ACCOUNTANT';
   const isSupervisor = role === 'SUPERVISOR';
-  const isOwnerOrAdmin = role === 'OWNER' || role === 'ADMIN';
+  const isDirectorOrAdmin = role === 'OWNER' || (role as any) === 'DIRECTOR' || role === 'ADMIN';
+  const isOwnerOrAdmin = isDirectorOrAdmin;
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -83,7 +84,7 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* 3. Deliveries & Dispatch Tab (Drivers, Salesman view-only, Accountant, Owners) */}
+      {/* 3. Deliveries & Dispatch Tab (Drivers, Salesman view-only, Accountant, Directors) */}
       <Tabs.Screen
         name="deliveries"
         options={{
@@ -116,7 +117,7 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* 5. Transactions Tab (Owner/Admin/Accountant) */}
+      {/* 5. Transactions Tab (Director/Admin/Accountant) */}
       <Tabs.Screen
         name="transactions"
         options={{

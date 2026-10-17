@@ -39,10 +39,8 @@ export function StockAdjustModal({
         setSelectedProductId(initialStockItem.productId);
         setQuantity(String(initialStockItem.quantity));
       } else {
-        const initialProdId = products[0]?.id || '';
-        setSelectedProductId(initialProdId);
-        const match = stocks.find((s) => s.productId === initialProdId);
-        setQuantity(match ? String(match.quantity) : '0');
+        setSelectedProductId('');
+        setQuantity('');
       }
     }
   }, [visible, products, stocks, initialStockItem]);
@@ -114,25 +112,27 @@ export function StockAdjustModal({
         />
 
         {/* Original Amount Display & Quick Zero */}
-        <View style={styles.currentStockBox}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.currentStockLabel}>Original / System Count</Text>
-            <Text style={styles.currentStockVal}>
-              {currentQty}{' '}
-              <Text style={{ fontSize: 13, fontWeight: '500', color: Colors.dark.textSecondary }}>
-                {selectedProduct?.unit || 'units'}
+        {selectedProductId ? (
+          <View style={styles.currentStockBox}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.currentStockLabel}>Original / System Count</Text>
+              <Text style={styles.currentStockVal}>
+                {currentQty}{' '}
+                <Text style={{ fontSize: 13, fontWeight: '500', color: Colors.dark.textSecondary }}>
+                  {selectedProduct?.unit || 'units'}
+                </Text>
               </Text>
-            </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.zeroBtn}
+              onPress={() => setQuantity('0')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="refresh-outline" size={13} color="#F59E0B" />
+              <Text style={styles.zeroBtnText}>Set to 0</Text>
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity
-            style={styles.zeroBtn}
-            onPress={() => setQuantity('0')}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="refresh-outline" size={13} color="#F59E0B" />
-            <Text style={styles.zeroBtnText}>Set to 0</Text>
-          </TouchableOpacity>
-        </View>
+        ) : null}
 
         {/* Verified Physical Count Input */}
         <Input

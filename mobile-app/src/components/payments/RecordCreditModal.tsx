@@ -49,7 +49,7 @@ export function RecordCreditModal({
 
   useEffect(() => {
     if (visible) {
-      setPartyId(defaultPartyId || parties[0]?.id || '');
+      setPartyId(defaultPartyId || '');
       setAmount('');
       setType('RECEIVABLE');
       setDueDate('');

@@ -39,9 +39,9 @@ export function CompanySettingsView({
 }: CompanySettingsViewProps) {
   const [activeTab, setActiveTab] = useState<'profile' | 'upi' | 'password'>('profile');
 
-  // Owner Profile State
-  const [ownerName, setOwnerName] = useState(user?.name || '');
-  const [ownerPhone, setOwnerPhone] = useState(user?.phone || '');
+  // Director Profile State
+  const [directorName, setDirectorName] = useState(user?.name || '');
+  const [directorPhone, setDirectorPhone] = useState(user?.phone || '');
   const [savingProfile, setSavingProfile] = useState(false);
 
   // Password State
@@ -50,13 +50,13 @@ export function CompanySettingsView({
   const [savingPassword, setSavingPassword] = useState(false);
 
   useEffect(() => {
-    setOwnerName(user?.name || '');
-    setOwnerPhone(user?.phone || '');
+    setDirectorName(user?.name || '');
+    setDirectorPhone(user?.phone || '');
   }, [user?.name, user?.phone]);
 
   const handleSaveProfile = async () => {
-    const cleanPhone = ownerPhone.replace(/\D/g, '').slice(0, 10);
-    if (!ownerName.trim()) {
+    const cleanPhone = directorPhone.replace(/\D/g, '').slice(0, 10);
+    if (!directorName.trim()) {
       Alert.alert('Required', 'Director full name cannot be blank.');
       return;
     }
@@ -70,7 +70,7 @@ export function CompanySettingsView({
       await mobileApiRequest(`/users/${user?.id}`, {
         method: 'PATCH',
         body: JSON.stringify({
-          name: ownerName.trim(),
+          name: directorName.trim(),
           phone: cleanPhone,
           role: 'OWNER',
         }),
@@ -79,7 +79,7 @@ export function CompanySettingsView({
       if (user) {
         await onUpdateUser({
           ...user,
-          name: ownerName.trim(),
+          name: directorName.trim(),
           phone: cleanPhone,
         });
       }
@@ -173,7 +173,7 @@ export function CompanySettingsView({
       </View>
 
       {/* ========================================================================= */}
-      {/* TAB 1: OWNER PROFILE & MOBILE                                             */}
+      {/* TAB 1: DIRECTOR PROFILE & MOBILE                                          */}
       {/* ========================================================================= */}
       {activeTab === 'profile' ? (
         <View style={styles.tabContent}>
@@ -191,15 +191,15 @@ export function CompanySettingsView({
             <Input
               label="Director Full Name *"
               placeholder="e.g. Ramesh Kumar"
-              value={ownerName}
-              onChangeText={setOwnerName}
+              value={directorName}
+              onChangeText={setDirectorName}
             />
 
             <Input
               label="Director Mobile Number (Login ID) *"
               placeholder="e.g. 9876543210"
-              value={ownerPhone}
-              onChangeText={(t) => setOwnerPhone(t.replace(/\D/g, '').slice(0, 10))}
+              value={directorPhone}
+              onChangeText={(t) => setDirectorPhone(t.replace(/\D/g, '').slice(0, 10))}
               keyboardType="phone-pad"
               maxLength={10}
             />
@@ -210,7 +210,7 @@ export function CompanySettingsView({
               variant="primary"
               size="lg"
               loading={savingProfile}
-              disabled={savingProfile || ownerPhone.length !== 10 || !ownerName.trim()}
+              disabled={savingProfile || directorPhone.length !== 10 || !directorName.trim()}
               onPress={handleSaveProfile}
               style={{ marginTop: 6 }}
             />

@@ -44,7 +44,7 @@ export function PushDeliveryModal({
 
   useEffect(() => {
     if (visible && delivery) {
-      setSelectedDriverId(drivers[0]?.id || '');
+      setSelectedDriverId('');
       setVehicle('');
       setDispatchAmountToCollect(String(delivery.amountToCollect || 0));
       setDispatchNotes('');

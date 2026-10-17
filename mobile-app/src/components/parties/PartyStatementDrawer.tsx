@@ -14,7 +14,7 @@ import { Card } from '@/components/ui/Card';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Colors } from '@/constants/theme';
 import { mobileApiRequest } from '@/lib/api';
-import { cleanPhoneNumber, formatINR, formatDate } from '@/lib/formatters';
+import { formatINR, formatDate, getWhatsAppUrl } from '@/lib/formatters';
 import { Party, StatementInvoice, StatementCreditLedger } from './types';
 import { Ionicons } from '@expo/vector-icons';
 import { downloadAndSharePdf } from '@/lib/pdf';
@@ -46,20 +46,21 @@ export function PartyStatementDrawer({
   const [deleting, setDeleting] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [now] = useState(() => Date.now());
-  const [currentPartyId, setCurrentPartyId] = useState<string | null>(null);
 
-  if (party && party.id !== currentPartyId) {
-    setCurrentPartyId(party.id);
+  const partyId = party?.id;
+
+  useEffect(() => {
+    if (!partyId) {
+      setStatementData(null);
+      return;
+    }
+
     setStatementData(null);
     setTab('orders');
     setLoading(true);
-  }
-
-  useEffect(() => {
-    if (!party) return;
     let ignore = false;
 
-    mobileApiRequest<any>(`/parties/${party.id}`)
+    mobileApiRequest<any>(`/parties/${partyId}`)
       .then((data) => {
         if (!ignore) {
           setStatementData(data);
@@ -79,7 +80,7 @@ export function PartyStatementDrawer({
     return () => {
       ignore = true;
     };
-  }, [party]);
+  }, [partyId]);
 
   if (!party) return null;
 
@@ -130,12 +131,11 @@ export function PartyStatementDrawer({
     .reduce((sum, cl) => sum + Number(cl.amountDue || 0), 0);
 
   const isDue = totalDues > 0.01;
-  const isPayable = totalDues < -0.01 || partyPayables > 0.01;
+  const isPayable = !isDue && (totalDues < -0.01 || partyPayables > 0.01);
   const payableAmt = totalDues < -0.01 ? Math.abs(totalDues) : partyPayables;
   const hasPendingLiability = isDue || isPayable;
 
   const handleShareStatement = () => {
-    const clean = cleanPhoneNumber(party.phone);
     const msg =
       `*ACCOUNT STATEMENT — SHREE OM TILES*\n\n` +
       `Customer: *${party.name}*\n` +
@@ -158,9 +158,7 @@ export function PartyStatementDrawer({
         : `All accounts are currently in clear standing!\n\n`) +
       `Shree Om Tiles`;
 
-    const url = clean
-      ? `https://wa.me/91${clean}?text=${encodeURIComponent(msg)}`
-      : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+    const url = getWhatsAppUrl(party.phone, msg);
 
     Linking.openURL(url).catch(() => {
       Alert.alert('Error', 'Unable to open WhatsApp');
@@ -227,6 +225,27 @@ export function PartyStatementDrawer({
         <View style={styles.centerLoading}>
           <ActivityIndicator size="small" color="#FFFFFF" />
           <Text style={styles.loadingText}>Loading complete customer history...</Text>
+        </View>
+      ) : !statementData ? (
+        <View style={styles.centerLoading}>
+          <Ionicons name="alert-circle-outline" size={32} color={Colors.dark.textTertiary} />
+          <Text style={[styles.loadingText, { marginTop: 8 }]}>Unable to load customer history.</Text>
+          <Button
+            title="Retry"
+            icon="refresh-outline"
+            size="sm"
+            variant="outline"
+            onPress={() => {
+              if (partyId) {
+                setLoading(true);
+                mobileApiRequest<any>(`/parties/${partyId}`)
+                  .then((data) => setStatementData(data))
+                  .catch((err: any) => Alert.alert('Error', err.message || 'Failed to load statement'))
+                  .finally(() => setLoading(false));
+              }
+            }}
+            style={{ marginTop: 12 }}
+          />
         </View>
       ) : (
         <View>
@@ -379,7 +398,8 @@ export function PartyStatementDrawer({
                   </View>
 
                   <Text style={styles.orderItemsCount}>
-                    {(inv.items || []).length} item{(inv.items || []).length === 1 ? '' : 's'} • Mode: {inv.paymentMode || 'UPI'}
+                    {(inv.items || []).length} item{(inv.items || []).length === 1 ? '' : 's'}
+                    {inv.paymentMode ? ` • Mode: ${inv.paymentMode}` : ''}
                   </Text>
 
                   {/* Itemized Line Items Breakdown */}
@@ -392,7 +412,7 @@ export function PartyStatementDrawer({
                               {item.product?.name || 'Product Item'}
                             </Text>
                             <Text style={styles.itemMeta}>
-                              {item.qty ?? item.quantity ?? 1} {item.product?.unit || 'pcs'}
+                              {Number(item.qty ?? item.quantity ?? 1)} {item.product?.unit || 'pcs'}
                               {item.unitPrice ? ` • ${formatINR(item.unitPrice)}/unit` : ''}
                             </Text>
                           </View>
@@ -424,6 +444,7 @@ export function PartyStatementDrawer({
                 const isClPayable = cl.type === 'PAYABLE';
                 const clDueAmt = Number(cl.amountDue || 0);
                 const isOverdue =
+                  !isClPayable &&
                   Boolean(cl.dueDate) &&
                   cl.status !== 'SETTLED' &&
                   now > 0 &&

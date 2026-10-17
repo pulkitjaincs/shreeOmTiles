@@ -12,7 +12,7 @@ import {
   Linking,
 } from 'react-native';
 import { useAuth } from '@/lib/auth-context';
-import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
+import { mobileApiRequest, cachedMobileApiRequest, subscribeToAppSync } from '@/lib/api';
 import { Colors } from '@/constants/theme';
 import { Header } from '@/components/ui/Header';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -41,7 +41,8 @@ export default function InvoicesScreen() {
   const { user } = useAuth();
   const isSalesman = user?.role === 'SALESMAN';
   const isSupervisor = user?.role === 'SUPERVISOR';
-  const isOwnerOrAdmin = user?.role === 'OWNER' || user?.role === 'ADMIN';
+  const isDirectorOrAdmin = user?.role === 'OWNER' || (user?.role as any) === 'DIRECTOR' || user?.role === 'ADMIN';
+  const isOwnerOrAdmin = isDirectorOrAdmin;
   const canReturn = Boolean(user && user.role !== 'SALESMAN' && user.role !== 'SUPERVISOR');
 
   const [invoices, setInvoices] = useState<InvoiceListEntry[]>([]);
@@ -113,6 +114,13 @@ export default function InvoicesScreen() {
       loadData();
     }, [loadData]),
   );
+
+  useEffect(() => {
+    const unsubscribe = subscribeToAppSync(() => {
+      void loadData();
+    });
+    return () => unsubscribe();
+  }, [loadData]);
 
   const onRefresh = () => {
     setRefreshing(true);

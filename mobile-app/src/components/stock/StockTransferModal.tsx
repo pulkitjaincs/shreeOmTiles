@@ -48,26 +48,13 @@ export function StockTransferModal({
         setDestWarehouseId(otherWh ? otherWh.id : '');
         setQuantity(String(Math.min(initialStockItem.quantity, 10) || 1));
       } else {
-        const initialProdId = products[0]?.id || '';
-        setSelectedProductId(initialProdId);
-
-        const prodSources = stocks.filter(
-          (s) => s.productId === initialProdId && s.quantity > 0,
-        );
-        if (prodSources.length > 0) {
-          const firstSrc = prodSources[0];
-          setSelectedSourceKey(`${firstSrc.warehouseId}:::${firstSrc.batchNo || ''}`);
-          const otherWh = warehouses.find((w) => w.id !== firstSrc.warehouseId);
-          setDestWarehouseId(otherWh ? otherWh.id : '');
-          setQuantity(String(Math.min(firstSrc.quantity, 10) || 1));
-        } else {
-          setSelectedSourceKey('');
-          setDestWarehouseId('');
-          setQuantity('');
-        }
+        setSelectedProductId('');
+        setSelectedSourceKey('');
+        setDestWarehouseId('');
+        setQuantity('');
       }
     }
-  }, [visible, products, warehouses, stocks, initialStockItem]);
+  }, [visible, warehouses, initialStockItem]);
 
   const handleProductChange = (prodId: string) => {
     setSelectedProductId(prodId);
@@ -177,7 +164,17 @@ export function StockTransferModal({
         />
 
         {/* Source Warehouse - Only where stock > 0 */}
-        {availableSources.length === 0 ? (
+        {!selectedProductId ? (
+          <Select
+            label="Source Warehouse (In-Stock Only)"
+            placeholder="Select product first..."
+            value=""
+            disabled
+            onChange={() => {}}
+            icon="business-outline"
+            options={[]}
+          />
+        ) : availableSources.length === 0 ? (
           <View style={styles.outOfStockBox}>
             <Ionicons name="alert-circle" size={16} color="#EF4444" />
             <Text style={styles.outOfStockText}>

@@ -30,9 +30,10 @@ export function PurchasesView({
 }: PurchasesViewProps = {}) {
   const { user } = useAuth();
   const isSupervisor = user?.role === 'SUPERVISOR';
-  const isOwnerOrAdmin = user?.role === 'OWNER' || user?.role === 'ADMIN';
+  const isDirectorOrAdmin = user?.role === 'OWNER' || (user?.role as any) === 'DIRECTOR' || user?.role === 'ADMIN';
+  const isOwnerOrAdmin = isDirectorOrAdmin;
   const isAccountant = user?.role === 'ACCOUNTANT';
-  const canRecordPurchase = isOwnerOrAdmin || isAccountant;
+  const canRecordPurchase = isDirectorOrAdmin || isAccountant;
 
   const [purchases, setPurchases] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

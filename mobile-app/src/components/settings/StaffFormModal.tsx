@@ -23,7 +23,7 @@ export function StaffFormModal({
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'SALESMAN' | 'DRIVER' | 'ACCOUNTANT' | 'ADMIN' | 'OWNER' | 'SUPERVISOR'>('SALESMAN');
+  const [role, setRole] = useState<'SALESMAN' | 'DRIVER' | 'ACCOUNTANT' | 'ADMIN' | 'OWNER' | 'DIRECTOR' | 'SUPERVISOR'>('SALESMAN');
   const [warehouseId, setWarehouseId] = useState<string>('');
   const [warehouses, setWarehouses] = useState<Array<{ id: string; name: string }>>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -111,7 +111,7 @@ export function StaffFormModal({
           onChangeText={setPassword}
           isPassword
         />
-        {staff?.role !== 'OWNER' ? (
+        {staff?.role !== 'OWNER' && (staff?.role as any) !== 'DIRECTOR' ? (
           <>
             <Text style={styles.fieldLabel}>Role Designation</Text>
             <View style={styles.roleToggleRow}>
