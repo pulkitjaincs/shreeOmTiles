@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'rea
 import { Button } from '@/components/ui/Button';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { FilterDropdown, FilterDropdownOption } from '@/components/ui/FilterDropdown';
+import { FilterPills } from '@/components/ui/FilterPills';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Colors } from '@/constants/theme';
 import { Party } from './types';
@@ -11,6 +12,7 @@ import { PartyCard } from './PartyCard';
 import { PartyFormModal } from './PartyFormModal';
 import { PartyStatementDrawer } from './PartyStatementDrawer';
 import { DeletePartyModal } from './DeletePartyModal';
+import { Ionicons } from '@expo/vector-icons';
 
 interface PartiesDirectoryViewProps {
   parties: Party[];
@@ -29,6 +31,7 @@ export function PartiesDirectoryView({
 }: PartiesDirectoryViewProps) {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<'ALL' | 'DUES' | 'PAYABLES' | 'CLEARED'>('ALL');
+  const [regFilter, setRegFilter] = useState<'ALL' | 'REGISTERED' | 'UNREGISTERED'>('ALL');
 
   // Modal States
   const [formModalOpen, setFormModalOpen] = useState(false);
@@ -65,6 +68,25 @@ export function PartiesDirectoryView({
   const clearedCount = useMemo(
     () => parties.filter((p) => Math.abs(getPartyDue(p)) <= 0.01 && getPartyPayable(p) <= 0.01).length,
     [parties],
+  );
+
+  const registeredCount = useMemo(
+    () => parties.filter((p) => p.isSaved !== false).length,
+    [parties],
+  );
+
+  const unregisteredCount = useMemo(
+    () => parties.filter((p) => p.isSaved === false).length,
+    [parties],
+  );
+
+  const regFilterOptions = useMemo(
+    () => [
+      { label: 'All Accounts', value: 'ALL' as const, count: parties.length },
+      { label: 'Saved Directory', value: 'REGISTERED' as const, count: registeredCount },
+      { label: 'Walk-ins', value: 'UNREGISTERED' as const, count: unregisteredCount },
+    ],
+    [parties.length, registeredCount, unregisteredCount],
   );
 
   const partyFilterOptions: FilterDropdownOption[] = useMemo(
@@ -112,6 +134,10 @@ export function PartiesDirectoryView({
 
       if (!matchesSearch) return false;
 
+      // Registration filter
+      if (regFilter === 'REGISTERED' && p.isSaved === false) return false;
+      if (regFilter === 'UNREGISTERED' && p.isSaved !== false) return false;
+
       const due = getPartyDue(p);
       const payable = getPartyPayable(p);
       if (filterType === 'DUES') return due > 0.01;
@@ -119,16 +145,31 @@ export function PartiesDirectoryView({
       if (filterType === 'CLEARED') return Math.abs(due) <= 0.01 && payable <= 0.01;
       return true;
     });
-  }, [parties, search, filterType]);
+  }, [parties, search, filterType, regFilter]);
 
   return (
     <View style={styles.container}>
       {/* Header Info */}
       <View style={styles.headerRow}>
-        <Text style={styles.sectionTitle}>Customer Directory ({parties.length})</Text>
-        <Text style={styles.sectionSubtitle}>
-          Accounts, 360° credit ledgers & WhatsApp reminders
-        </Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.sectionTitle}>Customer Directory ({parties.length})</Text>
+          <Text style={styles.sectionSubtitle}>
+            Accounts, 360° credit ledgers & WhatsApp reminders
+          </Text>
+        </View>
+        <TouchableOpacity
+          onPress={onRefresh}
+          disabled={loading}
+          style={styles.refreshBtn}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          activeOpacity={0.7}
+        >
+          <Ionicons
+            name="refresh-outline"
+            size={18}
+            color={loading ? Colors.dark.textSecondary : '#FFFFFF'}
+          />
+        </TouchableOpacity>
       </View>
 
       {/* Credit Ageing Buckets Cards (5 Cards matching Web Dashboard) */}
@@ -140,6 +181,15 @@ export function PartiesDirectoryView({
           value={search}
           onChangeText={setSearch}
           placeholder="Search customer name, phone, GSTIN..."
+        />
+      </View>
+
+      {/* Registration Status Filter Pills */}
+      <View style={{ marginBottom: 12 }}>
+        <FilterPills
+          options={regFilterOptions}
+          selected={regFilter}
+          onSelect={(val) => setRegFilter(val as 'ALL' | 'REGISTERED' | 'UNREGISTERED')}
         />
       </View>
 
@@ -175,10 +225,11 @@ export function PartiesDirectoryView({
         <Text style={styles.resultsCountText}>
           Showing <Text style={styles.resultsCountHighlight}>{filteredParties.length}</Text> of {parties.length} customer accounts
         </Text>
-        {(filterType !== 'ALL' || search.trim().length > 0) && (
+        {(filterType !== 'ALL' || regFilter !== 'ALL' || search.trim().length > 0) && (
           <TouchableOpacity
             onPress={() => {
               setFilterType('ALL');
+              setRegFilter('ALL');
               setSearch('');
             }}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -261,8 +312,21 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 4,
     paddingHorizontal: 2,
+  },
+  refreshBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sectionTitle: {
     fontSize: 16,

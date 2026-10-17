@@ -36,7 +36,7 @@ export class AuthService {
     }
     if (!user.isActive) {
       throw new UnauthorizedException(
-        'Your account has been deactivated by the owner. You cannot log into the application.',
+        'Your account has been deactivated by the director. You cannot log into the application.',
       );
     }
     return {

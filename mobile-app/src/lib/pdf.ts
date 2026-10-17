@@ -31,20 +31,22 @@ export async function downloadAndSharePdf(
       return;
     }
 
-    const fileUri = `${FileSystem.cacheDirectory}${fileName}.pdf`;
-    const fileInfo = await FileSystem.getInfoAsync(fileUri);
-    let targetUri = fileUri;
+    const sanitized = fileName.replace(/[/\\?%*:|"<>]/g, '_').trim() || 'document';
+    const cacheDir = FileSystem.cacheDirectory || FileSystem.documentDirectory;
+    const fileUri = `${cacheDir}${sanitized}.pdf`;
 
-    if (!fileInfo.exists) {
-      const downloadRes = await FileSystem.downloadAsync(url, fileUri, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+    // Remove any previously cached or corrupted file so we always get the latest real-time document
+    await FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(() => {});
 
-      if (downloadRes.status !== 200) {
-        throw new Error(`Server returned HTTP ${downloadRes.status} for PDF download`);
-      }
-      targetUri = downloadRes.uri;
+    const downloadRes = await FileSystem.downloadAsync(url, fileUri, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+    if (downloadRes.status !== 200) {
+      await FileSystem.deleteAsync(fileUri, { idempotent: true }).catch(() => {});
+      throw new Error(`Server returned HTTP ${downloadRes.status} for PDF download`);
     }
+    const targetUri = downloadRes.uri;
 
     const canShare = await Sharing.isAvailableAsync();
     if (canShare) {

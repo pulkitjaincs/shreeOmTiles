@@ -109,8 +109,10 @@ export function CreateQuotationModal({
       ])
         .then(([pList, prList]) => {
           if (isMounted) {
-            if (shouldFetchParties) setParties(pList || []);
-            if (shouldFetchProducts) setProducts(prList || []);
+            const partiesArray = Array.isArray(pList) ? pList : (pList as any)?.data || [];
+            const productsArray = Array.isArray(prList) ? prList : (prList as any)?.data || [];
+            if (shouldFetchParties) setParties(partiesArray);
+            if (shouldFetchProducts) setProducts(productsArray);
           }
         })
         .finally(() => {
@@ -359,10 +361,10 @@ export function CreateQuotationModal({
       }
 
       const q = Number(it.qty);
-      if (!q || q < 1 || !Number.isInteger(q)) {
+      if (!q || q <= 0 || isNaN(q)) {
         Alert.alert(
           'Validation Error',
-          `Quantity for Item #${i + 1} must be a whole number of at least 1.`,
+          `Quantity for Item #${i + 1} must be greater than 0.`,
         );
         return;
       }
@@ -417,7 +419,7 @@ export function CreateQuotationModal({
         notes: notes.trim() || undefined,
         items: items.map((it) => ({
           productId: it.productId,
-          qty: Math.floor(Number(it.qty)),
+          qty: Number(Number(it.qty).toFixed(2)),
           unitPrice: Number(Number(it.unitPrice).toFixed(2)),
           discount: Number(Number(it.discount || 0).toFixed(2)),
         })),

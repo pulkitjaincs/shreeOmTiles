@@ -535,7 +535,7 @@ export function RecordSettlementModal({
             <View style={styles.upiWarningBox}>
               <Ionicons name="information-circle-outline" size={14} color="#F59E0B" />
               <Text style={styles.upiWarningText}>
-                No store UPI IDs configured yet. Please configure a UPI ID in Owner Settings.
+                No store UPI IDs configured yet. Please configure a UPI ID in Director Settings.
               </Text>
             </View>
           )}

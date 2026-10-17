@@ -31,7 +31,7 @@ export function DriverCashCollectionQueue({
           </div>
           <div>
             <h2 className="text-base font-bold text-foreground">
-              Driver Cash Awaiting Owner Handover ({deliveries.length})
+              Driver Cash Awaiting Director Handover ({deliveries.length})
             </h2>
             <p className="text-xs text-muted-foreground">
               Drivers completed these deliveries and are holding customer cash. Click &quot;Collect Cash&quot; to verify and settle into store custody.

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   View,
   Text,
@@ -66,16 +67,20 @@ export default function DeliveriesScreen() {
           },
         }),
         isOwnerOrAdmin
-          ? cachedMobileApiRequest<DriverUser[]>('/users?role=DRIVER', {
+          ? cachedMobileApiRequest<any>('/users?role=DRIVER', {
               forceRefresh: force,
-              onRevalidate: (fresh) => setDrivers(fresh || []),
+              onRevalidate: (fresh) => {
+                const driverList = Array.isArray(fresh) ? fresh : (fresh as any)?.data || [];
+                setDrivers(driverList);
+              },
             }).catch(() => [])
           : Promise.resolve([]),
       ]);
 
       const list = Array.isArray(delData) ? delData : (delData as any)?.data || [];
       setDeliveries(list);
-      setDrivers(usersData || []);
+      const driverList = Array.isArray(usersData) ? usersData : (usersData as any)?.data || [];
+      setDrivers(driverList);
     } catch (err: any) {
       console.warn('Failed to load deliveries', err.message);
     } finally {
@@ -84,9 +89,11 @@ export default function DeliveriesScreen() {
     }
   }, [isOwnerOrAdmin]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData]),
+  );
 
   const onRefresh = () => {
     setRefreshing(true);

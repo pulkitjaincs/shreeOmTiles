@@ -125,7 +125,7 @@ export function PartyStatementDrawer({
         : totalDues < 0
         ? `You have an advance store credit balance of ${formatINR(Math.abs(totalDues))} available.\n\n`
         : `All accounts are currently in clear standing!\n\n`) +
-      `Shree Om Tiles & Sanitaryware`;
+      `Shree Om Tiles`;
 
     const url = clean
       ? `https://wa.me/91${clean}?text=${encodeURIComponent(msg)}`

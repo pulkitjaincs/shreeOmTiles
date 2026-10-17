@@ -94,8 +94,7 @@ export async function generateDeliveryChallanPdf(
     color: brandNavy,
   });
 
-  const subTitle =
-    'DHRA ( A UNIT OF SHREE OM TILES ) — NON-PRICED MATERIAL DISPATCH';
+  const subTitle = 'SHREE OM TILES — NON-PRICED MATERIAL DISPATCH';
   const sw = fontRegular.widthOfTextAtSize(subTitle, 8.5);
   page.drawText(subTitle, {
     x: leftMargin + (contentWidth - sw) / 2,

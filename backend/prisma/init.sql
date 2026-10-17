@@ -279,7 +279,7 @@ CREATE TABLE "RefundInvoiceItem" (
 CREATE TABLE "CompanySetting" (
     "id" TEXT NOT NULL DEFAULT 'default',
     "upiId" TEXT,
-    "merchantName" TEXT DEFAULT 'Dhra Tiles & Sanitary',
+    "merchantName" TEXT DEFAULT 'Shree Om Tiles',
     "upiAccounts" JSONB DEFAULT '[]',
     "updatedAt" TIMESTAMP(3) NOT NULL,
 

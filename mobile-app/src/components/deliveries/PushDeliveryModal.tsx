@@ -51,11 +51,12 @@ export function PushDeliveryModal({
 
       // Fetch active supervisors
       setLoadingSupervisors(true);
-      mobileApiRequest<SupervisorUser[]>('/users?role=SUPERVISOR&isActive=true')
+      mobileApiRequest<any>('/users?role=SUPERVISOR&isActive=true')
         .then((res) => {
-          setSupervisors(res || []);
-          if (res && res.length === 1) {
-            setSelectedSupervisorIds([res[0].id]);
+          const list: SupervisorUser[] = Array.isArray(res) ? res : res?.data || [];
+          setSupervisors(list);
+          if (list.length === 1) {
+            setSelectedSupervisorIds([list[0].id]);
           } else {
             setSelectedSupervisorIds([]);
           }

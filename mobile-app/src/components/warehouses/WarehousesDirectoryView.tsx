@@ -9,6 +9,7 @@ import { StockItem } from '@/components/stock/types';
 import { WarehouseCard } from './WarehouseCard';
 import { WarehouseFormModal } from './WarehouseFormModal';
 import { DeleteWarehouseModal, ZeroOutWarehouseModal } from './WarehouseDangerModals';
+import { Ionicons } from '@expo/vector-icons';
 
 interface WarehousesDirectoryViewProps {
   warehouses: Warehouse[];
@@ -101,19 +102,34 @@ export function WarehousesDirectoryView({
             Manage storage godowns, showrooms & branch stock
           </Text>
         </View>
-        {isOwnerOrAdmin ? (
-          <Button
-            title="+ Add Location"
-            icon="add-circle-outline"
-            size="sm"
-            variant="primary"
-            onPress={() => {
-              setEditingWarehouse(null);
-              setFormModalOpen(true);
-            }}
-            style={styles.addLocationBtn}
-          />
-        ) : null}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <TouchableOpacity
+            onPress={onRefresh}
+            disabled={loading}
+            style={styles.refreshBtn}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name="refresh-outline"
+              size={18}
+              color={loading ? Colors.dark.textSecondary : '#FFFFFF'}
+            />
+          </TouchableOpacity>
+          {isOwnerOrAdmin ? (
+            <Button
+              title="+ Add Location"
+              icon="add-circle-outline"
+              size="sm"
+              variant="primary"
+              onPress={() => {
+                setEditingWarehouse(null);
+                setFormModalOpen(true);
+              }}
+              style={styles.addLocationBtn}
+            />
+          ) : null}
+        </View>
       </View>
 
       {/* 3. Search Bar */}
@@ -257,6 +273,16 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 2,
     marginBottom: 2,
+  },
+  refreshBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sectionTitle: {
     fontSize: 15.5,

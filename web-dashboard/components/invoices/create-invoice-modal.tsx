@@ -1162,7 +1162,7 @@ export function CreateInvoiceModal({
 
               {upiAccounts.length === 0 && (
                 <div className="p-3 rounded-[0.75rem] border border-amber-500/20 bg-amber-500/10 text-[0.75rem] text-amber-700 dark:text-amber-300 text-left">
-                  No store UPI IDs configured by owner yet. Please add a UPI ID in Owner Settings.
+                  No store UPI IDs configured by director yet. Please add a UPI ID in Director Settings.
                 </div>
               )}
 

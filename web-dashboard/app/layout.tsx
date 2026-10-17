@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Shree Om Tiles",
-  description: "Enterprise Resource Planning for Tiles & Sanitaryware",
+  description: "Enterprise Resource Planning for Shree Om Tiles",
 };
 
 export default function RootLayout({

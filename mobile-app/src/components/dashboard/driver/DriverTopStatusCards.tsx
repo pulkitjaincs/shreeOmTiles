@@ -83,7 +83,7 @@ export function DriverTopStatusCards({
         </View>
       </Card>
 
-      {/* Card 2: Cash to Hand Over to Owner */}
+      {/* Card 2: Cash to Hand Over to Director */}
       <Card elevated style={[styles.card, styles.cashCard]}>
         <View style={styles.header}>
           <View style={styles.labelRow}>
@@ -113,12 +113,12 @@ export function DriverTopStatusCards({
 
         <Text style={styles.sub}>
           {totalCashInCustody > 0
-            ? 'Physical cash in hand to be handed over to owner.'
-            : 'All cash collections granted & settled with owner.'}
+            ? 'Physical cash in hand to be handed over to director.'
+            : 'All cash collections granted & settled with director.'}
         </Text>
 
         <View style={[styles.footer, { borderTopColor: 'rgba(16, 185, 129, 0.2)' }]}>
-          <Text style={styles.footerLabel}>Status with Owner:</Text>
+          <Text style={styles.footerLabel}>Status with Director:</Text>
           <Text style={[styles.footerVal, { color: '#10B981' }]}>
             {totalCashInCustody > 0
               ? `${formatINR(totalCashInCustody)} pending`

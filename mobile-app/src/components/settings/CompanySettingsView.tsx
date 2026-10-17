@@ -57,7 +57,7 @@ export function CompanySettingsView({
   const handleSaveProfile = async () => {
     const cleanPhone = ownerPhone.replace(/\D/g, '').slice(0, 10);
     if (!ownerName.trim()) {
-      Alert.alert('Required', 'Owner full name cannot be blank.');
+      Alert.alert('Required', 'Director full name cannot be blank.');
       return;
     }
     if (cleanPhone.length !== 10) {
@@ -84,9 +84,9 @@ export function CompanySettingsView({
         });
       }
 
-      Alert.alert('Profile Updated', `Owner profile saved. Your login mobile number is now ${cleanPhone}.`);
+      Alert.alert('Profile Updated', `Director profile saved. Your login mobile number is now ${cleanPhone}.`);
     } catch (err: any) {
-      Alert.alert('Update Failed', err.message || 'Could not update owner profile');
+      Alert.alert('Update Failed', err.message || 'Could not update director profile');
     } finally {
       setSavingProfile(false);
     }
@@ -139,7 +139,7 @@ export function CompanySettingsView({
             color={activeTab === 'profile' ? '#FFFFFF' : Colors.dark.textSecondary}
           />
           <Text style={[styles.toggleText, activeTab === 'profile' && styles.toggleTextActive]}>
-            Owner Profile
+            Director Profile
           </Text>
         </TouchableOpacity>
 
@@ -180,7 +180,7 @@ export function CompanySettingsView({
           <View style={styles.banner}>
             <Ionicons name="shield-checkmark-outline" size={18} color={Colors.dark.primary} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.bannerTitle}>Business Owner Account</Text>
+              <Text style={styles.bannerTitle}>Business Director Account</Text>
               <Text style={styles.bannerSub}>
                 Updating your mobile number updates your primary login ID for Shree Om Tiles administration.
               </Text>
@@ -189,14 +189,14 @@ export function CompanySettingsView({
 
           <Card elevated style={styles.formCard}>
             <Input
-              label="Owner Full Name *"
+              label="Director Full Name *"
               placeholder="e.g. Ramesh Kumar"
               value={ownerName}
               onChangeText={setOwnerName}
             />
 
             <Input
-              label="Owner Mobile Number (Login ID) *"
+              label="Director Mobile Number (Login ID) *"
               placeholder="e.g. 9876543210"
               value={ownerPhone}
               onChangeText={(t) => setOwnerPhone(t.replace(/\D/g, '').slice(0, 10))}
@@ -205,7 +205,7 @@ export function CompanySettingsView({
             />
 
             <Button
-              title={savingProfile ? 'Saving Changes...' : 'Save Owner Profile'}
+              title={savingProfile ? 'Saving Changes...' : 'Save Director Profile'}
               icon="checkmark-circle-outline"
               variant="primary"
               size="lg"

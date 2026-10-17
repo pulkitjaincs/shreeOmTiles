@@ -1,11 +1,12 @@
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const rawApiUrl = process.env.EXPO_PUBLIC_API_URL;
+const rawApiUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
+const normalizedUrl = rawApiUrl ? rawApiUrl.replace(/\/+$/, '') : '';
 export const API_BASE =
-  rawApiUrl && Platform.OS === 'android' && rawApiUrl.includes('localhost')
-    ? rawApiUrl.replace('localhost', '10.0.2.2')
-    : rawApiUrl ||
+  normalizedUrl && Platform.OS === 'android' && (normalizedUrl.includes('localhost') || normalizedUrl.includes('127.0.0.1'))
+    ? normalizedUrl.replace('localhost', '10.0.2.2').replace('127.0.0.1', '10.0.2.2')
+    : normalizedUrl ||
       Platform.select({
         android: 'http://10.0.2.2:3001',
         ios: 'http://localhost:3001',
@@ -67,15 +68,55 @@ export async function getMobileUser(): Promise<AuthUser | null> {
   return memUser;
 }
 
+// In-flight request deduplication map to prevent redundant concurrent queries
+const pendingMobileRequests = new Map<string, Promise<any>>();
+// Listeners map to notify multiple subscribers of fresh background data
+const revalidateListeners = new Map<string, Set<(freshData: any) => void>>();
+// Generation counter to detect and discard stale in-flight responses that resolve after a mutation
+const cacheGeneration = new Map<string, number>();
+
+function getCacheGeneration(key: string): number {
+  return cacheGeneration.get(key) || 0;
+}
+
+function bumpCacheGeneration(prefix?: string): void {
+  if (!prefix) {
+    for (const k of cacheGeneration.keys()) {
+      cacheGeneration.set(k, (cacheGeneration.get(k) || 0) + 1);
+    }
+    return;
+  }
+  for (const k of cacheGeneration.keys()) {
+    if (k.includes(prefix)) {
+      cacheGeneration.set(k, (cacheGeneration.get(k) || 0) + 1);
+    }
+  }
+}
+
 export async function clearMobileAuth(): Promise<void> {
   memToken = null;
   memUser = null;
   await AsyncStorage.multiRemove(['authToken', 'authUser']);
+  pendingMobileRequests.clear();
+  revalidateListeners.clear();
   await invalidateMobileApiCache();
 }
 
 export async function invalidateMobileApiCache(prefix?: string): Promise<void> {
   try {
+    bumpCacheGeneration(prefix);
+    if (prefix) {
+      for (const key of pendingMobileRequests.keys()) {
+        if (key.includes(prefix)) {
+          pendingMobileRequests.delete(key);
+          revalidateListeners.delete(key);
+        }
+      }
+    } else {
+      pendingMobileRequests.clear();
+      revalidateListeners.clear();
+    }
+
     const keys = await AsyncStorage.getAllKeys();
     const target = prefix ? `${CACHE_PREFIX}${prefix}` : CACHE_PREFIX;
     const toRemove = keys.filter((k) => k.startsWith(target));
@@ -98,9 +139,11 @@ export async function mobileApiRequest<T = any>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T> {
+  const { ttlMs: _ttl, forceRefresh: _force, onRevalidate: _onRev, headers: optHeaders, ...restOptions } = options as any;
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
+    ...(optHeaders as Record<string, string>),
   };
 
   const token = await getMobileToken();
@@ -108,12 +151,13 @@ export async function mobileApiRequest<T = any>(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const url = `${API_BASE}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = `${API_BASE}${cleanEndpoint}`;
 
   let res: Response;
   for (let attempt = 0; ; attempt += 1) {
     try {
-      res = await fetch(url, { ...options, headers });
+      res = await fetch(url, { ...restOptions, headers });
       break;
     } catch (error) {
       if (attempt >= 2) throw error;
@@ -141,31 +185,42 @@ export async function mobileApiRequest<T = any>(
     throw new Error(errorMsg);
   }
 
-  // Automatically invalidate cache on mutations
+  // Automatically invalidate cache across all interdependent domains on mutations
   const method = (options.method || 'GET').toUpperCase();
   if (method !== 'GET') {
     if (endpoint.includes('/delivery')) {
       await invalidateMobileApiCache('/delivery');
+      await invalidateMobileApiCache('/parties');
+      await invalidateMobileApiCache('/invoices');
+      await invalidateMobileApiCache('/payments');
       await invalidateMobileApiCache('/analytics');
+      await invalidateMobileApiCache('/stock');
     } else if (endpoint.includes('/invoices')) {
       await invalidateMobileApiCache('/invoices');
       await invalidateMobileApiCache('/stock');
       await invalidateMobileApiCache('/analytics');
       await invalidateMobileApiCache('/payments');
+      await invalidateMobileApiCache('/parties');
+      await invalidateMobileApiCache('/quotations');
+      await invalidateMobileApiCache('/delivery');
     } else if (endpoint.includes('/stock') || endpoint.includes('/warehouses') || endpoint.includes('/products')) {
       await invalidateMobileApiCache('/stock');
       await invalidateMobileApiCache('/products');
       await invalidateMobileApiCache('/warehouses');
       await invalidateMobileApiCache('/analytics');
+      await invalidateMobileApiCache('/invoices');
     } else if (endpoint.includes('/payments') || endpoint.includes('/parties')) {
       await invalidateMobileApiCache('/payments');
       await invalidateMobileApiCache('/parties');
       await invalidateMobileApiCache('/analytics');
+      await invalidateMobileApiCache('/invoices');
     } else if (endpoint.includes('/purchases')) {
       await invalidateMobileApiCache('/purchases');
       await invalidateMobileApiCache('/stock');
       await invalidateMobileApiCache('/analytics');
       await invalidateMobileApiCache('/payments');
+      await invalidateMobileApiCache('/parties');
+      await invalidateMobileApiCache('/warehouses');
     } else if (endpoint.includes('/expenses')) {
       await invalidateMobileApiCache('/expenses');
       await invalidateMobileApiCache('/analytics');
@@ -191,20 +246,31 @@ export interface CachedMobileRequestOptions<T = any> extends RequestInit {
   onRevalidate?: (freshData: T) => void;
 }
 
-// In-flight request deduplication map to prevent redundant concurrent queries
-const pendingMobileRequests = new Map<string, Promise<any>>();
-
 async function fetchAndCacheMobile<T>(
   endpoint: string,
   options: CachedMobileRequestOptions<T>,
   cacheKey: string,
 ): Promise<T> {
+  const initialGen = getCacheGeneration(cacheKey);
+
+  if (options.onRevalidate) {
+    if (!revalidateListeners.has(cacheKey)) {
+      revalidateListeners.set(cacheKey, new Set());
+    }
+    revalidateListeners.get(cacheKey)!.add(options.onRevalidate);
+  }
+
   if (pendingMobileRequests.has(cacheKey)) {
     return pendingMobileRequests.get(cacheKey) as Promise<T>;
   }
 
   const reqPromise = mobileApiRequest<T>(endpoint, options)
     .then(async (fresh) => {
+      // Discard writing to cache if invalidated while request was in-flight
+      if (getCacheGeneration(cacheKey) !== initialGen) {
+        return fresh;
+      }
+
       try {
         await AsyncStorage.setItem(
           cacheKey,
@@ -213,10 +279,24 @@ async function fetchAndCacheMobile<T>(
       } catch {
         await invalidateMobileApiCache();
       }
+
+      // Notify all registered listeners for this cache key
+      const listeners = revalidateListeners.get(cacheKey);
+      if (listeners && listeners.size > 0) {
+        listeners.forEach((callback) => {
+          try {
+            callback(fresh);
+          } catch (err) {
+            console.warn('[Mobile SWR] Listener callback error:', err);
+          }
+        });
+      }
+
       return fresh;
     })
     .finally(() => {
       pendingMobileRequests.delete(cacheKey);
+      revalidateListeners.delete(cacheKey);
     });
 
   pendingMobileRequests.set(cacheKey, reqPromise);
@@ -228,27 +308,19 @@ function revalidateMobileInBackground<T>(
   options: CachedMobileRequestOptions<T>,
   cacheKey: string,
 ): void {
-  if (pendingMobileRequests.has(cacheKey)) return;
-
-  fetchAndCacheMobile<T>(endpoint, options, cacheKey)
-    .then((fresh) => {
-      if (options.onRevalidate) {
-        options.onRevalidate(fresh);
-      }
-    })
-    .catch((err) => {
-      console.warn(`[Mobile SWR] Background revalidation failed for ${endpoint}:`, err);
-    });
+  fetchAndCacheMobile<T>(endpoint, options, cacheKey).catch((err) => {
+    console.warn(`[Mobile SWR] Background revalidation failed for ${endpoint}:`, err);
+  });
 }
 
 /**
  * Mobile Device Cache Request with Stale-While-Revalidate (SWR).
- * 1. Checks AsyncStorage: if fresh within ttlMs, returns in 0ms without network roundtrip.
+ * 1. Checks AsyncStorage: if fresh within ttlMs (default 5s), returns in 0ms without network roundtrip.
  * 2. If stale but cached data exists, returns cached data immediately (0ms UI render)
- *    and silently revalidates with the Render backend in the background, updating AsyncStorage
+ *    and silently revalidates with the backend in the background, updating AsyncStorage
  *    and firing options.onRevalidate(freshData).
  * 3. Falls back to network on cache miss or forceRefresh: true.
- * 4. Deduplicates simultaneous in-flight requests for identical endpoints.
+ * 4. Deduplicates simultaneous in-flight requests and notifies all subscriber callbacks.
  */
 export async function cachedMobileApiRequest<T = any>(
   endpoint: string,
@@ -259,7 +331,7 @@ export async function cachedMobileApiRequest<T = any>(
     return mobileApiRequest<T>(endpoint, options);
   }
 
-  const ttlMs = options.ttlMs ?? 60_000;
+  const ttlMs = options.ttlMs ?? 5_000;
   const forceRefresh = options.forceRefresh ?? false;
   const cacheKey = `${CACHE_PREFIX}${endpoint}`;
 

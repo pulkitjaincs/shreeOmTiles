@@ -2,11 +2,28 @@ import React, { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Platform, StatusBar as RNStatusBar, Alert } from 'react-native';
+import { Platform, StatusBar as RNStatusBar, Alert, AppState } from 'react-native';
 import * as Updates from 'expo-updates';
 import { AuthProvider } from '@/lib/auth-context';
 import { setupNotificationListeners } from '@/lib/notifications';
+import { invalidateMobileApiCache } from '@/lib/api';
 import { Colors } from '@/constants/theme';
+
+function AppStateSyncListenerWrapper() {
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        invalidateMobileApiCache().catch(() => {});
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
+  return null;
+}
 
 function NotificationListenerWrapper() {
   useEffect(() => {
@@ -76,6 +93,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
+        <AppStateSyncListenerWrapper />
         <NotificationListenerWrapper />
         <OtaUpdateListenerWrapper />
         <StatusBar style="light" />

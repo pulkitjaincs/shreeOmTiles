@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   View,
   Text,
@@ -107,9 +108,11 @@ export default function InvoicesScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData]),
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -211,22 +214,31 @@ export default function InvoicesScreen() {
       <Header
         title={isSalesman ? 'Counter Billing' : 'Invoices'}
         subtitle={isSupervisor ? 'Order Quantities & Line Items' : 'Billing, GST & UPI Receipts'}
-        rightAction={
-          isSupervisor
-            ? undefined
-            : {
-                icon: 'add',
-                onPress: () => setCreateModalOpen(true),
-              }
-        }
       />
 
-      {canReturn ? (
+      {!isSupervisor || canReturn ? (
         <View style={styles.utilityActions}>
-          <TouchableOpacity style={styles.returnAction} onPress={() => setReturnInvoice({ lookupOnly: true })}>
-            <Ionicons name="return-up-back-outline" size={15} color="#FBBF24" />
-            <Text style={styles.returnActionText}>Process Return</Text>
-          </TouchableOpacity>
+          {!isSupervisor ? (
+            <TouchableOpacity
+              style={styles.newBillAction}
+              onPress={() => setCreateModalOpen(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="add" size={16} color="#09090B" />
+              <Text style={styles.newBillActionText}>New Bill</Text>
+            </TouchableOpacity>
+          ) : <View />}
+
+          {canReturn ? (
+            <TouchableOpacity
+              style={styles.returnAction}
+              onPress={() => setReturnInvoice({ lookupOnly: true })}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="return-up-back-outline" size={15} color="#FBBF24" />
+              <Text style={styles.returnActionText}>Process Return</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       ) : null}
 
@@ -288,17 +300,7 @@ export default function InvoicesScreen() {
         />
       )}
 
-      {/* Floating Action Button */}
-      {!isSupervisor ? (
-        <TouchableOpacity
-          style={styles.fab}
-          onPress={() => setCreateModalOpen(true)}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="add" size={24} color="#09090B" />
-          <Text style={styles.fabText}>New Bill</Text>
-        </TouchableOpacity>
-      ) : null}
+
 
       {/* Modular Modals */}
       <CreateInvoiceModal
@@ -360,7 +362,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 16,
-    paddingBottom: 90,
+    paddingBottom: 28,
   },
   center: {
     flex: 1,
@@ -373,29 +375,42 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 10,
   },
-  utilityActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8 },
-  returnAction: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 34, paddingHorizontal: 10, borderRadius: 9, borderWidth: 1, borderColor: 'rgba(251,191,36,0.28)', backgroundColor: 'rgba(251,191,36,0.08)' },
-  returnActionText: { color: '#FBBF24', fontSize: 11, fontWeight: '700' },
-  fab: {
-    position: 'absolute',
-    bottom: 20,
-    right: 20,
-    height: 50,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 25,
+  utilityActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  newBillAction: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 18,
     gap: 6,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
+    minHeight: 34,
+    paddingHorizontal: 12,
+    borderRadius: 9,
+    backgroundColor: '#FFFFFF',
   },
-  fabText: {
+  newBillActionText: {
     color: '#09090B',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '800',
+  },
+  returnAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 34,
+    paddingHorizontal: 10,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: 'rgba(251,191,36,0.28)',
+    backgroundColor: 'rgba(251,191,36,0.08)',
+  },
+  returnActionText: {
+    color: '#FBBF24',
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

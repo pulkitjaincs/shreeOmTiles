@@ -53,7 +53,7 @@ export class AnalyticsController {
   }
 
   @Get('day-book')
-  @Roles(Role.OWNER, Role.ADMIN, Role.ACCOUNTANT)
+  @Roles(Role.OWNER, Role.ADMIN, Role.ACCOUNTANT, Role.SALESMAN)
   getDayBook(@Query('date') date?: string) {
     return this.analyticsService.getDayBook(date);
   }

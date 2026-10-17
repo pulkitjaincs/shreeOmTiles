@@ -57,7 +57,7 @@ async function initializeDatabase() {
     console.log('✅ User successfully created.');
 
     // 4. Initialize CompanySetting
-    const merchantName = process.env.COMPANY_NAME || 'Shree Om Tiles & Sanitaryware';
+    const merchantName = process.env.COMPANY_NAME || 'Shree Om Tiles';
     const upiId = process.env.UPI_VPA || 'dhraerp@bank';
     const defaultAccounts = upiId ? JSON.stringify([{
       id: 'upi_default',

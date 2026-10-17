@@ -43,7 +43,7 @@ export function UpiQrModal({ data, onClose, onShareWhatsApp }: UpiQrModalProps) 
         </View>
 
         <View style={styles.merchantInfo}>
-          <Text style={styles.merchantTitle}>Shree Om Tiles & Sanitary</Text>
+          <Text style={styles.merchantTitle}>Shree Om Tiles</Text>
           <Text style={styles.merchantUpi}>
             UPI ID: {data.vpa || 'Not Configured'}
           </Text>

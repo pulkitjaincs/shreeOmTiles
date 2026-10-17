@@ -39,11 +39,18 @@ export function PurchasesView({
   const [search, setSearch] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
 
-  const loadPurchases = useCallback(async () => {
+  const loadPurchases = useCallback(async (force = false) => {
     setLoading(true);
     try {
-      const res = await mobileApiRequest<any[]>('/purchases');
-      setPurchases(res || []);
+      const res = await cachedMobileApiRequest<any[]>('/purchases', {
+        forceRefresh: force,
+        onRevalidate: (fresh) => {
+          const list = Array.isArray(fresh) ? fresh : (fresh as any)?.data || [];
+          setPurchases(list);
+        },
+      });
+      const list = Array.isArray(res) ? res : (res as any)?.data || [];
+      setPurchases(list);
     } catch (err: any) {
       console.warn('Purchases load error:', err.message);
     } finally {
@@ -60,7 +67,7 @@ export function PurchasesView({
     await invalidateMobileApiCache('/purchases');
     await invalidateMobileApiCache('/parties');
     await invalidateMobileApiCache('/warehouses');
-    await loadPurchases();
+    await loadPurchases(true);
     try {
       await cachedMobileApiRequest('/stock', { forceRefresh: true });
     } catch {
@@ -133,7 +140,7 @@ export function PurchasesView({
 
   return (
     <View style={styles.container}>
-      {/* Header Bar with "+ Record Purchase" button */}
+      {/* Header Bar with "+ Record Purchase" and sync refresh button */}
       <View style={styles.headerBar}>
         <View style={styles.headerInfo}>
           <Text style={styles.headerTitle}>Inward Purchases</Text>
@@ -141,16 +148,26 @@ export function PurchasesView({
             {purchases.length} {purchases.length === 1 ? 'purchase order' : 'purchase orders'}
           </Text>
         </View>
-        {canRecordPurchase && (
+        <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
           <Button
-            title="+ Record Purchase"
-            icon="add-circle-outline"
-            variant="primary"
+            title=""
+            icon="refresh-outline"
+            variant="ghost"
             size="sm"
-            onPress={() => setCreateModalOpen(true)}
-            style={styles.recordBtn}
+            onPress={() => loadPurchases(true)}
+            style={{ width: 38, height: 38, paddingHorizontal: 0, justifyContent: 'center', alignItems: 'center' }}
           />
-        )}
+          {canRecordPurchase && (
+            <Button
+              title="+ Record Purchase"
+              icon="add-circle-outline"
+              variant="primary"
+              size="sm"
+              onPress={() => setCreateModalOpen(true)}
+              style={styles.recordBtn}
+            />
+          )}
+        </View>
       </View>
 
       {/* KPI Cards */}

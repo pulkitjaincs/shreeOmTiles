@@ -82,7 +82,7 @@ export default function LoginScreen() {
             />
           </View>
           <Text style={styles.brandTitle}>Shree Om Tiles</Text>
-          <Text style={styles.brandSubtitle}>Tiles & Sanitaryware ERP</Text>
+          <Text style={styles.brandSubtitle}>ERP Portal</Text>
         </View>
 
         <Card elevated style={styles.card}>

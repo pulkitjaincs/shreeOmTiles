@@ -12,7 +12,7 @@ import { cachedMobileApiRequest, mobileApiRequest } from '@/lib/api';
 import { Colors } from '@/constants/theme';
 import { Header } from '@/components/ui/Header';
 import { cleanPhoneNumber } from '@/lib/formatters';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 
 import { DriverDashboardView } from '@/components/dashboard/DriverDashboardView';
 import { SalesmanDashboardView } from '@/components/dashboard/SalesmanDashboardView';
@@ -79,10 +79,11 @@ export default function DashboardScreen() {
     }
   }, [isSupervisor, isDriver, preset, appliedDateFrom, appliedDateTo]);
 
-  useEffect(() => {
-    setLoading(true);
-    loadData();
-  }, [loadData]);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData]),
+  );
 
   const onRefresh = () => {
     setRefreshing(true);

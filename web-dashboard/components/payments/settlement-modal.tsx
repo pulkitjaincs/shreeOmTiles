@@ -524,7 +524,7 @@ export function SettlementModal({
 
                 {upiAccounts.length === 0 && (
                   <div className="p-3 rounded-[0.625rem] border border-amber-500/20 bg-amber-500/10 text-xs text-amber-800 dark:text-amber-300 text-left">
-                    No store UPI IDs configured by owner yet. Please add a UPI ID in Owner Settings.
+                    No store UPI IDs configured by director yet. Please add a UPI ID in Director Settings.
                   </div>
                 )}
 

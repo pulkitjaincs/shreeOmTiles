@@ -35,8 +35,11 @@ export function StaffFormModal({
       setPassword('');
       setRole(staff?.role || 'SALESMAN');
       setWarehouseId(staff?.scope || '');
-      mobileApiRequest<Array<{ id: string; name: string }>>('/warehouses')
-        .then((data) => setWarehouses(data || []))
+      mobileApiRequest<any>('/warehouses')
+        .then((data) => {
+          const list = Array.isArray(data) ? data : (data as any)?.data || [];
+          setWarehouses(list);
+        })
         .catch(() => {});
     }
   }, [visible, staff]);
@@ -108,27 +111,35 @@ export function StaffFormModal({
           onChangeText={setPassword}
           isPassword
         />
-        {staff?.role !== 'OWNER' ? <>
-        <Text style={styles.fieldLabel}>Role Designation</Text>
-        <View style={styles.roleToggleRow}>
-          {(['SALESMAN', 'ACCOUNTANT', 'SUPERVISOR', 'DRIVER', 'ADMIN'] as const).map((r) => (
-            <TouchableOpacity
-              key={r}
-              style={[styles.roleSelectChip, role === r && styles.roleSelectChipActive]}
-              onPress={() => setRole(r)}
-            >
-              <Text
-                style={[
-                  styles.roleSelectChipText,
-                  role === r && styles.roleSelectChipTextActive,
-                ]}
-              >
-                {r === 'SUPERVISOR' ? 'SUPERVISOR' : r}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        </> : null}
+        {staff?.role !== 'OWNER' ? (
+          <>
+            <Text style={styles.fieldLabel}>Role Designation</Text>
+            <View style={styles.roleToggleRow}>
+              {(['SALESMAN', 'ACCOUNTANT', 'SUPERVISOR', 'DRIVER', 'ADMIN'] as const).map((r) => (
+                <TouchableOpacity
+                  key={r}
+                  style={[styles.roleSelectChip, role === r && styles.roleSelectChipActive]}
+                  onPress={() => setRole(r)}
+                >
+                  <Text
+                    style={[
+                      styles.roleSelectChipText,
+                      role === r && styles.roleSelectChipTextActive,
+                    ]}
+                  >
+                    {r === 'SUPERVISOR' ? 'SUPERVISOR' : r}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        ) : (
+          <View style={{ marginTop: 14, padding: 12, backgroundColor: 'rgba(217, 119, 6, 0.1)', borderRadius: 8, borderWidth: 1, borderColor: 'rgba(217, 119, 6, 0.25)' }}>
+            <Text style={{ color: '#D97706', fontSize: 13, fontWeight: '700' }}>
+              Role: DIRECTOR (Protected)
+            </Text>
+          </View>
+        )}
 
         <Button
           title={submitting ? 'Saving...' : staff ? 'Save Staff Changes' : 'Create Staff Member'}

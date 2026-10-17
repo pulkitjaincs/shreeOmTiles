@@ -60,15 +60,21 @@ export function CreateExpenseModal({
 
     setSubmitting(true);
     try {
+      const trimmedTitle = title.trim();
+      const trimmedNotes = notes.trim();
+      const combinedNotes = trimmedTitle
+        ? (trimmedNotes ? `${trimmedTitle} - ${trimmedNotes}` : trimmedTitle)
+        : (trimmedNotes || undefined);
+
       await mobileApiRequest('/expenses', {
         method: 'POST',
         body: JSON.stringify({
-          title: title.trim(),
+          title: trimmedTitle,
           amount: numAmt,
           category,
           paymentMode,
           paidTo: paidTo.trim() || undefined,
-          notes: notes.trim() || undefined,
+          notes: combinedNotes,
         }),
       });
       Alert.alert('Success', 'Expense recorded successfully');

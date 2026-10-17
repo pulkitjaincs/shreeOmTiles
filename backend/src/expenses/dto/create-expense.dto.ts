@@ -27,6 +27,10 @@ export class CreateExpenseDto {
 
   @IsString()
   @IsOptional()
+  title?: string;
+
+  @IsString()
+  @IsOptional()
   notes?: string;
 
   @IsString()

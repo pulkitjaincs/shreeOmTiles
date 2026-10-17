@@ -6,12 +6,30 @@ import {
 import { CreatePartyDto } from './dto/create-party.dto';
 import { UpdatePartyDto } from './dto/update-party.dto';
 import { PrismaService } from '../prisma/prisma.service';
-import { Prisma } from '@prisma/client';
+import { Prisma, CreditStatus } from '@prisma/client';
 import { PaginationParams } from '../common/interfaces/pagination.interface';
 import {
   generatePartyStatementPdf,
   LedgerEntry,
 } from './pdf/party-statement-pdf.generator';
+
+function getCreditLedgerOriginalAmount(cl: {
+  amountDue: any;
+  notes?: string | null;
+}): number {
+  if (cl.notes) {
+    const match = cl.notes.match(
+      /Opening balance (?:due from customer|payable to vendor): ₹([0-9.]+)/i,
+    );
+    if (match && match[1]) {
+      const parsed = parseFloat(match[1]);
+      if (!isNaN(parsed) && parsed > 0) {
+        return parsed;
+      }
+    }
+  }
+  return Number(cl.amountDue || 0);
+}
 
 @Injectable()
 export class PartiesService {
@@ -34,24 +52,53 @@ export class PartiesService {
     includeUnsaved: boolean = false,
     pagination?: PaginationParams,
   ): Promise<any> {
-    const where: Prisma.PartyWhereInput = {};
+    const andConditions: Prisma.PartyWhereInput[] = [];
+
     if (!includeUnsaved) {
-      where.isSaved = true;
-    }
-    if (search) {
-      where.AND = [
-        {
-          OR: [
-            { name: { contains: search, mode: 'insensitive' } },
-            { phone: { contains: search, mode: 'insensitive' } },
-            { gstin: { contains: search, mode: 'insensitive' } },
-          ],
-        },
-      ];
+      // Show permanent saved directory parties OR any walk-in / unregistered debtor who owes unsettled dues
+      andConditions.push({
+        OR: [
+          { isSaved: true },
+          {
+            creditLedgers: {
+              some: {
+                status: { not: CreditStatus.SETTLED },
+              },
+            },
+          },
+        ],
+      });
     }
 
+    if (search && search.trim()) {
+      const q = search.trim();
+      andConditions.push({
+        OR: [
+          { name: { contains: q, mode: 'insensitive' } },
+          { phone: { contains: q, mode: 'insensitive' } },
+          { gstin: { contains: q, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    const where: Prisma.PartyWhereInput =
+      andConditions.length > 0 ? { AND: andConditions } : {};
+
+    // Performance optimization: Only fetch un-settled credit ledgers and selective fields
+    // Full chronological ledger history is retrieved on-demand via findOne(:id)
     const includeRelations = {
-      creditLedgers: true,
+      creditLedgers: {
+        where: {
+          status: { not: CreditStatus.SETTLED },
+        },
+        select: {
+          id: true,
+          amountDue: true,
+          type: true,
+          status: true,
+          dueDate: true,
+        },
+      },
       _count: {
         select: { invoices: true },
       },
@@ -59,7 +106,7 @@ export class PartiesService {
 
     if (pagination?.page !== undefined || pagination?.limit !== undefined) {
       const page = Math.max(1, pagination?.page || 1);
-      const limit = Math.min(Math.max(1, pagination?.limit || 25), 100);
+      const limit = Math.min(Math.max(1, pagination?.limit || 25), 500);
       const skip = (page - 1) * limit;
 
       const [data, total] = await Promise.all([
@@ -82,11 +129,11 @@ export class PartiesService {
       };
     }
 
+    // Return all matching parties with no artificial 200-party cut-off
     return this.prisma.party.findMany({
       where,
       include: includeRelations,
       orderBy: { name: 'asc' },
-      take: 200,
     });
   }
 
@@ -259,6 +306,14 @@ export class PartiesService {
         payments: {
           orderBy: { createdAt: 'asc' },
         },
+        creditLedgers: {
+          where: {
+            invoiceId: null,
+            purchaseId: null,
+            refundInvoiceId: null,
+          },
+          orderBy: { createdAt: 'asc' },
+        },
       },
     });
 
@@ -288,6 +343,16 @@ export class PartiesService {
         runningBal -= Number(r.total);
       }
     }
+    for (const cl of party.creditLedgers || []) {
+      if (new Date(cl.createdAt) < start) {
+        const amt = getCreditLedgerOriginalAmount(cl);
+        if (cl.type === 'RECEIVABLE') {
+          runningBal += amt;
+        } else {
+          runningBal -= amt;
+        }
+      }
+    }
 
     const openingBalance = runningBal;
     const entries: LedgerEntry[] = [];
@@ -307,12 +372,36 @@ export class PartiesService {
     // Collect transactions between start and end
     interface RawTx {
       date: Date;
-      type: 'INVOICE' | 'PAYMENT' | 'PAYOUT' | 'REFUND';
+      type:
+        | 'INVOICE'
+        | 'PAYMENT'
+        | 'PAYOUT'
+        | 'REFUND'
+        | 'OPENING_DUE'
+        | 'OPENING_PAYABLE';
       refNo: string;
       particulars: string;
       amount: number;
     }
     const rawTxs: RawTx[] = [];
+
+    for (const cl of party.creditLedgers || []) {
+      const d = new Date(cl.createdAt);
+      if (d >= start && d <= end) {
+        const amt = getCreditLedgerOriginalAmount(cl);
+        rawTxs.push({
+          date: d,
+          type: cl.type === 'RECEIVABLE' ? 'OPENING_DUE' : 'OPENING_PAYABLE',
+          refNo: `OB-${cl.id.slice(0, 6).toUpperCase()}`,
+          particulars:
+            cl.notes ||
+            (cl.type === 'RECEIVABLE'
+              ? 'Opening Balance Due'
+              : 'Opening Balance Payable'),
+          amount: amt,
+        });
+      }
+    }
 
     for (const inv of party.invoices) {
       const d = new Date(inv.createdAt);
@@ -418,6 +507,28 @@ export class PartiesService {
         entries.push({
           date: tx.date,
           voucherType: 'Credit Note',
+          refNo: tx.refNo,
+          particulars: tx.particulars,
+          debit: 0,
+          credit: tx.amount,
+          balance: runningBal,
+        });
+      } else if (tx.type === 'OPENING_DUE') {
+        runningBal += tx.amount;
+        entries.push({
+          date: tx.date,
+          voucherType: 'Opening Balance',
+          refNo: tx.refNo,
+          particulars: tx.particulars,
+          debit: tx.amount,
+          credit: 0,
+          balance: runningBal,
+        });
+      } else if (tx.type === 'OPENING_PAYABLE') {
+        runningBal -= tx.amount;
+        entries.push({
+          date: tx.date,
+          voucherType: 'Opening Balance',
           refNo: tx.refNo,
           particulars: tx.particulars,
           debit: 0,

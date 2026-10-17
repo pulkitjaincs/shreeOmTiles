@@ -59,10 +59,10 @@ export class UsersService {
       }
     }
 
-    // Protect business owner role
+    // Protect business director role
     if (user.role === Role.OWNER && data.role && data.role !== Role.OWNER) {
       throw new BadRequestException(
-        'Cannot change the role of the business owner',
+        'Cannot change the role of the business director',
       );
     }
 
@@ -116,10 +116,10 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    // Owner cannot be marked inactive
+    // Director cannot be marked inactive
     if (user.role === Role.OWNER && !isActive) {
       throw new BadRequestException(
-        'The business owner account cannot be marked inactive',
+        'The business director account cannot be marked inactive',
       );
     }
 
@@ -149,9 +149,9 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    // Requirement: Cannot remove the owner themselves
+    // Requirement: Cannot remove the director themselves
     if (user.role === Role.OWNER) {
-      throw new BadRequestException('The business owner cannot be removed');
+      throw new BadRequestException('The business director cannot be removed');
     }
 
     if (user.id === actorId) {

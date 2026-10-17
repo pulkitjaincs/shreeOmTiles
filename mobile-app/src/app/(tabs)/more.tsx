@@ -16,10 +16,10 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { getInitials } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 
 import { Party, PartiesDirectoryView } from '@/components/parties';
-import { Warehouse, WarehousesDirectoryView } from '@/components/warehouses';
+import { Warehouse } from '@/components/warehouses';
 import { StockItem } from '@/components/stock/types';
 
 import {
@@ -47,7 +47,7 @@ export default function MoreScreen() {
   const canViewFinances = isOwner || isAdmin || isAccountant;
 
   const [activeSection, setActiveSection] = useState<
-    'MENU' | 'PARTIES' | 'STAFF' | 'SETTINGS' | 'WAREHOUSES' | 'DAY_BOOK' | 'QUOTATIONS' | 'PURCHASES' | 'EXPENSES'
+    'MENU' | 'PARTIES' | 'STAFF' | 'SETTINGS' | 'DAY_BOOK' | 'QUOTATIONS' | 'PURCHASES' | 'EXPENSES'
   >('MENU');
 
   // Handle hardware & gesture back button inside More screen
@@ -89,7 +89,7 @@ export default function MoreScreen() {
   const loadParties = useCallback(async (force = false) => {
     setPartiesLoading(true);
     try {
-      const data = await cachedMobileApiRequest<Party[]>('/parties', {
+      const data = await cachedMobileApiRequest<Party[]>('/parties?includeUnsaved=true', {
         forceRefresh: force,
         onRevalidate: (fresh) => setParties(fresh || []),
       });
@@ -133,18 +133,21 @@ export default function MoreScreen() {
     if (!isOwner) return;
     setStaffLoading(true);
     try {
-      const data = await cachedMobileApiRequest<StaffUser[]>('/users', {
+      const data = await cachedMobileApiRequest<any>('/users', {
         forceRefresh: force,
-        onRevalidate: (fresh) =>
+        onRevalidate: (fresh) => {
+          const list = Array.isArray(fresh) ? fresh : (fresh as any)?.data || [];
           setStaffList(
-            (fresh || []).map((entry: any) => ({
+            list.map((entry: any) => ({
               ...entry,
               active: entry.isActive ?? entry.active ?? true,
             })),
-          ),
+          );
+        },
       });
+      const list = Array.isArray(data) ? data : (data as any)?.data || [];
       setStaffList(
-        (data || []).map((entry: any) => ({
+        list.map((entry: any) => ({
           ...entry,
           active: entry.isActive ?? entry.active ?? true,
         })),
@@ -204,10 +207,24 @@ export default function MoreScreen() {
 
   useEffect(() => {
     if (activeSection === 'PARTIES') loadParties();
-    if (activeSection === 'WAREHOUSES') loadWarehouses();
+    if (activeSection === 'PURCHASES') {
+      loadParties();
+      loadWarehouses();
+    }
     if (activeSection === 'STAFF') loadStaff();
     if (activeSection === 'SETTINGS') loadSettings();
   }, [activeSection, loadParties, loadWarehouses, loadStaff, loadSettings]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (activeSection === 'PARTIES') loadParties();
+      else if (activeSection === 'PURCHASES') {
+        loadParties();
+        loadWarehouses();
+      } else if (activeSection === 'STAFF') loadStaff();
+      else if (activeSection === 'SETTINGS') loadSettings();
+    }, [activeSection, loadParties, loadWarehouses, loadStaff, loadSettings]),
+  );
 
   // Set Primary UPI Account
   const handleSetPrimaryUpi = async (upiAccId: string) => {
@@ -281,8 +298,6 @@ export default function MoreScreen() {
         return 'Business Expenses';
       case 'STAFF':
         return 'Staff Roster & Roles';
-      case 'WAREHOUSES':
-        return 'Warehouses & Showrooms';
       case 'SETTINGS':
         return 'Store & UPI Settings';
       default:
@@ -304,8 +319,6 @@ export default function MoreScreen() {
         return 'Daily cash & digital outflows';
       case 'STAFF':
         return 'Team Permissions & Access';
-      case 'WAREHOUSES':
-        return 'Locations & Showroom Hubs';
       case 'SETTINGS':
         return 'Dynamic QR & Company Profile';
       default:
@@ -383,30 +396,6 @@ export default function MoreScreen() {
               <Ionicons name="chevron-forward" size={18} color={Colors.dark.textTertiary} />
             </TouchableOpacity>
 
-            {/* 3. Daily Till Book & Transactions */}
-            {canViewFinances ? (
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() =>
-                  router.push({
-                    pathname: '/(tabs)/transactions',
-                    params: { tab: 'daybook' },
-                  } as any)
-                }
-                activeOpacity={0.7}
-              >
-                <View style={[styles.menuIconCircle, { backgroundColor: '#10B981' }]}>
-                  <Ionicons name="wallet-outline" size={20} color="#FFFFFF" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.menuItemTitle}>Till Drawer & Transactions</Text>
-                  <Text style={styles.menuItemSub}>
-                    Live cash drawer balancing, closing till balance & transactions
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={Colors.dark.textTertiary} />
-              </TouchableOpacity>
-            ) : null}
 
             {/* 4. Inward Purchases */}
             {canViewFinances || isSupervisor ? (
@@ -452,25 +441,6 @@ export default function MoreScreen() {
               </TouchableOpacity>
             ) : null}
 
-            {/* 2. Warehouses & Showrooms (Owner/Admin only) */}
-            {isOwner || isAdmin ? (
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => setActiveSection('WAREHOUSES')}
-                activeOpacity={0.7}
-              >
-                <View style={styles.menuIconCircle}>
-                  <Ionicons name="business-outline" size={20} color="#FFFFFF" />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.menuItemTitle}>Warehouses & Showrooms</Text>
-                  <Text style={styles.menuItemSub}>
-                    Manage stock locations, zero-out inventory & branch addresses
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={Colors.dark.textTertiary} />
-              </TouchableOpacity>
-            ) : null}
 
             {/* 3. Staff Management (Owner only) */}
             {isOwner ? (
@@ -599,18 +569,6 @@ export default function MoreScreen() {
           />
         ) : null}
 
-        {/* ========================================================================= */}
-        {/* VIEW 4: WAREHOUSES & SHOWROOMS                                            */}
-        {/* ========================================================================= */}
-        {activeSection === 'WAREHOUSES' ? (
-          <WarehousesDirectoryView
-            warehouses={warehouses}
-            stocks={stocks}
-            loading={warehousesLoading}
-            onRefresh={() => loadWarehouses(true)}
-            isOwnerOrAdmin={isOwner || isAdmin}
-          />
-        ) : null}
 
         {/* ========================================================================= */}
         {/* VIEW 5: SETTINGS                                                          */}

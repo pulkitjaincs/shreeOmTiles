@@ -1,4 +1,11 @@
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import {
+  PDFDocument,
+  PDFPage,
+  PDFFont,
+  Color,
+  rgb,
+  StandardFonts,
+} from 'pdf-lib';
 import { safePdfText } from '../../invoices/pdf/pdf-utils';
 
 export interface LedgerEntry {
@@ -54,8 +61,7 @@ export async function generatePartyStatementPdf(
   const rightMargin = width - 36; // 559.28
   const contentWidth = rightMargin - leftMargin; // 523.28
 
-  const companyName =
-    process.env.COMPANY_NAME || 'DHRA ( A UNIT OF SHREE OM TILES )';
+  const companyName = process.env.COMPANY_NAME || 'SHREE OM TILES';
   const companyAddress =
     process.env.COMPANY_ADDRESS ||
     'Shop no 3, Ashok Vihar palam vihar Road Gurgaon';
@@ -222,17 +228,23 @@ export async function generatePartyStatementPdf(
     });
   }
 
+  const openingDueFromEntries = data.entries
+    .filter((e) => e.voucherType === 'Opening Balance' && e.refNo !== 'B/F')
+    .reduce((sum, e) => sum + (e.debit - e.credit), 0);
+  const displayOpening =
+    data.openingBalance !== 0 ? data.openingBalance : openingDueFromEntries;
+
   const kpis = [
     {
       title: 'OPENING',
-      value: `Rs. ${Math.abs(data.openingBalance).toLocaleString('en-IN')}`,
+      value: `Rs. ${Math.abs(displayOpening).toLocaleString('en-IN')}`,
       marker:
-        data.openingBalance > 0
+        displayOpening > 0
           ? 'Dr (Due)'
-          : data.openingBalance < 0
+          : displayOpening < 0
             ? 'Cr (Advance)'
             : 'Nil',
-      markerColor: data.openingBalance > 0 ? rose : emerald,
+      markerColor: displayOpening > 0 ? rose : emerald,
     },
     {
       title: 'INVOICED',
@@ -331,7 +343,7 @@ export async function generatePartyStatementPdf(
 
   const tableHeaderHeight = 20;
 
-  const drawTableHeader = (targetPage: any, targetY: number) => {
+  const drawTableHeader = (targetPage: PDFPage, targetY: number) => {
     targetPage.drawRectangle({
       x: leftMargin,
       y: targetY - tableHeaderHeight,
@@ -421,7 +433,7 @@ export async function generatePartyStatementPdf(
   const fitColumnText = (
     text: string,
     maxWidth: number,
-    font: any,
+    font: PDFFont,
     fontSize: number,
   ) => {
     const safe = safePdfText(text);
@@ -439,13 +451,13 @@ export async function generatePartyStatementPdf(
   };
 
   const drawRightText = (
-    targetPage: any,
+    targetPage: PDFPage,
     text: string,
     rightEdge: number,
     yPos: number,
-    font: any,
+    font: PDFFont,
     size: number,
-    color: any,
+    color: Color,
     maxW?: number,
   ) => {
     const safe = safePdfText(text);

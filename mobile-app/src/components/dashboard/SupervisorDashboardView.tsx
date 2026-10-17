@@ -17,6 +17,7 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import { cleanPhoneNumber, formatDate } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
 import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
+import { useFocusEffect } from 'expo-router';
 
 interface SupervisorDashboardViewProps {
   user: any;
@@ -57,6 +58,12 @@ export function SupervisorDashboardView({
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData]),
+  );
 
   // Deliveries assigned to this supervisor (the backend /delivery endpoint scopes them)
   const assignedRuns = useMemo(() => {

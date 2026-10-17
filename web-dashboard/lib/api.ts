@@ -102,6 +102,7 @@ export async function apiRequest<T = unknown>(
   if (method !== 'GET') {
     if (endpoint.includes('/invoices')) {
       invalidateApiCache('/invoices');
+      invalidateApiCache('/parties');
       invalidateApiCache('/stock');
       invalidateApiCache('/analytics');
       invalidateApiCache('/payments');
@@ -115,15 +116,18 @@ export async function apiRequest<T = unknown>(
       invalidateApiCache('/analytics');
     } else if (endpoint.includes('/payments')) {
       invalidateApiCache('/payments');
+      invalidateApiCache('/parties');
       invalidateApiCache('/invoices');
       invalidateApiCache('/analytics');
     } else if (endpoint.includes('/delivery')) {
       invalidateApiCache('/delivery');
+      invalidateApiCache('/parties');
       invalidateApiCache('/invoices');
       invalidateApiCache('/payments');
       invalidateApiCache('/analytics');
     } else if (endpoint.includes('/purchases')) {
       invalidateApiCache('/purchases');
+      invalidateApiCache('/parties');
       invalidateApiCache('/stock');
       invalidateApiCache('/analytics');
       invalidateApiCache('/payments');

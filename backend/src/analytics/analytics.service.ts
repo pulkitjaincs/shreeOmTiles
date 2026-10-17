@@ -923,7 +923,7 @@ export class AnalyticsService {
           status: p.status,
           paidAt: p.paidAt || p.createdAt,
           driverName: deliveryWithDriver?.driver?.name || null,
-          confirmedByName: p.confirmedBy?.name || 'Owner / Cashier',
+          confirmedByName: p.confirmedBy?.name || 'Director / Cashier',
         };
       }),
       salesmanRecentInvoices: salesmanRecentInvoices.map((inv) => ({

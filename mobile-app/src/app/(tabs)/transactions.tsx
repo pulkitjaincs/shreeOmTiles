@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useLocalSearchParams, useFocusEffect } from 'expo-router';
 import {
   View,
   Text,
@@ -9,7 +10,6 @@ import {
   RefreshControl,
   Alert,
 } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
 import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
 import { Colors } from '@/constants/theme';
 import { Header } from '@/components/ui/Header';
@@ -185,26 +185,80 @@ export default function TransactionsScreen() {
         })),
         cachedMobileApiRequest<{ invoices: PendingItem[]; ledgers: PendingCreditLedger[] }>(
           '/payments/pending',
-          { forceRefresh: force },
+          {
+            forceRefresh: force,
+            onRevalidate: (fresh) => {
+              if (fresh) {
+                const updated: PendingItem[] = [
+                  ...(fresh.invoices || []).map((inv) => ({
+                    id: inv.id,
+                    invoiceNo: inv.invoiceNo,
+                    partyId: inv.partyId,
+                    partyName: inv.partyName,
+                    partyPhone: inv.partyPhone,
+                    total: inv.total,
+                    paid: inv.paid,
+                    remainingDue: inv.remainingDue,
+                    createdAt: inv.createdAt,
+                    status: inv.status,
+                    isCreditLedger: false,
+                    creditType: 'RECEIVABLE' as const,
+                  })),
+                  ...(fresh.ledgers || [])
+                    .filter(
+                      (cl) =>
+                        cl.type === 'PAYABLE' ||
+                        (!cl.invoiceId &&
+                          !(fresh.invoices || []).some(
+                            (inv) => inv.id === cl.invoiceId || (cl.invoiceNo && inv.invoiceNo === cl.invoiceNo),
+                          )),
+                    )
+                    .map((cl) => ({
+                      id: cl.id,
+                      invoiceNo: cl.invoiceNo || (cl.type === 'PAYABLE' ? 'Store Payable' : 'Direct Party Credit'),
+                      partyId: cl.partyId,
+                      partyName: cl.partyName || 'Party',
+                      partyPhone: cl.partyPhone || '',
+                      total: cl.amountDue,
+                      paid: 0,
+                      remainingDue: cl.amountDue,
+                      createdAt: cl.createdAt,
+                      status: cl.status,
+                      isCreditLedger: true,
+                      creditType: cl.type as 'RECEIVABLE' | 'PAYABLE',
+                    })),
+                ];
+                setPendingItems(updated);
+              }
+            },
+          },
         ).catch(() => ({
           invoices: [],
           ledgers: [],
         })),
         cachedMobileApiRequest<CreditLedgerRecord[]>('/payments/credits', {
           forceRefresh: force,
-          onRevalidate: (fresh) => setCreditLedgers(fresh || []),
+          onRevalidate: (fresh) => {
+            const list = Array.isArray(fresh) ? fresh : (fresh as any)?.data || [];
+            setCreditLedgers(list);
+          },
         }).catch(() => []),
-        cachedMobileApiRequest<Party[]>('/parties', {
+        cachedMobileApiRequest<any>('/parties', {
           forceRefresh: force,
-          onRevalidate: (fresh) => setParties(fresh || []),
+          onRevalidate: (fresh) => {
+            const list = Array.isArray(fresh) ? fresh : (fresh as any)?.data || [];
+            setParties(list);
+          },
         }).catch(() => []),
       ]);
 
       const pList = Array.isArray(paymentsData) ? paymentsData : (paymentsData as any)?.data || [];
+      const cList = Array.isArray(creditsData) ? creditsData : (creditsData as any)?.data || [];
+      const partList = Array.isArray(partiesData) ? partiesData : (partiesData as any)?.data || [];
       setPayments(pList);
       setStats(statsData);
-      setCreditLedgers(creditsData || []);
-      setParties(partiesData || []);
+      setCreditLedgers(cList);
+      setParties(partList);
 
       // Unify pending items: pending invoices + unsettled credit ledgers
       const formattedPending: PendingItem[] = [
@@ -255,15 +309,27 @@ export default function TransactionsScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData]),
+  );
 
-  const loadDayBook = useCallback(async (date: string) => {
+  const loadDayBook = useCallback(async (date: string, force = false) => {
     setDayBookLoading(true);
     try {
-      const res = await mobileApiRequest<DayBookResponse>(`/analytics/day-book?date=${date}`);
-      setDayBookData(res);
+      const res = await cachedMobileApiRequest<DayBookResponse>(
+        `/analytics/day-book?date=${date}`,
+        {
+          forceRefresh: force,
+          onRevalidate: (fresh) => {
+            if (fresh) setDayBookData(fresh);
+          },
+        },
+      );
+      if (res) {
+        setDayBookData(res);
+      }
     } catch (err: any) {
       console.warn('Day book load error:', err.message);
     } finally {
@@ -340,7 +406,7 @@ export default function TransactionsScreen() {
     setRefreshing(true);
     loadData(true);
     if (activeTab === 'daybook' || dateFilterMode === 'specific') {
-      loadDayBook(selectedDate);
+      loadDayBook(selectedDate, true);
     }
   };
 
@@ -568,7 +634,7 @@ export default function TransactionsScreen() {
                       Till Drawer Reconciliation ({selectedDate})
                     </Text>
                   </View>
-                  {dayBookLoading && (
+                  {dayBookLoading && !dayBookData && (
                     <ActivityIndicator size="small" color="#10B981" />
                   )}
                 </View>

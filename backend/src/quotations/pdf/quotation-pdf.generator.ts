@@ -115,7 +115,7 @@ export async function generateQuotationPdf(
     color: lightBorder,
   });
 
-  page.drawText('DHRA ( A UNIT OF SHREE OM TILES )', {
+  page.drawText('SHREE OM TILES', {
     x: leftMargin + 8,
     y: currentY - 16,
     size: 11,
@@ -418,7 +418,7 @@ export async function generateQuotationPdf(
 
   // Signatory
   currentY -= 20;
-  page.drawText('For : DHRA ( A UNIT OF SHREE OM TILES )', {
+  page.drawText('For : SHREE OM TILES', {
     x: rightMargin - 180,
     y: currentY - 10,
     size: 8,

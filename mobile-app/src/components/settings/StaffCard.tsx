@@ -97,7 +97,7 @@ export function StaffCard({
               ]}
             >
               <Text style={[styles.roleBadgeText, { color: roleStyle.text }]}>
-                {staff.role}
+                {staff.role === 'OWNER' ? 'DIRECTOR' : staff.role}
               </Text>
             </View>
             <StatusBadge status={staff.active ? 'ACTIVE' : 'INACTIVE'} size="sm" />

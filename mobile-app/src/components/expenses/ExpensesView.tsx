@@ -9,7 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Colors } from '@/constants/theme';
-import { mobileApiRequest } from '@/lib/api';
+import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
 import { formatINR, formatDate } from '@/lib/formatters';
 import { CreateExpenseModal } from './CreateExpenseModal';
 
@@ -19,11 +19,18 @@ export function ExpensesView() {
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
 
-  const loadExpenses = useCallback(async () => {
+  const loadExpenses = useCallback(async (force = false) => {
     setLoading(true);
     try {
-      const res = await mobileApiRequest<any[]>('/expenses');
-      setExpenses(res || []);
+      const res = await cachedMobileApiRequest<any[]>('/expenses', {
+        forceRefresh: force,
+        onRevalidate: (fresh) => {
+          const list = Array.isArray(fresh) ? fresh : (fresh as any)?.data || [];
+          setExpenses(list);
+        },
+      });
+      const list = Array.isArray(res) ? res : (res as any)?.data || [];
+      setExpenses(list);
     } catch (err: any) {
       console.warn('Expenses load error:', err.message);
     } finally {
@@ -41,6 +48,7 @@ export function ExpensesView() {
     return expenses.filter(
       (item) =>
         item.title?.toLowerCase().includes(q) ||
+        item.notes?.toLowerCase().includes(q) ||
         item.expenseNo?.toLowerCase().includes(q) ||
         item.category?.toLowerCase().includes(q) ||
         item.paidTo?.toLowerCase().includes(q),
@@ -55,8 +63,16 @@ export function ExpensesView() {
 
   return (
     <View style={styles.container}>
-      {/* Top Header Row with Record Expense Button */}
+      {/* Top Header Row with Record Expense Button & Sync Refresh */}
       <View style={styles.topRow}>
+        <Button
+          title=""
+          icon="refresh-outline"
+          variant="ghost"
+          size="sm"
+          onPress={() => loadExpenses(true)}
+          style={{ width: 38, height: 38, paddingHorizontal: 0, justifyContent: 'center', alignItems: 'center' }}
+        />
         <Button
           title="Record Expense"
           icon="add-circle-outline"
@@ -106,7 +122,7 @@ export function ExpensesView() {
             <Card key={item.id} style={styles.expenseCard}>
               <View style={styles.expenseTop}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.expenseTitle}>{item.title}</Text>
+                  <Text style={styles.expenseTitle}>{item.notes || item.title || item.category}</Text>
                   <Text style={styles.expenseSub}>
                     #{item.expenseNo} • {formatDate(item.expenseDate || item.createdAt)}
                   </Text>
@@ -137,7 +153,7 @@ export function ExpensesView() {
       <CreateExpenseModal
         visible={modalOpen}
         onClose={() => setModalOpen(false)}
-        onSuccess={loadExpenses}
+        onSuccess={() => loadExpenses(true)}
       />
     </View>
   );

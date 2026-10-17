@@ -159,7 +159,7 @@ export async function generateInvoicePdf(
 
   // Shop details (Left side)
   const shopTextX = leftMargin + 8;
-  page.drawText('DHRA ( A UNIT OF SHREE OM TILES )', {
+  page.drawText('SHREE OM TILES', {
     x: shopTextX,
     y: currentY - 16,
     size: 11,
@@ -784,7 +784,7 @@ export async function generateInvoicePdf(
 
   // Signatory Box
   const sigX = splitX + 8;
-  page.drawText('For : DHRA ( A UNIT OF SHREE OM TILES )', {
+  page.drawText('For : SHREE OM TILES', {
     x: sigX,
     y: currentY - 14,
     size: 7.5,
@@ -844,7 +844,7 @@ export async function generateInvoicePdf(
   });
 
   // Brand title in bold red
-  const ackBrand = 'DHRA ( A UNIT OF SHREE OM TILES )';
+  const ackBrand = 'SHREE OM TILES';
   const ackBrandW = fontBold.widthOfTextAtSize(ackBrand, 9);
   page.drawText(ackBrand, {
     x: leftMargin + (contentWidth - ackBrandW) / 2,

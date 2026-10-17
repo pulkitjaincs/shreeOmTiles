@@ -376,7 +376,7 @@ export default function DriverDashboard({ userName }: { userName?: string }) {
             <div className="flex items-center justify-between">
               <span className="text-[0.75rem] font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5 uppercase tracking-wider">
                 <Wallet className="h-4 w-4" />
-                Total Cash to Hand Over to Owner
+                Total Cash to Hand Over to Director
               </span>
               <span
                 className={`text-[0.6875rem] font-bold px-2.5 py-0.5 rounded-full ${
@@ -393,16 +393,16 @@ export default function DriverDashboard({ userName }: { userName?: string }) {
             </div>
             <p className="text-[0.75rem] text-muted-foreground mt-1">
               {totalCashInCustody > 0
-                ? 'Physical cash in hand to be granted & handed over to owner.'
-                : 'All cash collections granted & settled with owner.'}
+                ? 'Physical cash in hand to be granted & handed over to director.'
+                : 'All cash collections granted & settled with director.'}
             </p>
           </div>
 
           <div className="mt-4 pt-3 border-t border-emerald-500/20 flex items-center justify-between text-[0.75rem] text-muted-foreground">
-            <span>Status with Owner:</span>
+            <span>Status with Director:</span>
             <span className="font-semibold text-emerald-700 dark:text-emerald-300">
               {totalCashInCustody > 0
-                ? `₹${totalCashInCustody.toFixed(2)} to be granted to owner`
+                ? `₹${totalCashInCustody.toFixed(2)} to be granted to director`
                 : 'Up to date with office'}
             </span>
           </div>
@@ -824,7 +824,7 @@ export default function DriverDashboard({ userName }: { userName?: string }) {
           </div>
           <h3 className="text-[1rem] font-bold text-foreground">No Active Deliveries Right Now</h3>
           <p className="text-[0.75rem] text-muted-foreground max-w-md mx-auto">
-            You are not currently on a delivery run. Once the admin or owner assigns an order and pushes it to you, it will appear here instantly.
+            You are not currently on a delivery run. Once the admin or director assigns an order and pushes it to you, it will appear here instantly.
           </p>
         </div>
       )}
@@ -914,7 +914,7 @@ export default function DriverDashboard({ userName }: { userName?: string }) {
               <div className="p-3 rounded-[0.75rem] bg-amber-500/10 border border-amber-500/20 text-[0.6875rem] text-amber-800 dark:text-amber-300 flex items-start gap-2">
                 <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
                 <span>
-                  You will carry this cash with you in your custody. Hand over the physical cash to the cashier or owner at the office upon return.
+                  You will carry this cash with you in your custody. Hand over the physical cash to the cashier or director at the office upon return.
                 </span>
               </div>
 

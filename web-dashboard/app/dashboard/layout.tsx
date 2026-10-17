@@ -102,7 +102,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
           <div>
             <h2 className="text-sm font-bold text-foreground leading-none">Shree Om Tiles</h2>
-            <span className="text-[10px] text-muted-foreground">Tiles & Sanitaryware</span>
+            <span className="text-[10px] text-muted-foreground">ERP Portal</span>
           </div>
         </div>
 
@@ -149,7 +149,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </div>
               <div>
                 <h2 className="text-sm font-extrabold tracking-tight text-foreground leading-none">Shree Om Tiles</h2>
-                <span className="text-[11px] text-muted-foreground">Tiles & Sanitaryware</span>
+                <span className="text-[11px] text-muted-foreground">ERP Portal</span>
               </div>
             </div>
             <div className="flex items-center gap-1">
@@ -209,7 +209,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">
-                  {user?.role || 'SALESMAN'}
+                  {user?.role === 'OWNER' ? 'DIRECTOR' : (user?.role || 'SALESMAN')}
                 </p>
               </div>
             </div>

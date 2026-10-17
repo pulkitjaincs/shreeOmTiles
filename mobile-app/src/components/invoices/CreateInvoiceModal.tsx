@@ -155,46 +155,21 @@ export function CreateInvoiceModal({
 
     // Immediately reset the form state so old inputs do not persist
     resetForm();
-    setRefreshingStock(true);
+    if (Array.isArray(stockListRef.current)) {
+      setCurrentStockList(stockListRef.current);
+    }
 
+    // Silently revalidate stock in the background without blocking the UI
     const initializeStock = async () => {
       try {
-        const STOCK_CHECK_TIMEOUT_MS = 4000;
-        const timeoutPromise = new Promise<StockLedger[]>((_, reject) => {
-          timeoutId = setTimeout(() => {
-            reject(new Error('STOCK_TIMEOUT'));
-          }, STOCK_CHECK_TIMEOUT_MS);
-        });
-
-        const rawStockResult = typeof onRefreshStockRef.current === 'function'
-          ? onRefreshStockRef.current()
-          : (stockListRef.current || []);
-        const stockPromise = Promise.resolve(rawStockResult);
-        // Prevent unhandled promise rejection if timeout fires first and stockPromise fails later
-        stockPromise.catch(() => {});
-
-        const freshStock = await Promise.race([stockPromise, timeoutPromise]);
-        if (!isMountedOrOpen) return;
-        if (Array.isArray(freshStock)) {
-          setCurrentStockList(freshStock);
+        if (typeof onRefreshStockRef.current === 'function') {
+          const freshStock = await onRefreshStockRef.current();
+          if (isMountedOrOpen && Array.isArray(freshStock)) {
+            setCurrentStockList(freshStock);
+          }
         }
       } catch (err: any) {
-        if (err?.message !== 'STOCK_TIMEOUT') {
-          console.warn('[CreateInvoiceModal] Stock verification failed, using cached stock:', err?.message);
-        } else {
-          console.warn('[CreateInvoiceModal] Stock verification timed out after 4s, using cached stock');
-        }
-        if (!isMountedOrOpen) return;
-        if (Array.isArray(stockListRef.current)) {
-          setCurrentStockList(stockListRef.current);
-        }
-      } finally {
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-        }
-        if (isMountedOrOpen) {
-          setRefreshingStock(false);
-        }
+        console.warn('[CreateInvoiceModal] Background stock refresh completed with cache fallback:', err?.message);
       }
     };
 
@@ -457,14 +432,7 @@ export function CreateInvoiceModal({
       title="Create New Tax Invoice"
       subtitle="Issue GST bill and deduct stock directly from product inventory"
     >
-      {refreshingStock ? (
-        <View style={styles.stockRefreshNotice}>
-          <ActivityIndicator size="small" color="#FFFFFF" />
-          <Text style={styles.stockRefreshText}>Checking the latest stock before billing…</Text>
-        </View>
-      ) : null}
-
-      <View pointerEvents={refreshingStock ? 'none' : 'auto'} style={{ opacity: refreshingStock ? 0.5 : 1 }}>
+      <View>
         {/* 1. Customer Section */}
         <CustomerSelector
           customerMode={customerMode}
@@ -651,7 +619,7 @@ export function CreateInvoiceModal({
               : `Generate Invoice (${formatINR(grandTotal)})`
           }
           onPress={() => handleCreateInvoice()}
-          loading={submitting || loadingQr || refreshingStock}
+          loading={submitting || loadingQr}
           size="lg"
           style={{ marginTop: 14 }}
         />

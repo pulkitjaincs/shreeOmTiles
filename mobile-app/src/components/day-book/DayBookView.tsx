@@ -9,7 +9,7 @@ import {
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Colors } from '@/constants/theme';
-import { mobileApiRequest } from '@/lib/api';
+import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
 import { formatINR, formatDate } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -18,11 +18,16 @@ export function DayBookView() {
   const [data, setData] = useState<any>(null);
   const [filter, setFilter] = useState<'ALL' | 'PAYMENTS' | 'EXPENSES' | 'PURCHASES'>('ALL');
 
-  const loadDayBook = useCallback(async () => {
+  const loadDayBook = useCallback(async (force = false) => {
     setLoading(true);
     try {
-      const res = await mobileApiRequest<any>('/analytics/day-book');
-      setData(res);
+      const res = await cachedMobileApiRequest<any>('/analytics/day-book', {
+        forceRefresh: force,
+        onRevalidate: (fresh) => {
+          if (fresh) setData(fresh);
+        },
+      });
+      if (res) setData(res);
     } catch (err: any) {
       console.warn('Day-book load error:', err.message);
     } finally {
@@ -63,8 +68,8 @@ export function DayBookView() {
           icon="refresh-outline"
           variant="secondary"
           size="sm"
-          loading={loading}
-          onPress={loadDayBook}
+          loading={loading && !data}
+          onPress={() => loadDayBook(true)}
           style={{ height: 32, paddingHorizontal: 10 }}
         />
       </View>

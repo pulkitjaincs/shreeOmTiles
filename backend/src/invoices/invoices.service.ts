@@ -303,7 +303,6 @@ export class InvoicesService {
         Math.round((totalAmount - upfrontAmount) * 100) / 100,
       );
 
-
       let initialStatus: InvoiceStatus;
       if (balanceCredit === 0 && upfrontAmount > 0) {
         initialStatus = InvoiceStatus.PAID;

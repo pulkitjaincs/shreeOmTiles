@@ -23,7 +23,7 @@ export function buildCustomerDuesReminderUrl(params: {
     `This is a friendly payment reminder from *Shree Om Tiles* regarding your outstanding balance of *${formatINR(amount)}*${refText}.\n\n` +
     `Kindly arrange payment clearance via UPI or Counter Cash at your convenience.\n\n` +
     `Thank you for your business! 🙏\n` +
-    `*Shree Om Tiles & Sanitaryware*`;
+    `*Shree Om Tiles*`;
 
   const clean = cleanPhoneNumber(phone);
   return clean
@@ -60,7 +60,7 @@ export function buildPaymentReceiptShareUrl(params: {
     ``,
     `Your transaction has been recorded and settled in our system.`,
     ``,
-    `*Shree Om Tiles & Sanitaryware*`,
+    `*Shree Om Tiles*`,
   ]
     .filter((l) => l !== null)
     .join('\n');
@@ -117,7 +117,7 @@ export function buildInvoiceShareUrl(
       ? `• *Balance Due:* ${formatINR(balanceDue)}\n\n`
       : `• *Status:* Fully Paid ✓\n\n`) +
     `For any queries or delivery assistance, please reach out to us.\n\n` +
-    `*Shree Om Tiles & Sanitaryware*`;
+    `*Shree Om Tiles*`;
 
   const cleanPhone = cleanPhoneNumber(customerPhone);
   return cleanPhone
@@ -157,7 +157,7 @@ export function buildFullInvoiceShareUrl(invoice: any): string {
   const taxRateVal = invoice.taxRate !== undefined ? `${invoice.taxRate}%` : invoice.taxBreakup?.rate ? `${invoice.taxBreakup.rate}%` : 'GST';
 
   const msg = [
-    `*SHREE OM TILES & SANITARYWARE*`,
+    `*SHREE OM TILES*`,
     `📍 Tax Invoice & Order Confirmation`,
     `----------------------------------------`,
     `📄 *Invoice No:* #${invoice.invoiceNo}`,

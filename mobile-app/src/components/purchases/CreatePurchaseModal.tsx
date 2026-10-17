@@ -145,25 +145,7 @@ export function CreatePurchaseModal({
           })),
         );
       }
-      if (partiesList.length > 0) {
-        setSelectedPartyId((prev) => prev || partiesList[0].id);
-      }
-      if (prodList.length > 0) {
-        const firstProd = prodList[0];
-        const cost = resolveProductCost(firstProd);
-        setItems((prev) =>
-          prev.map((it) => {
-            if (!it.productId) {
-              return {
-                ...it,
-                productId: firstProd.id,
-                unitPrice: it.unitPrice === '0' || !it.unitPrice ? (cost > 0 ? String(cost) : '0') : it.unitPrice,
-              };
-            }
-            return it;
-          }),
-        );
-      }
+
     } catch (err: any) {
       console.warn('Failed to load purchase modal dependencies:', err.message);
     } finally {
@@ -196,21 +178,16 @@ export function CreatePurchaseModal({
     setVendorMode('existing');
 
     const initialWh = initialWarehouses?.[0]?.id || warehouses[0]?.id || destinationWarehouseId || '';
-    const initialProd = initialProducts?.[0] || products[0];
-    const initialCost = resolveProductCost(initialProd);
-
     setDestinationWarehouseId(initialWh);
-    if (initialParties?.[0]?.id || parties[0]?.id) {
-      setSelectedPartyId(initialParties?.[0]?.id || parties[0]?.id);
-    }
+    setSelectedPartyId('');
 
     setItems([
       {
         id: `item-${Date.now()}-1`,
-        productId: initialProd?.id || '',
+        productId: '',
         warehouseId: initialWh,
         qty: '1',
-        unitPrice: initialCost > 0 ? String(initialCost) : '0',
+        unitPrice: '0',
         batchNo: defaultBatch,
         discount: '0',
       },
@@ -231,32 +208,7 @@ export function CreatePurchaseModal({
     }
   }, [warehouses]);
 
-  // Keep selected party in sync when parties load
-  useEffect(() => {
-    if (parties.length > 0) {
-      setSelectedPartyId((prev) => prev || parties[0].id);
-    }
-  }, [parties]);
 
-  // Keep line item products in sync when products load
-  useEffect(() => {
-    if (products.length > 0) {
-      setItems((prev) =>
-        prev.map((it) => {
-          if (!it.productId) {
-            const firstProd = products[0];
-            const cost = resolveProductCost(firstProd);
-            return {
-              ...it,
-              productId: firstProd.id,
-              unitPrice: it.unitPrice === '0' || !it.unitPrice ? (cost > 0 ? String(cost) : '0') : it.unitPrice,
-            };
-          }
-          return it;
-        }),
-      );
-    }
-  }, [products]);
 
   // Destination Warehouse selection handler (propagates as default for line items)
   const handleDestinationWarehouseChange = (whId: string) => {
@@ -271,16 +223,14 @@ export function CreatePurchaseModal({
 
   // Add line item
   const handleAddItem = () => {
-    const firstProd = products[0];
-    const cost = resolveProductCost(firstProd);
     setItems((prev) => [
       ...prev,
       {
         id: `item-${Date.now()}-${prev.length + 1}`,
-        productId: firstProd?.id || '',
+        productId: '',
         warehouseId: destinationWarehouseId || warehouses[0]?.id || '',
         qty: '1',
-        unitPrice: cost > 0 ? String(cost) : '0',
+        unitPrice: '0',
         batchNo: defaultBatch,
         discount: '0',
       },

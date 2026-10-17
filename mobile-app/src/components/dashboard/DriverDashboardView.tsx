@@ -185,7 +185,7 @@ export function DriverDashboardView({
             <Ionicons name="checkmark-done-circle-outline" size={40} color="#10B981" />
             <Text style={styles.emptyTitle}>No Active Runs</Text>
             <Text style={styles.emptySub}>
-              You currently have no active deliveries. When the store owner dispatches new orders, they will appear here.
+              You currently have no active deliveries. When the store director dispatches new orders, they will appear here.
             </Text>
           </Card>
         )}

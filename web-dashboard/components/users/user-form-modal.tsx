@@ -196,7 +196,7 @@ export function UserFormModal({
             </label>
             {isEditing && user?.role === 'OWNER' ? (
               <div className="px-3.5 py-2 rounded-xl bg-muted/80 border border-border/80 text-xs text-fuchsia-600 dark:text-fuchsia-300 font-bold">
-                OWNER (Protected)
+                DIRECTOR (Protected)
               </div>
             ) : (
               <select

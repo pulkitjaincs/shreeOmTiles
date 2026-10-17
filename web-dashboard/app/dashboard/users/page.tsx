@@ -72,7 +72,7 @@ export default function UsersPage() {
   // Toggle Active / Inactive Status
   const toggleStatus = async (user: StaffUser) => {
     if (user.role === 'OWNER') {
-      alert('The business owner account cannot be marked inactive.');
+      alert('The business director account cannot be marked inactive.');
       return;
     }
 
@@ -133,7 +133,7 @@ export default function UsersPage() {
       <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
         <Shield className="h-16 w-16 mb-4 opacity-50 text-primary" />
         <h2 className="text-xl font-bold text-foreground mb-2">Access Restricted</h2>
-        <p className="text-sm">Only the Business Owner has authority to manage staff members and system credentials.</p>
+        <p className="text-sm">Only the Business Director has authority to manage staff members and system credentials.</p>
       </div>
     );
   }
@@ -148,7 +148,7 @@ export default function UsersPage() {
               Staff & Credential Management
             </h1>
             <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-fuchsia-500/15 text-fuchsia-600 dark:text-fuchsia-300 border border-fuchsia-500/30">
-              Owner Panel
+              Director Panel
             </span>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
@@ -384,7 +384,7 @@ export default function UsersPage() {
                         >
                           {u.role === 'SUPERVISOR' && <Boxes className="h-3 w-3" />}
                           {u.role === 'DRIVER' && <Truck className="h-3 w-3" />}
-                          {u.role}
+                          {u.role === 'OWNER' ? 'DIRECTOR' : u.role}
                         </span>
                       </td>
 
@@ -394,7 +394,7 @@ export default function UsersPage() {
                           {isOwner ? (
                             <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 inline-flex items-center gap-1">
                               <CheckCircle className="h-3.5 w-3.5" />
-                              Active (Owner Protected)
+                              Active (Director Protected)
                             </span>
                           ) : (
                             <button
@@ -467,7 +467,7 @@ export default function UsersPage() {
                           ) : (
                             <span
                               className="p-1.5 text-muted-foreground/40 cursor-not-allowed"
-                              title="Owner account cannot be removed"
+                              title="Director account cannot be removed"
                             >
                               <Lock className="h-3.5 w-3.5" />
                             </span>

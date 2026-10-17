@@ -79,6 +79,7 @@ export interface Party {
   address?: string;
   gstin?: string;
   category?: 'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER';
+  isSaved?: boolean;
   createdAt?: string;
   creditLedgers?: {
     id?: string;

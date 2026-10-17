@@ -75,7 +75,7 @@ export function AddUpiModal({
         />
         <Input
           label="Merchant / Counter Label"
-          placeholder="e.g. Shree Om Tiles & Sanitary"
+          placeholder="e.g. Shree Om Tiles"
           value={merchantName}
           onChangeText={setMerchantName}
         />

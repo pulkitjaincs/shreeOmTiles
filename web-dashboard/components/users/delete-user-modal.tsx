@@ -23,7 +23,7 @@ export function DeleteUserModal({
 
   const handleConfirmDelete = async () => {
     if (user.role === 'OWNER') {
-      setError('The business owner account cannot be removed.');
+      setError('The business director account cannot be removed.');
       return;
     }
 

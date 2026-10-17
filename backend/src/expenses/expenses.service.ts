@@ -37,7 +37,11 @@ export class ExpensesService {
           amount: new Prisma.Decimal(data.amount.toFixed(2)),
           paymentMode: data.paymentMode || 'CASH',
           paidTo: data.paidTo || null,
-          notes: data.notes || null,
+          notes: data.notes
+            ? data.title
+              ? `${data.title} - ${data.notes}`
+              : data.notes
+            : data.title || null,
           expenseDate: expDate,
           createdById: userId,
         },

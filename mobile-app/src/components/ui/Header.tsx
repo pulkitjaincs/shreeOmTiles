@@ -72,7 +72,7 @@ export function Header({
                   {title || 'Shree Om Tiles'}
                 </Text>
                 <Text style={styles.brandSubtitle} numberOfLines={1}>
-                  {subtitle || (user?.role ? `${user.role} Portal` : 'Tiles & Sanitaryware')}
+                  {subtitle || (user?.role ? `${user.role === 'OWNER' ? 'Director' : user.role} Portal` : 'ERP Portal')}
                 </Text>
               </View>
             </View>

@@ -48,9 +48,9 @@ export function PartyCard({
         `This is a friendly reminder that you have an outstanding balance of *${formatINR(totalDue)}* on your account.\n\n` +
         `Kindly arrange payment clearance at your earliest convenience via UPI or Counter Cash.\n\n` +
         `Thank you for your business! 🙏\n` +
-        `*Shree Om Tiles & Sanitaryware*`
+        `*Shree Om Tiles*`
       : `Hello *${party.name}*,\n\n` +
-        `Greetings from *Shree Om Tiles & Sanitaryware*! 🙏\n\n` +
+        `Greetings from *Shree Om Tiles*! 🙏\n\n` +
         `How may we assist you today?`;
 
     const url = clean
@@ -79,6 +79,11 @@ export function PartyCard({
             <Text style={styles.partyName} numberOfLines={1}>
               {party.name}
             </Text>
+            {party.isSaved === false && (
+              <View style={styles.walkInBadge}>
+                <Text style={styles.walkInBadgeText}>Walk-in</Text>
+              </View>
+            )}
             {totalDue > 0.01 ? (
               <View style={styles.duesBadgeRose}>
                 <Text style={styles.duesBadgeRoseText}>{formatINR(totalDue)} Due</Text>
@@ -357,5 +362,19 @@ const styles = StyleSheet.create({
   },
   iconBtnDisabled: {
     opacity: 0.5,
+  },
+  walkInBadge: {
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  walkInBadgeText: {
+    fontSize: 9,
+    fontFamily: 'Inter-Bold',
+    color: '#F59E0B',
+    textTransform: 'uppercase',
   },
 });

@@ -26,6 +26,8 @@ export default function PartiesPage() {
   const [parties, setParties] = useState<Party[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [regFilter, setRegFilter] = useState<'ALL' | 'REGISTERED' | 'UNREGISTERED'>('ALL');
+  const [dueFilter, setDueFilter] = useState<'ALL' | 'DUES' | 'PAYABLES' | 'CLEARED'>('ALL');
 
   // Modals state
   const [formModalOpen, setFormModalOpen] = useState(false);
@@ -35,7 +37,7 @@ export default function PartiesPage() {
 
   const loadParties = useCallback(async (force = false) => {
     try {
-      const data = await cachedApiRequest<Party[]>('/parties', {
+      const data = await cachedApiRequest<Party[]>('/parties?includeUnsaved=true', {
         forceRefresh: force,
         onRevalidate: (fresh) => setParties(fresh),
       });
@@ -66,19 +68,50 @@ export default function PartiesPage() {
       }, 0);
   };
 
-  // Search Filter
+  const getPartyPayable = (party: Party) => {
+    return (party.creditLedgers || [])
+      .filter((c) => c.status !== 'SETTLED' && c.type === 'PAYABLE')
+      .reduce((sum, c) => sum + Number(c.amountDue || 0), 0);
+  };
+
+  // Filter Counts
+  const registeredCount = useMemo(() => parties.filter((p) => p.isSaved !== false).length, [parties]);
+  const unregisteredCount = useMemo(() => parties.filter((p) => p.isSaved === false).length, [parties]);
+
+  const duesCount = useMemo(() => parties.filter((p) => getPartyTotalDue(p) > 0.01).length, [parties]);
+  const payablesCount = useMemo(() => parties.filter((p) => getPartyTotalDue(p) < -0.01 || getPartyPayable(p) > 0.01).length, [parties]);
+  const clearedCount = useMemo(() => parties.filter((p) => Math.abs(getPartyTotalDue(p)) <= 0.01 && getPartyPayable(p) <= 0.01).length, [parties]);
+
+  // Search & Multi-dimensional Filter
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return parties;
-    return parties.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.phone.includes(q) ||
-        (p.gstin && p.gstin.toLowerCase().includes(q))
-    );
-  }, [parties, search]);
+    return parties.filter((p) => {
+      // 1. Search Query
+      if (q) {
+        const matchesSearch =
+          p.name.toLowerCase().includes(q) ||
+          p.phone.includes(q) ||
+          (p.gstin && p.gstin.toLowerCase().includes(q)) ||
+          (p.address && p.address.toLowerCase().includes(q));
+        if (!matchesSearch) return false;
+      }
 
-  // Ageing Buckets Calculation (Only un-settled RECEIVABLES)
+      // 2. Registration Status Filter
+      if (regFilter === 'REGISTERED' && p.isSaved === false) return false;
+      if (regFilter === 'UNREGISTERED' && p.isSaved !== false) return false;
+
+      // 3. Balance Due Filter
+      const totalDue = getPartyTotalDue(p);
+      const payable = getPartyPayable(p);
+      if (dueFilter === 'DUES' && totalDue <= 0.01) return false;
+      if (dueFilter === 'PAYABLES' && !(totalDue < -0.01 || payable > 0.01)) return false;
+      if (dueFilter === 'CLEARED' && !(Math.abs(totalDue) <= 0.01 && payable <= 0.01)) return false;
+
+      return true;
+    });
+  }, [parties, search, regFilter, dueFilter]);
+
+  // Ageing Buckets Calculation (Only un-settled RECEIVABLES across all customers)
   const ageing = useMemo(() => {
     let totalReceivables = 0;
     let b0to15 = 0;
@@ -166,16 +199,111 @@ export default function PartiesPage() {
         </div>
       </div>
 
-      {/* Search Input */}
-      <div className="flex items-center gap-3 bg-card/75 backdrop-blur-xl p-3 rounded-2xl border border-border/80 shadow-sm">
-        <Search className="h-4 w-4 text-muted-foreground ml-2 shrink-0" />
-        <input
-          type="text"
-          placeholder="Search by customer name, 10-digit phone number, or GSTIN..."
-          className="bg-transparent text-sm text-foreground placeholder:text-muted-foreground w-full focus:outline-none"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      {/* Search & Filters Toolbar */}
+      <div className="space-y-3">
+        {/* Search Input */}
+        <div className="flex items-center gap-3 bg-card/75 backdrop-blur-xl p-3 rounded-2xl border border-border/80 shadow-sm">
+          <Search className="h-4 w-4 text-muted-foreground ml-2 shrink-0" />
+          <input
+            type="text"
+            placeholder="Search by customer name, 10-digit phone number, address, or GSTIN..."
+            className="bg-transparent text-sm text-foreground placeholder:text-muted-foreground w-full focus:outline-none"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              className="text-xs text-muted-foreground hover:text-foreground mr-2 font-medium"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+
+        {/* Filter Pills Row */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          {/* Registration Status Filter */}
+          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-muted/60 border border-border/60 text-xs overflow-x-auto shrink-0">
+            <button
+              onClick={() => setRegFilter('ALL')}
+              className={`px-3 py-1.5 rounded-lg transition whitespace-nowrap ${
+                regFilter === 'ALL'
+                  ? 'bg-card text-foreground shadow-xs font-semibold'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              All Customers ({parties.length})
+            </button>
+            <button
+              onClick={() => setRegFilter('REGISTERED')}
+              className={`px-3 py-1.5 rounded-lg transition whitespace-nowrap ${
+                regFilter === 'REGISTERED'
+                  ? 'bg-card text-foreground shadow-xs font-semibold'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Saved Directory ({registeredCount})
+            </button>
+            <button
+              onClick={() => setRegFilter('UNREGISTERED')}
+              className={`px-3 py-1.5 rounded-lg transition whitespace-nowrap ${
+                regFilter === 'UNREGISTERED'
+                  ? 'bg-card text-foreground shadow-xs font-semibold'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Walk-in / Unregistered ({unregisteredCount})
+            </button>
+          </div>
+
+          {/* Dues / Balance Filter */}
+          <div className="flex items-center gap-1.5 p-1 rounded-xl bg-muted/60 border border-border/60 text-xs overflow-x-auto shrink-0">
+            <button
+              onClick={() => setDueFilter('ALL')}
+              className={`px-3 py-1.5 rounded-lg transition whitespace-nowrap ${
+                dueFilter === 'ALL'
+                  ? 'bg-card text-foreground shadow-xs font-semibold'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              All Balances
+            </button>
+            <button
+              onClick={() => setDueFilter('DUES')}
+              className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 whitespace-nowrap ${
+                dueFilter === 'DUES'
+                  ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 shadow-xs font-semibold'
+                  : 'text-muted-foreground hover:text-rose-500'
+              }`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+              Dues Pending ({duesCount})
+            </button>
+            <button
+              onClick={() => setDueFilter('PAYABLES')}
+              className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 whitespace-nowrap ${
+                dueFilter === 'PAYABLES'
+                  ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 shadow-xs font-semibold'
+                  : 'text-muted-foreground hover:text-amber-500'
+              }`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+              Store Payables ({payablesCount})
+            </button>
+            <button
+              onClick={() => setDueFilter('CLEARED')}
+              className={`px-3 py-1.5 rounded-lg transition flex items-center gap-1.5 whitespace-nowrap ${
+                dueFilter === 'CLEARED'
+                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 shadow-xs font-semibold'
+                  : 'text-muted-foreground hover:text-emerald-500'
+              }`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              Cleared ({clearedCount})
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Parties Table */}
@@ -220,18 +348,25 @@ export default function PartiesPage() {
                             {party.name.slice(0, 2)}
                           </div>
                           <div>
-                            {isSalesman ? (
-                              <span className="font-semibold text-foreground flex items-center gap-1.5">
-                                {party.name}
-                              </span>
-                            ) : (
-                              <span
-                                onClick={() => setPartyForView(party)}
-                                className="font-semibold text-foreground hover:text-primary cursor-pointer transition flex items-center gap-1.5"
-                              >
-                                {party.name}
-                              </span>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {isSalesman ? (
+                                <span className="font-semibold text-foreground flex items-center gap-1.5">
+                                  {party.name}
+                                </span>
+                              ) : (
+                                <span
+                                  onClick={() => setPartyForView(party)}
+                                  className="font-semibold text-foreground hover:text-primary cursor-pointer transition flex items-center gap-1.5"
+                                >
+                                  {party.name}
+                                </span>
+                              )}
+                              {party.isSaved === false && (
+                                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                  Walk-in
+                                </span>
+                              )}
+                            </div>
                             {party.address && (
                               <p className="text-xs text-muted-foreground line-clamp-1 max-w-xs">{party.address}</p>
                             )}

@@ -47,7 +47,7 @@ export async function generateRefundInvoicePdf(
     font: fontBold,
     color: primaryDark,
   });
-  page.drawText(safePdfText('Premium Tiles, Marbles & Sanitaryware'), {
+  page.drawText(safePdfText('Premium Tiles & Marbles'), {
     x: leftMargin,
     y: topY - 14,
     size: 8,

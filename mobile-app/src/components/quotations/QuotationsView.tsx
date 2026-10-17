@@ -11,25 +11,49 @@ import { Button } from '@/components/ui/Button';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Colors } from '@/constants/theme';
-import { mobileApiRequest } from '@/lib/api';
+import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
 import { formatINR, formatDate } from '@/lib/formatters';
 import { downloadAndSharePdf } from '@/lib/pdf';
 import { Ionicons } from '@expo/vector-icons';
 import { CreateQuotationModal } from './CreateQuotationModal';
+import { Party, Product } from '@/components/invoices/types';
 
 export function QuotationsView() {
   const [quotations, setQuotations] = useState<any[]>([]);
+  const [parties, setParties] = useState<Party[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [convertingId, setConvertingId] = useState<string | null>(null);
   const [createModalVisible, setCreateModalVisible] = useState(false);
 
-  const loadQuotations = useCallback(async () => {
+  const loadQuotations = useCallback(async (force = false) => {
     setLoading(true);
     try {
-      const res = await mobileApiRequest<any>('/quotations');
+      const [res, pList, prList] = await Promise.all([
+        cachedMobileApiRequest<any>('/quotations', {
+          forceRefresh: force,
+          onRevalidate: (fresh) => {
+            const list = Array.isArray(fresh) ? fresh : fresh?.data || [];
+            setQuotations(list);
+          },
+        }),
+        cachedMobileApiRequest<Party[]>('/parties', {
+          forceRefresh: force,
+          onRevalidate: (fresh) => setParties(fresh || []),
+        }).catch(() => []),
+        cachedMobileApiRequest<Product[]>('/products', {
+          forceRefresh: force,
+          onRevalidate: (fresh) => setProducts(fresh || []),
+        }).catch(() => []),
+      ]);
+
       const list = Array.isArray(res) ? res : res?.data || [];
+      const partiesList = Array.isArray(pList) ? pList : (pList as any)?.data || [];
+      const productsList = Array.isArray(prList) ? prList : (prList as any)?.data || [];
       setQuotations(list);
+      setParties(partiesList);
+      setProducts(productsList);
     } catch (err: any) {
       console.warn('Quotations load error:', err.message);
     } finally {
@@ -73,7 +97,7 @@ export function QuotationsView() {
                 'Converted Successfully',
                 `Official Invoice #${res.invoiceNo} has been generated!`,
               );
-              loadQuotations();
+              loadQuotations(true);
             } catch (err: any) {
               Alert.alert('Conversion Failed', err.message || 'Could not convert quotation');
             } finally {
@@ -106,14 +130,24 @@ export function QuotationsView() {
             {quotations.length} {quotations.length === 1 ? 'estimate' : 'estimates'} generated
           </Text>
         </View>
-        <Button
-          title="+ New Estimate"
-          icon="add-circle-outline"
-          variant="primary"
-          size="sm"
-          onPress={() => setCreateModalVisible(true)}
-          style={styles.newEstimateBtn}
-        />
+        <View style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
+          <Button
+            title=""
+            icon="refresh-outline"
+            variant="ghost"
+            size="sm"
+            onPress={() => loadQuotations(true)}
+            style={{ width: 38, height: 38, paddingHorizontal: 0, justifyContent: 'center', alignItems: 'center' }}
+          />
+          <Button
+            title="+ New Estimate"
+            icon="add-circle-outline"
+            variant="primary"
+            size="sm"
+            onPress={() => setCreateModalVisible(true)}
+            style={styles.newEstimateBtn}
+          />
+        </View>
       </View>
 
       <SearchBar
@@ -207,8 +241,10 @@ export function QuotationsView() {
       <CreateQuotationModal
         visible={createModalVisible}
         onClose={() => setCreateModalVisible(false)}
+        initialParties={parties}
+        initialProducts={products}
         onSuccess={() => {
-          loadQuotations();
+          loadQuotations(true);
         }}
       />
     </View>

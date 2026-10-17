@@ -39,3 +39,6 @@ Thumbs.db
 # Temporary & cache directories
 **/.turbo/
 **/.cache/
+*.tsbuildinfo
+e2e-screenshots/
+
