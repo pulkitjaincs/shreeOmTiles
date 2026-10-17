@@ -26,8 +26,8 @@ export class CreateInvoiceItemDto {
   @IsOptional()
   batchNo?: string;
 
-  @IsInt()
-  @Min(1)
+  @IsNumber()
+  @Min(0.01)
   qty: number;
 
   @IsNumber()

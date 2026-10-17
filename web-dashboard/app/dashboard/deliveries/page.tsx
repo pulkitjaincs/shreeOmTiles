@@ -224,6 +224,7 @@ export default function DeliveriesPage() {
     try {
       await apiRequest(`/delivery/${deliveryId}/handover-cash`, {
         method: 'PATCH',
+        body: JSON.stringify({}),
       });
       await loadDeliveries();
     } catch (err: unknown) {

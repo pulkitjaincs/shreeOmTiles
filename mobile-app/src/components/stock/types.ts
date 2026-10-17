@@ -25,7 +25,7 @@ export interface Warehouse {
 export interface StockItem {
   id: string;
   productId: string;
-  warehouseId: string;
+  warehouseId?: string;
   batchNo?: string;
   quantity: number;
   product: {
@@ -34,9 +34,9 @@ export interface StockItem {
     category: string;
     unit: string;
   };
-  warehouse: {
-    id: string;
+  warehouse?: {
+    id?: string;
     name: string;
-    type: string;
+    type?: string;
   };
 }

@@ -29,15 +29,23 @@ interface ExpenseRecord {
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
-  TEA_REFRESHMENT: 'Tea & Refreshments',
-  TRANSPORT_FUEL: 'Transport & Fuel',
-  MAINTENANCE: 'Maintenance',
+  PANTRY_REFRESHMENTS: 'Tea & Pantry Refreshments',
+  LABOUR_HAMALI: 'Labour & Hamali Charges',
+  FUEL_TRANSPORT: 'Vehicle Fuel & Tolls',
+  RENT_GODOWN: 'Godown / Showroom Rent',
+  ELECTRICITY_UTILITIES: 'Electricity & Utilities',
+  SALARY_ADVANCE: 'Staff Advance / Wages',
+  MAINTENANCE_REPAIRS: 'Shop & Godown Maintenance',
+  MARKETING_SAMPLE: 'Marketing & Samples',
+  OTHER: 'Other Operational Outlay',
+  // Backward compatibility
+  TEA_REFRESHMENT: 'Tea & Pantry Refreshments',
+  TRANSPORT_FUEL: 'Vehicle Fuel & Tolls',
+  MAINTENANCE: 'Shop & Godown Maintenance',
   ELECTRICITY: 'Electricity & Utilities',
-  OFFICE_SUPPLIES: 'Office Supplies',
-  SALARY: 'Staff Wages / Advance',
-  RENT: 'Premises Rent',
-  MARKETING: 'Marketing',
-  OTHER: 'Other Outlay',
+  SALARY: 'Staff Advance / Wages',
+  RENT: 'Godown / Showroom Rent',
+  MARKETING: 'Marketing & Samples',
 };
 
 export default function ExpensesPage() {

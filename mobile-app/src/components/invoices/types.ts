@@ -28,7 +28,7 @@ export interface Party {
 export interface StockLedger {
   id: string;
   productId: string;
-  warehouseId: string;
+  warehouseId?: string | null;
   batchNo?: string;
   quantity: number;
   warehouse?: Warehouse;
@@ -37,7 +37,7 @@ export interface StockLedger {
 
 export interface StockOptionAllocation {
   stockLedgerId?: string;
-  warehouseId: string;
+  warehouseId?: string | null;
   warehouseName?: string;
   warehouseCode?: string;
   batchNo?: string | null;
@@ -47,7 +47,7 @@ export interface StockOptionAllocation {
 
 export interface InvoiceLineItem {
   productId: string;
-  warehouseId: string;
+  warehouseId?: string | null;
   batchNo?: string;
   qty: number;
   allocations?: StockOptionAllocation[];

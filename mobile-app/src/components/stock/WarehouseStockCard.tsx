@@ -27,8 +27,8 @@ export function WarehouseStockCard({
   const isZeroStock = Number(item.quantity || 0) <= 0;
   const isLowStock = Number(item.quantity || 0) < 10;
 
-  const canManage = isOwnerOrAdmin || (isSupervisor && Boolean(userWarehouseId && item.warehouseId === userWarehouseId));
-  const showActions = canManage && (onInward || onTransfer || onAdjust);
+  const canManage = isOwnerOrAdmin || isSupervisor;
+  const showActions = canManage && (onInward || onAdjust);
 
   return (
     <Card elevated style={styles.stockCard}>
@@ -57,18 +57,20 @@ export function WarehouseStockCard({
       <View style={styles.divider} />
 
       <View style={styles.stockMeta}>
-        <View style={[styles.metaItem, { flex: 1, marginRight: 8 }]}>
-          <Ionicons name="business-outline" size={13} color="#818CF8" />
-          <Text style={styles.metaText} numberOfLines={1}>
-            {item.warehouse?.name || 'Warehouse'}
-          </Text>
-        </View>
-        <View style={styles.metaItem}>
+        <View style={[styles.metaItem, { flex: 1 }]}>
           <Ionicons name="barcode-outline" size={13} color="#A1A1AA" />
           <Text style={styles.metaText} numberOfLines={1}>
             Batch: <Text style={styles.metaBatchVal}>{item.batchNo || 'Standard Batch'}</Text>
           </Text>
         </View>
+        {item.warehouse?.name ? (
+          <View style={styles.metaItem}>
+            <Ionicons name="business-outline" size={13} color="#818CF8" />
+            <Text style={styles.metaText} numberOfLines={1}>
+              {item.warehouse.name}
+            </Text>
+          </View>
+        ) : null}
       </View>
 
       {/* Row-Level Quick Actions Matching Web Dashboard */}
@@ -82,17 +84,6 @@ export function WarehouseStockCard({
             >
               <Ionicons name="add-circle-outline" size={13} color="#10B981" />
               <Text style={styles.actionTextInward}>+ Inward</Text>
-            </TouchableOpacity>
-          ) : null}
-
-          {onTransfer ? (
-            <TouchableOpacity
-              style={styles.actionBtnTransfer}
-              onPress={() => onTransfer(item)}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="swap-horizontal-outline" size={13} color="#38BDF8" />
-              <Text style={styles.actionTextTransfer}>Transfer</Text>
             </TouchableOpacity>
           ) : null}
 

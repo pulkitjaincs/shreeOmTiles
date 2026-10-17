@@ -33,31 +33,21 @@ export function SupervisorDashboardView({
   router,
 }: SupervisorDashboardViewProps) {
   const [deliveries, setDeliveries] = useState<any[]>([]);
-  const [warehouses, setWarehouses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
 
-  const warehouseId = user?.scope;
-
   const loadData = useCallback(async (force = false) => {
     try {
-      const [delData, whData] = await Promise.all([
-        cachedMobileApiRequest<any[]>('/delivery', {
-          forceRefresh: force,
-          onRevalidate: (fresh) => {
-            const list = Array.isArray(fresh) ? fresh : (fresh as any)?.data || [];
-            setDeliveries(list);
-          },
-        }),
-        cachedMobileApiRequest<any[]>('/warehouses', {
-          forceRefresh: force,
-          onRevalidate: (fresh) => setWarehouses(fresh || []),
-        }).catch(() => []),
-      ]);
+      const delData = await cachedMobileApiRequest<any[]>('/delivery', {
+        forceRefresh: force,
+        onRevalidate: (fresh) => {
+          const list = Array.isArray(fresh) ? fresh : (fresh as any)?.data || [];
+          setDeliveries(list);
+        },
+      });
 
       const list = Array.isArray(delData) ? delData : (delData as any)?.data || [];
       setDeliveries(list);
-      setWarehouses(whData || []);
     } catch (err: any) {
       console.warn('Supervisor dashboard load error:', err.message);
     } finally {
@@ -69,50 +59,42 @@ export function SupervisorDashboardView({
     loadData();
   }, [loadData]);
 
-  const assignedWarehouse = useMemo(() => {
-    if (!warehouseId || !warehouses.length) return null;
-    return warehouses.find((w) => w.id === warehouseId);
-  }, [warehouseId, warehouses]);
-
-  // Deliveries relevant to this supervisor's warehouse (must have items belonging to warehouseId)
-  const warehouseRuns = useMemo(() => {
+  // Deliveries assigned to this supervisor (the backend /delivery endpoint scopes them)
+  const assignedRuns = useMemo(() => {
     return deliveries
       .filter((d) => d.status !== 'CANCELLED' && d.status !== 'DELIVERED')
       .map((d) => {
         const items = d.items || [];
-        const myItems = items.filter((it: any) =>
-          warehouseId ? it.warehouseId === warehouseId : true,
-        );
         return {
           ...d,
-          relevantItems: myItems,
+          relevantItems: items,
           allMyItemsPicked:
-            myItems.length > 0 && myItems.every((it: any) => Boolean(it.pickedUp)),
+            items.length > 0 && items.every((it: any) => Boolean(it.pickedUp)),
         };
       })
       .filter((d) => d.relevantItems.length > 0);
-  }, [deliveries, warehouseId]);
+  }, [deliveries]);
 
   // Statistics
   const pendingPickupItemsCount = useMemo(() => {
     let count = 0;
-    warehouseRuns.forEach((r) => {
+    assignedRuns.forEach((r) => {
       r.relevantItems.forEach((it: any) => {
         if (!it.pickedUp) count += 1;
       });
     });
     return count;
-  }, [warehouseRuns]);
+  }, [assignedRuns]);
 
   const completedPickupItemsCount = useMemo(() => {
     let count = 0;
-    warehouseRuns.forEach((r) => {
+    assignedRuns.forEach((r) => {
       r.relevantItems.forEach((it: any) => {
         if (it.pickedUp) count += 1;
       });
     });
     return count;
-  }, [warehouseRuns]);
+  }, [assignedRuns]);
 
   // Supervisor item pickup confirmation
   const handleConfirmItemPickup = async (
@@ -148,8 +130,8 @@ export function SupervisorDashboardView({
   return (
     <View style={styles.screen}>
       <Header
-        title="Warehouse Cockpit"
-        subtitle={assignedWarehouse ? `Godown: ${assignedWarehouse.name}` : `Supervisor: ${user?.name || 'Staff'}`}
+        title="Supervisor Cockpit"
+        subtitle={user?.name ? `Supervisor: ${user.name}` : 'Dispatch & Inspection'}
         rightAction={{
           icon: 'refresh-outline',
           onPress: () => {
@@ -173,18 +155,18 @@ export function SupervisorDashboardView({
           />
         }
       >
-        {/* Godown Identity Banner */}
+        {/* Supervisor Identity Banner */}
         <Card elevated style={styles.warehouseBanner}>
           <View style={styles.bannerTop}>
             <View style={styles.warehouseIconCircle}>
-              <Ionicons name="business" size={20} color="#C084FC" />
+              <Ionicons name="shield-checkmark" size={20} color="#C084FC" />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.warehouseTitle}>
-                {assignedWarehouse?.name || 'Assigned Warehouse'}
+                {user?.name || 'Assigned Supervisor'}
               </Text>
               <Text style={styles.warehouseSub} numberOfLines={1}>
-                {assignedWarehouse?.address || 'Primary Logistics & Storage Hub'}
+                Delivery Goods Inspection & Dispatch Verification Cockpit
               </Text>
             </View>
             <View style={styles.rolePill}>
@@ -221,11 +203,11 @@ export function SupervisorDashboardView({
             <View style={styles.statIconRow}>
               <Ionicons name="bicycle-outline" size={16} color="#38BDF8" />
               <Text style={[styles.statValue, { color: '#38BDF8' }]}>
-                {warehouseRuns.length}
+                {assignedRuns.length}
               </Text>
             </View>
-            <Text style={styles.statLabel}>Active Driver Runs</Text>
-            <Text style={styles.statSub}>At this godown</Text>
+            <Text style={styles.statLabel}>Active Deliveries</Text>
+            <Text style={styles.statSub}>Assigned to you</Text>
           </Card>
         </View>
 
@@ -237,24 +219,24 @@ export function SupervisorDashboardView({
           </View>
           <View style={styles.badgePurple}>
             <Text style={styles.badgePurpleText}>
-              {warehouseRuns.length} Runs
+              {assignedRuns.length} Deliveries
             </Text>
           </View>
         </View>
         <Text style={styles.sectionSub}>
-          Drivers arrive here for pickup. Inspect and tap &quot;Confirm Pickup&quot; to authorize goods departure.
+          Drivers arrive for pickup. Inspect and tap &quot;Confirm Pickup&quot; to authorize goods departure.
         </Text>
 
-        {warehouseRuns.length === 0 ? (
+        {assignedRuns.length === 0 ? (
           <Card style={styles.emptyRunsCard}>
             <Ionicons name="checkmark-circle-outline" size={36} color="#10B981" />
-            <Text style={styles.emptyRunsTitle}>All Warehouse Pickups Clear</Text>
+            <Text style={styles.emptyRunsTitle}>All Assigned Pickups Clear</Text>
             <Text style={styles.emptyRunsSub}>
-              There are no pending driver orders requiring pickup from this godown.
+              There are no pending driver orders requiring pickup inspection.
             </Text>
           </Card>
         ) : (
-          warehouseRuns.map((run) => (
+          assignedRuns.map((run) => (
             <Card key={run.id} elevated style={styles.runCard}>
               {/* Run Header */}
               <View style={styles.runHeader}>

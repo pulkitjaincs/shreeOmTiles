@@ -9,6 +9,7 @@ import {
   Receipt, 
   Package, 
   Warehouse, 
+  Boxes,
   Users, 
   LogOut, 
   Truck, 
@@ -84,7 +85,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { name: 'My Deliveries', href: '/dashboard/deliveries', icon: Package, roles: ['DRIVER'] },
     { name: 'Transactions', href: '/dashboard/payments', icon: ArrowLeftRight, roles: ['OWNER', 'ADMIN', 'ACCOUNTANT'] },
     { name: 'Products', href: '/dashboard/products', icon: Package, roles: ['OWNER', 'ADMIN', 'ACCOUNTANT', 'SALESMAN', 'SUPERVISOR'] },
-    { name: 'Warehouses', href: '/dashboard/warehouses', icon: Warehouse, roles: ['OWNER', 'ADMIN', 'ACCOUNTANT', 'SALESMAN', 'SUPERVISOR'] },
+    { name: 'Stock & Inventory', href: '/dashboard/warehouses', icon: Boxes, roles: ['OWNER', 'ADMIN', 'ACCOUNTANT', 'SALESMAN', 'SUPERVISOR'] },
     { name: 'Parties', href: '/dashboard/parties', icon: Users, roles: ['OWNER', 'ADMIN', 'ACCOUNTANT', 'SALESMAN'] },
     { name: 'Staff', href: '/dashboard/users', icon: Users, roles: ['OWNER'] },
   ];

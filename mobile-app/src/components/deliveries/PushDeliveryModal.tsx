@@ -15,7 +15,7 @@ import { Select } from '@/components/ui/Select';
 import { Colors } from '@/constants/theme';
 import { mobileApiRequest } from '@/lib/api';
 import { buildFullDeliveryManifestShareUrl } from '@/lib/whatsapp';
-import { Delivery, DriverUser, DispatchSelectionItem, PushSuccessDialogData } from './types';
+import { Delivery, DriverUser, SupervisorUser, DispatchSelectionItem, PushSuccessDialogData } from './types';
 
 interface PushDeliveryModalProps {
   delivery: Delivery | null;
@@ -33,6 +33,9 @@ export function PushDeliveryModal({
   drivers,
 }: PushDeliveryModalProps) {
   const [selectedDriverId, setSelectedDriverId] = useState('');
+  const [supervisors, setSupervisors] = useState<SupervisorUser[]>([]);
+  const [selectedSupervisorIds, setSelectedSupervisorIds] = useState<string[]>([]);
+  const [loadingSupervisors, setLoadingSupervisors] = useState(false);
   const [vehicle, setVehicle] = useState('');
   const [dispatchAmountToCollect, setDispatchAmountToCollect] = useState('');
   const [dispatchNotes, setDispatchNotes] = useState('');
@@ -45,6 +48,20 @@ export function PushDeliveryModal({
       setVehicle('');
       setDispatchAmountToCollect(String(delivery.amountToCollect || 0));
       setDispatchNotes('');
+
+      // Fetch active supervisors
+      setLoadingSupervisors(true);
+      mobileApiRequest<SupervisorUser[]>('/users?role=SUPERVISOR&isActive=true')
+        .then((res) => {
+          setSupervisors(res || []);
+          if (res && res.length === 1) {
+            setSelectedSupervisorIds([res[0].id]);
+          } else {
+            setSelectedSupervisorIds([]);
+          }
+        })
+        .catch((err) => console.log('Failed to fetch supervisors', err))
+        .finally(() => setLoadingSupervisors(false));
 
       const rawItems = delivery.items || delivery.invoice?.items || [];
       const formatted: DispatchSelectionItem[] = rawItems.map((it: any) => ({
@@ -98,6 +115,7 @@ export function PushDeliveryModal({
         method: 'POST',
         body: JSON.stringify({
           driverId: selectedDriverId,
+          supervisorIds: selectedSupervisorIds,
           vehicle: vehicle.trim() || undefined,
           amountToCollect: dispatchAmountToCollect ? Number(dispatchAmountToCollect) : undefined,
           notes: dispatchNotes.trim() || undefined,
@@ -157,6 +175,57 @@ export function PushDeliveryModal({
           }))}
         />
 
+        {/* Supervisor Assignment Section */}
+        <View style={styles.supervisorSection}>
+          <Text style={styles.supervisorSectionTitle}>
+            Assigned Dispatch Supervisor(s)
+          </Text>
+          <Text style={styles.supervisorSectionSub}>
+            Select supervisor(s) to inspect & coordinate this pickup:
+          </Text>
+          {loadingSupervisors ? (
+            <Text style={styles.supervisorLoadingText}>Loading supervisors...</Text>
+          ) : supervisors.length === 0 ? (
+            <Text style={styles.supervisorEmptyText}>
+              No active supervisors found. You can dispatch directly.
+            </Text>
+          ) : (
+            <View style={styles.supervisorChipRow}>
+              {supervisors.map((s) => {
+                const isSelected = selectedSupervisorIds.includes(s.id);
+                return (
+                  <TouchableOpacity
+                    key={s.id}
+                    onPress={() => {
+                      setSelectedSupervisorIds((prev) =>
+                        isSelected ? prev.filter((id) => id !== s.id) : [...prev, s.id],
+                      );
+                    }}
+                    style={[
+                      styles.supervisorChip,
+                      isSelected && styles.supervisorChipActive,
+                    ]}
+                  >
+                    <Ionicons
+                      name={isSelected ? 'shield-checkmark' : 'shield-outline'}
+                      size={14}
+                      color={isSelected ? '#10B981' : Colors.dark.textSecondary}
+                    />
+                    <Text
+                      style={[
+                        styles.supervisorChipText,
+                        isSelected && styles.supervisorChipTextActive,
+                      ]}
+                    >
+                      {s.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </View>
+
         {/* Line Items Partial Dispatch Checklist */}
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.modalSectionTitle}>
@@ -204,7 +273,7 @@ export function PushDeliveryModal({
                       {item.productName}
                     </Text>
                     <Text style={styles.dispatchItemSub} numberOfLines={1}>
-                      From: {item.warehouseName || 'Warehouse'}{item.batchNo ? ` • Lot: ${item.batchNo}` : ''}
+                      {item.batchNo ? `Batch Lot: ${item.batchNo}` : 'Standard Lot'}
                     </Text>
                     <Text style={styles.dispatchItemMax}>
                       Max Available: {item.maxQty} {item.unit}
@@ -410,5 +479,64 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '800',
+  },
+  supervisorSection: {
+    marginTop: 12,
+    marginBottom: 16,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: Colors.dark.cardElevated,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  supervisorSectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  supervisorSectionSub: {
+    fontSize: 11,
+    color: Colors.dark.textSecondary,
+    marginBottom: 8,
+  },
+  supervisorLoadingText: {
+    fontSize: 11,
+    color: Colors.dark.textTertiary,
+    fontStyle: 'italic',
+  },
+  supervisorEmptyText: {
+    fontSize: 11,
+    color: Colors.dark.textTertiary,
+    fontStyle: 'italic',
+  },
+  supervisorChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  supervisorChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: Colors.dark.secondary,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  supervisorChipActive: {
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderColor: '#10B981',
+  },
+  supervisorChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.dark.textSecondary,
+  },
+  supervisorChipTextActive: {
+    color: '#10B981',
+    fontWeight: '700',
   },
 });

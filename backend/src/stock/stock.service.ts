@@ -18,12 +18,16 @@ export class StockService {
       warehouseId?: string;
       page?: number;
       limit?: number;
+      inStockOnly?: boolean;
     },
     user?: { id: string; role: Role; scope?: string | null },
   ): Promise<any> {
     const where: Prisma.StockLedgerWhereInput = {};
     if (query?.productId) where.productId = query.productId;
     if (query?.warehouseId) where.warehouseId = query.warehouseId;
+    if (query?.inStockOnly) {
+      where.quantity = { gt: 0 };
+    }
 
     const isSupervisor = user?.role === Role.SUPERVISOR;
     if (isSupervisor && user?.scope) {
@@ -73,7 +77,6 @@ export class StockService {
           where,
           include: includeRelations,
           orderBy: [
-            { warehouse: { name: 'asc' } },
             { product: { name: 'asc' } },
           ],
           skip,
@@ -96,7 +99,7 @@ export class StockService {
     const items = await this.prisma.stockLedger.findMany({
       where,
       include: includeRelations,
-      orderBy: [{ warehouse: { name: 'asc' } }, { product: { name: 'asc' } }],
+      orderBy: [{ product: { name: 'asc' } }],
       take: 250,
     });
 
@@ -109,9 +112,9 @@ export class StockService {
     dto: AdjustStockDto,
     actorId?: string,
     user?: { id: string; role: Role; scope?: string | null },
-  ): Promise<StockLedger & { product: Product; warehouse: Warehouse }> {
+  ): Promise<StockLedger & { product: Product; warehouse: Warehouse | null }> {
     if (user?.role === Role.SUPERVISOR && user.scope) {
-      if (dto.warehouseId !== user.scope) {
+      if (dto.warehouseId && dto.warehouseId !== user.scope) {
         throw new ForbiddenException(
           'Supervisors can only adjust stock in their assigned warehouse.',
         );
@@ -125,31 +128,32 @@ export class StockService {
     });
     if (!product) throw new NotFoundException('Product not found');
 
-    const warehouse = await this.prisma.warehouse.findUnique({
-      where: { id: dto.warehouseId },
-    });
-    if (!warehouse) throw new NotFoundException('Warehouse not found');
+    const warehouse = dto.warehouseId
+      ? await this.prisma.warehouse.findUnique({
+          where: { id: dto.warehouseId },
+        })
+      : null;
 
     return this.prisma.$transaction(async (tx) => {
       const existing = await tx.stockLedger.findFirst({
         where: {
           productId: dto.productId,
-          warehouseId: dto.warehouseId,
+          ...(dto.warehouseId ? { warehouseId: dto.warehouseId } : {}),
           batchNo: batchNo,
         },
       });
 
       let currentQty = 0;
       let targetQuantity: number;
-      let updated: StockLedger & { product: Product; warehouse: Warehouse };
+      let updated: StockLedger & { product: Product; warehouse: Warehouse | null };
 
       if (existing) {
         const lockedRows = await tx.$queryRaw<
-          Array<{ id: string; quantity: number }>
+          Array<{ id: string; quantity: number | string }>
         >`
           SELECT id, quantity FROM "StockLedger" WHERE id = ${existing.id} FOR UPDATE
         `;
-        const lockedQty = lockedRows[0]?.quantity ?? existing.quantity ?? 0;
+        const lockedQty = Number(lockedRows[0]?.quantity ?? existing.quantity ?? 0);
         currentQty = lockedQty;
 
         if (dto.mode === 'ADD') {
@@ -158,26 +162,19 @@ export class StockService {
           targetQuantity = dto.quantity;
         }
 
-        if (targetQuantity < 0) {
-          throw new BadRequestException('Stock quantity cannot be negative');
-        }
-
         updated = await tx.stockLedger.update({
           where: { id: existing.id },
-          data: { quantity: targetQuantity },
+          data: { quantity: new Prisma.Decimal(targetQuantity.toFixed(2)) },
           include: { product: true, warehouse: true },
         });
       } else {
         targetQuantity = dto.quantity;
-        if (targetQuantity < 0) {
-          throw new BadRequestException('Stock quantity cannot be negative');
-        }
         updated = await tx.stockLedger.create({
           data: {
             productId: dto.productId,
-            warehouseId: dto.warehouseId,
+            warehouseId: dto.warehouseId || null,
             batchNo,
-            quantity: targetQuantity,
+            quantity: new Prisma.Decimal(targetQuantity.toFixed(2)),
           },
           include: { product: true, warehouse: true },
         });
@@ -196,7 +193,7 @@ export class StockService {
             operationQuantity: dto.quantity,
             newQuantity: targetQuantity,
             productName: product.name,
-            warehouseName: warehouse.name,
+            warehouseName: warehouse?.name || 'Direct Stock',
             batchNo,
           },
         },

@@ -52,39 +52,24 @@ export function InwardStockModal({
 
   const selectedProduct = products.find((p) => p.id === selectedProductId);
 
-  // Current stock of selected product in the selected warehouse
+  // Current stock of selected product matching batch
   const currentMatchingStock = stocks.find(
     (s) =>
       s.productId === selectedProductId &&
-      s.warehouseId === selectedWarehouseId &&
       (batchNo ? s.batchNo === batchNo.trim() : !s.batchNo),
   );
   const currentQty = currentMatchingStock?.quantity || 0;
-  const incomingNum = parseInt(quantity, 10) || 0;
+  const incomingNum = parseFloat(quantity) || 0;
   const projectedQty = currentQty + incomingNum;
 
-  // Warehouses dropdown with current stock levels for selected product
-  const warehouseOptions = warehouses.map((wh) => {
-    const sMatch = stocks.find(
-      (s) => s.productId === selectedProductId && s.warehouseId === wh.id,
-    );
-    const qty = sMatch?.quantity || 0;
-    return {
-      value: wh.id,
-      label: wh.name,
-      subLabel: `Current Stock: ${qty} ${selectedProduct?.unit || 'units'} • ${wh.address || wh.type || 'Godown'}`,
-      badge: `${qty} in stock`,
-    };
-  });
-
   const handleInward = async () => {
-    if (!selectedProductId || !selectedWarehouseId || !quantity) {
-      Alert.alert('Required Fields', 'Please select product, warehouse, and quantity');
+    if (!selectedProductId || !quantity) {
+      Alert.alert('Required Fields', 'Please select product and quantity');
       return;
     }
-    const qtyNum = parseInt(quantity, 10);
+    const qtyNum = parseFloat(quantity);
     if (isNaN(qtyNum) || qtyNum <= 0) {
-      Alert.alert('Invalid Quantity', 'Quantity must be a positive integer');
+      Alert.alert('Invalid Quantity', 'Quantity must be greater than 0');
       return;
     }
 
@@ -94,14 +79,14 @@ export function InwardStockModal({
         method: 'POST',
         body: JSON.stringify({
           productId: selectedProductId,
-          warehouseId: selectedWarehouseId,
+          warehouseId: selectedWarehouseId || undefined,
           batchNo: batchNo.trim() || undefined,
           quantity: qtyNum,
           mode: 'ADD',
         }),
       });
 
-      Alert.alert('Success', `Successfully inwarded ${qtyNum} ${selectedProduct?.unit || 'units'} into warehouse!`);
+      Alert.alert('Success', `Successfully inwarded ${qtyNum} ${selectedProduct?.unit || 'units'} into stock!`);
       onClose();
       onSuccess();
     } catch (err: any) {
@@ -115,8 +100,8 @@ export function InwardStockModal({
     <BottomSheetModal
       visible={visible}
       onClose={onClose}
-      title="Inward Stock to Warehouse"
-      subtitle="Receive and add newly procured inventory into showroom or godown"
+      title="Inward Stock"
+      subtitle="Receive and add newly procured inventory into product stock"
     >
       <View>
         {/* Product Search & Selector */}
@@ -135,18 +120,8 @@ export function InwardStockModal({
           }))}
         />
 
-        {/* Target Warehouse with Current Stock */}
-        <Select
-          label="Destination Warehouse / Showroom"
-          placeholder="Choose target warehouse..."
-          value={selectedWarehouseId}
-          onChange={setSelectedWarehouseId}
-          icon="business-outline"
-          options={warehouseOptions}
-        />
-
         {/* Original Amount & Projection Display */}
-        {selectedWarehouseId ? (
+        {selectedProductId ? (
           <View style={styles.stockProjectionBox}>
             <View style={styles.stockProjRow}>
               <View>

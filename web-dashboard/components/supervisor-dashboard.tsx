@@ -158,11 +158,10 @@ export default function SupervisorDashboard({
     loadData(true);
   };
 
-  // Filter stocks strictly for this supervisor's warehouse
+  // Stocks for supervisor inspection (backend already sanitized rates)
   const myWarehouseStocks = useMemo(() => {
-    if (!user?.scope) return stocks;
-    return stocks.filter((s) => s.warehouseId === user.scope);
-  }, [stocks, user?.scope]);
+    return stocks;
+  }, [stocks]);
 
   const filteredWarehouseStocks = useMemo(() => {
     if (!stockSearch) return myWarehouseStocks;
@@ -175,12 +174,10 @@ export default function SupervisorDashboard({
     );
   }, [myWarehouseStocks, stockSearch]);
 
-  // Deliveries relevant to this warehouse
+  // Deliveries assigned to this supervisor
   const relevantDeliveries = useMemo(() => {
-    const targetWhId = user?.scope;
     return deliveries
       .map((d) => {
-        // Find items in this delivery originating from this supervisor's warehouse
         const rawItems: DeliveryItem[] =
           d.items && d.items.length > 0
             ? d.items
@@ -202,13 +199,7 @@ export default function SupervisorDashboard({
           originalIndex,
         }));
 
-        const warehouseItems = targetWhId
-          ? itemsWithIndex.filter(
-              (x) =>
-                x.item.warehouseId === targetWhId ||
-                (!x.item.warehouseId && x.item.warehouseName === warehouse?.name)
-            )
-          : itemsWithIndex;
+        const warehouseItems = itemsWithIndex;
 
         const allWarehouseItemsPicked =
           warehouseItems.length > 0 && warehouseItems.every((x) => x.item.pickedUp);
@@ -220,7 +211,7 @@ export default function SupervisorDashboard({
         };
       })
       .filter((entry) => entry.warehouseItems.length > 0);
-  }, [deliveries, user?.scope, warehouse?.name]);
+  }, [deliveries]);
 
   // Active driver pickups (status OUT_FOR_PICKUP or ASSIGNED)
   const activeDriverPickups = useMemo(() => {
@@ -296,18 +287,17 @@ export default function SupervisorDashboard({
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground">
-                  {warehouse?.name || 'Warehouse Supervisor Cockpit'}
+                  Supervisor Cockpit
                 </h1>
                 <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20">
                   Supervisor Duty
                 </span>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
-                <MapPin className="h-3 w-3 text-muted-foreground" />
-                <span>{warehouse?.address || 'Assigned Warehouse Location'}</span>
-                <span className="text-muted-foreground/60">•</span>
                 <UserCheck className="h-3 w-3 text-muted-foreground" />
-                <span>Supervisor: {user?.name || user?.phone || 'Warehouse Incharge'}</span>
+                <span>Supervisor: {user?.name || user?.phone || 'Field Incharge'}</span>
+                <span className="text-muted-foreground/60">•</span>
+                <span>Assigned Deliveries & Material Inspection</span>
               </p>
             </div>
           </div>

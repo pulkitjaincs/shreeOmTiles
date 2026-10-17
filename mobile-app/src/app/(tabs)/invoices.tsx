@@ -178,6 +178,10 @@ export default function InvoicesScreen() {
     await downloadAndSharePdf(`invoices/refund/${refundId}/pdf`, refundNo || `Credit_Note_${refundId}`);
   };
 
+  const handleDownloadInvoicePdf = async (invoiceId: string, invoiceNo: string) => {
+    await downloadAndSharePdf(`invoices/${invoiceId}/pdf`, invoiceNo || `Invoice_${invoiceId}`);
+  };
+
   const clearFilters = () => {
     setSearch('');
     setStatusFilter('ALL');
@@ -335,6 +339,7 @@ export default function InvoicesScreen() {
         onClose={() => setReturnInvoice(null)}
         warehouses={warehouses}
         onDownloadRefundPdf={handleDownloadRefundPdf}
+        onDownloadPdf={handleDownloadInvoicePdf}
         onSuccess={() => loadData(true)}
       />
 

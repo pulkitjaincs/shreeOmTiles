@@ -35,7 +35,7 @@ export function StockTransferModal({
     if (isOpen) {
       setError('');
       if (initialStockItem) {
-        setFromWarehouseId(initialStockItem.warehouseId);
+        setFromWarehouseId(initialStockItem.warehouseId || '');
         setTransferStockId(initialStockItem.id);
         const otherWh = warehouses.find((w) => w.id !== initialStockItem.warehouseId);
         setToWarehouseId(otherWh ? otherWh.id : '');

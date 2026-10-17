@@ -37,6 +37,21 @@ export interface DeliveryTrip {
   notes?: string;
 }
 
+export interface SupervisorUser {
+  id: string;
+  name: string;
+  phone: string;
+  role?: string;
+  isActive?: boolean;
+}
+
+export interface DeliverySupervisorRecord {
+  id?: string;
+  supervisorId: string;
+  supervisor: SupervisorUser;
+  assignedAt?: string;
+}
+
 export interface Delivery {
   id: string;
   status: string;
@@ -53,6 +68,7 @@ export interface Delivery {
     name: string;
     phone: string;
   };
+  supervisors?: DeliverySupervisorRecord[];
   items?: DispatchedItem[];
   trips?: DeliveryTrip[];
   invoice: {

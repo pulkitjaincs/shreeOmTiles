@@ -76,16 +76,29 @@ export function CreateInvoiceModal({
   const getProductStockOptions = useCallback(
     (prodId: string, currentStock: StockLedgerRecord[]): StockOptionAllocation[] => {
       if (!prodId) return [];
-      const available = currentStock.filter((s) => s.productId === prodId && s.quantity > 0);
-      return available.map((s) => ({
-        stockLedgerId: s.id,
-        warehouseId: s.warehouseId,
-        warehouseName: s.warehouse?.name || 'Warehouse',
-        warehouseCode: s.warehouse?.code,
-        batchNo: s.batchNo,
-        availableQty: s.quantity,
-        takeQty: 0,
-      }));
+      const forProd = currentStock.filter((s) => s.productId === prodId);
+      if (forProd.length > 0) {
+        return forProd.map((s) => ({
+          stockLedgerId: s.id,
+          warehouseId: s.warehouseId,
+          warehouseName: s.warehouse?.name || 'Main Stock',
+          warehouseCode: s.warehouse?.code,
+          batchNo: s.batchNo || 'MASTER-IMPORT',
+          availableQty: s.quantity,
+          takeQty: 0,
+        }));
+      }
+      return [
+        {
+          stockLedgerId: 'direct-stock',
+          warehouseId: undefined,
+          warehouseName: 'Direct Stock',
+          warehouseCode: undefined,
+          batchNo: 'MASTER-IMPORT',
+          availableQty: 0,
+          takeQty: 0,
+        },
+      ];
     },
     [],
   );
@@ -226,15 +239,15 @@ export function CreateInvoiceModal({
   };
 
   const handleOptionQtyChange = (itemIdx: number, optIdx: number, valStr: string) => {
-    const parsed = parseInt(valStr, 10);
+    const parsed = parseFloat(valStr);
     const qty = isNaN(parsed) ? 0 : parsed;
     const newItems = [...items];
     const currentItem = { ...newItems[itemIdx] };
     const currentOptions = [...currentItem.options];
     const targetOpt = { ...currentOptions[optIdx] };
 
-    const clamped = Math.max(0, Math.min(qty, targetOpt.availableQty));
-    targetOpt.takeQty = clamped;
+    // Allow selling past available stock into negative quantities
+    targetOpt.takeQty = Math.max(0, qty);
     currentOptions[optIdx] = targetOpt;
     currentItem.options = currentOptions;
     newItems[itemIdx] = currentItem;
@@ -771,13 +784,13 @@ export function CreateInvoiceModal({
               </div>
             </div>
 
-            {/* Items & Warehouse Allocation */}
+            {/* Items & Stock Allocation */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Layers className="h-4 w-4 text-primary" />
                   <span className="text-[0.6875rem] font-semibold text-muted-foreground uppercase tracking-wider">
-                    Product Items & Warehouse Allocation
+                    Product Items & Stock Allocation
                   </span>
                 </div>
                 <button
@@ -985,12 +998,12 @@ export function CreateInvoiceModal({
                         </div>
                       </div>
 
-                      {/* Warehouse / Batch Option Selector */}
+                      {/* Stock / Batch Option Selector */}
                       <div className="rounded-[0.75rem] border border-border bg-background/60 p-3 space-y-2">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-1.5 text-[0.75rem] font-semibold text-foreground">
-                            <Building2 className="h-3.5 w-3.5 text-primary" />
-                            <span>Available Stock Options for this Product:</span>
+                            <Layers className="h-3.5 w-3.5 text-primary" />
+                            <span>Available Stock Lots for this Product:</span>
                           </div>
                           <span
                             className={`text-[0.6875rem] font-medium px-2 py-0.5 rounded-full ${
@@ -1010,11 +1023,11 @@ export function CreateInvoiceModal({
                         {!item.productId ? (
                           <div className="p-3 text-center text-[0.75rem] text-muted-foreground bg-muted/20 rounded-[0.5rem] border border-dashed border-border flex items-center justify-center gap-2">
                             <Search className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span>Select a product above to view warehouse stock & batch allocations.</span>
+                            <span>Select a product above to view available stock lots.</span>
                           </div>
                         ) : item.options.length === 0 ? (
                           <div className="p-3 text-center text-[0.75rem] text-amber-700 dark:text-amber-300 bg-amber-500/10 rounded-[0.5rem] border border-amber-500/20">
-                            ⚠️ No available stock found across any showroom or godown for this product.
+                            ⚠️ No available stock found for this product.
                           </div>
                         ) : (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1">
@@ -1029,12 +1042,10 @@ export function CreateInvoiceModal({
                               >
                                 <div>
                                   <div className="font-semibold text-foreground">
-                                    {opt.warehouseName} {opt.warehouseCode ? `[${opt.warehouseCode}]` : ''}
+                                    {opt.batchNo ? `Batch: ${opt.batchNo}` : 'Standard Inventory'}
                                   </div>
                                   <div className="text-[0.6875rem] text-muted-foreground flex items-center gap-2 mt-0.5">
-                                    <span>Batch: <strong className="text-foreground font-mono">{opt.batchNo || 'Standard Lot'}</strong></span>
-                                    <span>•</span>
-                                    <span className="text-emerald-600 dark:text-emerald-400">Avail: {opt.availableQty}</span>
+                                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">Available: {opt.availableQty} {selectedProd?.unit || 'units'}</span>
                                   </div>
                                 </div>
 

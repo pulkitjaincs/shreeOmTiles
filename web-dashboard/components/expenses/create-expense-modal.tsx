@@ -17,7 +17,7 @@ export function CreateExpenseModal({
   onClose,
   onSuccess,
 }: CreateExpenseModalProps) {
-  const [category, setCategory] = useState('TEA_REFRESHMENT');
+  const [category, setCategory] = useState('PANTRY_REFRESHMENTS');
   const [amount, setAmount] = useState<number | ''>('');
   const [paymentMode, setPaymentMode] = useState('CASH');
   const [paidTo, setPaidTo] = useState('');
@@ -88,14 +88,14 @@ export function CreateExpenseModal({
               value={category}
               onChange={(v) => setCategory(v)}
               options={[
-                { value: 'TEA_REFRESHMENT', label: 'Tea & Refreshments' },
-                { value: 'TRANSPORT_FUEL', label: 'Vehicle Fuel & Tolls' },
-                { value: 'MAINTENANCE', label: 'Shop / Godown Maintenance' },
-                { value: 'ELECTRICITY', label: 'Electricity & Utilities' },
-                { value: 'OFFICE_SUPPLIES', label: 'Office Supplies & Stationery' },
-                { value: 'SALARY', label: 'Staff Advance / Daily Wages' },
-                { value: 'RENT', label: 'Premises Rent' },
-                { value: 'MARKETING', label: 'Marketing & Promotion' },
+                { value: 'PANTRY_REFRESHMENTS', label: 'Tea & Pantry Refreshments' },
+                { value: 'LABOUR_HAMALI', label: 'Labour & Hamali Charges' },
+                { value: 'FUEL_TRANSPORT', label: 'Vehicle Fuel & Tolls' },
+                { value: 'RENT_GODOWN', label: 'Godown / Showroom Rent' },
+                { value: 'ELECTRICITY_UTILITIES', label: 'Electricity & Utilities' },
+                { value: 'SALARY_ADVANCE', label: 'Staff Advance / Wages' },
+                { value: 'MAINTENANCE_REPAIRS', label: 'Shop & Godown Maintenance' },
+                { value: 'MARKETING_SAMPLE', label: 'Marketing & Samples' },
                 { value: 'OTHER', label: 'Other Operational Outlay' },
               ]}
             />

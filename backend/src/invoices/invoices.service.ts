@@ -160,7 +160,7 @@ export class InvoicesService {
 
         // Query available stock for this item
         let stockLedgers: Array<
-          StockLedger & { product: Product; warehouse: Warehouse }
+          StockLedger & { product: Product; warehouse: Warehouse | null }
         > = [];
         if (item.warehouseId) {
           const specificWhere: Prisma.StockLedgerWhereInput = {
@@ -177,7 +177,7 @@ export class InvoicesService {
             include: { product: true, warehouse: true },
           });
         } else {
-          // Standard auto-split across warehouses ordered by quantity descending
+          // Standard auto-split across stock ordered by quantity descending
           stockLedgers = await tx.stockLedger.findMany({
             where: {
               productId: item.productId,
@@ -201,14 +201,15 @@ export class InvoicesService {
           const lockedStock = await tx.stockLedger.findUnique({
             where: { id: stock.id },
           });
-          if (!lockedStock || lockedStock.quantity <= 0) continue;
+          if (!lockedStock || Number(lockedStock.quantity) <= 0) continue;
 
-          const qtyToTake = Math.min(lockedStock.quantity, remainingQty);
+          const lockedQty = Number(lockedStock.quantity);
+          const qtyToTake = Math.min(lockedQty, remainingQty);
           if (qtyToTake <= 0) continue;
 
           await tx.stockLedger.update({
             where: { id: stock.id },
-            data: { quantity: { decrement: qtyToTake } },
+            data: { quantity: { decrement: new Prisma.Decimal(qtyToTake.toFixed(2)) } },
           });
 
           pendingAuditLogs.push({
@@ -217,8 +218,8 @@ export class InvoicesService {
             entityId: stock.id,
             diff: {
               reason: 'Invoice Sales',
-              previousQuantity: lockedStock.quantity,
-              newQuantity: lockedStock.quantity - qtyToTake,
+              previousQuantity: lockedQty,
+              newQuantity: lockedQty - qtyToTake,
               change: -qtyToTake,
             },
             actorId: salesmanId,
@@ -230,9 +231,9 @@ export class InvoicesService {
 
           allocatedInvoiceItems.push({
             productId: item.productId,
-            warehouseId: stock.warehouseId,
+            warehouseId: stock.warehouseId || null,
             batchNo: stock.batchNo,
-            qty: qtyToTake,
+            qty: new Prisma.Decimal(qtyToTake.toFixed(2)),
             unitPrice: new Prisma.Decimal(item.unitPrice.toFixed(2)),
             discount: new Prisma.Decimal(allocatedDiscount.toFixed(2)),
             total: new Prisma.Decimal(
@@ -244,20 +245,80 @@ export class InvoicesService {
         }
 
         if (remainingQty > 0) {
-          const product = await tx.product.findUnique({
-            where: { id: item.productId },
+          // Find any existing stock ledger for this product (even if 0 or negative)
+          let fallbackStock = await tx.stockLedger.findFirst({
+            where: {
+              productId: item.productId,
+              ...(item.warehouseId ? { warehouseId: item.warehouseId } : {}),
+              ...(item.batchNo ? { batchNo: item.batchNo } : {}),
+            },
+            orderBy: { updatedAt: 'desc' },
           });
-          if (item.warehouseId) {
-            const wh = await tx.warehouse.findUnique({
-              where: { id: item.warehouseId },
+
+          if (!fallbackStock) {
+            fallbackStock = await tx.stockLedger.findFirst({
+              where: { productId: item.productId },
+              orderBy: { updatedAt: 'desc' },
             });
-            throw new BadRequestException(
-              `Insufficient stock in ${wh?.name || 'warehouse'} ${item.batchNo ? `(Batch: ${item.batchNo})` : ''} for "${product?.name || item.productId}". Short by: ${remainingQty}`,
-            );
           }
-          throw new BadRequestException(
-            `Insufficient total stock across all warehouses for "${product?.name || item.productId}". Short by: ${remainingQty}`,
+
+          if (!fallbackStock) {
+            fallbackStock = await tx.stockLedger.create({
+              data: {
+                productId: item.productId,
+                warehouseId: item.warehouseId || null,
+                batchNo: item.batchNo || 'MASTER-IMPORT',
+                quantity: new Prisma.Decimal(0),
+              },
+            });
+          }
+
+          // Row lock fallback
+          await tx.$queryRawUnsafe(
+            `SELECT id, quantity FROM "StockLedger" WHERE id = $1 FOR UPDATE`,
+            fallbackStock.id,
           );
+          const currentFallback = await tx.stockLedger.findUnique({
+            where: { id: fallbackStock.id },
+          });
+          const currentQty = Number(currentFallback?.quantity || 0);
+
+          await tx.stockLedger.update({
+            where: { id: fallbackStock.id },
+            data: {
+              quantity: { decrement: new Prisma.Decimal(remainingQty.toFixed(2)) },
+            },
+          });
+
+          pendingAuditLogs.push({
+            action: 'ADJUST_STOCK',
+            entity: 'StockLedger',
+            entityId: fallbackStock.id,
+            diff: {
+              reason: 'Invoice Sales (Negative Stock Overdraft)',
+              previousQuantity: currentQty,
+              newQuantity: currentQty - remainingQty,
+              change: -remainingQty,
+            },
+            actorId: salesmanId,
+          });
+
+          const unitDiscount = item.discount ? item.discount / item.qty : 0;
+          const allocatedDiscount = unitDiscount * remainingQty;
+
+          allocatedInvoiceItems.push({
+            productId: item.productId,
+            warehouseId: fallbackStock.warehouseId || null,
+            batchNo: fallbackStock.batchNo || item.batchNo || null,
+            qty: new Prisma.Decimal(remainingQty.toFixed(2)),
+            unitPrice: new Prisma.Decimal(item.unitPrice.toFixed(2)),
+            discount: new Prisma.Decimal(allocatedDiscount.toFixed(2)),
+            total: new Prisma.Decimal(
+              (remainingQty * item.unitPrice - allocatedDiscount).toFixed(2),
+            ),
+          });
+
+          remainingQty = 0;
         }
       }
 
@@ -877,11 +938,11 @@ export class InvoicesService {
         const lineTotal = item.qty * item.unitPrice;
         subtotal += lineTotal;
 
-        // Upsert stock in target warehouse / showroom with row lock
+        // Upsert stock in target stock ledger with row lock
         const existingStock = await tx.stockLedger.findFirst({
           where: {
             productId: item.productId,
-            warehouseId: item.warehouseId,
+            ...(item.warehouseId ? { warehouseId: item.warehouseId } : {}),
             batchNo: item.batchNo || null,
           },
         });
@@ -893,15 +954,15 @@ export class InvoicesService {
           );
           await tx.stockLedger.update({
             where: { id: existingStock.id },
-            data: { quantity: { increment: item.qty } },
+            data: { quantity: { increment: new Prisma.Decimal(item.qty.toFixed(2)) } },
           });
         } else {
           await tx.stockLedger.create({
             data: {
               productId: item.productId,
-              warehouseId: item.warehouseId,
+              warehouseId: item.warehouseId || null,
               batchNo: item.batchNo || null,
-              quantity: item.qty,
+              quantity: new Prisma.Decimal(item.qty.toFixed(2)),
             },
           });
         }
@@ -909,19 +970,21 @@ export class InvoicesService {
         const product = await tx.product.findUnique({
           where: { id: item.productId },
         });
-        const wh = await tx.warehouse.findUnique({
-          where: { id: item.warehouseId },
-        });
+        const wh = item.warehouseId
+          ? await tx.warehouse.findUnique({
+              where: { id: item.warehouseId },
+            })
+          : null;
 
         returnedSummaries.push(
-          `${item.qty}x ${product?.name || 'Item'} returned to ${wh?.name || 'Showroom'} (Batch: ${item.batchNo || 'Standard'})`,
+          `${item.qty}x ${product?.name || 'Item'} returned to ${wh?.name || 'Stock'} (Batch: ${item.batchNo || 'Standard'})`,
         );
 
         refundInvoiceItemsData.push({
           productId: item.productId,
-          warehouseId: item.warehouseId,
+          warehouseId: item.warehouseId || null,
           batchNo: item.batchNo || null,
-          qty: item.qty,
+          qty: new Prisma.Decimal(item.qty.toFixed(2)),
           unitPrice: new Prisma.Decimal(item.unitPrice.toFixed(2)),
           taxRate: new Prisma.Decimal(taxRate.toFixed(2)),
           total: new Prisma.Decimal(lineTotal.toFixed(2)),
@@ -1209,26 +1272,28 @@ export class InvoicesService {
     return this.prisma.$transaction(async (tx) => {
       // 1. Atomically restore inventory to StockLedger with row-level locks
       for (const item of invoice.items) {
-        if (!item.productId || !item.warehouseId) continue;
+        if (!item.productId) continue;
 
         let stock = await tx.stockLedger.findFirst({
           where: {
             productId: item.productId,
-            warehouseId: item.warehouseId,
+            ...(item.warehouseId ? { warehouseId: item.warehouseId } : {}),
             batchNo: item.batchNo ?? null,
           },
         });
+
+        const itemQty = Number(item.qty);
 
         if (stock) {
           await tx.$queryRawUnsafe(
             `SELECT id, quantity FROM "StockLedger" WHERE id = $1 FOR UPDATE`,
             stock.id,
           );
-          const previousQty = stock.quantity;
-          const newQty = previousQty + item.qty;
+          const previousQty = Number(stock.quantity);
+          const newQty = previousQty + itemQty;
           await tx.stockLedger.update({
             where: { id: stock.id },
-            data: { quantity: newQty },
+            data: { quantity: new Prisma.Decimal(newQty.toFixed(2)) },
           });
 
           await tx.auditLog.create({
@@ -1239,7 +1304,7 @@ export class InvoicesService {
               entityId: stock.id,
               diff: {
                 invoiceNo: invoice.invoiceNo,
-                restoredQty: item.qty,
+                restoredQty: itemQty,
                 previousQuantity: previousQty,
                 newQuantity: newQty,
               },
@@ -1249,9 +1314,9 @@ export class InvoicesService {
           stock = await tx.stockLedger.create({
             data: {
               productId: item.productId,
-              warehouseId: item.warehouseId,
+              warehouseId: item.warehouseId || null,
               batchNo: item.batchNo ?? null,
-              quantity: item.qty,
+              quantity: new Prisma.Decimal(itemQty.toFixed(2)),
             },
           });
 
@@ -1263,9 +1328,9 @@ export class InvoicesService {
               entityId: stock.id,
               diff: {
                 invoiceNo: invoice.invoiceNo,
-                restoredQty: item.qty,
+                restoredQty: itemQty,
                 previousQuantity: 0,
-                newQuantity: item.qty,
+                newQuantity: itemQty,
               },
             },
           });

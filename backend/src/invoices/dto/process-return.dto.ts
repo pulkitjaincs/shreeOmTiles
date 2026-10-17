@@ -18,15 +18,15 @@ export class ReturnItemDto {
   productId: string;
 
   @IsString()
-  @IsNotEmpty()
-  warehouseId: string;
+  @IsOptional()
+  warehouseId?: string;
 
   @IsString()
   @IsOptional()
   batchNo?: string;
 
-  @IsInt()
-  @Min(1)
+  @IsNumber()
+  @Min(0.01)
   qty: number;
 
   @IsNumber()

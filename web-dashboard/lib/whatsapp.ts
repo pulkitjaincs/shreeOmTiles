@@ -21,7 +21,7 @@ export function buildDriverDispatchUrl(
   const itemsText = items
     .map(
       (it) =>
-        `• ${it.productName} — ${it.qty} ${it.unit || 'unit'} (${it.warehouseName || 'Warehouse'})`,
+        `• ${it.productName} — ${it.qty} ${it.unit || 'unit'}${it.warehouseName ? ` (${it.warehouseName})` : ''}`,
     )
     .join('\n');
 
@@ -31,7 +31,7 @@ export function buildDriverDispatchUrl(
     `• *Destination:* ${partyAddress || 'Counter Pickup / Direct Delivery'}\n\n` +
     `*Items to Collect & Deliver:*\n${itemsText || '• Items as per invoice'}\n\n` +
     `💰 *Cash to Collect:* ₹${amountToCollect.toFixed(2)}\n\n` +
-    `_Instructions: Collect items from warehouses and verify before delivery._`;
+    `_Instructions: Collect items and verify with assigned dispatch supervisor(s) before departure._`;
 
   const cleanPhone = cleanPhoneNumber(driverPhone);
   return cleanPhone

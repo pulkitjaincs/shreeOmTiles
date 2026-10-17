@@ -27,16 +27,16 @@ export interface Party {
 export interface StockLedgerRecord {
   id: string;
   productId: string;
-  warehouseId: string;
+  warehouseId?: string | null;
   batchNo: string | null;
   quantity: number;
-  warehouse: Warehouse;
+  warehouse?: Warehouse | null;
   product: Product;
 }
 
 export interface StockOptionAllocation {
   stockLedgerId: string;
-  warehouseId: string;
+  warehouseId?: string | null;
   warehouseName: string;
   warehouseCode?: string;
   batchNo: string | null;

@@ -10,12 +10,13 @@ import {
   Package, 
   CheckSquare, 
   Square, 
-  Building2, 
   ArrowRight, 
   Phone, 
-  MapPin 
+  MapPin,
+  ShieldCheck,
+  Users
 } from 'lucide-react';
-import { Delivery, DispatchSelectionItem, DispatchedItem, PushSuccessDialogData } from './types';
+import { Delivery, DispatchSelectionItem, DispatchedItem, PushSuccessDialogData, SupervisorUser } from './types';
 import { cleanPhoneNumber } from '@/lib/formatters';
 
 interface PushDeliveryModalProps {
@@ -30,6 +31,24 @@ export function PushDeliveryModal({ delivery, onClose, onSuccess }: PushDelivery
   const [vehicle, setVehicle] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [availableSupervisors, setAvailableSupervisors] = useState<SupervisorUser[]>([]);
+  const [selectedSupervisorIds, setSelectedSupervisorIds] = useState<string[]>([]);
+  const [loadingSupervisors, setLoadingSupervisors] = useState(false);
+
+  useEffect(() => {
+    async function fetchSupervisors() {
+      setLoadingSupervisors(true);
+      try {
+        const users = await apiRequest<SupervisorUser[]>('/users?role=SUPERVISOR&isActive=true');
+        setAvailableSupervisors(Array.isArray(users) ? users : []);
+      } catch (err) {
+        console.error('Failed to load supervisors:', err);
+      } finally {
+        setLoadingSupervisors(false);
+      }
+    }
+    fetchSupervisors();
+  }, []);
 
   useEffect(() => {
     if (!delivery) return;
@@ -37,6 +56,10 @@ export function PushDeliveryModal({ delivery, onClose, onSuccess }: PushDelivery
     setAmountToCollect(delivery.amountToCollect ?? 0);
     setVehicle('');
     setNotes('');
+
+    // Pre-populate already assigned supervisors if any
+    const existingSupIds = (delivery.supervisors || []).map((s) => s.supervisorId);
+    setSelectedSupervisorIds(existingSupIds);
 
     const sourceItems: DispatchedItem[] =
       delivery.items && delivery.items.length > 0
@@ -81,6 +104,14 @@ export function PushDeliveryModal({ delivery, onClose, onSuccess }: PushDelivery
     );
   };
 
+  const handleToggleSupervisor = (supervisorId: string) => {
+    setSelectedSupervisorIds((prev) =>
+      prev.includes(supervisorId)
+        ? prev.filter((id) => id !== supervisorId)
+        : [...prev, supervisorId],
+    );
+  };
+
   const handleSelectAllItems = (select: boolean) => {
     setSelectedItems((prev) => prev.map((item) => ({ ...item, selected: select })));
   };
@@ -100,12 +131,19 @@ export function PushDeliveryModal({ delivery, onClose, onSuccess }: PushDelivery
 
     const itemsList = customItems
       .map((item, idx) => {
-        const whName = item.warehouseName || 'Warehouse';
-        const whAddr = item.warehouseAddress ? ` (${item.warehouseAddress})` : '';
         const batch = item.batchNo ? ` [Lot/Batch: ${item.batchNo}]` : '';
-        return `${idx + 1}. *${item.productName || 'Item'}* — *${item.qty} ${item.unit || 'units'}*\n   📍 *Pick from:* ${whName}${whAddr}${batch}`;
+        return `${idx + 1}. *${item.productName || 'Item'}* — *${item.qty} ${item.unit || 'units'}*${batch}`;
       })
-      .join('\n\n');
+      .join('\n');
+
+    const supervisorDetails = availableSupervisors
+      .filter((s) => selectedSupervisorIds.includes(s.id))
+      .map((s) => `• ${s.name} (${s.phone})`)
+      .join('\n');
+
+    const supervisorSection = supervisorDetails
+      ? `\n\n🛡️ *ASSIGNED SUPERVISOR(S):*\n${supervisorDetails}\n(Coordinate item pickup with the supervisor)`
+      : '';
 
     const paymentLine =
       collectAmount > 0
@@ -123,13 +161,13 @@ ${paymentLine}
 • *Phone:* ${party.phone}
 • *Delivery Address:* ${party.address || 'Counter Pickup / Direct Delivery'}
 
-🏭 *ITEMS TO PICK UP FROM WAREHOUSES:*
-${itemsList}
+📦 *ITEMS TO PICK UP:*
+${itemsList}${supervisorSection}
 
 ⏰ *Next Steps:*
-1. Reach respective warehouses and pick up each item.
-2. Mark items as picked up on your mobile app.
-3. Once collected, deliver to the customer and collect specified payment.`;
+1. Coordinate with assigned supervisor and pick up items.
+2. Supervisor will confirm item pickup in the system.
+3. Deliver to customer and collect specified payment.`;
   };
 
   const handleConfirmPush = async (e: React.FormEvent) => {
@@ -162,6 +200,7 @@ ${itemsList}
         method: 'POST',
         body: JSON.stringify({
           amountToCollect: amountCollectNum,
+          supervisorIds: selectedSupervisorIds,
           vehicle: vehicle || undefined,
           notes: notes || undefined,
           items: itemsToDispatch,
@@ -249,6 +288,53 @@ ${itemsList}
             </p>
           </div>
 
+          {/* Assigned Supervisor(s) Selection */}
+          <div className="p-3.5 rounded-[0.875rem] bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800 space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5 uppercase tracking-wider">
+                <ShieldCheck className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                Assign Dispatch Supervisor(s)
+              </label>
+              <span className="text-[0.6875rem] text-muted-foreground font-medium">
+                {selectedSupervisorIds.length} Selected
+              </span>
+            </div>
+            <p className="text-[0.6875rem] text-muted-foreground">
+              Select one or multiple supervisors to oversee item pickup and inspection for this delivery.
+            </p>
+            {loadingSupervisors ? (
+              <div className="text-xs text-muted-foreground py-1">Loading supervisors...</div>
+            ) : availableSupervisors.length === 0 ? (
+              <div className="text-xs text-muted-foreground italic py-1">
+                No active supervisors found. You can add supervisors under Users & Staff.
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2 pt-1">
+                {availableSupervisors.map((sup) => {
+                  const isSelected = selectedSupervisorIds.includes(sup.id);
+                  return (
+                    <button
+                      key={sup.id}
+                      type="button"
+                      onClick={() => handleToggleSupervisor(sup.id)}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                        isSelected
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                          : 'bg-background hover:bg-muted text-foreground border-border'
+                      }`}
+                    >
+                      <Users className="h-3 w-3" />
+                      <span>{sup.name}</span>
+                      <span className={`text-[0.6875rem] ${isSelected ? 'text-indigo-200' : 'text-muted-foreground'}`}>
+                        ({sup.phone})
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* Product Selection & Quantity Specification */}
           <div className="rounded-[0.875rem] border border-border/70 bg-muted/20 p-4 space-y-3">
             <div className="flex items-center justify-between">
@@ -316,16 +402,11 @@ ${itemsList}
                               (Total: {item.maxQty} {item.unit})
                             </span>
                           </div>
-                          <div className="text-[0.6875rem] text-primary flex items-center gap-1">
-                            <Building2 className="h-3 w-3 text-primary shrink-0" />
-                            <span>
-                              {item.warehouseName || 'Warehouse'}
-                              {item.warehouseAddress ? ` • ${item.warehouseAddress}` : ''}
-                            </span>
-                            {item.batchNo && (
-                              <span className="text-muted-foreground font-mono">[{item.batchNo}]</span>
-                            )}
-                          </div>
+                          {item.batchNo && (
+                            <div className="text-[0.6875rem] text-muted-foreground font-mono">
+                              Lot/Batch: {item.batchNo}
+                            </div>
+                          )}
                         </div>
                       </div>
 

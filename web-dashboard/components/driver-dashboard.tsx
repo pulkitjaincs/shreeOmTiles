@@ -18,6 +18,8 @@ import {
   X,
   Wallet,
   AlertCircle,
+  ShieldCheck,
+  Package,
 } from 'lucide-react';
 
 interface DispatchedItem {
@@ -33,6 +35,17 @@ interface DispatchedItem {
   pickedUpAt?: string;
 }
 
+interface DeliverySupervisorRecord {
+  id?: string;
+  supervisorId: string;
+  supervisor?: {
+    id: string;
+    name: string;
+    phone: string;
+    role: string;
+  };
+}
+
 interface Delivery {
   id: string;
   status: string;
@@ -44,6 +57,7 @@ interface Delivery {
   cashHandedOverAt?: string;
   createdAt: string;
   items?: DispatchedItem[];
+  supervisors?: DeliverySupervisorRecord[];
   invoice: {
     id: string;
     invoiceNo: string;
@@ -56,7 +70,7 @@ interface Delivery {
       id?: string;
       productId: string;
       product: { name: string; unit: string };
-      warehouse: { name: string; address?: string };
+      warehouse?: { name: string; address?: string } | null;
       batchNo?: string;
       qty: number;
     }[];
@@ -212,11 +226,11 @@ export default function DriverDashboard({ userName }: { userName?: string }) {
     }
   };
 
-  // Group active items by warehouse for systematic warehouse-by-warehouse collection
-  const warehouseGroups = useMemo(() => {
+  // Flat item list with originalIndex for tracking pickup
+  const checklistItems = useMemo(() => {
     if (!activeDelivery) return [];
 
-    const items =
+    const items: DispatchedItem[] =
       activeDelivery.items && activeDelivery.items.length > 0
         ? activeDelivery.items
         : activeDelivery.invoice.items.map((it) => ({
@@ -224,35 +238,12 @@ export default function DriverDashboard({ userName }: { userName?: string }) {
             productId: it.productId,
             productName: it.product?.name || 'Product',
             unit: it.product?.unit || 'unit',
-            warehouseName: it.warehouse?.name || 'Main Warehouse',
-            warehouseAddress: it.warehouse?.address || '',
             batchNo: it.batchNo,
             qty: it.qty,
             pickedUp: false,
           }));
 
-    const groups: Record<
-      string,
-      {
-        warehouseName: string;
-        warehouseAddress: string;
-        items: { item: DispatchedItem; originalIndex: number }[];
-      }
-    > = {};
-
-    items.forEach((item, idx) => {
-      const whKey = item.warehouseName || 'Main Warehouse';
-      if (!groups[whKey]) {
-        groups[whKey] = {
-          warehouseName: whKey,
-          warehouseAddress: item.warehouseAddress || '',
-          items: [],
-        };
-      }
-      groups[whKey].items.push({ item, originalIndex: idx });
-    });
-
-    return Object.values(groups);
+    return items.map((item, originalIndex) => ({ item, originalIndex }));
   }, [activeDelivery]);
 
   const allItemsList = useMemo(() => {
@@ -615,16 +606,72 @@ export default function DriverDashboard({ userName }: { userName?: string }) {
             </div>
           </div>
 
-          {/* WAREHOUSE PICKUP CHECKLIST (INTERACTIVE MULTI-WAREHOUSE PICKUP TOOL) */}
+          {/* Assigned Supervisor(s) Contact Coordinator Card */}
+          {activeDelivery.supervisors && activeDelivery.supervisors.length > 0 && (
+            <div className="p-4 rounded-[1.25rem] bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 space-y-3">
+              <div className="text-[0.6875rem] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5">
+                <ShieldCheck className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                Assigned Dispatch Supervisor(s)
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {activeDelivery.supervisors.map((sRec, sIdx) => {
+                  const sup = sRec.supervisor;
+                  if (!sup) return null;
+                  return (
+                    <div
+                      key={sIdx}
+                      className="p-3 rounded-xl bg-card border border-border flex items-center justify-between gap-3 shadow-2xs"
+                    >
+                      <div className="space-y-0.5">
+                        <div className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                          <span>{sup.name}</span>
+                          <span className="text-[10px] font-semibold px-2 py-0.2 rounded-full bg-indigo-500/10 text-indigo-600">
+                            Supervisor
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Phone className="h-3 w-3 text-muted-foreground" />
+                          <span>{sup.phone}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <a
+                          href={`tel:${sup.phone.replace(/[^0-9]/g, '')}`}
+                          className="p-2 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-700 dark:text-sky-300 border border-sky-500/20 transition"
+                          title={`Call ${sup.name}`}
+                        >
+                          <Phone className="h-3.5 w-3.5" />
+                        </a>
+                        <a
+                          href={`https://wa.me/91${sup.phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(
+                            `Hello ${sup.name}, I am your driver for Invoice #${activeDelivery.invoice.invoiceNo}. I am coordinating pickup of the items.`
+                          )}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 transition"
+                          title={`WhatsApp ${sup.name}`}
+                        >
+                          <Share2 className="h-3.5 w-3.5" />
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ITEM PICKUP CHECKLIST (SUPERVISOR CONFIRMATION) */}
           <div className="space-y-4 pt-2">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/70 pb-3">
               <div>
                 <h3 className="text-[0.875rem] font-bold text-foreground flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-purple-500" />
-                  Warehouse Pickup Checklist (Awaiting Supervisor Confirmation)
+                  <Package className="h-4 w-4 text-purple-500" />
+                  Item Pickup Checklist (Awaiting Supervisor Confirmation)
                 </h3>
                 <p className="text-[0.75rem] text-muted-foreground mt-0.5">
-                  Visit each warehouse. The warehouse supervisor will verify and mark packages as picked.
+                  Coordinate with the assigned supervisor. The supervisor will inspect and mark items as verified in the system.
                 </p>
               </div>
 
@@ -644,98 +691,63 @@ export default function DriverDashboard({ userName }: { userName?: string }) {
               </div>
             </div>
 
-            {/* Warehouse Groups */}
-            <div className="space-y-4">
-              {warehouseGroups.map((group, gIdx) => (
-                <div
-                  key={gIdx}
-                  className="rounded-[1.25rem] border border-border bg-card/90 overflow-hidden shadow-2xs"
-                >
-                  {/* Warehouse Title Header */}
-                  <div className="px-4 py-3 bg-muted/40 border-b border-border flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400">
-                        <Building2 className="h-4 w-4" />
-                      </div>
-                      <div>
+            {/* Checklist items */}
+            <div className="space-y-2">
+              {checklistItems.map(({ item, originalIndex }) => {
+                const isPicked = Boolean(item.pickedUp);
+
+                return (
+                  <div
+                    key={originalIndex}
+                    className={`p-3.5 rounded-[1rem] border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition ${
+                      isPicked
+                        ? 'bg-emerald-500/5 border-emerald-500/25 text-foreground'
+                        : 'bg-muted/30 border-border text-foreground hover:border-primary/40'
+                    }`}
+                  >
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2">
                         <span className="text-[0.875rem] font-bold text-foreground">
-                          {group.warehouseName}
+                          {item.productName}
                         </span>
-                        {group.warehouseAddress ? (
-                          <span className="text-[0.75rem] text-muted-foreground ml-2 font-normal">
-                            📍 {group.warehouseAddress}
-                          </span>
-                        ) : null}
+                        <span className="text-[0.6875rem] font-semibold px-2 py-0.5 rounded-md bg-muted text-foreground border border-border">
+                          {item.qty} {item.unit}
+                        </span>
                       </div>
+                      {item.batchNo && (
+                        <div className="text-[0.6875rem] text-muted-foreground">
+                          Lot / Batch Number: <span className="font-mono text-foreground">{item.batchNo}</span>
+                        </div>
+                      )}
+                      {item.pickedUpAt && (
+                        <div className="text-[0.625rem] text-emerald-600 dark:text-emerald-400">
+                          Picked up at {new Date(item.pickedUpAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </div>
+                      )}
                     </div>
 
-                    <span className="text-[0.75rem] text-muted-foreground font-medium">
-                      {group.items.filter((i) => i.item.pickedUp).length} / {group.items.length} items
-                    </span>
-                  </div>
-
-                  {/* Items inside this warehouse */}
-                  <div className="p-3 space-y-2">
-                    {group.items.map(({ item, originalIndex }) => {
-                      const isUpdating = updatingIndex === originalIndex;
-                      const isPicked = Boolean(item.pickedUp);
-
-                      return (
+                    <div>
+                      {isPicked ? (
                         <div
-                          key={originalIndex}
-                          className={`p-3 rounded-[0.875rem] border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition ${
-                            isPicked
-                              ? 'bg-emerald-500/5 border-emerald-500/25 text-foreground'
-                              : 'bg-muted/30 border-border text-foreground hover:border-primary/40'
-                          }`}
+                          className="px-3.5 py-2 rounded-[0.75rem] text-[0.75rem] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 inline-flex items-center gap-1.5 select-none opacity-90"
+                          title="Item verified and pickup confirmed by Supervisor."
                         >
-                          <div className="space-y-0.5">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[0.875rem] font-bold text-foreground">
-                                {item.productName}
-                              </span>
-                              <span className="text-[0.6875rem] font-semibold px-2 py-0.5 rounded-md bg-muted text-foreground border border-border">
-                                {item.qty} {item.unit}
-                              </span>
-                            </div>
-                            {item.batchNo && (
-                              <div className="text-[0.6875rem] text-muted-foreground">
-                                Lot / Batch Number: <span className="font-mono text-foreground">{item.batchNo}</span>
-                              </div>
-                            )}
-                            {item.pickedUpAt && (
-                              <div className="text-[0.625rem] text-emerald-600 dark:text-emerald-400">
-                                Picked at {new Date(item.pickedUpAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Pickup Action Status - Marked exclusively by Warehouse Supervisor */}
-                          <div>
-                            {isPicked ? (
-                              <div
-                                className="px-3.5 py-2 rounded-[0.75rem] text-[0.75rem] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 inline-flex items-center gap-1.5 select-none opacity-90"
-                                title="Item verified and picked by Warehouse Supervisor."
-                              >
-                                <Check className="h-3.5 w-3.5 text-emerald-500" />
-                                <span>✓ Picked by Supervisor</span>
-                              </div>
-                            ) : (
-                              <div
-                                className="px-3.5 py-2 rounded-[0.75rem] text-[0.75rem] font-medium bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 inline-flex items-center gap-1.5 select-none"
-                                title="Visit warehouse to have the supervisor confirm pickup."
-                              >
-                                <Clock className="h-3.5 w-3.5 text-amber-500" />
-                                <span>Awaiting Supervisor Confirmation</span>
-                              </div>
-                            )}
-                          </div>
+                          <Check className="h-3.5 w-3.5 text-emerald-500" />
+                          <span>✓ Verified by Supervisor</span>
                         </div>
-                      );
-                    })}
+                      ) : (
+                        <div
+                          className="px-3.5 py-2 rounded-[0.75rem] text-[0.75rem] font-medium bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 inline-flex items-center gap-1.5 select-none"
+                          title="Coordinate with the assigned supervisor to confirm pickup."
+                        >
+                          <Clock className="h-3.5 w-3.5 text-amber-500" />
+                          <span>Awaiting Supervisor Confirmation</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

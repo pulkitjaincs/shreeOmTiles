@@ -19,7 +19,23 @@ const MAX_PDF_CACHE_SIZE = 50;
 export async function generateInvoicePdf(
   invoice: InvoicePdfPayload,
 ): Promise<GeneratedPdfResult> {
-  const cacheKey = `${invoice.id}:${invoice.updatedAt ? new Date(invoice.updatedAt).getTime() : 0}`;
+  const totalReturns = (invoice.refundInvoices || []).reduce(
+    (sum, rf) => sum + Number(rf.total || 0),
+    0,
+  );
+  const totalReceived = Math.max(
+    0,
+    (invoice.payments || [])
+      .filter((p) => p.status === 'CONFIRMED')
+      .reduce(
+        (sum, p) =>
+          p.type === 'OUTFLOW'
+            ? sum - Number(p.amount)
+            : sum + Number(p.amount),
+        0,
+      ),
+  );
+  const cacheKey = `${invoice.id}:${invoice.updatedAt ? new Date(invoice.updatedAt).getTime() : 0}:${(invoice.refundInvoices || []).length}:${totalReturns}:${totalReceived}`;
   const cached = pdfBufferCache.get(cacheKey);
   if (cached) {
     return cached;
@@ -60,19 +76,12 @@ export async function generateInvoicePdf(
   const hasTax = itemsTax > 0 || transportTax > 0;
   const docTitle = hasTax ? 'Tax Invoice' : 'Bill of Supply';
 
-  const totalReceived = Math.max(
-    0,
-    (invoice.payments || [])
-      .filter((p) => p.status === 'CONFIRMED')
-      .reduce(
-        (sum, p) =>
-          p.type === 'OUTFLOW'
-            ? sum - Number(p.amount)
-            : sum + Number(p.amount),
-        0,
-      ),
-  );
-  const balance = Math.max(0, totalAmount - totalReceived);
+  const hasReturns = totalReturns > 0;
+  const netPayable = Math.max(0, totalAmount - totalReturns);
+  const netBalanceDue = Math.max(0, netPayable - totalReceived);
+  const balance = hasReturns
+    ? netBalanceDue
+    : Math.max(0, totalAmount - totalReceived);
   const previousBalance = Number(invoice.previousBalance || 0);
   const currentBalance = previousBalance + balance;
 
@@ -504,7 +513,7 @@ export async function generateInvoicePdf(
   currentY -= totalRowHeight;
 
   // 5. Middle Financial Section (Amount in words on left, Amounts breakdown on right)
-  const amountsBoxHeight = 135;
+  const amountsBoxHeight = hasReturns ? 150 : 135;
   page.drawRectangle({
     x: leftMargin,
     y: currentY - amountsBoxHeight,
@@ -577,6 +586,32 @@ export async function generateInvoicePdf(
     color: black,
   });
 
+  if (hasReturns) {
+    const refundNos = (invoice.refundInvoices || [])
+      .map((r) => r.refundNo)
+      .filter(Boolean)
+      .join(', ');
+    const noteText = safePdfText(`Adj. Credit Notes: ${refundNos}`);
+    const maxNoteW = splitX - 58 - wordsLeftX - 6;
+    let displayNote = noteText;
+    if (fontBold.widthOfTextAtSize(displayNote, 7) > maxNoteW) {
+      while (
+        displayNote.length > 0 &&
+        fontBold.widthOfTextAtSize(displayNote + '...', 7) > maxNoteW
+      ) {
+        displayNote = displayNote.slice(0, -1);
+      }
+      displayNote += '...';
+    }
+    page.drawText(displayNote, {
+      x: wordsLeftX,
+      y: currentY - 88,
+      size: 7,
+      font: fontBold,
+      color: brandRed,
+    });
+  }
+
   // QR Code on bottom left
   page.drawImage(qrImage, {
     x: splitX - 58,
@@ -598,22 +633,22 @@ export async function generateInvoicePdf(
     isBold: boolean = false,
     isHighlight: boolean = false,
   ) {
-    page.drawText(label, {
+    const safeLabel = safePdfText(label);
+    const safeVal = safePdfText(value);
+    const fontToUse = isBold ? fontBold : fontRegular;
+    page.drawText(safeLabel, {
       x: rightLabelsX,
       y: amtY,
       size: 7.5,
-      font: isBold ? fontBold : fontRegular,
+      font: fontToUse,
       color: isHighlight ? brandRed : isBold ? black : darkGray,
     });
-    const valWidth = (isBold ? fontBold : fontRegular).widthOfTextAtSize(
-      value,
-      7.5,
-    );
-    page.drawText(value, {
+    const valWidth = fontToUse.widthOfTextAtSize(safeVal, 7.5);
+    page.drawText(safeVal, {
       x: rightValuesRightX - valWidth,
       y: amtY,
       size: 7.5,
-      font: isBold ? fontBold : fontRegular,
+      font: fontToUse,
       color: isHighlight ? brandRed : isBold ? black : darkGray,
     });
     amtY -= amtLineHeight;
@@ -653,9 +688,31 @@ export async function generateInvoicePdf(
     );
   }
 
-  drawAmountLine('Total', `Rs. ${totalAmount.toLocaleString('en-IN')}`, true);
-  drawAmountLine('Received', `Rs. ${totalReceived.toLocaleString('en-IN')}`);
-  drawAmountLine('Balance', `Rs. ${balance.toLocaleString('en-IN')}`, true);
+  if (hasReturns) {
+    drawAmountLine(
+      'Total Billed',
+      `Rs. ${totalAmount.toLocaleString('en-IN')}`,
+      true,
+    );
+    drawAmountLine(
+      'Returns / Refunds:',
+      `-Rs. ${totalReturns.toLocaleString('en-IN')}`,
+      false,
+      true,
+    );
+    drawAmountLine('Received', `Rs. ${totalReceived.toLocaleString('en-IN')}`);
+    drawAmountLine(
+      'Net Balance Due',
+      `Rs. ${netBalanceDue.toLocaleString('en-IN')}`,
+      true,
+      netBalanceDue > 0,
+    );
+  } else {
+    drawAmountLine('Total', `Rs. ${totalAmount.toLocaleString('en-IN')}`, true);
+    drawAmountLine('Received', `Rs. ${totalReceived.toLocaleString('en-IN')}`);
+    drawAmountLine('Balance', `Rs. ${balance.toLocaleString('en-IN')}`, true);
+  }
+
   drawAmountLine(
     'Previous Balance',
     `Rs. ${previousBalance.toLocaleString('en-IN')}`,

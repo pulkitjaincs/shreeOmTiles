@@ -22,12 +22,12 @@ interface InvoiceDetailsDrawerProps {
   onClose: () => void;
   onShareWhatsApp: (invoice: Invoice) => void;
   onDownloadPdf: (id: string, no: string) => void;
-  onDownloadRefundPdf: (refundId: string, refundNo: string) => void;
+  onDownloadRefundPdf?: (refundId: string, refundNo: string) => void;
   onDelete?: (invoice: Invoice) => void;
   canDelete?: boolean;
   sharingId: string | null;
   downloadingId: string | null;
-  downloadingRefundId: string | null;
+  downloadingRefundId?: string | null;
 }
 
 export function InvoiceDetailsDrawer({
@@ -428,17 +428,17 @@ export function InvoiceDetailsDrawer({
                           </span>
                           <button
                             type="button"
-                            onClick={() => onDownloadRefundPdf(refund.id, refund.refundNo)}
-                            disabled={downloadingRefundId === refund.id}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[0.5rem] text-[0.75rem] font-medium text-rose-700 dark:text-rose-200 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 shadow-2xs transition disabled:opacity-50 active:scale-98"
-                            title="Download Credit Note PDF"
+                            onClick={() => onDownloadPdf(invoice.id, invoice.invoiceNo)}
+                            disabled={downloadingId === invoice.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[0.5rem] text-[0.75rem] font-medium text-primary hover:bg-primary/10 border border-primary/20 shadow-2xs transition disabled:opacity-50 active:scale-98"
+                            title="Download Updated Invoice PDF"
                           >
-                            {downloadingRefundId === refund.id ? (
+                            {downloadingId === invoice.id ? (
                               <Loader2 className="h-3.5 w-3.5 animate-spin" />
                             ) : (
                               <Download className="h-3.5 w-3.5" />
                             )}
-                            <span>Credit Note PDF</span>
+                            <span>Updated Invoice PDF</span>
                           </button>
                         </>
                       )}

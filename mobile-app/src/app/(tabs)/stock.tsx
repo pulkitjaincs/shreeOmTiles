@@ -157,38 +157,50 @@ export default function StockScreen() {
   };
 
   // Filtered lists
+  const inStockBatches = useMemo(
+    () => stocks.filter((s) => Number(s.quantity || 0) > 0),
+    [stocks],
+  );
+
   const filteredStocks = useMemo(() => {
     const q = search.toLowerCase().trim();
-    return stocks.filter((s) => {
+    return inStockBatches.filter((s) => {
       const matchesWarehouse =
         selectedWarehouse === 'ALL' || s.warehouseId === selectedWarehouse;
       const matchesSearch =
-        s.product?.name?.toLowerCase().includes(q) ||
-        s.product?.category?.toLowerCase().includes(q) ||
-        s.warehouse?.name?.toLowerCase().includes(q) ||
-        (s.batchNo && s.batchNo.toLowerCase().includes(q));
+        !q ||
+        (s.product?.name?.toLowerCase().includes(q) ?? false) ||
+        (s.product?.category?.toLowerCase().includes(q) ?? false) ||
+        (s.warehouse?.name?.toLowerCase().includes(q) ?? false) ||
+        (s.batchNo?.toLowerCase().includes(q) ?? false);
       return matchesWarehouse && matchesSearch;
     });
-  }, [stocks, search, selectedWarehouse]);
+  }, [inStockBatches, search, selectedWarehouse]);
 
   const warehouseOptions = useMemo(() => {
     return [
       {
         label: 'All Godowns',
         value: 'ALL',
-        count: stocks.length,
+        count: new Set(
+          inStockBatches.filter((s) => Boolean(s.productId)).map((s) => s.productId),
+        ).size,
         icon: 'business-outline' as const,
         color: '#FFFFFF',
       },
       ...warehouses.map((w) => ({
         label: w.name,
         value: w.id,
-        count: stocks.filter((s) => s.warehouseId === w.id).length,
+        count: new Set(
+          inStockBatches
+            .filter((s) => s.warehouseId === w.id && Boolean(s.productId))
+            .map((s) => s.productId),
+        ).size,
         icon: 'business-outline' as const,
         color: '#818CF8',
       })),
     ];
-  }, [warehouses, stocks]);
+  }, [warehouses, inStockBatches]);
 
   const categoryOptions = useMemo(() => {
     const cats = Array.from(new Set(products.map((p) => p.category).filter(Boolean)));
@@ -234,7 +246,7 @@ export default function StockScreen() {
         <StockTabBar
           activeTab={activeTab}
           onTabChange={setActiveTab}
-          stockCount={stocks.length}
+          stockCount={inStockBatches.length}
           productCount={products.length}
         />
 
@@ -301,25 +313,16 @@ export default function StockScreen() {
           )}
         </View>
 
-        {/* Secondary Quick Inventory Utility Links (Transfer & Adjust) */}
+        {/* Secondary Quick Inventory Utility Links (Adjust) */}
         {(isOwnerOrAdmin || isSupervisor) && activeTab === 'STOCK' && (
           <View style={styles.secondaryActionsRow}>
-            <TouchableOpacity
-              style={styles.utilityBtn}
-              onPress={() => setTransferModalOpen(true)}
-              activeOpacity={0.7}
-            >
-              <Ionicons name="swap-horizontal" size={13} color="#38BDF8" />
-              <Text style={styles.utilityBtnTextTransfer}>Transfer Stock</Text>
-            </TouchableOpacity>
-
             <TouchableOpacity
               style={styles.utilityBtn}
               onPress={() => setAdjustModalOpen(true)}
               activeOpacity={0.7}
             >
               <Ionicons name="options-outline" size={13} color="#A855F7" />
-              <Text style={styles.utilityBtnTextAdjust}>Audit / Adjust</Text>
+              <Text style={styles.utilityBtnTextAdjust}>Audit / Adjust Physical Count</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -328,7 +331,7 @@ export default function StockScreen() {
         <View style={styles.resultsRow}>
           <Text style={styles.resultsText}>
             {activeTab === 'STOCK'
-              ? `Showing ${filteredStocks.length} of ${stocks.length} inventory batches`
+              ? `Showing ${filteredStocks.length} of ${inStockBatches.length} inventory batches`
               : `Showing ${filteredProducts.length} of ${products.length} products`}
           </Text>
           {((activeTab === 'STOCK' ? selectedWarehouse !== 'ALL' : selectedCategory !== 'ALL') ||

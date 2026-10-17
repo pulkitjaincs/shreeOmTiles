@@ -23,7 +23,9 @@
 7. [Prerequisites & Dependencies](#prerequisites--dependencies)
 8. [Quickstart Guide](#quickstart-guide)
 9. [Seed Credentials & Demo Accounts](#seed-credentials--demo-accounts)
-10. [Component Documentation Links](#component-documentation-links)
+10. [Automated Multi-Role E2E Testing Suite](#automated-multi-role-e2e-testing-suite)
+11. [Over-The-Air (OTA) Instant Mobile Updates](#over-the-air-ota-instant-mobile-updates)
+12. [Component Documentation Links](#component-documentation-links)
 
 ---
 
@@ -59,7 +61,7 @@ graph TD
 ```
 dhraERP/
 ├── backend/                  # NestJS 11 core REST API & microservices
-│   ├── prisma/               # Prisma 7 schema definitions & seed scripts
+│   ├── prisma/               # Prisma 7 schema definitions, seed scripts, clean-test-db & CSV importer
 │   ├── src/
 │   │   ├── analytics/        # Financial KPIs, revenue curves, Day Book till cash, GST reports
 │   │   ├── auth/             # Passport JWT auth, hashing & RBAC guards
@@ -78,15 +80,15 @@ dhraERP/
 │   │   ├── quotations/       # Price estimates, quotes, vector PDF generator, 1-click invoice conversion
 │   │   │   └── pdf/          # Estimate / Quotation PDF generator
 │   │   ├── settings/         # Company profile, UPI accounts, GSTIN configuration
-│   │   ├── stock/            # Multi-warehouse stock inward, adjustments & transfers
+│   │   ├── stock/            # Multi-warehouse stock inward, adjustments & transfers (positiveOnly filter)
 │   │   ├── users/            # Employee management, roles, push token storage, warehouse scopes
 │   │   └── warehouses/       # Physical godown & showroom locations
 │   └── README.md             # Detailed Backend documentation
 │
 ├── web-dashboard/            # Next.js 16.3 (Turbopack, App Router) Web ERP
-│   ├── app/                  # App Router pages (/dashboard, /day-book, /deliveries, /expenses, /invoices, /purchases, /quotations, ...)
+│   ├── app/                  # App Router pages (/dashboard, /day-book, /deliveries, /expenses, /invoices, /purchases, /quotations, /warehouses, ...)
 │   ├── components/           # Reusable UI modules, drawers, dialogs, analytics widgets, supervisor cockpit
-│   ├── lib/                  # API client, token management, currency formatting
+│   ├── lib/                  # API client with real-time cache invalidation, token management, currency formatting
 │   └── README.md             # Detailed Web Dashboard documentation
 │
 ├── mobile-app/               # Expo SDK 57 / React Native 0.86 Mobile ERP
@@ -100,16 +102,20 @@ dhraERP/
 │   │   │   ├── invoices/     # List cards, line-item cards, upfront UPI modal, delete invoice modal, returns
 │   │   │   ├── parties/      # Directory view, statement drawer with date filters, category badges
 │   │   │   ├── payments/     # Transaction tabs, customer dues, store payables, settlement modals
-│   │   │   ├── purchases/    # Vendor purchase order list & debit notes
-│   │   │   ├── quotations/   # Estimates directory, PDF preview & 1-click invoice conversion
+│   │   │   ├── purchases/    # Vendor purchase order list, debit notes & CreatePurchaseModal
+│   │   │   ├── quotations/   # Estimates directory, PDF preview, 1-click convert & CreateQuotationModal
 │   │   │   ├── settings/     # Staff directory (Accountant/Supervisor roles), UPI cards, company profile
 │   │   │   ├── stock/        # Tile catalog cards, warehouse stock breakdown, inward/transfer modals
 │   │   │   ├── ui/           # BottomSheetModal, Header, custom Select, badges, buttons
-│   │   │   └── warehouses/   # Warehouse directory, danger action modals
+│   │   │   └── warehouses/   # Warehouse directory, positive stock (> 0) filtering, danger action modals
 │   │   └── lib/              # API client, auth context, push notification listener, PDF & WhatsApp utils
 │   ├── app.json              # Expo application configuration & notification plugin
-│   ├── eas.json              # EAS cloud build profiles (optimized arm64-v8a build)
+│   ├── eas.json              # EAS cloud build & OTA update profiles
 │   └── README.md             # Detailed Mobile Application documentation
+│
+├── scripts/                  # Automated test & seed infrastructure
+│   ├── e2e-frontend-runner.js # Full Playwright multi-role browser test suite (8 enterprise milestones)
+│   └── inventory_master.csv  # Tile master catalog data for bulk import
 │
 └── README.md                 # Root Monorepo master documentation (this file)
 ```
@@ -307,6 +313,44 @@ npx expo start -c
 
 ---
 
+## 🧪 Automated Multi-Role E2E Testing Suite
+
+The repository contains an enterprise-grade automated browser verification test suite in `scripts/e2e-frontend-runner.js` powered by Playwright. It systematically exercises the complete end-to-end B2B order lifecycle by authenticating as each of the 5 key business personas in turn:
+
+```bash
+# 1. Truncate all 27 tables & seed initial owner (Vijay Jain - 9212610962)
+node backend/prisma/clean-test-db.js
+
+# 2. Run Playwright end-to-end test runner across all roles
+node scripts/e2e-frontend-runner.js
+```
+
+### Lifecycle Milestones Tested & Verified:
+1. **Owner Setup**: Warehouse creation & initial tile catalog SKU creation.
+2. **Staff Provisioning**: Owner provisions `ADMIN`, `SALESMAN`, `SUPERVISOR`, and `DRIVER` via UI modal.
+3. **Admin Operations**: Customer party creation and operating expense recording.
+4. **Salesman Invoicing**: Counter sales invoice generation with dynamic GST and upfront UPI QR.
+5. **Admin Logistics**: Vehicle assignment and delivery manifest push.
+6. **Supervisor Loading Check**: Warehouse supervisor verifies physical loading (with price masking) and locks status.
+7. **Driver Execution**: Driver sets trip `IN_TRANSIT`, marks `DELIVERED`, and collects cash payment.
+8. **Owner Settlement & Ledger Reconciliation**: Handover settlement approval, till drawer reconciliation, invoice marked `PAID`, and customer statement verified.
+
+---
+
+## ⚡ Over-The-Air (OTA) Instant Mobile Updates
+
+The mobile app includes instant Over-The-Air (OTA) update publishing via `expo-updates` and EAS Update. Code changes and fixes can be deployed to production mobile users instantly without compiling new APKs:
+
+```bash
+cd mobile-app
+eas update --branch production --environment production --message "feat: mobile quotations, purchases, zero-stock filtering & transaction sync" --non-interactive
+```
+
+- **Runtime Version**: `"policy": "appVersion"`
+- **Distribution Channels**: `production`, `preview`, `development`
+
+---
+
 ## 📖 Component Documentation Links
 
 For deep-dive documentation on each subsystem:
@@ -314,3 +358,4 @@ For deep-dive documentation on each subsystem:
 - ⚙️ **[Backend Architecture & REST API Reference](file:///d:/code/Projects/dhraERP/backend/README.md)**
 - 💻 **[Web Dashboard Technical Guide](file:///d:/code/Projects/dhraERP/web-dashboard/README.md)**
 - 📱 **[Mobile Application & EAS Android Build Guide](file:///d:/code/Projects/dhraERP/mobile-app/README.md)**
+

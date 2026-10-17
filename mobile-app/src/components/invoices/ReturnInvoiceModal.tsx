@@ -9,6 +9,7 @@ import { Select } from '@/components/ui/Select';
 import { Colors } from '@/constants/theme';
 import { formatINR, formatDate } from '@/lib/formatters';
 import { mobileApiRequest } from '@/lib/api';
+import { downloadAndSharePdf } from '@/lib/pdf';
 import { Warehouse } from './types';
 
 interface ReturnInvoiceModalProps {
@@ -16,11 +17,12 @@ interface ReturnInvoiceModalProps {
   visible: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  warehouses: Warehouse[];
-  onDownloadRefundPdf: (refundId: string, refundNo: string) => Promise<void> | void;
+  warehouses?: Warehouse[];
+  onDownloadRefundPdf?: (refundId: string, refundNo: string) => Promise<void> | void;
+  onDownloadPdf?: (id: string, invoiceNo: string) => Promise<void> | void;
 }
 
-type ReturnAllocation = { qty: number; warehouseId: string; batchNo?: string };
+type ReturnAllocation = { qty: number; warehouseId?: string; batchNo?: string };
 
 export function ReturnInvoiceModal({
   invoice,
@@ -29,6 +31,7 @@ export function ReturnInvoiceModal({
   onSuccess,
   warehouses,
   onDownloadRefundPdf,
+  onDownloadPdf,
 }: ReturnInvoiceModalProps) {
   const [returnSearch, setReturnSearch] = useState('');
   const [activeInvoice, setActiveInvoice] = useState<any>(null);
@@ -37,6 +40,7 @@ export function ReturnInvoiceModal({
   const [returnReason, setReturnReason] = useState('Customer Return');
   const [loadingInvoice, setLoadingInvoice] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState<any>(null);
 
@@ -45,7 +49,7 @@ export function ReturnInvoiceModal({
     (found.items || []).forEach((item: any) => {
       initial[item.id] = {
         qty: 0,
-        warehouseId: item.warehouseId || item.warehouse?.id || warehouses[0]?.id || '',
+        warehouseId: item.warehouseId || item.warehouse?.id || undefined,
         batchNo: item.batchNo || undefined,
       };
     });
@@ -132,7 +136,7 @@ export function ReturnInvoiceModal({
       if (!allocation?.qty) return [];
       return [{
         productId: item.productId || item.product?.id,
-        warehouseId: allocation.warehouseId || warehouses[0]?.id || item.warehouseId,
+        warehouseId: allocation.warehouseId || undefined,
         batchNo: allocation.batchNo || item.batchNo || undefined,
         qty: allocation.qty,
         unitPrice: Number(item.unitPrice || 0),
@@ -140,10 +144,6 @@ export function ReturnInvoiceModal({
     });
     if (itemsToReturn.length === 0) {
       setError('Please enter a return quantity for at least one item.');
-      return;
-    }
-    if (itemsToReturn.some((item: any) => !item.warehouseId)) {
-      setError('Choose a restock location for each returned item.');
       return;
     }
 
@@ -164,6 +164,8 @@ export function ReturnInvoiceModal({
         refundNo: result.refundNo || result.refundInvoice?.refundNo,
         total: Number(result.totalRefund ?? result.refundInvoice?.total ?? estimated.total),
         mode: result.refundMode || returnMode,
+        invoiceId: activeInvoice.id,
+        invoiceNo: activeInvoice.invoiceNo || result.invoiceNo,
       });
       await onSuccess();
       await lookupInvoice(activeInvoice.invoiceNo || activeInvoice.id, undefined, true);
@@ -215,13 +217,28 @@ export function ReturnInvoiceModal({
         {success ? (
           <Card style={styles.successCard}>
             <Text style={styles.successTitle}>Credit note {success.refundNo ? `#${success.refundNo}` : 'created'}</Text>
-            <Text style={styles.successText}>{formatINR(success.total)} refunded via {success.mode}.</Text>
-            {success.id ? (
+            <Text style={styles.successText}>{formatINR(success.total)} refunded via {success.mode}. Parent invoice updated.</Text>
+            {(success.invoiceId || activeInvoice?.id) ? (
               <Button
-                title="Download Credit Note PDF"
+                title={downloadingPdf ? 'Downloading PDF...' : 'Download Updated Invoice PDF'}
                 icon="document-text-outline"
-                variant="secondary"
-                onPress={() => void onDownloadRefundPdf(success.id, success.refundNo || 'Credit_Note')}
+                variant="primary"
+                loading={downloadingPdf}
+                disabled={downloadingPdf}
+                onPress={async () => {
+                  try {
+                    setDownloadingPdf(true);
+                    const invId = success.invoiceId || activeInvoice?.id;
+                    const invNo = success.invoiceNo || activeInvoice?.invoiceNo || `Invoice_${invId}`;
+                    if (onDownloadPdf) {
+                      await onDownloadPdf(invId, invNo);
+                    } else {
+                      await downloadAndSharePdf(`invoices/${invId}/pdf`, invNo);
+                    }
+                  } finally {
+                    setDownloadingPdf(false);
+                  }
+                }}
                 style={{ marginTop: 10 }}
               />
             ) : null}
@@ -246,9 +263,9 @@ export function ReturnInvoiceModal({
               </View>
             </Card>
 
-            <Text style={styles.sectionTitle}>Items to return and restock</Text>
+            <Text style={styles.sectionTitle}>Items to return</Text>
             {(activeInvoice.items || []).map((item: any) => {
-              const allocation = allocations[item.id] || { qty: 0, warehouseId: warehouses[0]?.id || '' };
+              const allocation = allocations[item.id] || { qty: 0 };
               const maxReturnable = Number(item.remainingReturnable ?? item.qty ?? 0);
               const unit = item.product?.unit || 'units';
               return (
@@ -265,21 +282,10 @@ export function ReturnInvoiceModal({
                         label={`Return quantity (max ${maxReturnable})`}
                         placeholder="0"
                         value={allocation.qty ? String(allocation.qty) : ''}
-                        keyboardType="number-pad"
+                        keyboardType="numeric"
                         onChangeText={(value) => updateAllocation(item.id, {
-                          qty: Math.max(0, Math.min(maxReturnable, Number.parseInt(value, 10) || 0)),
+                          qty: Math.max(0, Math.min(maxReturnable, Number.parseFloat(value) || 0)),
                         })}
-                      />
-                      <Select
-                        label="Restock location"
-                        value={allocation.warehouseId}
-                        onChange={(warehouseId) => updateAllocation(item.id, { warehouseId })}
-                        options={warehouses.map((warehouse) => ({
-                          value: warehouse.id,
-                          label: warehouse.name,
-                          subLabel: warehouse.type || undefined,
-                        }))}
-                        placeholder="Choose warehouse or showroom"
                       />
                       <Text style={styles.lineRefund}>Line refund: {formatINR(allocation.qty * Number(item.unitPrice || 0))}</Text>
                     </>

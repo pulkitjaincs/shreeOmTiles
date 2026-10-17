@@ -38,7 +38,7 @@ export function StockAdjustModal({
     if (visible) {
       if (initialStockItem) {
         setSelectedProductId(initialStockItem.productId);
-        setSelectedLocationKey(`${initialStockItem.warehouseId}:::${initialStockItem.batchNo || ''}`);
+        setSelectedLocationKey(`${initialStockItem.warehouseId || ''}:::${initialStockItem.batchNo || ''}`);
         setQuantity(String(initialStockItem.quantity));
       } else {
         const initialProdId = products[0]?.id || '';
@@ -46,7 +46,7 @@ export function StockAdjustModal({
 
         const prodStocks = stocks.filter((s) => s.productId === initialProdId);
         if (prodStocks.length > 0) {
-          setSelectedLocationKey(`${prodStocks[0].warehouseId}:::${prodStocks[0].batchNo || ''}`);
+          setSelectedLocationKey(`${prodStocks[0].warehouseId || ''}:::${prodStocks[0].batchNo || ''}`);
           setQuantity(String(prodStocks[0].quantity));
         } else {
           const firstWhId = warehouses[0]?.id || '';
@@ -62,7 +62,7 @@ export function StockAdjustModal({
     setSelectedProductId(prodId);
     const prodStocks = stocks.filter((s) => s.productId === prodId);
     if (prodStocks.length > 0) {
-      setSelectedLocationKey(`${prodStocks[0].warehouseId}:::${prodStocks[0].batchNo || ''}`);
+      setSelectedLocationKey(`${prodStocks[0].warehouseId || ''}:::${prodStocks[0].batchNo || ''}`);
       setQuantity(String(prodStocks[0].quantity));
     } else {
       const firstWhId = warehouses[0]?.id || '';
@@ -100,13 +100,13 @@ export function StockAdjustModal({
         }));
 
   const handleAdjust = async () => {
-    if (!selectedProductId || !warehouseId || quantity === '') {
-      Alert.alert('Required Fields', 'Please select product, location, and verified count');
+    if (!selectedProductId || quantity === '') {
+      Alert.alert('Required Fields', 'Please select product and enter verified count');
       return;
     }
-    const qtyNum = parseInt(quantity, 10);
-    if (isNaN(qtyNum) || qtyNum < 0) {
-      Alert.alert('Invalid Quantity', 'Target quantity cannot be negative');
+    const qtyNum = parseFloat(quantity);
+    if (isNaN(qtyNum)) {
+      Alert.alert('Invalid Quantity', 'Please enter a valid numeric count');
       return;
     }
 
@@ -116,7 +116,7 @@ export function StockAdjustModal({
         method: 'POST',
         body: JSON.stringify({
           productId: selectedProductId,
-          warehouseId,
+          warehouseId: warehouseId || undefined,
           batchNo: batchNo?.trim() || undefined,
           quantity: qtyNum,
           mode: 'SET',

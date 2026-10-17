@@ -73,10 +73,12 @@ export function StockAdjustModal({
               <span className="text-muted-foreground font-medium">Product:</span>{' '}
               <span className="text-foreground font-semibold">{stock.product?.name}</span>
             </p>
-            <p>
-              <span className="text-muted-foreground font-medium">Warehouse:</span>{' '}
-              <span className="text-foreground">{stock.warehouse?.name}</span>
-            </p>
+            {stock.warehouse?.name && (
+              <p>
+                <span className="text-muted-foreground font-medium">Warehouse:</span>{' '}
+                <span className="text-foreground">{stock.warehouse.name}</span>
+              </p>
+            )}
             <p>
               <span className="text-muted-foreground font-medium">Batch:</span>{' '}
               <span className="font-mono text-foreground">{stock.batchNo || 'Default'}</span>
@@ -106,7 +108,7 @@ export function StockAdjustModal({
             <input
               type="number"
               required
-              min="0"
+              step="any"
               className="w-full rounded-xl border border-border/80 bg-muted/50 px-3 py-2 text-sm text-foreground font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
               value={newQuantity}
               onChange={(e) => setNewQuantity(Number(e.target.value))}

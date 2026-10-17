@@ -122,7 +122,7 @@ export default function TabsLayout() {
         options={{
           href: (isOwnerOrAdmin || isAccountant) ? undefined : null,
           title: 'Transactions',
-          tabBarLabel: 'Payments',
+          tabBarLabel: 'Transactions',
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
               name={focused ? 'swap-horizontal' : 'swap-horizontal-outline'}

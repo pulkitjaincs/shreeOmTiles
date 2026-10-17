@@ -13,7 +13,7 @@ interface InvoiceDetailsModalProps {
   visible: boolean;
   onClose: () => void;
   onShareWhatsApp: (invoice: any) => void;
-  onDownloadRefundPdf: (refundId: string, refundNo: string) => Promise<void> | void;
+  onDownloadRefundPdf?: (refundId: string, refundNo: string) => Promise<void> | void;
   onInitiateReturn?: (invoice: any) => void;
   canDelete?: boolean;
   onDeleteInvoice?: (invoice: any) => void;
@@ -169,7 +169,15 @@ export function InvoiceDetailsModal({
                     <Text style={styles.itemDetailSub}>{refund.refundMode} · {formatDate(refund.createdAt)}</Text>
                     <Text style={styles.refundAmountLabel}>Refund: {formatINR(refund.total)}</Text>
                   </View>
-                  <Button title="PDF" icon="document-text-outline" size="sm" variant="outline" onPress={() => void onDownloadRefundPdf(refund.id, refund.refundNo)} />
+                  <Button
+                    title={downloading ? 'Loading…' : 'Invoice PDF'}
+                    icon="document-text-outline"
+                    size="sm"
+                    variant="outline"
+                    loading={downloading}
+                    disabled={downloading}
+                    onPress={handleDownloadPdf}
+                  />
                 </View>
                 {refund.reason ? (
                   <Text style={styles.itemDetailSub}>

@@ -21,6 +21,12 @@ export interface DeliveryChallanPayload {
     vehicle?: string | null;
     tripNo?: number;
   }>;
+  supervisors?: Array<{
+    supervisor?: {
+      name?: string;
+      phone?: string;
+    } | null;
+  }>;
   items: Array<{
     productName?: string;
     batchNo?: string;
@@ -101,8 +107,8 @@ export async function generateDeliveryChallanPdf(
 
   currentY -= 50;
 
-  // 2. Metadata Grid (Bill/Ship Address, Driver, Vehicle)
-  const metaBoxHeight = 80;
+  // 2. Metadata Grid (Bill/Ship Address, Driver, Vehicle, Supervisor)
+  const metaBoxHeight = 92;
   page.drawRectangle({
     x: leftMargin,
     y: currentY - metaBoxHeight,
@@ -147,6 +153,14 @@ export async function generateDeliveryChallanPdf(
   );
 
   // Right: Gate Pass & Transport Details
+  const supervisorNames = (delivery.supervisors || [])
+    .map((s) => s.supervisor?.name)
+    .filter(Boolean)
+    .join(', ');
+  const supervisorText = supervisorNames
+    ? `Supervisor: ${supervisorNames}`
+    : 'Supervisor: Direct Dispatch';
+
   const tX = leftMargin + colW + 8;
   page.drawText('LOGISTICS & DISPATCH METADATA', {
     x: tX,
@@ -157,14 +171,14 @@ export async function generateDeliveryChallanPdf(
   });
   page.drawText(`Invoice Ref: #${delivery.invoice.invoiceNo}`, {
     x: tX,
-    y: currentY - 28,
+    y: currentY - 26,
     size: 8.5,
     font: fontBold,
     color: black,
   });
   page.drawText(`Challan Date: ${dateStr}`, {
     x: tX,
-    y: currentY - 42,
+    y: currentY - 39,
     size: 8,
     font: fontRegular,
     color: darkGray,
@@ -173,14 +187,21 @@ export async function generateDeliveryChallanPdf(
     safePdfText(
       `Driver: ${delivery.driver?.name || 'Unassigned'} (${delivery.driver?.phone || '—'})`,
     ),
-    { x: tX, y: currentY - 56, size: 8, font: fontRegular, color: black },
+    { x: tX, y: currentY - 52, size: 8, font: fontRegular, color: black },
   );
   page.drawText(safePdfText(`Vehicle Reg: ${latestVehicle}`), {
     x: tX,
-    y: currentY - 70,
+    y: currentY - 65,
     size: 8,
     font: fontBold,
     color: darkGray,
+  });
+  page.drawText(safePdfText(supervisorText.slice(0, 42)), {
+    x: tX,
+    y: currentY - 78,
+    size: 8,
+    font: fontBold,
+    color: brandNavy,
   });
 
   currentY -= metaBoxHeight;
@@ -199,9 +220,8 @@ export async function generateDeliveryChallanPdf(
 
   const colSNo = leftMargin;
   const colName = leftMargin + 35;
-  const colBatch = leftMargin + 250;
-  const colGodown = leftMargin + 340;
-  const colQty = leftMargin + 440;
+  const colBatch = leftMargin + 300;
+  const colQty = leftMargin + 420;
 
   const thY = currentY - 15;
   page.drawText('S.No', {
@@ -220,13 +240,6 @@ export async function generateDeliveryChallanPdf(
   });
   page.drawText('Batch / Shade #', {
     x: colBatch + 6,
-    y: thY,
-    size: 8,
-    font: fontBold,
-    color: black,
-  });
-  page.drawText('Pickup Godown', {
-    x: colGodown + 6,
     y: thY,
     size: 8,
     font: fontBold,
@@ -268,7 +281,7 @@ export async function generateDeliveryChallanPdf(
       color: black,
     });
     page.drawText(
-      safePdfText((item.productName || 'Item').toUpperCase().slice(0, 36)),
+      safePdfText((item.productName || 'Item').toUpperCase().slice(0, 48)),
       {
         x: colName + 6,
         y: rY,
@@ -279,13 +292,6 @@ export async function generateDeliveryChallanPdf(
     );
     page.drawText(safePdfText(item.batchNo || 'Standard Lot'), {
       x: colBatch + 6,
-      y: rY,
-      size: 8,
-      font: fontRegular,
-      color: darkGray,
-    });
-    page.drawText(safePdfText(item.warehouseName || 'Godown'), {
-      x: colGodown + 6,
       y: rY,
       size: 8,
       font: fontRegular,

@@ -47,6 +47,13 @@ interface DeliveryItemPayload {
 
 export type DeliveryDetailResult = Prisma.DeliveryGetPayload<{
   include: {
+    supervisors: {
+      include: {
+        supervisor: {
+          select: { id: true; name: true; phone: true; role: true };
+        };
+      };
+    };
     invoice: {
       include: {
         party: true;
@@ -141,17 +148,27 @@ export class DeliveryService {
       };
     }
 
-    // Supervisor rule: only view deliveries containing items belonging to supervisor's warehouse
+    // Supervisor rule: only view deliveries to which this supervisor is assigned
     const isSupervisor = requestingUser?.role === Role.SUPERVISOR;
-    if (isSupervisor && requestingUser?.scope) {
-      where.invoice = {
-        items: {
-          some: { warehouseId: requestingUser.scope },
-        },
+    if (isSupervisor && requestingUser?.id) {
+      where.supervisors = {
+        some: { supervisorId: requestingUser.id },
       };
     }
 
     const includeRelations = {
+      supervisors: {
+        include: {
+          supervisor: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+              role: true,
+            },
+          },
+        },
+      },
       invoice: {
         include: {
           party: {
@@ -308,6 +325,13 @@ export class DeliveryService {
     const delivery = await this.prisma.delivery.findUnique({
       where: { id },
       include: {
+        supervisors: {
+          include: {
+            supervisor: {
+              select: { id: true, name: true, phone: true, role: true },
+            },
+          },
+        },
         invoice: {
           include: {
             party: true,
@@ -604,6 +628,21 @@ export class DeliveryService {
         });
       }
 
+      // If supervisors are provided, sync DeliverySupervisor records
+      if (dto.supervisorIds !== undefined) {
+        await tx.deliverySupervisor.deleteMany({
+          where: { deliveryId: id },
+        });
+        if (dto.supervisorIds.length > 0) {
+          await tx.deliverySupervisor.createMany({
+            data: dto.supervisorIds.map((sId) => ({
+              deliveryId: id,
+              supervisorId: sId,
+            })),
+          });
+        }
+      }
+
       // Transition this delivery status to ASSIGNED with amountToCollect and dispatched items
       const updatedDelivery = await tx.delivery.update({
         where: { id },
@@ -617,6 +656,13 @@ export class DeliveryService {
               : delivery.amountToCollect,
         },
         include: {
+          supervisors: {
+            include: {
+              supervisor: {
+                select: { id: true, name: true, phone: true, role: true },
+              },
+            },
+          },
           invoice: {
             include: {
               party: true,
@@ -734,6 +780,18 @@ export class DeliveryService {
       { type: 'DELIVERY_ASSIGNED', deliveryId: id },
     );
 
+    // Notify assigned supervisors
+    if (dto.supervisorIds && dto.supervisorIds.length > 0) {
+      for (const supId of dto.supervisorIds) {
+        void this.notifications.notifyUser(
+          supId,
+          'Delivery Assigned for Supervision',
+          `You have been assigned to oversee item dispatch for Invoice #${delivery.invoice?.invoiceNo}.`,
+          { type: 'DELIVERY_SUPERVISOR_ASSIGNED', deliveryId: id },
+        );
+      }
+    }
+
     return result;
   }
 
@@ -757,16 +815,22 @@ export class DeliveryService {
       throw new BadRequestException('Invalid item index for pickup');
     }
 
-    const currentItem = itemsList[itemIndex];
-
-    // If supervisor, check that the item is assigned to their warehouse
-    if (actor?.role === Role.SUPERVISOR && actor.scope) {
-      if (currentItem.warehouseId && currentItem.warehouseId !== actor.scope) {
-        throw new ForbiddenException(
-          'You can only confirm pickups for items originating from your assigned warehouse.',
+    // If supervisor, check that they are assigned to this delivery
+    if (actor?.role === Role.SUPERVISOR) {
+      const supervisors = (delivery as any).supervisors || [];
+      if (supervisors.length > 0) {
+        const isAssigned = supervisors.some(
+          (s: any) => s.supervisorId === actor.id,
         );
+        if (!isAssigned) {
+          throw new ForbiddenException(
+            'You are not assigned as a supervisor for this delivery.',
+          );
+        }
       }
     }
+
+    const currentItem = itemsList[itemIndex];
 
     // Requirement: Once they have picked up the item they cannot mark it as not picked (option locked)
     if (currentItem.pickedUp && !pickedUp) {
@@ -961,7 +1025,9 @@ export class DeliveryService {
           // Invoice is partially paid; remaining amount is added to party credit
           await tx.invoice.update({
             where: { id: invoice.id },
-            data: { status: InvoiceStatus.PARTIAL },
+            data: {
+              status: InvoiceStatus.PARTIAL,
+            },
           });
 
           if (existingCredit) {
@@ -991,7 +1057,9 @@ export class DeliveryService {
           // Invoice is 100% paid
           await tx.invoice.update({
             where: { id: invoice.id },
-            data: { status: InvoiceStatus.PAID },
+            data: {
+              status: InvoiceStatus.PAID,
+            },
           });
 
           if (existingCredit) {

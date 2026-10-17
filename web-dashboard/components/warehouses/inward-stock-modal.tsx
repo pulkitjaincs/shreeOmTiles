@@ -12,7 +12,7 @@ interface InwardStockModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => Promise<void>;
-  warehouses: Warehouse[];
+  warehouses?: Warehouse[];
   products: Product[];
   stocks: StockItem[];
   initialWarehouseId?: string;
@@ -32,7 +32,7 @@ export function InwardStockModal({
   initialBatchNo = '',
 }: InwardStockModalProps) {
   const [inwardWarehouseId, setInwardWarehouseId] = useState(
-    initialWarehouseId || warehouses[0]?.id || '',
+    initialWarehouseId || warehouses?.[0]?.id || '',
   );
   const [inwardProductId, setInwardProductId] = useState(
     initialProductId || products[0]?.id || '',
@@ -48,7 +48,7 @@ export function InwardStockModal({
 
   useEffect(() => {
     if (isOpen) {
-      setInwardWarehouseId(initialWarehouseId || warehouses[0]?.id || '');
+      setInwardWarehouseId(initialWarehouseId || warehouses?.[0]?.id || '');
       setInwardProductId(initialProductId || products[0]?.id || '');
       setInwardBatchNo(
         initialBatchNo ||
@@ -66,7 +66,6 @@ export function InwardStockModal({
   const currentMatchingStock = stocks.find(
     (s) =>
       s.productId === inwardProductId &&
-      s.warehouseId === inwardWarehouseId &&
       (inwardBatchNo ? s.batchNo === inwardBatchNo.trim() : !s.batchNo),
   );
   const currentInwardQty = currentMatchingStock?.quantity || 0;
@@ -75,8 +74,8 @@ export function InwardStockModal({
 
   const handleInwardStock = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inwardWarehouseId || !inwardProductId) {
-      setError('Please select both warehouse and product');
+    if (!inwardProductId) {
+      setError('Please select a product');
       return;
     }
     setSubmitting(true);
@@ -87,7 +86,7 @@ export function InwardStockModal({
         method: 'POST',
         body: JSON.stringify({
           productId: inwardProductId,
-          warehouseId: inwardWarehouseId,
+          warehouseId: inwardWarehouseId || undefined,
           batchNo: inwardBatchNo.trim() || undefined,
           quantity: Number(inwardQty),
           mode: inwardMode,
@@ -127,25 +126,6 @@ export function InwardStockModal({
         </div>
 
         <form onSubmit={handleInwardStock} className="space-y-4 overflow-y-auto pr-1">
-          {/* Destination Warehouse */}
-          <div>
-            <label className="block text-xs font-semibold text-foreground mb-1.5">
-              Destination Warehouse / Showroom *
-            </label>
-            <ThemedSelect
-              value={inwardWarehouseId}
-              onChange={(val) => setInwardWarehouseId(val)}
-              searchable
-              searchPlaceholder="Search warehouse..."
-              options={warehouses.map((w) => ({
-                value: w.id,
-                label: w.name,
-                subLabel: w.address,
-                badge: w.type,
-              }))}
-            />
-          </div>
-
           {/* Product / Design Selection */}
           <div>
             <label className="block text-xs font-semibold text-foreground mb-1.5">
@@ -203,7 +183,8 @@ export function InwardStockModal({
               </label>
               <input
                 type="number"
-                min="1"
+                min="0.01"
+                step="any"
                 required
                 className="w-full rounded-xl border border-border/80 bg-muted/50 px-3 py-2 text-sm text-foreground font-semibold focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition"
                 value={inwardQty}

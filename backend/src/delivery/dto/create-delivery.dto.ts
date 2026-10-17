@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsEnum,
   IsNotEmpty,
   IsNumber,
@@ -78,7 +79,7 @@ export class DispatchedItemDto {
   batchNo?: string;
 
   @IsNumber()
-  @Min(1)
+  @Min(0.01)
   qty: number;
 
   @IsOptional()
@@ -93,6 +94,11 @@ export class PushDeliveryDto {
   @IsString()
   @IsOptional()
   driverId?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  supervisorIds?: string[];
 
   @IsNumber()
   @IsOptional()

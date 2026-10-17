@@ -68,35 +68,35 @@ export function InvoiceLineItemCard({
         }))}
       />
 
-      {/* Warehouse & Batch Allocation */}
-      <Text style={styles.fieldLabel}>Warehouse & Batch Allocation</Text>
+      {/* Stock Batch Allocation */}
+      <Text style={styles.fieldLabel}>Stock Batch Allocation</Text>
       {!item.productId ? (
         <View style={styles.promptSelectProductBox}>
           <Ionicons name="search-outline" size={16} color={Colors.dark.textSecondary} />
           <Text style={styles.promptSelectProductText}>
-            Select a product above to choose warehouse and batch allocations.
+            Select a product above to choose batch allocations.
           </Text>
         </View>
       ) : (item.allocations || []).length === 0 ? (
         <View style={styles.outOfStockBox}>
           <Ionicons name="alert-circle" size={16} color="#EF4444" />
           <Text style={styles.outOfStockText}>
-            Out of stock across all locations for this product.
+            Out of stock for this product.
           </Text>
         </View>
       ) : (
         (item.allocations || []).map((allocation, allocationIndex) => {
           const warehouse = warehouses.find((wh) => wh.id === allocation.warehouseId);
-          const locationName = warehouse?.name || 'Warehouse';
-          const batchInfo = allocation.batchNo ? ` • Batch ${allocation.batchNo}` : ' • Standard';
+          const locationPrefix = warehouse?.name ? `${warehouse.name} • ` : '';
+          const batchInfo = allocation.batchNo ? `Batch ${allocation.batchNo}` : 'Available Stock';
           return (
             <Input
-              key={`${allocation.warehouseId}-${allocation.batchNo || 'standard'}-${allocationIndex}`}
-              label={`${locationName}${batchInfo} (Available: ${allocation.availableQty})`}
+              key={`${allocation.warehouseId || 'stock'}-${allocation.batchNo || 'standard'}-${allocationIndex}`}
+              label={`${locationPrefix}${batchInfo} (Available: ${allocation.availableQty})`}
               placeholder="0"
               value={allocation.qty ? String(allocation.qty) : ''}
               onChangeText={(value) => onAllocationQtyChange(allocationIndex, value)}
-              keyboardType="number-pad"
+              keyboardType="numeric"
             />
           );
         })

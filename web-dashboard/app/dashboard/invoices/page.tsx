@@ -701,6 +701,8 @@ export default function InvoicesPage() {
         onClose={() => setShowReturnModal(false)}
         warehouses={warehouses}
         onSuccess={loadInitialData}
+        onDownloadPdf={handleDownloadPdf}
+        downloadingId={downloadingId}
         onDownloadRefundPdf={handleDownloadRefundPdf}
         downloadingRefundId={downloadingRefundId}
       />

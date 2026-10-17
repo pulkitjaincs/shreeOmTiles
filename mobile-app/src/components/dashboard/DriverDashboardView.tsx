@@ -215,9 +215,10 @@ export function DriverDashboardView({
               onMap={handleMap}
             />
 
-            {/* 3. Interactive Warehouse Pickup Checklist */}
+            {/* 3. Interactive Pickup Checklist & Supervisor Card */}
             <WarehousePickupChecklist
-              warehouseGroups={warehouseGroups}
+              items={allItemsList.map((item: any, idx: number) => ({ item, originalIndex: idx }))}
+              supervisors={activeDelivery.supervisors}
               pickedCount={pickedCount}
               totalItemsCount={totalItemsCount}
             />

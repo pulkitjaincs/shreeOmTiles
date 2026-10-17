@@ -46,10 +46,6 @@ export function StaffFormModal({
       Alert.alert('Required', staff ? 'Please fill name and phone' : 'Please fill name, phone, and password');
       return;
     }
-    if (role === 'SUPERVISOR' && !warehouseId) {
-      Alert.alert('Warehouse Required', 'Please assign a warehouse/godown for the supervisor');
-      return;
-    }
     const cleanPhone = phone.replace(/\D/g, '').slice(0, 10);
     if (cleanPhone.length !== 10) {
       Alert.alert('Invalid Phone', 'Phone must be exactly 10 digits');
@@ -69,7 +65,7 @@ export function StaffFormModal({
           phone: cleanPhone,
           ...(password ? { password } : {}),
           role,
-          scope: role === 'SUPERVISOR' ? warehouseId : null,
+          scope: warehouseId || undefined,
         }),
       });
 
@@ -132,36 +128,6 @@ export function StaffFormModal({
             </TouchableOpacity>
           ))}
         </View>
-
-        {role === 'SUPERVISOR' ? (
-          <View style={{ marginBottom: 12 }}>
-            <Text style={styles.fieldLabel}>Assigned Warehouse / Godown *</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
-              {warehouses.map((w) => {
-                const isSelected = warehouseId === w.id;
-                return (
-                  <TouchableOpacity
-                    key={w.id}
-                    style={[
-                      styles.warehouseChip,
-                      isSelected && styles.warehouseChipActive,
-                    ]}
-                    onPress={() => setWarehouseId(w.id)}
-                  >
-                    <Text
-                      style={[
-                        styles.warehouseChipText,
-                        isSelected && styles.warehouseChipTextActive,
-                      ]}
-                    >
-                      {w.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </View>
-        ) : null}
         </> : null}
 
         <Button

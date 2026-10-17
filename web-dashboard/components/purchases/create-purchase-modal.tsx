@@ -18,7 +18,7 @@ import { Product, Warehouse, Party } from '@/components/invoices/types';
 
 interface PurchaseLineItem {
   productId: string;
-  warehouseId: string;
+  warehouseId?: string;
   batchNo: string;
   qty: number;
   unitPrice: number;
@@ -30,7 +30,7 @@ interface CreatePurchaseModalProps {
   onClose: () => void;
   onSuccess: () => void;
   products: Product[];
-  warehouses: Warehouse[];
+  warehouses?: Warehouse[];
   parties: Party[];
 }
 
@@ -59,7 +59,6 @@ export function CreatePurchaseModal({
   const [items, setItems] = useState<PurchaseLineItem[]>([
     {
       productId: products[0]?.id || '',
-      warehouseId: warehouses[0]?.id || '',
       batchNo: '',
       qty: 1,
       unitPrice: 0,
@@ -77,7 +76,6 @@ export function CreatePurchaseModal({
       ...items,
       {
         productId: products[0]?.id || '',
-        warehouseId: warehouses[0]?.id || '',
         batchNo: '',
         qty: 1,
         unitPrice: 0,
@@ -139,10 +137,6 @@ export function CreatePurchaseModal({
         setFormError(`Item #${i + 1} has no product selected.`);
         return;
       }
-      if (!it.warehouseId) {
-        setFormError(`Item #${i + 1} has no destination warehouse.`);
-        return;
-      }
       if (it.qty <= 0) {
         setFormError(`Item #${i + 1} quantity must be greater than 0.`);
         return;
@@ -160,7 +154,7 @@ export function CreatePurchaseModal({
         notes: notes.trim() || undefined,
         items: items.map((it) => ({
           productId: it.productId,
-          warehouseId: it.warehouseId,
+          warehouseId: it.warehouseId || undefined,
           batchNo: it.batchNo.trim() || undefined,
           qty: Number(it.qty),
           unitPrice: Number(it.unitPrice),
@@ -336,7 +330,7 @@ export function CreatePurchaseModal({
                   className="rounded-[1rem] border border-border bg-card p-4 space-y-3 shadow-2xs"
                 >
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
-                    <div className="sm:col-span-4">
+                    <div className="sm:col-span-5">
                       <label className="block text-[0.6875rem] font-medium text-muted-foreground mb-1">
                         Product *
                       </label>
@@ -354,24 +348,6 @@ export function CreatePurchaseModal({
                       />
                     </div>
 
-                    <div className="sm:col-span-3">
-                      <label className="block text-[0.6875rem] font-medium text-muted-foreground mb-1">
-                        Receiving Warehouse *
-                      </label>
-                      <ThemedSelect
-                        value={it.warehouseId}
-                        onChange={(v) => handleItemChange(idx, 'warehouseId', v)}
-                        searchable
-                        searchPlaceholder="Search warehouse..."
-                        options={warehouses.map((w) => ({
-                          value: w.id,
-                          label: w.name,
-                          subLabel: w.code,
-                          badge: w.type,
-                        }))}
-                      />
-                    </div>
-
                     <div className="sm:col-span-2">
                       <label className="block text-[0.6875rem] font-medium text-muted-foreground mb-1">
                         Batch / Lot No
@@ -385,13 +361,14 @@ export function CreatePurchaseModal({
                       />
                     </div>
 
-                    <div className="sm:col-span-1">
+                    <div className="sm:col-span-2">
                       <label className="block text-[0.6875rem] font-medium text-muted-foreground mb-1">
                         Qty *
                       </label>
                       <input
                         type="number"
-                        min="1"
+                        min="0.01"
+                        step="any"
                         required
                         value={it.qty}
                         onChange={(e) => handleItemChange(idx, 'qty', Number(e.target.value))}
@@ -399,7 +376,7 @@ export function CreatePurchaseModal({
                       />
                     </div>
 
-                    <div className="sm:col-span-1">
+                    <div className="sm:col-span-2">
                       <label className="block text-[0.6875rem] font-medium text-muted-foreground mb-1">
                         Rate (₹) *
                       </label>

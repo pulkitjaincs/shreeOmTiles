@@ -17,22 +17,26 @@
 10. [Offline Caching & Network Configuration](#offline-caching--network-configuration)
 11. [Running & Testing on a Physical Smartphone](#running--testing-on-a-physical-smartphone)
 12. [Building a Standalone Android APK (EAS Build)](#building-a-standalone-android-apk-eas-build)
+13. [Over-The-Air (OTA) Instant Updates (EAS Update)](#over-the-air-ota-instant-updates-eas-update)
 
 ---
 
 ## ✨ Key Features
 
-- **Full Parity with Web ERP**: Complete feature set matching the desktop web dashboard including billing, inventory inward/transfer, payments, customer dues, and driver manifests.
+- **Full Parity with Web ERP**: Complete feature set matching the desktop web dashboard including counter billing, vendor procurement, quotations, inventory inward/transfer, payment collection, customer dues, and driver manifests.
 - **Dynamic Role-Adaptive Cockpits**: Home tab dynamically switches between specialized dashboards for `OWNER`, `SALESMAN`, `DRIVER`, and `SUPERVISOR`.
-- **Daily Till Book (Day Book)**: Track opening till cash, cash in/out, daily expenses, digital collections, and closing cash directly on mobile with instant date switching.
-- **Price Estimates & 1-Click Invoicing**: Issue formal quotations on the go, download/share estimate PDFs, and convert quotes to active sales invoices with a single tap.
-- **Inward Purchases & Overhead Expenses**: Monitor vendor purchase orders and record categorized daily expenses (fuel, hamali, rent, utilities).
+- **Integrated Transactions & Daily Till Book**: Merged cash drawer reconciliation and payment management into a unified Transactions tab (`src/app/(tabs)/transactions.tsx`) displaying opening till cash, cash in/out, expenses, digital collections, and verified closing cash with date-wise navigation.
+- **Price Estimates & Mobile Quotations**: Issue formal quotations on the go (`CreateQuotationModal.tsx`), multi-tile line items with box/sq. ft. calculations, download/share branded PDFs via WhatsApp, and convert quotes to active sales invoices with a single tap.
+- **Inward Purchases & Vendor Procurement**: Record incoming vendor bills on mobile (`CreatePurchaseModal.tsx`), assign destination warehouses, compute GST, and replenish inventory instantaneously.
+- **Warehouse Positive-Stock Filtering**: Displays only items with quantity > 0 in warehouse stock cards (`WarehouseCard.tsx`), omitting zero-quantity records for clean inventory auditing.
 - **Supervisor Loading Verification**: Dedicated godown supervisor cockpit with **price-masked inventory** to verify and lock loaded items before driver departure.
 - **Logistics Delivery Challans**: 1-tap download and sharing of unpriced official Delivery Challans for drivers and warehouse dispatchers.
+- **Streamlined Returns & Credit Ledgers**: Process sales returns with item-level restocking, auto-reflecting credits in party statement ledgers without obsolete duplicate return invoice PDFs.
 - **Safe Transactional Invoice Deletion**: Owner/Admin modal to safely delete an invoice with automatic inventory replenishment back into the godown.
 - **Counter Sales Invoicing with Upfront UPI QR**: Salesmen calculate tile boxes to sq. ft. on the go, issue tax invoices, and present high-contrast NPCI UPI QR codes directly to walk-in customers.
 - **Real-Time Push Notifications**: Instant heads-up alerts for new invoices, payments, credit notes, low stock warnings, and delivery assignments.
 - **Native Document Sharing & WhatsApp**: Download GST invoices, challans, quotes, and party statements directly to device storage and share via WhatsApp or print.
+- **Over-The-Air (OTA) Updates**: Configured with `expo-updates` and EAS Update channels for instant code deployments without requiring a new APK compilation or store resubmission.
 
 ---
 
@@ -99,9 +103,11 @@ src/components/
 ├── day-book/
 │   └── DayBookView.tsx               # Daily Till Book with date switching & cash stream
 ├── quotations/
-│   └── QuotationsView.tsx            # Estimates directory, PDF preview & 1-click invoice conversion
+│   ├── QuotationsView.tsx            # Estimates directory, PDF preview & 1-click invoice conversion
+│   └── CreateQuotationModal.tsx      # Multi-tile line items, box/sqft calculations, taxes & transport charges
 ├── purchases/
-│   └── PurchasesView.tsx             # Vendor bills, inward inventory increment & debit notes
+│   ├── PurchasesView.tsx             # Vendor bills, inward inventory increment & debit notes
+│   └── CreatePurchaseModal.tsx       # Inward procurement bill creation, party selection & instant stock restock
 ├── expenses/
 │   ├── ExpensesView.tsx              # Categorized business expenses directory & totals
 │   └── CreateExpenseModal.tsx        # Modal to log overhead expense with category and mode
@@ -116,7 +122,7 @@ src/components/
 ├── settings/                         # CompanySettingsView, StaffDirectoryView, StaffCard,
 │                                     # StaffFormModal (Accountant/Supervisor roles & warehouse scope)
 ├── stock/                            # StockTabBar, ProductCatalogCard, WarehouseStockCard, Inward/Transfer modals
-├── warehouses/                       # WarehousesDirectoryView, WarehouseCard, WarehouseDangerModals
+├── warehouses/                       # WarehousesDirectoryView, WarehouseCard (positive stock > 0), WarehouseDangerModals
 └── ui/                               # BottomSheetModal, Header, custom Select dropdown, badges, buttons
 ```
 
@@ -156,18 +162,21 @@ The home tab `src/app/(tabs)/index.tsx` dynamically evaluates the logged-in user
 
 ## 💼 Daily Till Book, Procurement & Estimates
 
-The `More` tab exposes comprehensive business tools:
+The `More` and `Transactions` views provide comprehensive wholesale financial tools:
 
-- **Daily Till Book (`DayBookView.tsx`)**:
-  - Review **Opening Cash**, **Cash In**, **Cash Out**, **Daily Expenses**, and **Net Closing Cash**.
-  - Review digital totals (UPI & Bank).
-  - Select any past date to inspect historical reconciliations.
-- **Price Estimates (`QuotationsView.tsx`)**:
-  - Browse quotes, preview details, download estimate PDFs, or convert directly into an active sales invoice.
-- **Inward Purchases (`PurchasesView.tsx`)**:
-  - Track supplier bills, view inward stock additions, and check vendor payables.
-- **Business Expenses (`ExpensesView.tsx`)**:
-  - Record operational expenses on the go with category selection and receipt notes.
+- **Integrated Till Book & Transactions (`src/app/(tabs)/transactions.tsx`)**:
+  - Live cash till drawer reconciliation displaying **Opening Cash**, **Cash Inflows**, **Cash Outflows**, **Daily Expenses**, and **Net Closing Cash**.
+  - Digital collection stream (UPI & Bank Transfers) tracked independently.
+  - Interactive calendar date toolbar to audit any historical day's till closing.
+- **Price Estimates & Quotations (`QuotationsView.tsx` & `CreateQuotationModal.tsx`)**:
+  - Browse existing estimates, preview quotation details, download/share PDFs.
+  - Tap **New Quotation** to open full-featured creation modal with customer selection, multi-item tile picker, square feet/box converters, custom GST rates, and transport charges.
+  - 1-click **Convert to Invoice** button to instantly promote estimates to active tax invoices.
+- **Inward Procurement & Purchases (`PurchasesView.tsx` & `CreatePurchaseModal.tsx`)**:
+  - Review purchase history, supplier bills, and debit notes.
+  - Tap **New Purchase** to record incoming supplier bills directly on mobile, selecting supplier party, target warehouse, line items, and immediate stock increment.
+- **Business Expenses (`ExpensesView.tsx` & `CreateExpenseModal.tsx`)**:
+  - Record operational overheads on the go with standardized categories (fuel, hamali, godown rent, utilities, salary advances) with cash vs digital tracking.
 
 ---
 
@@ -280,3 +289,22 @@ eas build -p android --profile preview
 - **Package**: `com.shreeomtiles.erp` (Version 1.0.0)
 - **Uses Cleartext Traffic**: Enabled via `expo-build-properties` to allow local HTTP backend communication.
 - **Compilation Arch**: Pinned to `arm64-v8a` to reduce C++ build times.
+
+---
+
+## ⚡ Over-The-Air (OTA) Instant Updates (EAS Update)
+
+The mobile application is pre-configured with `expo-updates` and EAS Update to ship hotfixes, UI improvements, and new features instantly to installed APKs and user devices without recompiling binary packages or waiting for app store reviews.
+
+### Publishing an Update to Production
+
+```bash
+cd mobile-app
+eas update --branch production --environment production --message "feat: mobile quotations, purchases, zero-stock filtering & transaction sync" --non-interactive
+```
+
+### Channel Routing & Runtime Version Policy
+- **Runtime Version Policy**: Configured as `{"policy": "appVersion"}` ensuring compatibility between compiled native code and JavaScript bundles.
+- **Channels**: Linked to build environments (`production`, `preview`, `development`) in `eas.json`.
+- **Automatic Client Retrieval**: When the app starts, `expo-updates` checks the EAS remote endpoint (`https://u.expo.dev/...`) in the background and applies updates automatically on next launch.
+

@@ -98,13 +98,23 @@ export function CreateInvoiceModal({
 
   const getStockAllocations = useCallback((productId: string, initialQty = 0, sourceStock = currentStockList) => {
     if (!productId) return [];
-    const rows = sourceStock.filter((stock) => stock.productId === productId && Number(stock.quantity) > 0);
-    return rows.map((stock, index) => ({
-      warehouseId: stock.warehouseId,
-      batchNo: stock.batchNo,
-      availableQty: Number(stock.quantity),
-      qty: index === 0 ? Math.min(initialQty, Number(stock.quantity)) : 0,
-    }));
+    const rows = sourceStock.filter((stock) => stock.productId === productId);
+    if (rows.length > 0) {
+      return rows.map((stock, index) => ({
+        warehouseId: stock.warehouseId,
+        batchNo: stock.batchNo,
+        availableQty: Number(stock.quantity),
+        qty: index === 0 ? initialQty : 0,
+      }));
+    }
+    return [
+      {
+        warehouseId: undefined,
+        batchNo: 'MASTER-IMPORT',
+        availableQty: 0,
+        qty: initialQty,
+      },
+    ];
   }, [currentStockList]);
 
   const resolveProductPrice = useCallback(
@@ -285,13 +295,13 @@ export function CreateInvoiceModal({
   };
 
   const handleAllocationQty = (itemIndex: number, allocationIndex: number, text: string) => {
-    const qty = Math.max(0, Number.parseInt(text, 10) || 0);
+    const qty = Math.max(0, Number.parseFloat(text) || 0);
     setItems((prev) =>
       prev.map((item, index) => {
         if (index !== itemIndex) return item;
         const allocations = (item.allocations || []).map((allocation, allocationIdx) =>
           allocationIdx === allocationIndex
-            ? { ...allocation, qty: Math.min(qty, allocation.availableQty) }
+            ? { ...allocation, qty }
             : allocation,
         );
         return {
@@ -406,7 +416,7 @@ export function CreateInvoiceModal({
         return;
       }
       if (!(it.allocations || []).some((allocation) => allocation.qty > 0)) {
-        Alert.alert('Out of Stock', 'Choose an in-stock warehouse and allocate quantity for every item.');
+        Alert.alert('Out of Stock', 'Please allocate quantity for every item from available stock.');
         return;
       }
       if (!(it.unitPrice > 0)) {
@@ -441,7 +451,7 @@ export function CreateInvoiceModal({
           const totalAllocated = allocations.reduce((sum, allocation) => sum + allocation.qty, 0);
           return allocations.map((allocation) => ({
             productId: it.productId,
-            warehouseId: allocation.warehouseId,
+            warehouseId: allocation.warehouseId || undefined,
             batchNo: allocation.batchNo?.trim() || undefined,
             qty: Number(allocation.qty),
             unitPrice: Number(it.unitPrice),
@@ -484,7 +494,7 @@ export function CreateInvoiceModal({
       visible={visible}
       onClose={onClose}
       title="Create New Tax Invoice"
-      subtitle="Issue GST bill and deduct stock from selected warehouse"
+      subtitle="Issue GST bill and deduct stock directly from product inventory"
     >
       {refreshingStock ? (
         <View style={styles.stockRefreshNotice}>

@@ -19,10 +19,12 @@ import { formatINR } from '@/lib/formatters';
 interface ReturnInvoiceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  warehouses: Warehouse[];
+  warehouses?: Warehouse[];
   onSuccess: () => Promise<void> | void;
-  onDownloadRefundPdf: (refundId: string, refundNo: string) => void;
-  downloadingRefundId: string | null;
+  onDownloadPdf?: (id: string, invoiceNo: string) => void;
+  downloadingId?: string | null;
+  onDownloadRefundPdf?: (refundId: string, refundNo: string) => void;
+  downloadingRefundId?: string | null;
 }
 
 export function ReturnInvoiceModal({
@@ -30,6 +32,8 @@ export function ReturnInvoiceModal({
   onClose,
   warehouses,
   onSuccess,
+  onDownloadPdf,
+  downloadingId,
   onDownloadRefundPdf,
   downloadingRefundId,
 }: ReturnInvoiceModalProps) {
@@ -37,7 +41,7 @@ export function ReturnInvoiceModal({
   const [returnLoading, setReturnLoading] = useState(false);
   const [returnFoundInvoice, setReturnFoundInvoice] = useState<Invoice | null>(null);
   const [returnItemAllocations, setReturnItemAllocations] = useState<
-    Record<string, { qty: number; warehouseId: string; batchNo?: string }>
+    Record<string, { qty: number; batchNo?: string }>
   >({});
   const [returnRefundMode, setReturnRefundMode] = useState<'CASH' | 'UPI' | 'CREDIT'>('CASH');
   const [returnReason, setReturnReason] = useState('Customer Return');
@@ -49,6 +53,8 @@ export function ReturnInvoiceModal({
     refundNo: string;
     totalRefund: number;
     refundMode: string;
+    invoiceId: string;
+    invoiceNo: string;
   } | null>(null);
 
   if (!isOpen) return null;
@@ -76,13 +82,11 @@ export function ReturnInvoiceModal({
       const inv = await apiRequest<Invoice>(`/invoices/lookup/${encodeURIComponent(query)}`);
       setReturnFoundInvoice(inv);
 
-      // Initialize return allocations with default showroom/first warehouse
-      const defaultWh = warehouses[0]?.id || '';
-      const initialMap: Record<string, { qty: number; warehouseId: string; batchNo?: string }> = {};
+      // Initialize return allocations directly per item
+      const initialMap: Record<string, { qty: number; batchNo?: string }> = {};
       inv.items.forEach((item) => {
         initialMap[item.id] = {
           qty: 0,
-          warehouseId: defaultWh,
           batchNo: item.batchNo || undefined,
         };
       });
@@ -103,7 +107,6 @@ export function ReturnInvoiceModal({
     try {
       const itemsToReturn: Array<{
         productId: string;
-        warehouseId: string;
         batchNo?: string;
         qty: number;
         unitPrice: number;
@@ -114,7 +117,6 @@ export function ReturnInvoiceModal({
         if (alloc && alloc.qty > 0) {
           itemsToReturn.push({
             productId: item.productId,
-            warehouseId: alloc.warehouseId || warehouses[0]?.id || '',
             batchNo: alloc.batchNo || item.batchNo || undefined,
             qty: alloc.qty,
             unitPrice: Number(item.unitPrice),
@@ -152,6 +154,8 @@ export function ReturnInvoiceModal({
         refundNo: res.refundNo,
         totalRefund: res.totalRefund,
         refundMode: res.refundMode,
+        invoiceId: returnFoundInvoice.id,
+        invoiceNo: res.invoiceNo || returnFoundInvoice.invoiceNo,
       });
 
       setReturnSuccessMsg(
@@ -231,25 +235,29 @@ export function ReturnInvoiceModal({
             {lastGeneratedRefund && (
               <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-emerald-500/20">
                 <span className="text-[0.6875rem] text-emerald-600 dark:text-emerald-400">
-                  Official Credit Note <strong>#{lastGeneratedRefund.refundNo}</strong> is ready.
+                  Official Credit Note <strong>#{lastGeneratedRefund.refundNo}</strong> generated & parent invoice updated.
                 </span>
                 <button
                   type="button"
-                  onClick={() =>
-                    onDownloadRefundPdf(
-                      lastGeneratedRefund.id,
-                      lastGeneratedRefund.refundNo,
-                    )
-                  }
-                  disabled={downloadingRefundId === lastGeneratedRefund.id}
+                  onClick={() => {
+                    if (onDownloadPdf) {
+                      onDownloadPdf(
+                        lastGeneratedRefund.invoiceId,
+                        lastGeneratedRefund.invoiceNo,
+                      );
+                    } else {
+                      window.open(`/api/invoices/${lastGeneratedRefund.invoiceId}/pdf`, '_blank');
+                    }
+                  }}
+                  disabled={downloadingId === lastGeneratedRefund.invoiceId}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[0.625rem] text-[0.75rem] font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-xs transition disabled:opacity-50 active:scale-98"
                 >
-                  {downloadingRefundId === lastGeneratedRefund.id ? (
+                  {downloadingId === lastGeneratedRefund.invoiceId ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
                     <Download className="h-3.5 w-3.5" />
                   )}
-                  <span>Download Credit Note PDF</span>
+                  <span>Download Updated Invoice PDF</span>
                 </button>
               </div>
             )}
@@ -278,14 +286,14 @@ export function ReturnInvoiceModal({
 
             <div className="space-y-3">
               <label className="text-[0.6875rem] font-semibold text-muted-foreground uppercase tracking-wider block">
-                Select Items to Return & Choose Restock Location
+                Select Items to Return
               </label>
 
               <div className="space-y-2">
                 {returnFoundInvoice.items.map((item) => {
                   const alloc = returnItemAllocations[item.id] || {
                     qty: 0,
-                    warehouseId: warehouses[0]?.id || '',
+                    warehouseId: warehouses?.[0]?.id || '',
                   };
                   const maxReturnable =
                     item.remainingReturnable !== undefined
@@ -353,29 +361,7 @@ export function ReturnInvoiceModal({
                           )}
                         </div>
 
-                        <div>
-                          <label className="text-[0.625rem] text-muted-foreground block mb-0.5">Restock Location:</label>
-                          <select
-                            value={alloc.warehouseId}
-                            disabled={maxReturnable <= 0}
-                            onChange={(e) => {
-                              setReturnItemAllocations((prev) => ({
-                                ...prev,
-                                [item.id]: {
-                                  ...prev[item.id],
-                                  warehouseId: e.target.value,
-                                },
-                              }));
-                            }}
-                            className="rounded-[0.5rem] border border-input bg-background px-2 py-1 text-[0.75rem] text-foreground focus:border-primary focus:outline-none disabled:opacity-50"
-                          >
-                            {warehouses.map((wh) => (
-                              <option key={wh.id} value={wh.id}>
-                                {wh.name} {wh.code ? `[${wh.code}]` : ''}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+
 
                         <div className="w-24 text-right">
                           <label className="text-[0.625rem] text-muted-foreground block mb-0.5">Refund:</label>

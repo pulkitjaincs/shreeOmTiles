@@ -1,4 +1,4 @@
-import { IsInt, IsNotEmpty, IsOptional, IsString, IsIn } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsIn, IsNumber, Min } from 'class-validator';
 
 export class AdjustStockDto {
   @IsString()
@@ -6,15 +6,14 @@ export class AdjustStockDto {
   productId: string;
 
   @IsString()
-  @IsNotEmpty()
-  warehouseId: string;
+  @IsOptional()
+  warehouseId?: string;
 
   @IsString()
   @IsOptional()
   batchNo?: string;
 
-  @IsInt()
-  @IsNotEmpty()
+  @IsNumber()
   quantity: number; // The new total quantity (SET) or incoming quantity (ADD)
 
   @IsString()

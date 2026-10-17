@@ -26,7 +26,7 @@ import { useAuth } from '@/components/auth-provider';
 interface PurchaseItem {
   id: string;
   productId: string;
-  warehouseId: string;
+  warehouseId?: string;
   batchNo?: string;
   qty: number;
   unitPrice: number;
@@ -320,7 +320,7 @@ export default function PurchasesPage() {
                 <th className="py-3 px-4">Vendor Bill #</th>
                 <th className="py-3 px-4">Supplier</th>
                 <th className="py-3 px-4">Date</th>
-                <th className="py-3 px-4">Items & Warehouses</th>
+                <th className="py-3 px-4">Items Inwarded</th>
                 {!isSupervisor && (
                   <>
                     <th className="py-3 px-4">Payment</th>
@@ -471,7 +471,6 @@ export default function PurchasesPage() {
                 <thead className="bg-muted/50 text-[11px] font-semibold uppercase text-muted-foreground border-b border-border">
                   <tr>
                     <th className="py-2.5 px-3">Product</th>
-                    <th className="py-2.5 px-3">Stocked In Warehouse</th>
                     <th className="py-2.5 px-3">Batch / Lot</th>
                     <th className="py-2.5 px-3 text-right">Qty</th>
                     {!isSupervisor && (
@@ -487,9 +486,6 @@ export default function PurchasesPage() {
                     <tr key={it.id}>
                       <td className="py-2.5 px-3 font-medium text-foreground">
                         {it.product?.name || 'Product'}
-                      </td>
-                      <td className="py-2.5 px-3 text-muted-foreground">
-                        {it.warehouse?.name || 'Warehouse'}
                       </td>
                       <td className="py-2.5 px-3 font-mono text-muted-foreground">
                         {it.batchNo || 'Standard Lot'}

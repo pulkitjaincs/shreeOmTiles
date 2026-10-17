@@ -15,18 +15,21 @@ import { mobileApiRequest } from '@/lib/api';
 import { formatINR, formatDate } from '@/lib/formatters';
 import { downloadAndSharePdf } from '@/lib/pdf';
 import { Ionicons } from '@expo/vector-icons';
+import { CreateQuotationModal } from './CreateQuotationModal';
 
 export function QuotationsView() {
   const [quotations, setQuotations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [convertingId, setConvertingId] = useState<string | null>(null);
+  const [createModalVisible, setCreateModalVisible] = useState(false);
 
   const loadQuotations = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await mobileApiRequest<any[]>('/quotations');
-      setQuotations(res || []);
+      const res = await mobileApiRequest<any>('/quotations');
+      const list = Array.isArray(res) ? res : res?.data || [];
+      setQuotations(list);
     } catch (err: any) {
       console.warn('Quotations load error:', err.message);
     } finally {
@@ -43,8 +46,11 @@ export function QuotationsView() {
     const q = search.toLowerCase();
     return quotations.filter(
       (item) =>
+        item.quotationNo?.toLowerCase().includes(q) ||
         item.estimateNo?.toLowerCase().includes(q) ||
+        item.customerName?.toLowerCase().includes(q) ||
         item.party?.name?.toLowerCase().includes(q) ||
+        item.customerPhone?.includes(q) ||
         item.party?.phone?.includes(q),
     );
   }, [quotations, search]);
@@ -81,7 +87,10 @@ export function QuotationsView() {
 
   const handleDownloadPdf = async (quote: any) => {
     try {
-      await downloadAndSharePdf(`quotations/${quote.id}/pdf`, `Estimate_${quote.quotationNo || quote.estimateNo}`);
+      await downloadAndSharePdf(
+        `quotations/${quote.id}/pdf`,
+        `Estimate_${quote.quotationNo || quote.estimateNo}`,
+      );
     } catch (err: any) {
       Alert.alert('Download Failed', err.message || 'Could not download estimate PDF');
     }
@@ -89,6 +98,24 @@ export function QuotationsView() {
 
   return (
     <View style={styles.container}>
+      {/* Prominent Header Bar with "+ New Estimate" Button */}
+      <View style={styles.headerBar}>
+        <View style={styles.headerInfo}>
+          <Text style={styles.headerTitle}>Price Estimates</Text>
+          <Text style={styles.headerSubtitle}>
+            {quotations.length} {quotations.length === 1 ? 'estimate' : 'estimates'} generated
+          </Text>
+        </View>
+        <Button
+          title="+ New Estimate"
+          icon="add-circle-outline"
+          variant="primary"
+          size="sm"
+          onPress={() => setCreateModalVisible(true)}
+          style={styles.newEstimateBtn}
+        />
+      </View>
+
       <SearchBar
         value={search}
         onChangeText={setSearch}
@@ -99,7 +126,26 @@ export function QuotationsView() {
         {loading && quotations.length === 0 ? (
           <ActivityIndicator size="small" color="#FFFFFF" style={{ marginTop: 24 }} />
         ) : filteredQuotations.length === 0 ? (
-          <Text style={styles.emptyText}>No price estimates found.</Text>
+          <View style={styles.emptyContainer}>
+            <Ionicons
+              name="document-text-outline"
+              size={36}
+              color={Colors.dark.textTertiary}
+              style={{ marginBottom: 6 }}
+            />
+            <Text style={styles.emptyText}>
+              {search.trim() ? `No estimates matching "${search}"` : 'No price estimates created yet.'}
+            </Text>
+            {!search.trim() ? (
+              <Button
+                title="+ Create First Estimate"
+                variant="outline"
+                size="sm"
+                onPress={() => setCreateModalVisible(true)}
+                style={{ marginTop: 12, paddingHorizontal: 16 }}
+              />
+            ) : null}
+          </View>
         ) : (
           filteredQuotations.map((item) => (
             <Card key={item.id} style={styles.quoteCard}>
@@ -107,8 +153,13 @@ export function QuotationsView() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.estimateNo}>#{item.quotationNo || item.estimateNo}</Text>
                   <Text style={styles.customerName}>
-                    {item.party?.name || 'Walk-in Customer'}
+                    {item.party?.name || item.customerName || 'Walk-in Customer'}
                   </Text>
+                  {item.customerPhone || item.party?.phone ? (
+                    <Text style={styles.customerPhone}>
+                      {item.customerPhone || item.party?.phone}
+                    </Text>
+                  ) : null}
                   <Text style={styles.quoteDate}>{formatDate(item.createdAt)}</Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
@@ -118,7 +169,7 @@ export function QuotationsView() {
               </View>
 
               <Text style={styles.itemsSub}>
-                {(item.items || []).length} line items • Validity: {formatDate(item.validUntil)}
+                {(item.items || []).length} line items • Validity: {item.validUntil ? formatDate(item.validUntil) : '15 Days'}
               </Text>
 
               <View style={styles.actionRow}>
@@ -151,6 +202,15 @@ export function QuotationsView() {
           ))
         )}
       </View>
+
+      {/* Create Quotation Modal */}
+      <CreateQuotationModal
+        visible={createModalVisible}
+        onClose={() => setCreateModalVisible(false)}
+        onSuccess={() => {
+          loadQuotations();
+        }}
+      />
     </View>
   );
 }
@@ -158,6 +218,32 @@ export function QuotationsView() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  headerBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    marginTop: 4,
+  },
+  headerInfo: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.2,
+  },
+  headerSubtitle: {
+    fontSize: 11,
+    color: Colors.dark.textSecondary,
+    marginTop: 2,
+  },
+  newEstimateBtn: {
+    height: 38,
+    paddingHorizontal: 14,
+    borderRadius: 9,
   },
   scrollList: {
     paddingBottom: 24,
@@ -187,6 +273,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFFFF',
     marginTop: 2,
+  },
+  customerPhone: {
+    fontSize: 10.5,
+    color: Colors.dark.textSecondary,
+    marginTop: 1,
   },
   quoteDate: {
     fontSize: 10.5,
@@ -239,10 +330,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#10B981',
   },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 36,
+    paddingHorizontal: 20,
+  },
   emptyText: {
     textAlign: 'center',
     color: Colors.dark.textSecondary,
-    fontSize: 12,
-    marginTop: 24,
+    fontSize: 12.5,
   },
 });

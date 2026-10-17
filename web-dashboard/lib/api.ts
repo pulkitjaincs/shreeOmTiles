@@ -119,6 +119,8 @@ export async function apiRequest<T = unknown>(
       invalidateApiCache('/analytics');
     } else if (endpoint.includes('/delivery')) {
       invalidateApiCache('/delivery');
+      invalidateApiCache('/invoices');
+      invalidateApiCache('/payments');
       invalidateApiCache('/analytics');
     } else if (endpoint.includes('/purchases')) {
       invalidateApiCache('/purchases');

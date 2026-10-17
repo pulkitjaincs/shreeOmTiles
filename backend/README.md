@@ -296,6 +296,7 @@ Built with `pdf-lib` for pixel-perfect, vector-sharp PDF generation:
 | Method | Endpoint | Description | Role Required |
 |:---|:---|:---|:---|
 | `GET` | `/stock` | Get aggregated stock balances (scoped for supervisors) | ADMIN, SALESMAN, SUPERVISOR |
+| `GET` | `/stock/warehouse/:warehouseId` | Get warehouse stock breakdown (supports `?positiveOnly=true`) | ADMIN, SALESMAN, SUPERVISOR |
 | `POST` | `/stock/adjust` | Record stock adjustment (strictly scoped for supervisors) | ADMIN, SUPERVISOR |
 | `POST` | `/stock/transfer` | Transfer stock between physical locations (scoped origin) | ADMIN, SUPERVISOR |
 | `POST` | `/stock/zero-out` | Reset stock balance for a product at godown | ADMIN, SUPERVISOR |
@@ -375,7 +376,15 @@ npx prisma db push
 # 4. (Optional) Run seed script to populate test data
 npx prisma db seed
 
-# 5. Start development server in watch mode with SWC
+# 5. Clean Database & Fresh Owner Provisioning (Testing)
+# Truncates all 27 database tables with RESTART IDENTITY CASCADE and seeds initial Owner:
+node prisma/clean-test-db.js
+
+# 6. Bulk Master Inventory CSV Importer
+# Parses tile catalog, godown batches, and square-feet rates from CSV:
+node prisma/import-inventory.js
+
+# 7. Start development server in watch mode with SWC
 npm run start:dev
 ```
 

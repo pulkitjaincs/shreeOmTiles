@@ -18,8 +18,8 @@ export interface StockItem {
   id: string;
   productId: string;
   product: { name: string; category: string; unit: string };
-  warehouseId: string;
-  warehouse: { name: string };
+  warehouseId?: string;
+  warehouse?: { name: string };
   batchNo?: string;
   quantity: number;
   updatedAt: string;

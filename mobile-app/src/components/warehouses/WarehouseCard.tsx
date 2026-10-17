@@ -27,9 +27,13 @@ export function WarehouseCard({
   const [expanded, setExpanded] = useState(false);
 
   // Compute live stock metrics for this location
-  const whStocks = stocks.filter((s) => s.warehouseId === warehouse.id);
+  const whStocks = stocks.filter(
+    (s) => s.warehouseId === warehouse.id && Number(s.quantity || 0) > 0,
+  );
   const totalUnits = whStocks.reduce((sum, s) => sum + Number(s.quantity || 0), 0);
-  const skuCount = new Set(whStocks.map((s) => s.productId)).size;
+  const skuCount = new Set(
+    whStocks.filter((s) => Boolean(s.productId)).map((s) => s.productId),
+  ).size;
   const isShowroom = warehouse.type === 'SHOWROOM';
 
   return (

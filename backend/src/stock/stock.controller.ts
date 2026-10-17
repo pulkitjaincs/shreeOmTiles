@@ -32,15 +32,21 @@ export class StockController {
     @Query('warehouseId') warehouseId?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('inStockOnly') inStockOnly?: string,
   ) {
     const pageNum = page ? parseInt(page, 10) : undefined;
     const limitNum = limit ? parseInt(limit, 10) : undefined;
+    const inStockOnlyBool =
+      inStockOnly?.toLowerCase() === 'true' ||
+      inStockOnly === '1' ||
+      inStockOnly === '';
     return this.stockService.findAll(
       {
         productId,
         warehouseId,
         page: pageNum,
         limit: limitNum,
+        inStockOnly: inStockOnly !== undefined ? inStockOnlyBool : undefined,
       },
       req.user,
     );

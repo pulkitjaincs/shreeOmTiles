@@ -102,21 +102,23 @@ export class PurchasesService {
         let stock = await tx.stockLedger.findFirst({
           where: {
             productId: item.productId,
-            warehouseId: item.warehouseId,
+            ...(item.warehouseId ? { warehouseId: item.warehouseId } : {}),
             batchNo: item.batchNo ?? null,
           },
         });
+
+        const itemQty = Number(item.qty);
 
         if (stock) {
           await tx.$queryRawUnsafe(
             `SELECT id, quantity FROM "StockLedger" WHERE id = $1 FOR UPDATE`,
             stock.id,
           );
-          const prevQty = stock.quantity;
-          const newQty = prevQty + item.qty;
+          const prevQty = Number(stock.quantity);
+          const newQty = prevQty + itemQty;
           stock = await tx.stockLedger.update({
             where: { id: stock.id },
-            data: { quantity: newQty },
+            data: { quantity: new Prisma.Decimal(newQty.toFixed(2)) },
           });
 
           await tx.auditLog.create({
@@ -128,8 +130,8 @@ export class PurchasesService {
               diff: {
                 purchaseNo,
                 productId: item.productId,
-                warehouseId: item.warehouseId,
-                qtyAdded: item.qty,
+                warehouseId: item.warehouseId || null,
+                qtyAdded: itemQty,
                 previousQuantity: prevQty,
                 newQuantity: newQty,
               },
@@ -139,9 +141,9 @@ export class PurchasesService {
           stock = await tx.stockLedger.create({
             data: {
               productId: item.productId,
-              warehouseId: item.warehouseId,
+              warehouseId: item.warehouseId || null,
               batchNo: item.batchNo ?? null,
-              quantity: item.qty,
+              quantity: new Prisma.Decimal(itemQty.toFixed(2)),
             },
           });
 
@@ -154,10 +156,10 @@ export class PurchasesService {
               diff: {
                 purchaseNo,
                 productId: item.productId,
-                warehouseId: item.warehouseId,
-                qtyAdded: item.qty,
+                warehouseId: item.warehouseId || null,
+                qtyAdded: itemQty,
                 previousQuantity: 0,
-                newQuantity: item.qty,
+                newQuantity: itemQty,
               },
             },
           });
@@ -165,9 +167,9 @@ export class PurchasesService {
 
         purchaseItemsData.push({
           productId: item.productId,
-          warehouseId: item.warehouseId,
+          warehouseId: item.warehouseId || null,
           batchNo: item.batchNo ?? null,
-          qty: item.qty,
+          qty: new Prisma.Decimal(itemQty.toFixed(2)),
           unitPrice: new Prisma.Decimal(item.unitPrice.toFixed(2)),
           discount: new Prisma.Decimal(item.discount.toFixed(2)),
           total: new Prisma.Decimal(item.total.toFixed(2)),

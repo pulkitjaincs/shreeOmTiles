@@ -6,19 +6,38 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Colors } from '@/constants/theme';
-import { mobileApiRequest } from '@/lib/api';
+import { mobileApiRequest, invalidateMobileApiCache, cachedMobileApiRequest } from '@/lib/api';
 import { formatINR, formatDate } from '@/lib/formatters';
 import { useAuth } from '@/lib/auth-context';
+import { Warehouse } from '@/components/stock/types';
+import { Party } from '@/components/parties/types';
+import { CreatePurchaseModal } from './CreatePurchaseModal';
 
-export function PurchasesView() {
+export interface PurchasesViewProps {
+  onRefreshStock?: () => Promise<any> | void;
+  warehouses?: Warehouse[];
+  parties?: Party[];
+}
+
+export function PurchasesView({
+  onRefreshStock,
+  warehouses,
+  parties,
+}: PurchasesViewProps = {}) {
   const { user } = useAuth();
   const isSupervisor = user?.role === 'SUPERVISOR';
+  const isOwnerOrAdmin = user?.role === 'OWNER' || user?.role === 'ADMIN';
+  const isAccountant = user?.role === 'ACCOUNTANT';
+  const canRecordPurchase = isOwnerOrAdmin || isAccountant;
+
   const [purchases, setPurchases] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [createModalOpen, setCreateModalOpen] = useState(false);
 
   const loadPurchases = useCallback(async () => {
     setLoading(true);
@@ -36,23 +55,104 @@ export function PurchasesView() {
     loadPurchases();
   }, [loadPurchases]);
 
+  const handlePurchaseSuccess = async () => {
+    await invalidateMobileApiCache('/stock');
+    await invalidateMobileApiCache('/purchases');
+    await invalidateMobileApiCache('/parties');
+    await invalidateMobileApiCache('/warehouses');
+    await loadPurchases();
+    try {
+      await cachedMobileApiRequest('/stock', { forceRefresh: true });
+    } catch {
+      // ignore
+    }
+    if (onRefreshStock) {
+      try {
+        await onRefreshStock();
+      } catch (err) {
+        console.warn('PurchasesView onRefreshStock error:', err);
+      }
+    }
+  };
+
+  const getPurchasePaidAmount = (p: any): number => {
+    if (p.amountPaid !== undefined && p.amountPaid !== null) {
+      return Number(p.amountPaid);
+    }
+    if (Array.isArray(p.payments) && p.payments.length > 0) {
+      return p.payments.reduce((sum: number, pay: any) => sum + Number(pay.amount || 0), 0);
+    }
+    if (p.paymentMode === 'CASH' || p.paymentMode === 'BANK_TRANSFER' || p.paymentMode === 'UPI') {
+      const hasUnpaidCredit =
+        Array.isArray(p.creditLedgers) &&
+        p.creditLedgers.some((c: any) => c.status !== 'SETTLED');
+      if (!hasUnpaidCredit && (!p.creditLedgers || p.creditLedgers.length === 0)) {
+        return Number(p.total || 0);
+      }
+    }
+    return 0;
+  };
+
+  const getPurchaseDueAmount = (p: any): number => {
+    if (Array.isArray(p.creditLedgers) && p.creditLedgers.length > 0) {
+      return p.creditLedgers.reduce(
+        (sum: number, c: any) => (c.status !== 'SETTLED' ? sum + Number(c.amountDue || 0) : sum),
+        0,
+      );
+    }
+    const paid = getPurchasePaidAmount(p);
+    return Math.max(0, Number(p.total || 0) - paid);
+  };
+
+  const getPurchaseStatus = (p: any): string => {
+    if (p.paymentStatus) return p.paymentStatus;
+    const due = getPurchaseDueAmount(p);
+    const paid = getPurchasePaidAmount(p);
+    const total = Number(p.total || 0);
+    if (due <= 0.01 && (paid >= total || total === 0)) return 'PAID';
+    if (paid > 0.01) return 'PARTIAL';
+    return 'UNPAID';
+  };
+
   const filteredPurchases = useMemo(() => {
     if (!search.trim()) return purchases;
-    const q = search.toLowerCase();
+    const q = search.toLowerCase().trim();
     return purchases.filter(
       (item) =>
         item.purchaseNo?.toLowerCase().includes(q) ||
+        item.vendorBillNo?.toLowerCase().includes(q) ||
         item.supplierInvoiceNo?.toLowerCase().includes(q) ||
-        item.party?.name?.toLowerCase().includes(q),
+        item.party?.name?.toLowerCase().includes(q) ||
+        item.party?.phone?.includes(q),
     );
   }, [purchases, search]);
 
   const totalBilled = purchases.reduce((sum, p) => sum + Number(p.total || 0), 0);
-  const totalPaid = purchases.reduce((sum, p) => sum + Number(p.amountPaid || 0), 0);
-  const totalPayable = totalBilled - totalPaid;
+  const totalPaid = purchases.reduce((sum, p) => sum + getPurchasePaidAmount(p), 0);
+  const totalPayable = purchases.reduce((sum, p) => sum + getPurchaseDueAmount(p), 0);
 
   return (
     <View style={styles.container}>
+      {/* Header Bar with "+ Record Purchase" button */}
+      <View style={styles.headerBar}>
+        <View style={styles.headerInfo}>
+          <Text style={styles.headerTitle}>Inward Purchases</Text>
+          <Text style={styles.headerSubtitle}>
+            {purchases.length} {purchases.length === 1 ? 'purchase order' : 'purchase orders'}
+          </Text>
+        </View>
+        {canRecordPurchase && (
+          <Button
+            title="+ Record Purchase"
+            icon="add-circle-outline"
+            variant="primary"
+            size="sm"
+            onPress={() => setCreateModalOpen(true)}
+            style={styles.recordBtn}
+          />
+        )}
+      </View>
+
       {/* KPI Cards */}
       <View style={styles.kpiGrid}>
         {!isSupervisor ? (
@@ -119,57 +219,69 @@ export function PurchasesView() {
         ) : filteredPurchases.length === 0 ? (
           <Text style={styles.emptyText}>No inward purchases found.</Text>
         ) : (
-          filteredPurchases.map((item) => (
-            <Card key={item.id} style={styles.purchaseCard}>
-              <View style={styles.purchaseTop}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.purchaseNo}>#{item.purchaseNo}</Text>
-                  <Text style={styles.supplierName}>
-                    {item.party?.name || 'Unknown Supplier'}
-                  </Text>
-                  <Text style={styles.purchaseDate}>
-                    Bill Date: {formatDate(item.purchaseDate || item.createdAt)}
-                    {item.supplierInvoiceNo ? ` • Inv #${item.supplierInvoiceNo}` : ''}
-                  </Text>
+          filteredPurchases.map((item) => {
+            const dueAmt = getPurchaseDueAmount(item);
+            const billNo = item.vendorBillNo || item.supplierInvoiceNo;
+            return (
+              <Card key={item.id} style={styles.purchaseCard}>
+                <View style={styles.purchaseTop}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.purchaseNo}>#{item.purchaseNo}</Text>
+                    <Text style={styles.supplierName}>
+                      {item.party?.name || 'Unknown Supplier'}
+                    </Text>
+                    <Text style={styles.purchaseDate}>
+                      Bill Date: {formatDate(item.purchaseDate || item.createdAt)}
+                      {billNo ? ` • Inv #${billNo}` : ''}
+                    </Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    {!isSupervisor ? (
+                      <>
+                        <Text style={styles.purchaseTotal}>{formatINR(item.total)}</Text>
+                        <StatusBadge status={getPurchaseStatus(item)} size="sm" />
+                      </>
+                    ) : (
+                      <Text style={[styles.purchaseTotal, { fontSize: 12, color: Colors.dark.textSecondary }]}>
+                        {(item.items || []).length} items
+                      </Text>
+                    )}
+                  </View>
                 </View>
-                <View style={{ alignItems: 'flex-end' }}>
+
+                <View style={styles.purchaseBottomRow}>
                   {!isSupervisor ? (
                     <>
-                      <Text style={styles.purchaseTotal}>{formatINR(item.total)}</Text>
-                      <StatusBadge status={item.paymentStatus} size="sm" />
+                      <Text style={styles.itemsSub}>
+                        {(item.items || []).length} items • Mode: {item.paymentMode || 'CASH'}
+                      </Text>
+                      {dueAmt > 0.01 ? (
+                        <Text style={styles.dueSub}>
+                          Due: {formatINR(dueAmt)}
+                        </Text>
+                      ) : (
+                        <Text style={styles.paidSub}>Fully Paid</Text>
+                      )}
                     </>
                   ) : (
-                    <Text style={[styles.purchaseTotal, { fontSize: 12, color: Colors.dark.textSecondary }]}>
-                      {(item.items || []).length} items
+                    <Text style={styles.itemsSub}>
+                      Received items: {(item.items || []).map((it: any) => `${it.product?.name || 'Item'} (${it.qty} ${it.product?.unit || 'units'})`).join(', ') || `${(item.items || []).length} items`}
                     </Text>
                   )}
                 </View>
-              </View>
-
-              <View style={styles.purchaseBottomRow}>
-                {!isSupervisor ? (
-                  <>
-                    <Text style={styles.itemsSub}>
-                      {(item.items || []).length} items • Mode: {item.paymentMode || 'CASH'}
-                    </Text>
-                    {Number(item.total) - Number(item.amountPaid) > 0 ? (
-                      <Text style={styles.dueSub}>
-                        Due: {formatINR(Number(item.total) - Number(item.amountPaid))}
-                      </Text>
-                    ) : (
-                      <Text style={styles.paidSub}>Fully Paid</Text>
-                    )}
-                  </>
-                ) : (
-                  <Text style={styles.itemsSub}>
-                    Received items: {(item.items || []).map((it: any) => `${it.product?.name || 'Item'} (${it.qty} ${it.product?.unit || 'units'})`).join(', ') || `${(item.items || []).length} items`}
-                  </Text>
-                )}
-              </View>
-            </Card>
-          ))
+              </Card>
+            );
+          })
         )}
       </View>
+
+      <CreatePurchaseModal
+        visible={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onSuccess={handlePurchaseSuccess}
+        warehouses={warehouses}
+        parties={parties}
+      />
     </View>
   );
 }
@@ -177,6 +289,31 @@ export function PurchasesView() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  headerBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  headerInfo: {
+    flex: 1,
+    marginRight: 10,
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -0.3,
+  },
+  headerSubtitle: {
+    fontSize: 11.5,
+    color: Colors.dark.textSecondary,
+    marginTop: 2,
+  },
+  recordBtn: {
+    height: 38,
+    paddingHorizontal: 14,
   },
   kpiGrid: {
     flexDirection: 'row',

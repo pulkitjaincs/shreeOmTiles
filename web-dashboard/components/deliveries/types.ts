@@ -28,6 +28,21 @@ export interface DispatchedItem {
   pickedUpAt?: string;
 }
 
+export interface SupervisorUser {
+  id: string;
+  name: string;
+  phone: string;
+  role: string;
+  isActive?: boolean;
+}
+
+export interface DeliverySupervisorRecord {
+  id?: string;
+  deliveryId?: string;
+  supervisorId: string;
+  supervisor?: SupervisorUser;
+}
+
 export interface Delivery {
   id: string;
   status: string;
@@ -40,6 +55,7 @@ export interface Delivery {
   cashHandedOver?: boolean;
   cashHandedOverAt?: string;
   items?: DispatchedItem[];
+  supervisors?: DeliverySupervisorRecord[];
   driver?: {
     id: string;
     name: string;
@@ -59,7 +75,7 @@ export interface Delivery {
       id?: string;
       productId: string;
       product: { name: string; unit: string };
-      warehouse: { name: string; address?: string };
+      warehouse?: { name: string; address?: string } | null;
       warehouseId?: string;
       batchNo?: string;
       qty: number;

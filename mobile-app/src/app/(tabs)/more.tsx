@@ -641,7 +641,13 @@ export default function MoreScreen() {
         {/* ========================================================================= */}
         {/* VIEW 8: PURCHASES                                                         */}
         {/* ========================================================================= */}
-        {activeSection === 'PURCHASES' ? <PurchasesView /> : null}
+        {activeSection === 'PURCHASES' ? (
+          <PurchasesView
+            onRefreshStock={() => loadWarehouses(true)}
+            warehouses={warehouses}
+            parties={parties}
+          />
+        ) : null}
 
         {/* ========================================================================= */}
         {/* VIEW 9: EXPENSES                                                          */}
