@@ -59,6 +59,11 @@ export interface StatementInvoice {
   createdAt: string;
   items?: StatementInvoiceItem[];
   payments?: StatementPayment[];
+  salesman?: {
+    id?: string;
+    name: string;
+    phone?: string;
+  };
 }
 
 export interface StatementCreditLedger {
@@ -67,6 +72,7 @@ export interface StatementCreditLedger {
   status: string;
   type?: 'RECEIVABLE' | 'PAYABLE';
   dueDate?: string | null;
+  remindersSent?: number;
   createdAt?: string;
   invoice?: {
     id?: string;

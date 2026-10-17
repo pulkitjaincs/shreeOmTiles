@@ -35,6 +35,8 @@ export default function PartiesPage() {
   const [partyToDelete, setPartyToDelete] = useState<Party | null>(null);
   const [partyForView, setPartyForView] = useState<Party | null>(null);
 
+  const [nowTime] = useState(() => Date.now());
+
   const loadParties = useCallback(async (force = false) => {
     try {
       const data = await cachedApiRequest<Party[]>('/parties?includeUnsaved=true', {
@@ -50,12 +52,30 @@ export default function PartiesPage() {
   }, []);
 
   useEffect(() => {
-    loadParties();
+    let ignore = false;
+    cachedApiRequest<Party[]>('/parties?includeUnsaved=true', {
+      onRevalidate: (fresh) => {
+        if (!ignore) setParties(fresh);
+      },
+    })
+      .then((data) => {
+        if (!ignore) setParties(data);
+      })
+      .catch((err) => {
+        console.error(err);
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false);
+      });
+
     const handleRefresh = () => {
       loadParties(true);
     };
     window.addEventListener('app:refresh-active-page', handleRefresh);
-    return () => window.removeEventListener('app:refresh-active-page', handleRefresh);
+    return () => {
+      ignore = true;
+      window.removeEventListener('app:refresh-active-page', handleRefresh);
+    };
   }, [loadParties]);
 
   // Helper to compute party dues (RECEIVABLE - PAYABLE store credit)
@@ -118,7 +138,6 @@ export default function PartiesPage() {
     let b15to30 = 0;
     let b30to60 = 0;
     let b60plus = 0;
-    const nowTime = Date.now();
 
     for (const p of parties) {
       for (const cl of p.creditLedgers || []) {
@@ -135,7 +154,7 @@ export default function PartiesPage() {
       }
     }
     return { totalReceivables, b0to15, b15to30, b30to60, b60plus };
-  }, [parties]);
+  }, [parties, nowTime]);
 
   const { totalReceivables, b0to15, b15to30, b30to60, b60plus } = ageing;
 
@@ -339,6 +358,11 @@ export default function PartiesPage() {
               ) : (
                 filtered.map((party) => {
                   const totalDue = getPartyTotalDue(party);
+                  const partyPayable = getPartyPayable(party);
+                  const isDue = totalDue > 0.01;
+                  const isPayable = totalDue < -0.01 || partyPayable > 0.01;
+                  const payableAmt = totalDue < -0.01 ? Math.abs(totalDue) : partyPayable;
+                  const hasPendingDues = isDue || isPayable;
 
                   return (
                     <tr key={party.id} className="hover:bg-muted/30 transition group">
@@ -400,17 +424,33 @@ export default function PartiesPage() {
 
                       <td className="py-3.5 px-4">
                         <div className="flex flex-col items-start gap-1">
-                          <span className={`font-bold font-mono text-sm ${totalDue > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
-                            ₹{totalDue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                          </span>
-                          {totalDue > 0 ? (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 font-medium">
-                              Dues Pending
-                            </span>
+                          {isDue ? (
+                            <>
+                              <span className="font-bold font-mono text-sm text-rose-600 dark:text-rose-400">
+                                ₹{totalDue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                              </span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 font-medium">
+                                Dues Pending
+                              </span>
+                            </>
+                          ) : isPayable ? (
+                            <>
+                              <span className="font-bold font-mono text-sm text-amber-600 dark:text-amber-400">
+                                ₹{payableAmt.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                              </span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-medium">
+                                Store Payable
+                              </span>
+                            </>
                           ) : (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-medium">
-                              Nil Dues / Cleared
-                            </span>
+                            <>
+                              <span className="font-bold font-mono text-sm text-emerald-600 dark:text-emerald-400">
+                                ₹0.00
+                              </span>
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-medium">
+                                Nil Dues / Cleared
+                              </span>
+                            </>
                           )}
                         </div>
                       </td>
@@ -442,9 +482,9 @@ export default function PartiesPage() {
                             {/* 3. Delete Customer Button */}
                             <button
                               onClick={() => setPartyToDelete(party)}
-                              title={totalDue > 0 ? 'Cannot delete: Outstanding dues pending' : 'Delete / Remove Customer'}
+                              title={hasPendingDues ? 'Cannot delete: Outstanding dues or store payables pending' : 'Delete / Remove Customer'}
                               className={`p-1.5 rounded-lg border transition ${
-                                totalDue > 0
+                                hasPendingDues
                                   ? 'bg-muted text-muted-foreground border-border/60 hover:bg-rose-500/10 hover:text-rose-500'
                                   : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border-rose-500/20'
                               }`}

@@ -294,6 +294,10 @@ export function PartiesDirectoryView({
           setEditingParty(party);
           setFormModalOpen(true);
         }}
+        onDelete={(party) => {
+          setStatementParty(null);
+          setDeletingParty(party);
+        }}
       />
 
       {/* 3. Delete Customer Safety Modal (Zero-due validation) */}

@@ -79,13 +79,18 @@ export function CreditAgeingRow({ parties }: CreditAgeingRowProps) {
       </Card>
 
       {/* 3. 15-30 Days */}
-      <Card style={styles.statCard}>
+      <Card
+        style={[
+          styles.statCard,
+          { borderColor: 'rgba(59, 130, 246, 0.35)', backgroundColor: 'rgba(59, 130, 246, 0.08)' },
+        ]}
+      >
         <View style={styles.cardHeader}>
-          <Text style={styles.label}>15–30 Days</Text>
-          <Ionicons name="time-outline" size={14} color={Colors.dark.textSecondary} />
+          <Text style={[styles.label, { color: '#3B82F6' }]}>15–30 Days</Text>
+          <Ionicons name="time-outline" size={14} color="#3B82F6" />
         </View>
-        <Text style={styles.val}>{formatINR(buckets.b15to30)}</Text>
-        <Text style={styles.subText}>Standard terms</Text>
+        <Text style={[styles.val, { color: '#3B82F6' }]}>{formatINR(buckets.b15to30)}</Text>
+        <Text style={[styles.subText, { color: 'rgba(59, 130, 246, 0.75)' }]}>Standard terms</Text>
       </Card>
 
       {/* 4. 30-60 Days (Attention) */}

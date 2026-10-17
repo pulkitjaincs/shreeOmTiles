@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { apiRequest } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import {
@@ -58,27 +58,39 @@ export function PartyStatementDrawer({
     }
   };
 
-  const fetchParty360 = useCallback(async (partyId: string) => {
-    setLoading(true);
-    try {
-      const data = await apiRequest<PartyDetail>(`/parties/${partyId}`);
-      setPartyData(data);
-    } catch (err) {
-      console.error('Failed to fetch customer 360 history:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   const [now] = useState(() => Date.now());
+  const [currentPartyId, setCurrentPartyId] = useState<string | null>(null);
+
+  if (party && party.id !== currentPartyId) {
+    setCurrentPartyId(party.id);
+    setPartyData(null);
+    setActiveTab('orders');
+    setLoading(true);
+  }
 
   useEffect(() => {
-    if (isOpen && party) {
-      setPartyData(null);
-      setActiveTab('orders');
-      fetchParty360(party.id);
-    }
-  }, [isOpen, party?.id, fetchParty360]);
+    if (!isOpen || !party) return;
+    let ignore = false;
+
+    apiRequest<PartyDetail>(`/parties/${party.id}`)
+      .then((data) => {
+        if (!ignore) {
+          setPartyData(data);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to fetch customer 360 history:', err);
+      })
+      .finally(() => {
+        if (!ignore) {
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [isOpen, party]);
 
   if (!isOpen || !party) return null;
 
@@ -235,17 +247,43 @@ export function PartyStatementDrawer({
                   <span className="text-[10px] text-muted-foreground mt-0.5 block">Invoices generated</span>
                 </div>
 
-                <div className="p-4 rounded-xl border border-rose-500/20 bg-rose-500/5">
-                  <span className="text-[11px] font-medium text-rose-600 dark:text-rose-400 uppercase tracking-wider block">
-                    Outstanding Dues
-                  </span>
-                  <div className="text-lg font-bold text-rose-600 dark:text-rose-400 mt-1">
-                    ₹{totalDues.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                {totalDues > 0.01 ? (
+                  <div className="p-4 rounded-xl border border-rose-500/20 bg-rose-500/5">
+                    <span className="text-[11px] font-medium text-rose-600 dark:text-rose-400 uppercase tracking-wider block">
+                      Outstanding Dues
+                    </span>
+                    <div className="text-lg font-bold text-rose-600 dark:text-rose-400 mt-1">
+                      ₹{totalDues.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    </div>
+                    <span className="text-[10px] text-rose-600/70 dark:text-rose-400/70 mt-0.5 block">
+                      Pending in credit ledger
+                    </span>
                   </div>
-                  <span className="text-[10px] text-rose-600/70 dark:text-rose-400/70 mt-0.5 block">
-                    {totalDues > 0 ? 'Pending in credit ledger' : 'All accounts settled'}
-                  </span>
-                </div>
+                ) : totalDues < -0.01 ? (
+                  <div className="p-4 rounded-xl border border-amber-500/20 bg-amber-500/5">
+                    <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400 uppercase tracking-wider block">
+                      Store Payable
+                    </span>
+                    <div className="text-lg font-bold text-amber-600 dark:text-amber-400 mt-1">
+                      ₹{Math.abs(totalDues).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                    </div>
+                    <span className="text-[10px] text-amber-600/70 dark:text-amber-400/70 mt-0.5 block">
+                      Store owes party / Advance
+                    </span>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
+                    <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">
+                      Account Balance
+                    </span>
+                    <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-1">
+                      ₹0.00
+                    </div>
+                    <span className="text-[10px] text-emerald-600/70 dark:text-emerald-400/70 mt-0.5 block">
+                      All accounts cleared
+                    </span>
+                  </div>
+                )}
 
                 <div className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
                   <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">
@@ -436,22 +474,29 @@ export function PartyStatementDrawer({
                                   )}
                                 </td>
                                 <td className="py-3 px-4 font-mono font-bold">
-                                  <span className={dueAmt > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-muted-foreground'}>
+                                  <span className={cl.type === 'PAYABLE' ? 'text-amber-600 dark:text-amber-400' : dueAmt > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-muted-foreground'}>
                                     ₹{dueAmt.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                                   </span>
                                 </td>
                                 <td className="py-3 px-4">
-                                  <span
-                                    className={`px-2 py-0.5 rounded-full font-medium ${
-                                      cl.status === 'SETTLED'
-                                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
-                                        : cl.status === 'PARTIAL'
-                                        ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
-                                        : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
-                                    }`}
-                                  >
-                                    {cl.status}
-                                  </span>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span
+                                      className={`px-2 py-0.5 rounded-full font-medium ${
+                                        cl.status === 'SETTLED'
+                                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                                          : cl.status === 'PARTIAL'
+                                          ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                                          : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
+                                      }`}
+                                    >
+                                      {cl.status}
+                                    </span>
+                                    {cl.type === 'PAYABLE' && (
+                                      <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                        Payable
+                                      </span>
+                                    )}
+                                  </div>
                                 </td>
                                 <td className="py-3 px-4 text-right">
                                   <span className="font-mono text-muted-foreground bg-muted border border-border/50 px-2 py-0.5 rounded text-[11px]">
@@ -473,7 +518,7 @@ export function PartyStatementDrawer({
 
         {/* Modal Footer */}
         <div className="p-4 border-t border-border/60 bg-card/90 flex items-center justify-between">
-          {totalDues > 0 ? (
+          {totalDues > 0.01 ? (
             <button
               onClick={handleSendReminder}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#25D366]/10 hover:bg-[#25D366]/20 text-[#25D366] text-xs font-semibold border border-[#25D366]/30 transition"
@@ -481,10 +526,10 @@ export function PartyStatementDrawer({
               <MessageSquare className="h-3.5 w-3.5" />
               Send WhatsApp Reminder (₹{totalDues.toLocaleString('en-IN', { maximumFractionDigits: 2 })})
             </button>
-          ) : totalDues < 0 ? (
-            <span className="text-xs text-blue-500 flex items-center gap-1.5 font-medium">
-              <CheckCircle2 className="h-4 w-4 text-blue-500" />
-              Store Credit Balance: ₹{Math.abs(totalDues).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+          ) : totalDues < -0.01 ? (
+            <span className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1.5 font-medium">
+              <CheckCircle2 className="h-4 w-4 text-amber-500" />
+              Store Payable Balance: ₹{Math.abs(totalDues).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
             </span>
           ) : (
             <span className="text-xs text-muted-foreground flex items-center gap-1.5">

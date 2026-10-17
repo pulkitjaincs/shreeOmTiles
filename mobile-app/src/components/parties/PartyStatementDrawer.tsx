@@ -25,6 +25,7 @@ interface PartyStatementDrawerProps {
   onPartyDeleted: () => void;
   canDelete?: boolean;
   onEdit?: (party: Party) => void;
+  onDelete?: (party: Party) => void;
 }
 
 export function PartyStatementDrawer({
@@ -33,6 +34,7 @@ export function PartyStatementDrawer({
   onPartyDeleted,
   canDelete = false,
   onEdit,
+  onDelete,
 }: PartyStatementDrawerProps) {
   const [statementData, setStatementData] = useState<{
     invoices: StatementInvoice[];
@@ -43,23 +45,40 @@ export function PartyStatementDrawer({
   const [tab, setTab] = useState<'orders' | 'credits'>('orders');
   const [deleting, setDeleting] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [now] = useState(() => Date.now());
+  const [currentPartyId, setCurrentPartyId] = useState<string | null>(null);
+
+  if (party && party.id !== currentPartyId) {
+    setCurrentPartyId(party.id);
+    setStatementData(null);
+    setTab('orders');
+    setLoading(true);
+  }
 
   useEffect(() => {
-    if (party) {
-      setStatementData(null);
-      setTab('orders');
-      setLoading(true);
-      mobileApiRequest<any>(`/parties/${party.id}`)
-        .then((data) => {
+    if (!party) return;
+    let ignore = false;
+
+    mobileApiRequest<any>(`/parties/${party.id}`)
+      .then((data) => {
+        if (!ignore) {
           setStatementData(data);
-        })
-        .catch((err: any) => {
+        }
+      })
+      .catch((err: any) => {
+        if (!ignore) {
           Alert.alert('Error', err.message || 'Failed to load customer statement');
-        })
-        .finally(() => {
+        }
+      })
+      .finally(() => {
+        if (!ignore) {
           setLoading(false);
-        });
-    }
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
   }, [party]);
 
   if (!party) return null;
@@ -70,6 +89,7 @@ export function PartyStatementDrawer({
   const lifetimeTotal = invoices
     .filter((inv: any) => inv.status !== 'CANCELLED' && inv.status !== 'DRAFT')
     .reduce((sum: number, inv: any) => sum + Number(inv.total || 0), 0);
+
   const partyPayments = statementData?.payments || [];
   const settledPayments =
     partyPayments.length > 0
@@ -97,12 +117,22 @@ export function PartyStatementDrawer({
             );
           return sum + Math.max(0, paid);
         }, 0);
+
   const totalDues = ledgers
     .filter((cl) => cl.status !== 'SETTLED')
     .reduce((sum, cl) => {
       const amt = Number(cl.amountDue || 0);
       return cl.type === 'RECEIVABLE' ? sum + amt : sum - amt;
     }, 0);
+
+  const partyPayables = ledgers
+    .filter((cl) => cl.status !== 'SETTLED' && cl.type === 'PAYABLE')
+    .reduce((sum, cl) => sum + Number(cl.amountDue || 0), 0);
+
+  const isDue = totalDues > 0.01;
+  const isPayable = totalDues < -0.01 || partyPayables > 0.01;
+  const payableAmt = totalDues < -0.01 ? Math.abs(totalDues) : partyPayables;
+  const hasPendingLiability = isDue || isPayable;
 
   const handleShareStatement = () => {
     const clean = cleanPhoneNumber(party.phone);
@@ -111,19 +141,20 @@ export function PartyStatementDrawer({
       `Customer: *${party.name}*\n` +
       `Phone: ${party.phone}\n` +
       (party.gstin ? `GSTIN: ${party.gstin}\n` : '') +
+      (party.address ? `Address: ${party.address}\n` : '') +
       `\n*Financial Summary:*\n` +
       `• Lifetime Billing: ${formatINR(lifetimeTotal)}\n` +
       `• Total Received: ${formatINR(settledPayments)}\n` +
-      (totalDues > 0
+      (isDue
         ? `• *Current Balance Due: ${formatINR(totalDues)}*\n`
-        : totalDues < 0
-        ? `• *Store Credit Available: ${formatINR(Math.abs(totalDues))}*\n`
+        : isPayable
+        ? `• *Store Credit / Payable Available: ${formatINR(payableAmt)}*\n`
         : `• *Account Balance: ₹0.00 (All Clear)*\n`) +
       `• Total Orders: ${invoices.length}\n\n` +
-      (totalDues > 0
+      (isDue
         ? `Kindly arrange payment clearance of ${formatINR(totalDues)} at your earliest convenience.\n\n`
-        : totalDues < 0
-        ? `You have an advance store credit balance of ${formatINR(Math.abs(totalDues))} available.\n\n`
+        : isPayable
+        ? `You have an available store credit / payable balance of ${formatINR(payableAmt)} with Shree Om Tiles.\n\n`
         : `All accounts are currently in clear standing!\n\n`) +
       `Shree Om Tiles`;
 
@@ -150,32 +181,38 @@ export function PartyStatementDrawer({
   };
 
   const handleDelete = () => {
-    Alert.alert(
-      'Delete Customer',
-      `Are you sure you want to permanently delete "${party.name}"? Customer must have 0 outstanding balance.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete Customer',
-          style: 'destructive',
-          onPress: async () => {
-            setDeleting(true);
-            try {
-              await mobileApiRequest(`/parties/${party.id}`, {
-                method: 'DELETE',
-              });
-              Alert.alert('Success', `Customer "${party.name}" removed from directory.`);
-              onClose();
-              onPartyDeleted();
-            } catch (err: any) {
-              Alert.alert('Deletion Blocked', err.message || 'Customer has unsettled balance or pending orders.');
-            } finally {
-              setDeleting(false);
-            }
+    if (!party) return;
+    if (onDelete) {
+      onClose();
+      onDelete(party);
+    } else {
+      Alert.alert(
+        'Delete Customer',
+        `Are you sure you want to permanently delete "${party.name}"? Customer must have 0 outstanding balance.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delete Customer',
+            style: 'destructive',
+            onPress: async () => {
+              setDeleting(true);
+              try {
+                await mobileApiRequest(`/parties/${party.id}`, {
+                  method: 'DELETE',
+                });
+                Alert.alert('Success', `Customer "${party.name}" removed from directory.`);
+                onClose();
+                onPartyDeleted();
+              } catch (err: any) {
+                Alert.alert('Deletion Blocked', err.message || 'Customer has unsettled balance or pending orders.');
+              } finally {
+                setDeleting(false);
+              }
+            },
           },
-        },
-      ],
-    );
+        ],
+      );
+    }
   };
 
   return (
@@ -183,7 +220,7 @@ export function PartyStatementDrawer({
       visible={Boolean(party)}
       onClose={onClose}
       title={party.name}
-      subtitle={`Phone: ${party.phone} ${party.gstin ? '• GST: ' + party.gstin : ''}`}
+      subtitle={`Phone: ${party.phone}${party.gstin ? ' • GST: ' + party.gstin : ''}${party.address ? ' • ' + party.address : ''}`}
       maxHeightPercent={0.92}
     >
       {loading ? (
@@ -193,42 +230,65 @@ export function PartyStatementDrawer({
         </View>
       ) : (
         <View>
-          {/* KPI Summary Cards */}
-          <View style={styles.kpiGrid}>
+          {/* KPI Summary Cards (4 Cards matching Web Dashboard) */}
+          <View style={styles.kpiRow}>
             <Card style={styles.kpiCard}>
               <Text style={styles.kpiLabel}>Lifetime Billed</Text>
               <Text style={styles.kpiValue}>{formatINR(lifetimeTotal)}</Text>
-              <Text style={styles.kpiSub}>{invoices.length} invoices</Text>
+              <Text style={styles.kpiSub}>All orders</Text>
             </Card>
 
             <Card style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>Total Paid</Text>
-              <Text style={[styles.kpiValue, { color: '#10B981' }]}>
-                {formatINR(settledPayments)}
-              </Text>
-              <Text style={styles.kpiSub}>Confirmed receipts</Text>
+              <Text style={styles.kpiLabel}>Total Orders</Text>
+              <Text style={styles.kpiValue}>{invoices.length}</Text>
+              <Text style={styles.kpiSub}>Invoices generated</Text>
             </Card>
+          </View>
 
+          <View style={styles.kpiRow}>
             <Card
               style={[
                 styles.kpiCard,
-                totalDues > 0 ? styles.kpiDueCard : null,
+                isDue
+                  ? styles.kpiDueCard
+                  : isPayable
+                  ? styles.kpiPayableCard
+                  : styles.kpiClearedCard,
               ]}
             >
-              <Text style={styles.kpiLabel}>
-                {totalDues < 0 ? 'Store Credit' : 'Outstanding Dues'}
+              <Text
+                style={[
+                  styles.kpiLabel,
+                  isDue
+                    ? { color: '#EF4444' }
+                    : isPayable
+                    ? { color: '#F59E0B' }
+                    : { color: '#10B981' },
+                ]}
+              >
+                {isDue ? 'Outstanding Dues' : isPayable ? 'Store Payable' : 'Account Balance'}
               </Text>
               <Text
                 style={[
                   styles.kpiValue,
-                  { color: totalDues > 0 ? '#EF4444' : totalDues < 0 ? '#3B82F6' : '#10B981' },
+                  {
+                    color: isDue ? '#EF4444' : isPayable ? '#F59E0B' : '#10B981',
+                  },
                 ]}
               >
-                {formatINR(Math.abs(totalDues))}
+                {formatINR(isDue ? totalDues : isPayable ? payableAmt : 0)}
               </Text>
               <Text style={styles.kpiSub}>
-                {totalDues > 0 ? 'Pending collection' : totalDues < 0 ? 'Advance credit' : 'All clear'}
+                {isDue ? 'Pending in ledger' : isPayable ? 'Store owes party' : 'All accounts clear'}
               </Text>
+            </Card>
+
+            <Card style={styles.kpiCard}>
+              <Text style={styles.kpiLabel}>Total Received</Text>
+              <Text style={[styles.kpiValue, { color: '#10B981' }]}>
+                {formatINR(settledPayments)}
+              </Text>
+              <Text style={styles.kpiSub}>Confirmed receipts</Text>
             </Card>
           </View>
 
@@ -263,7 +323,7 @@ export function PartyStatementDrawer({
             ) : null}
             {canDelete ? (
               <TouchableOpacity
-                style={[styles.drawerIconBtn, totalDues > 0 && styles.drawerIconBtnDisabled]}
+                style={[styles.drawerIconBtn, hasPendingLiability && styles.drawerIconBtnDisabled]}
                 onPress={handleDelete}
                 disabled={deleting}
                 activeOpacity={0.7}
@@ -274,7 +334,7 @@ export function PartyStatementDrawer({
                   <Ionicons
                     name="trash-outline"
                     size={17}
-                    color={totalDues > 0 ? Colors.dark.textTertiary : '#EF4444'}
+                    color={hasPendingLiability ? Colors.dark.textTertiary : '#EF4444'}
                   />
                 )}
               </TouchableOpacity>
@@ -317,11 +377,39 @@ export function PartyStatementDrawer({
                       <StatusBadge status={inv.status} size="sm" />
                     </View>
                   </View>
+
                   <Text style={styles.orderItemsCount}>
-                    {(inv.items || []).length} item
-                    {(inv.items || []).length === 1 ? '' : 's'} • Mode:{' '}
-                    {inv.paymentMode || 'UPI'}
+                    {(inv.items || []).length} item{(inv.items || []).length === 1 ? '' : 's'} • Mode: {inv.paymentMode || 'UPI'}
                   </Text>
+
+                  {/* Itemized Line Items Breakdown */}
+                  {inv.items && inv.items.length > 0 ? (
+                    <View style={styles.itemsContainer}>
+                      {inv.items.map((item, idx) => (
+                        <View key={item.id || idx} style={styles.itemRow}>
+                          <View style={{ flex: 1, paddingRight: 8 }}>
+                            <Text style={styles.itemName} numberOfLines={1}>
+                              {item.product?.name || 'Product Item'}
+                            </Text>
+                            <Text style={styles.itemMeta}>
+                              {item.qty ?? item.quantity ?? 1} {item.product?.unit || 'pcs'}
+                              {item.unitPrice ? ` • ${formatINR(item.unitPrice)}/unit` : ''}
+                            </Text>
+                          </View>
+                          <Text style={styles.itemTotal}>
+                            {formatINR(item.total ?? (Number(item.qty ?? item.quantity ?? 1) * Number(item.unitPrice || 0)))}
+                          </Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
+
+                  {inv.salesman?.name ? (
+                    <View style={styles.salesmanRow}>
+                      <Ionicons name="person-outline" size={11} color={Colors.dark.textTertiary} />
+                      <Text style={styles.salesmanText}>Billed by {inv.salesman.name}</Text>
+                    </View>
+                  ) : null}
                 </Card>
               ))
             ) : (
@@ -332,33 +420,73 @@ export function PartyStatementDrawer({
           {/* Tab 2: Credit Ledgers */}
           {tab === 'credits' ? (
             ledgers.length > 0 ? (
-              ledgers.map((cl) => (
-                <Card key={cl.id} style={styles.orderCard}>
-                  <View style={styles.orderTop}>
-                    <View>
-                      <Text style={styles.orderNo}>
-                        {cl.invoice?.invoiceNo
-                          ? `Invoice #${cl.invoice.invoiceNo}`
-                          : 'Credit Ledger'}
-                      </Text>
-                      {cl.dueDate ? (
-                        <Text style={styles.orderDate}>Due: {formatDate(cl.dueDate)}</Text>
-                      ) : null}
+              ledgers.map((cl) => {
+                const isClPayable = cl.type === 'PAYABLE';
+                const clDueAmt = Number(cl.amountDue || 0);
+                const isOverdue =
+                  Boolean(cl.dueDate) &&
+                  cl.status !== 'SETTLED' &&
+                  now > 0 &&
+                  new Date(cl.dueDate!).getTime() < now;
+
+                return (
+                  <Card key={cl.id} style={styles.orderCard}>
+                    <View style={styles.orderTop}>
+                      <View style={{ flex: 1, paddingRight: 8 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <Text style={styles.orderNo}>
+                            {cl.invoice?.invoiceNo
+                              ? `Invoice #${cl.invoice.invoiceNo}`
+                              : isClPayable
+                              ? 'Store Credit / Payable'
+                              : 'Direct Credit'}
+                          </Text>
+                          {isClPayable && (
+                            <View style={styles.payableBadge}>
+                              <Text style={styles.payableBadgeText}>Store Payable</Text>
+                            </View>
+                          )}
+                          {isOverdue && (
+                            <View style={styles.overdueBadge}>
+                              <Text style={styles.overdueBadgeText}>Overdue</Text>
+                            </View>
+                          )}
+                        </View>
+                        <View style={styles.ledgerMetaRow}>
+                          {cl.createdAt ? (
+                            <Text style={styles.ledgerMetaText}>Issued: {formatDate(cl.createdAt)}</Text>
+                          ) : null}
+                          {cl.dueDate ? (
+                            <Text style={[styles.ledgerMetaText, isOverdue && { color: '#EF4444', fontWeight: '700' }]}>
+                              Due: {formatDate(cl.dueDate)}
+                            </Text>
+                          ) : null}
+                          {cl.remindersSent !== undefined ? (
+                            <Text style={styles.ledgerMetaText}>• {cl.remindersSent} reminders sent</Text>
+                          ) : null}
+                        </View>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text
+                          style={[
+                            styles.orderAmount,
+                            {
+                              color: isClPayable
+                                ? '#F59E0B'
+                                : cl.status === 'SETTLED'
+                                ? '#10B981'
+                                : '#EF4444',
+                            },
+                          ]}
+                        >
+                          {formatINR(clDueAmt)}
+                        </Text>
+                        <StatusBadge status={cl.status} size="sm" />
+                      </View>
                     </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text
-                        style={[
-                          styles.orderAmount,
-                          { color: cl.status === 'SETTLED' ? '#10B981' : '#EF4444' },
-                        ]}
-                      >
-                        {formatINR(cl.amountDue)}
-                      </Text>
-                      <StatusBadge status={cl.status} size="sm" />
-                    </View>
-                  </View>
-                </Card>
-              ))
+                  </Card>
+                );
+              })
             ) : (
               <Text style={styles.emptyText}>No credit ledger entries found</Text>
             )
@@ -379,20 +507,32 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 8,
   },
-  kpiGrid: {
+  kpiRow: {
     flexDirection: 'row',
     gap: 8,
-    marginBottom: 12,
+    marginBottom: 8,
   },
   kpiCard: {
     flex: 1,
     padding: 10,
     borderRadius: 10,
     backgroundColor: '#16161A',
+    marginBottom: 0,
   },
   kpiDueCard: {
     borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+    backgroundColor: 'rgba(239, 68, 68, 0.08)',
+  },
+  kpiPayableCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.35)',
+    backgroundColor: 'rgba(245, 158, 11, 0.08)',
+  },
+  kpiClearedCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.35)',
+    backgroundColor: 'rgba(16, 185, 129, 0.08)',
   },
   kpiLabel: {
     fontSize: 10,
@@ -414,7 +554,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 14,
+    marginVertical: 12,
   },
   pdfStatementBtn: {
     flex: 1.1,
@@ -500,6 +640,88 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.dark.textSecondary,
     marginTop: 6,
+  },
+  itemsContainer: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.06)',
+    gap: 4,
+  },
+  itemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+    paddingHorizontal: 6,
+    borderRadius: 6,
+  },
+  itemName: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: Colors.dark.text,
+  },
+  itemMeta: {
+    fontSize: 10,
+    color: Colors.dark.textSecondary,
+    marginTop: 1,
+  },
+  itemTotal: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: Colors.dark.text,
+    fontFamily: 'monospace',
+  },
+  salesmanRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.04)',
+  },
+  salesmanText: {
+    fontSize: 10.5,
+    color: Colors.dark.textSecondary,
+  },
+  payableBadge: {
+    backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.3)',
+  },
+  payableBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#F59E0B',
+  },
+  overdueBadge: {
+    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.3)',
+  },
+  overdueBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#EF4444',
+  },
+  ledgerMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+    flexWrap: 'wrap',
+  },
+  ledgerMetaText: {
+    fontSize: 10,
+    color: Colors.dark.textSecondary,
   },
   emptyText: {
     color: Colors.dark.textSecondary,

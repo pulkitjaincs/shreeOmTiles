@@ -29,9 +29,16 @@ export function PartyCard({
       return c.type === 'RECEIVABLE' ? sum + amt : sum - amt;
     }, 0);
 
+  const partyPayable = (party.creditLedgers || [])
+    .filter((c) => c.status !== 'SETTLED' && c.type === 'PAYABLE')
+    .reduce((sum, c) => sum + Number(c.amountDue || 0), 0);
+
   const orderCount = party._count?.invoices || 0;
 
-  const hasDue = totalDue > 0.01;
+  const isDue = totalDue > 0.01;
+  const isPayable = totalDue < -0.01 || partyPayable > 0.01;
+  const payableAmt = totalDue < -0.01 ? Math.abs(totalDue) : partyPayable;
+  const hasPendingLiability = isDue || isPayable;
 
   const handleCall = () => {
     const clean = cleanPhoneNumber(party.phone);
@@ -42,12 +49,19 @@ export function PartyCard({
 
   const handleWhatsAppAction = () => {
     const clean = cleanPhoneNumber(party.phone);
-    const msg = hasDue
+    const msg = isDue
       ? `*PAYMENT REMINDER — SHREE OM TILES*\n\n` +
         `Dear *${party.name}*,\n\n` +
         `This is a friendly reminder that you have an outstanding balance of *${formatINR(totalDue)}* on your account.\n\n` +
         `Kindly arrange payment clearance at your earliest convenience via UPI or Counter Cash.\n\n` +
         `Thank you for your business! 🙏\n` +
+        `*Shree Om Tiles*`
+      : isPayable
+      ? `*STORE CREDIT NOTICE — SHREE OM TILES*\n\n` +
+        `Dear *${party.name}*,\n\n` +
+        `This is to inform you that you have an available store credit / payable balance of *${formatINR(payableAmt)}* with us at Shree Om Tiles.\n\n` +
+        `You may redeem or adjust this balance against your next purchase or delivery.\n\n` +
+        `Thank you for your continued partnership! 🙏\n` +
         `*Shree Om Tiles*`
       : `Hello *${party.name}*,\n\n` +
         `Greetings from *Shree Om Tiles*! 🙏\n\n` +
@@ -84,13 +98,13 @@ export function PartyCard({
                 <Text style={styles.walkInBadgeText}>Walk-in</Text>
               </View>
             )}
-            {totalDue > 0.01 ? (
+            {isDue ? (
               <View style={styles.duesBadgeRose}>
                 <Text style={styles.duesBadgeRoseText}>{formatINR(totalDue)} Due</Text>
               </View>
-            ) : totalDue < -0.01 ? (
+            ) : isPayable ? (
               <View style={styles.duesBadgeAmber}>
-                <Text style={styles.duesBadgeAmberText}>{formatINR(Math.abs(totalDue))} Payable</Text>
+                <Text style={styles.duesBadgeAmberText}>{formatINR(payableAmt)} Payable</Text>
               </View>
             ) : (
               <View style={styles.duesBadgeEmerald}>
@@ -146,7 +160,7 @@ export function PartyCard({
         />
 
         <Button
-          title={hasDue ? 'Reminder' : 'WhatsApp'}
+          title={isDue ? 'Reminder' : isPayable ? 'Credit Info' : 'WhatsApp'}
           icon="logo-whatsapp"
           size="sm"
           variant="secondary"
@@ -166,14 +180,14 @@ export function PartyCard({
 
         {canEditOrDelete ? (
           <TouchableOpacity
-            style={[styles.iconBtn, totalDue > 0 && styles.iconBtnDisabled]}
+            style={[styles.iconBtn, hasPendingLiability && styles.iconBtnDisabled]}
             onPress={() => onDelete(party)}
             activeOpacity={0.7}
           >
             <Ionicons
               name="trash-outline"
               size={16}
-              color={totalDue > 0 ? Colors.dark.textTertiary : '#EF4444'}
+              color={hasPendingLiability ? Colors.dark.textTertiary : '#EF4444'}
             />
           </TouchableOpacity>
         ) : null}
