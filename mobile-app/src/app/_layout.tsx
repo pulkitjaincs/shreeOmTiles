@@ -8,15 +8,25 @@ import { AuthProvider } from '@/lib/auth-context';
 import { setupNotificationListeners } from '@/lib/notifications';
 import { notifyAppSync } from '@/lib/api';
 import { Colors } from '@/constants/theme';
+import { checkAndRunAutoCacheCleanup } from '@/lib/cache-manager';
 
 function AppStateSyncListenerWrapper() {
   const appState = React.useRef(AppState.currentState);
 
   useEffect(() => {
+    // Check and run 7-day automatic cache purge on app launch
+    checkAndRunAutoCacheCleanup().catch((err) => {
+      console.warn('[CacheManager] Auto cache check failed on startup:', err);
+    });
+
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
         // App resumed to foreground: revalidate active screen in background without destroying offline cache
         notifyAppSync();
+        // Check if 7-day threshold elapsed while app was backgrounded
+        checkAndRunAutoCacheCleanup().catch((err) => {
+          console.warn('[CacheManager] Auto cache check failed on foreground resume:', err);
+        });
       }
       appState.current = nextAppState;
     });

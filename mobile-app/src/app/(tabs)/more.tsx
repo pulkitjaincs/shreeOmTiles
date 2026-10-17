@@ -7,9 +7,11 @@ import {
   TouchableOpacity,
   Alert,
   BackHandler,
+  ActivityIndicator,
 } from 'react-native';
 import { useAuth } from '@/lib/auth-context';
 import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
+import { getCacheStats, clearMobileAppCache, CacheStats } from '@/lib/cache-manager';
 import { Colors } from '@/constants/theme';
 import { Header } from '@/components/ui/Header';
 import { Card } from '@/components/ui/Card';
@@ -84,6 +86,52 @@ export default function MoreScreen() {
   const [settings, setSettings] = useState<any>(null);
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [upiAccountModalOpen, setUpiAccountModalOpen] = useState(false);
+
+  // Storage & Cache State
+  const [cacheStats, setCacheStats] = useState<CacheStats | null>(null);
+  const [cacheStatsLoading, setCacheStatsLoading] = useState(false);
+  const [clearingCache, setClearingCache] = useState(false);
+
+  const loadCacheStats = useCallback(async () => {
+    setCacheStatsLoading(true);
+    try {
+      const stats = await getCacheStats();
+      setCacheStats(stats);
+    } catch (err) {
+      console.warn('[More] Failed to load cache stats:', err);
+    } finally {
+      setCacheStatsLoading(false);
+    }
+  }, []);
+
+  const handleManualClearCache = () => {
+    Alert.alert(
+      'Clear Application Cache',
+      'This will clear offline cached records and temporary invoice PDFs.\n\nYour login session will remain active. Do you wish to continue?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear Cache',
+          style: 'destructive',
+          onPress: async () => {
+            setClearingCache(true);
+            try {
+              const res = await clearMobileAppCache();
+              await loadCacheStats();
+              Alert.alert(
+                'Cache Cleared',
+                `Successfully cleared ${res.clearedKeysCount} cached records and temporary files. Active screens will revalidate with fresh data.`,
+              );
+            } catch (err: any) {
+              Alert.alert('Error', err?.message || 'Failed to clear cache');
+            } finally {
+              setClearingCache(false);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   // Load Parties
   const loadParties = useCallback(async (force = false) => {
@@ -215,6 +263,7 @@ export default function MoreScreen() {
   }, [activeSection]);
 
   useEffect(() => {
+    if (activeSection === 'MENU') loadCacheStats();
     if (activeSection === 'PARTIES') loadParties();
     if (activeSection === 'PURCHASES') {
       loadParties();
@@ -222,18 +271,19 @@ export default function MoreScreen() {
     }
     if (activeSection === 'STAFF') loadStaff();
     if (activeSection === 'SETTINGS') loadSettings();
-  }, [activeSection, loadParties, loadWarehouses, loadStaff, loadSettings]);
+  }, [activeSection, loadCacheStats, loadParties, loadWarehouses, loadStaff, loadSettings]);
 
   useFocusEffect(
     useCallback(() => {
       const current = activeSectionRef.current;
-      if (current === 'PARTIES') loadParties();
+      if (current === 'MENU') loadCacheStats();
+      else if (current === 'PARTIES') loadParties();
       else if (current === 'PURCHASES') {
         loadParties();
         loadWarehouses();
       } else if (current === 'STAFF') loadStaff();
       else if (current === 'SETTINGS') loadSettings();
-    }, [loadParties, loadWarehouses, loadStaff, loadSettings]),
+    }, [loadCacheStats, loadParties, loadWarehouses, loadStaff, loadSettings]),
   );
 
   // Set Primary UPI Account
@@ -532,6 +582,60 @@ export default function MoreScreen() {
               </View>
             </View>
 
+            {/* 6. Storage & 7-Day Auto Cache Purge Card */}
+            <View style={styles.cacheCard}>
+              <View style={styles.cacheHeader}>
+                <View style={styles.cacheIconWrap}>
+                  <Ionicons name="server-outline" size={18} color="#10B981" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.cacheTitle}>App Storage & Cache</Text>
+                  <Text style={styles.cacheSub}>
+                    Auto-cleared every 7 days • Session strictly preserved
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.cacheInfoRow}>
+                <View style={styles.cacheInfoCol}>
+                  <Text style={styles.cacheInfoLabel}>Cached Data</Text>
+                  <Text style={styles.cacheInfoValue}>
+                    {cacheStatsLoading ? '...' : `${cacheStats?.keysCount ?? 0} items (${cacheStats?.approxKb ?? 0} KB)`}
+                  </Text>
+                </View>
+                <View style={styles.cacheInfoCol}>
+                  <Text style={styles.cacheInfoLabel}>Last Cleaned</Text>
+                  <Text style={styles.cacheInfoValue}>
+                    {cacheStats?.lastCleanedText ?? 'Never'}
+                  </Text>
+                </View>
+                <View style={styles.cacheInfoCol}>
+                  <Text style={styles.cacheInfoLabel}>Next Auto-Clean</Text>
+                  <Text style={styles.cacheInfoValue}>
+                    {cacheStats ? `in ${cacheStats.nextCleanupDueDays}d` : 'In 7d'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.cacheActionRow}>
+                <TouchableOpacity
+                  style={styles.clearCacheBtn}
+                  onPress={handleManualClearCache}
+                  disabled={clearingCache}
+                  activeOpacity={0.7}
+                >
+                  {clearingCache ? (
+                    <ActivityIndicator size="small" color="#10B981" />
+                  ) : (
+                    <>
+                      <Ionicons name="trash-outline" size={14} color="#10B981" />
+                      <Text style={styles.clearCacheBtnText}>Clear Cache Now</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+
             {/* Sign Out Button */}
             <Button
               title="Sign Out of ERP"
@@ -795,5 +899,82 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: '700',
     color: '#D97706',
+  },
+  cacheCard: {
+    backgroundColor: '#18181B',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#27272A',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  cacheHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  cacheIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cacheTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  cacheSub: {
+    fontSize: 11,
+    color: Colors.dark.textSecondary,
+    marginTop: 2,
+  },
+  cacheInfoRow: {
+    flexDirection: 'row',
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.06)',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  cacheInfoCol: {
+    flex: 1,
+  },
+  cacheInfoLabel: {
+    fontSize: 10,
+    color: Colors.dark.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  cacheInfoValue: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.dark.text,
+    marginTop: 2,
+  },
+  cacheActionRow: {
+    marginTop: 12,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  clearCacheBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  clearCacheBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#10B981',
   },
 });

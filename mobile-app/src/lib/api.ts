@@ -13,7 +13,7 @@ export const API_BASE =
         default: 'http://localhost:3001',
       });
 
-const CACHE_PREFIX = 'dhra_mobile_cache:';
+export const CACHE_PREFIX = 'dhra_mobile_cache:';
 let memToken: string | null = null;
 let memUser: AuthUser | null = null;
 
