@@ -75,49 +75,6 @@ export function DriverDashboardView({
       .reduce((sum, d) => sum + Number(d.cashCollected || 0), 0);
   }, [driverDeliveries]);
 
-  // Group active items by warehouse for systematic warehouse-by-warehouse collection
-  const warehouseGroups = useMemo(() => {
-    if (!activeDelivery) return [];
-
-    const items =
-      activeDelivery.items && activeDelivery.items.length > 0
-        ? activeDelivery.items
-        : (activeDelivery.invoice?.items || []).map((it: any) => ({
-            invoiceItemId: it.id,
-            productId: it.productId,
-            productName: it.product?.name || 'Product',
-            unit: it.product?.unit || 'unit',
-            warehouseName: it.warehouse?.name || 'Main Warehouse',
-            warehouseAddress: it.warehouse?.address || '',
-            batchNo: it.batchNo,
-            qty: it.qty,
-            pickedUp: false,
-          }));
-
-    const groups: Record<
-      string,
-      {
-        warehouseName: string;
-        warehouseAddress: string;
-        items: { item: any; originalIndex: number }[];
-      }
-    > = {};
-
-    items.forEach((item: any, idx: number) => {
-      const whKey = item.warehouseName || 'Main Warehouse';
-      if (!groups[whKey]) {
-        groups[whKey] = {
-          warehouseName: whKey,
-          warehouseAddress: item.warehouseAddress || '',
-          items: [],
-        };
-      }
-      groups[whKey].items.push({ item, originalIndex: idx });
-    });
-
-    return Object.values(groups);
-  }, [activeDelivery]);
-
   const allItemsList = useMemo(() => {
     if (!activeDelivery) return [];
     if (activeDelivery.items && activeDelivery.items.length > 0) {

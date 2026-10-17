@@ -54,8 +54,8 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: isDriver ? 'My Run' : isSupervisor ? 'Godown Cockpit' : isSalesman ? 'My Sales' : isAccountant ? 'Accounts' : 'Analytics',
-          tabBarLabel: isDriver ? 'My Run' : isSupervisor ? 'Godown' : 'Home',
+          title: isDriver ? 'My Run' : isSupervisor ? 'Dispatch Cockpit' : isSalesman ? 'My Sales' : isAccountant ? 'Accounts' : 'Analytics',
+          tabBarLabel: isDriver ? 'My Run' : isSupervisor ? 'Dispatch' : 'Home',
           tabBarIcon: ({ color, size, focused }) => (
             <Ionicons
               name={focused ? 'grid' : 'grid-outline'}

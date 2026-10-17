@@ -13,7 +13,6 @@ import {
 import { Colors } from '@/constants/theme';
 import { Header } from '@/components/ui/Header';
 import { Card } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { cleanPhoneNumber, formatDate } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
@@ -352,7 +351,7 @@ export function SupervisorDashboardView({
 
         {/* Quick Hub Navigation Cards */}
         <View style={styles.hubSection}>
-          <Text style={styles.hubTitle}>Warehouse Quick Hub</Text>
+          <Text style={styles.hubTitle}>Inventory Quick Hub</Text>
           <View style={styles.hubGrid}>
             <TouchableOpacity
               style={styles.hubCard}
@@ -363,7 +362,7 @@ export function SupervisorDashboardView({
                 <Ionicons name="cube" size={18} color="#FFFFFF" />
               </View>
               <Text style={styles.hubCardTitle}>Stock & Audit</Text>
-              <Text style={styles.hubCardSub}>Audit godown inventory</Text>
+              <Text style={styles.hubCardSub}>Audit inventory</Text>
             </TouchableOpacity>
 
             <TouchableOpacity

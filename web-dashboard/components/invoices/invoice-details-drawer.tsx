@@ -217,7 +217,7 @@ export function InvoiceDetailsDrawer({
             <div className="rounded-[1rem] border border-purple-500/30 bg-purple-500/5 p-3.5 space-y-2 flex flex-col justify-between">
               <div>
                 <span className="text-[0.6875rem] font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider block">
-                  Warehouse Dispatch Overview
+                  Order Dispatch Overview
                 </span>
                 <div className="text-[1.5rem] font-black text-foreground tracking-tight mt-1">
                   {invoice.items?.reduce((sum, it) => sum + Number(it.qty || 0), 0) || 0} Units
@@ -227,12 +227,6 @@ export function InvoiceDetailsDrawer({
                 <div className="flex justify-between text-[0.6875rem]">
                   <span className="text-muted-foreground">Unique Items:</span>
                   <span className="font-semibold">{invoice.items?.length || 0} products</span>
-                </div>
-                <div className="flex justify-between text-[0.6875rem]">
-                  <span className="text-muted-foreground">Warehouse Locations:</span>
-                  <span className="font-semibold truncate max-w-[120px]">
-                    {Array.from(new Set(invoice.items?.map((it) => it.warehouse?.name).filter(Boolean))).join(', ') || 'Godown'}
-                  </span>
                 </div>
               </div>
             </div>
@@ -297,9 +291,6 @@ export function InvoiceDetailsDrawer({
               <Layers className="h-4 w-4 text-primary" />
               Order Items ({invoice.items?.length || 0})
             </h3>
-            <span className="text-[0.6875rem] text-muted-foreground">
-              Allocated godown / showroom lots
-            </span>
           </div>
 
           <div className="rounded-[0.875rem] border border-border overflow-hidden bg-background/50">
@@ -308,8 +299,6 @@ export function InvoiceDetailsDrawer({
                 <tr>
                   <th className="py-2.5 px-3 text-center w-10">#</th>
                   <th className="py-2.5 px-3">Item / Product</th>
-                  <th className="py-2.5 px-3">Storage Location</th>
-                  <th className="py-2.5 px-3">Batch Lot</th>
                   <th className="py-2.5 px-3 text-right">Quantity</th>
                   {!isSupervisor && (
                     <>
@@ -323,7 +312,7 @@ export function InvoiceDetailsDrawer({
               <tbody className="divide-y divide-border/60">
                 {!invoice.items || invoice.items.length === 0 ? (
                   <tr>
-                    <td colSpan={isSupervisor ? 5 : 8} className="py-6 text-center text-muted-foreground">
+                    <td colSpan={isSupervisor ? 3 : 6} className="py-6 text-center text-muted-foreground">
                       No line items found for this invoice.
                     </td>
                   </tr>
@@ -335,14 +324,6 @@ export function InvoiceDetailsDrawer({
                       </td>
                       <td className="py-2.5 px-3 font-medium text-foreground">
                         {item.product?.name || 'Item'}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <span className="px-2 py-0.5 rounded bg-muted border border-border text-foreground font-mono text-[0.6875rem]">
-                          {item.warehouse?.name || 'Showroom'}
-                        </span>
-                      </td>
-                      <td className="py-2.5 px-3 font-mono text-muted-foreground">
-                        {item.batchNo || '—'}
                       </td>
                       <td className="py-2.5 px-3 text-right font-bold text-foreground">
                         {item.qty} <span className="font-normal text-muted-foreground text-[0.6875rem]">{item.product?.unit || ''}</span>
@@ -463,8 +444,6 @@ export function InvoiceDetailsDrawer({
                         <thead className="bg-muted/50 text-muted-foreground border-b border-border">
                           <tr>
                             <th className="py-2 px-3">Returned Item</th>
-                            <th className="py-2 px-3">Restocked At</th>
-                            <th className="py-2 px-3">Batch</th>
                             <th className="py-2 px-3 text-right">Qty</th>
                             {!isSupervisor && (
                               <>
@@ -479,12 +458,6 @@ export function InvoiceDetailsDrawer({
                             <tr key={rItem.id || rIdx} className="text-foreground">
                               <td className="py-2 px-3 font-medium text-foreground">
                                 {rItem.product?.name || 'Item'}
-                              </td>
-                              <td className="py-2 px-3 text-muted-foreground">
-                                {rItem.warehouse?.name || 'Warehouse'}
-                              </td>
-                              <td className="py-2 px-3 font-mono text-muted-foreground">
-                                {rItem.batchNo || '—'}
                               </td>
                               <td className="py-2 px-3 text-right font-bold text-rose-600 dark:text-rose-400">
                                 {rItem.qty} {rItem.product?.unit || ''}

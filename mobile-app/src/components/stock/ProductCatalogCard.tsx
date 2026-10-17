@@ -28,9 +28,11 @@ export function ProductCatalogCard({
   onZeroOut,
   onDelete,
 }: ProductCatalogCardProps) {
-  const totalStock = (item.stockLedgers && item.stockLedgers.length > 0)
-    ? item.stockLedgers.reduce((sum, s) => sum + Number(s.quantity || 0), 0)
-    : stocks.filter((s) => s.productId === item.id).reduce((sum, s) => sum + Number(s.quantity || 0), 0);
+  const totalStock = item.availableQuantity ?? item.totalStock ?? (
+    (item.stockLedgers && item.stockLedgers.length > 0)
+      ? item.stockLedgers.reduce((sum, s) => sum + Number(s.quantity || 0), 0)
+      : stocks.filter((s) => s.productId === item.id).reduce((sum, s) => sum + Number(s.quantity || 0), 0)
+  );
 
   const attrs = (item.attributes as Record<string, unknown>) || {};
   const priceVal =

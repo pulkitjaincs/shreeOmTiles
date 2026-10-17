@@ -30,7 +30,6 @@ import {
   ReturnInvoiceModal,
   InvoiceDetailsModal,
   ShareInvoiceModal,
-  ActiveLocationsModal,
   InvoiceListFilters,
   InvoiceListCard,
   filterInvoiceList,
@@ -64,7 +63,6 @@ export default function InvoicesScreen() {
   const [detailsInvoice, setDetailsInvoice] = useState<any>(null);
   const [returnInvoice, setReturnInvoice] = useState<any>(null);
   const [deleteInvoiceTarget, setDeleteInvoiceTarget] = useState<any>(null);
-  const [locationsOpen, setLocationsOpen] = useState(false);
   const [createdInvoiceSuccess, setCreatedInvoiceSuccess] = useState<Invoice | null>(null);
 
   const loadData = useCallback(async (force = false) => {
@@ -118,12 +116,17 @@ export default function InvoicesScreen() {
     loadData(true);
   };
 
-  const refreshInvoiceStock = async () => {
-    const fresh = await cachedMobileApiRequest<StockLedger[]>('/stock', { forceRefresh: true });
-    const list = Array.isArray(fresh) ? fresh : [];
-    setStockList(list);
-    return list;
-  };
+  const refreshInvoiceStock = useCallback(async () => {
+    try {
+      const fresh = await cachedMobileApiRequest<StockLedger[]>('/stock', { forceRefresh: true });
+      const list = Array.isArray(fresh) ? fresh : (fresh as any)?.data || [];
+      setStockList(list);
+      return list;
+    } catch (err: any) {
+      console.warn('Failed to refresh invoice stock:', err?.message);
+      throw err;
+    }
+  }, []);
 
   // WhatsApp Share Handler - shares rich, itemized order details
   const handleShareWhatsApp = async (invoice: any) => {
@@ -220,11 +223,6 @@ export default function InvoicesScreen() {
 
       {canReturn ? (
         <View style={styles.utilityActions}>
-          <TouchableOpacity style={styles.locationAction} onPress={() => setLocationsOpen(true)}>
-            <Ionicons name="business-outline" size={15} color={Colors.dark.primary} />
-            <Text style={styles.utilityActionText}>Active Locations ({warehouses.length})</Text>
-            <Ionicons name="chevron-down" size={14} color={Colors.dark.textTertiary} />
-          </TouchableOpacity>
           <TouchableOpacity style={styles.returnAction} onPress={() => setReturnInvoice({ lookupOnly: true })}>
             <Ionicons name="return-up-back-outline" size={15} color="#FBBF24" />
             <Text style={styles.returnActionText}>Process Return</Text>
@@ -351,12 +349,6 @@ export default function InvoicesScreen() {
         onViewDetails={handleOpenInvoiceDetails}
       />
 
-      <ActiveLocationsModal
-        visible={locationsOpen}
-        onClose={() => setLocationsOpen(false)}
-        warehouses={warehouses}
-      />
-
     </View>
   );
 }
@@ -381,9 +373,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 10,
   },
-  utilityActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8 },
-  locationAction: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 34, paddingHorizontal: 10, borderRadius: 9, borderWidth: 1, borderColor: Colors.dark.border, backgroundColor: Colors.dark.card },
-  utilityActionText: { color: Colors.dark.text, fontSize: 11, fontWeight: '700' },
+  utilityActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8 },
   returnAction: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 34, paddingHorizontal: 10, borderRadius: 9, borderWidth: 1, borderColor: 'rgba(251,191,36,0.28)', backgroundColor: 'rgba(251,191,36,0.08)' },
   returnActionText: { color: '#FBBF24', fontSize: 11, fontWeight: '700' },
   fab: {

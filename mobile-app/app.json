@@ -2,17 +2,19 @@
   "expo": {
     "name": "Shree Om Tiles ERP",
     "slug": "shree-om-tiles-erp",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "shreeomtiles",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/images/icon.png"
+      "icon": "./assets/images/icon.png",
+      "bundleIdentifier": "com.shreeomtiles.erp",
+      "buildNumber": "3"
     },
     "android": {
       "package": "com.shreeomtiles.erp",
-      "versionCode": 2,
+      "versionCode": 3,
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE",
@@ -86,7 +88,9 @@
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/7a84db34-9091-4aeb-b253-fd5636418ecb"
+      "url": "https://u.expo.dev/7a84db34-9091-4aeb-b253-fd5636418ecb",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 5000
     }
   }
 }

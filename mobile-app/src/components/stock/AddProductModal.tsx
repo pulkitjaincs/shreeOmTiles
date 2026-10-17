@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
 import { Colors } from '@/constants/theme';
 import { mobileApiRequest } from '@/lib/api';
 import { Product } from './types';
@@ -72,8 +71,9 @@ export function AddProductModal({
       Alert.alert('Required Fields', 'Product name and category are required');
       return;
     }
-    if (initialQuantity.trim() && (!Number.isInteger(Number(initialQuantity)) || Number(initialQuantity) < 0 || !initialWarehouseId)) {
-      Alert.alert('Invalid Opening Stock', 'Choose a warehouse and enter a whole quantity of zero or more.');
+    const whId = initialWarehouseId || warehouses[0]?.id || '';
+    if (initialQuantity.trim() && (!Number.isInteger(Number(initialQuantity)) || Number(initialQuantity) < 0)) {
+      Alert.alert('Invalid Opening Stock', 'Enter a whole quantity of zero or more.');
       return;
     }
 
@@ -112,7 +112,7 @@ export function AddProductModal({
               price: sellingPrice.trim() ? Number(sellingPrice) : undefined,
               purchasePrice: purchasePrice.trim() ? Number(purchasePrice) : undefined,
             },
-            initialWarehouseId: initialWarehouseId || undefined,
+            initialWarehouseId: whId || undefined,
             initialQuantity: initialQuantity.trim() ? Number(initialQuantity) : undefined,
             initialBatchNo: initialBatchNo.trim() || undefined,
           }),
@@ -157,7 +157,6 @@ export function AddProductModal({
         <Input label="Purchase Price (₹)" placeholder="0" value={purchasePrice} onChangeText={setPurchasePrice} keyboardType="numeric" />
 
         {!product && <>
-          <Select label="Initial Stock Warehouse" value={initialWarehouseId} onChange={setInitialWarehouseId} options={warehouses.map((w) => ({ value: w.id, label: w.name }))} placeholder="Choose warehouse" />
           <Input label="Initial Inward Quantity" placeholder="0" value={initialQuantity} onChangeText={setInitialQuantity} keyboardType="numeric" />
           <Input label="Initial Batch Number (Optional)" placeholder="e.g. BATCH-001" value={initialBatchNo} onChangeText={setInitialBatchNo} />
         </>}

@@ -203,7 +203,8 @@ export class QuotationsService {
 
     // 2. Prepare invoice DTO
     let partyId = quotation.partyId;
-    let newParty: { name: string; phone: string; address?: string } | undefined = undefined;
+    let newParty:
+      { name: string; phone: string; address?: string } | undefined = undefined;
 
     if (!partyId) {
       if (!quotation.customerName || !quotation.customerPhone) {
@@ -231,7 +232,9 @@ export class QuotationsService {
       select: { role: true },
     });
     const defaultMode =
-      converterUser?.role === 'SALESMAN' ? PaymentMode.CASH : PaymentMode.CREDIT;
+      converterUser?.role === 'SALESMAN'
+        ? PaymentMode.CASH
+        : PaymentMode.CREDIT;
     const effectivePaymentMode = paymentMode || defaultMode;
 
     const invoiceDto = {

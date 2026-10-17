@@ -5,7 +5,7 @@ export interface Warehouse {
 }
 
 export interface StockLedgerEntry {
-  warehouse: { name: string };
+  warehouse?: { name: string } | null;
   batchNo?: string;
   quantity: number;
 }
@@ -19,4 +19,6 @@ export interface Product {
   minStockAlert?: number;
   attributes: Record<string, unknown>;
   stockLedgers?: StockLedgerEntry[];
+  availableQuantity?: number;
+  totalStock?: number;
 }

@@ -168,7 +168,11 @@ export class PartiesService {
     // Unpaid invoices that don't already have a credit ledger
     let unpaidInvoiceDue = 0;
     for (const inv of party.invoices || []) {
-      if (inv.status !== 'PAID' && inv.status !== 'CANCELLED' && inv.status !== 'DRAFT') {
+      if (
+        inv.status !== 'PAID' &&
+        inv.status !== 'CANCELLED' &&
+        inv.status !== 'DRAFT'
+      ) {
         const hasCreditLedger = (party.creditLedgers || []).some(
           (cl) => cl.invoiceId === inv.id && cl.status !== 'SETTLED',
         );

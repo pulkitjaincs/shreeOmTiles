@@ -13,13 +13,12 @@ import {
   Check
 } from 'lucide-react';
 import { ThemedSelect } from '@/components/ui/themed-select';
-import { Warehouse, Invoice, RefundInvoiceDetail } from './types';
+import { Invoice, RefundInvoiceDetail } from './types';
 import { formatINR } from '@/lib/formatters';
 
 interface ReturnInvoiceModalProps {
   isOpen: boolean;
   onClose: () => void;
-  warehouses?: Warehouse[];
   onSuccess: () => Promise<void> | void;
   onDownloadPdf?: (id: string, invoiceNo: string) => void;
   downloadingId?: string | null;
@@ -30,7 +29,6 @@ interface ReturnInvoiceModalProps {
 export function ReturnInvoiceModal({
   isOpen,
   onClose,
-  warehouses,
   onSuccess,
   onDownloadPdf,
   downloadingId,
@@ -159,7 +157,7 @@ export function ReturnInvoiceModal({
       });
 
       setReturnSuccessMsg(
-        `✓ Credit Note #${res.refundNo} generated! Rs. ${res.totalRefund.toFixed(2)} refunded via ${returnRefundMode}. Items restocked to chosen warehouse/showroom.`,
+        `✓ Credit Note #${res.refundNo} generated! Rs. ${res.totalRefund.toFixed(2)} refunded via ${returnRefundMode}. Items restocked to inventory.`,
       );
       await onSuccess();
       setReturnFoundInvoice(null);
@@ -189,7 +187,7 @@ export function ReturnInvoiceModal({
               Process Customer Return & Restock
             </h2>
             <p className="text-[0.75rem] text-muted-foreground mt-0.5">
-              Scan QR code or lookup invoice to accept returns and restock into showroom or warehouse
+              Scan QR code or lookup invoice to accept returns and restock into inventory
             </p>
           </div>
           <button onClick={handleClose} className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
@@ -293,7 +291,6 @@ export function ReturnInvoiceModal({
                 {returnFoundInvoice.items.map((item) => {
                   const alloc = returnItemAllocations[item.id] || {
                     qty: 0,
-                    warehouseId: warehouses?.[0]?.id || '',
                   };
                   const maxReturnable =
                     item.remainingReturnable !== undefined

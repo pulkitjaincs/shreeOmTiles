@@ -5,6 +5,8 @@ export interface Product {
   hsnCode?: string;
   unit: string;
   attributes?: Record<string, unknown>;
+  availableQuantity?: number;
+  totalStock?: number;
 }
 
 export interface Warehouse {
@@ -46,16 +48,17 @@ export interface StockOptionAllocation {
 
 export interface FormLineItem {
   productId: string;
+  qty: number;
   unitPrice: number;
   discount: number;
-  options: StockOptionAllocation[];
+  options?: StockOptionAllocation[];
 }
 
 export interface InvoiceItemDetail {
   id: string;
   productId: string;
-  warehouseId: string;
-  batchNo: string | null;
+  warehouseId?: string | null;
+  batchNo?: string | null;
   qty: number;
   unitPrice: string | number;
   discount: string | number;
@@ -68,7 +71,7 @@ export interface InvoiceItemDetail {
   };
   warehouse?: {
     name: string;
-  };
+  } | null;
 }
 
 export interface RefundInvoiceItemDetail {

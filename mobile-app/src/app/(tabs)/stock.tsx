@@ -26,7 +26,6 @@ import {
   ProductCatalogCard,
   StockTabBar,
   InwardStockModal,
-  StockTransferModal,
   StockAdjustModal,
   AddProductModal,
 } from '@/components/stock';
@@ -46,15 +45,12 @@ export default function StockScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('ALL');
-  const [selectedWarehouse, setSelectedWarehouse] = useState('ALL');
 
   // Modals state
   const [inwardModalOpen, setInwardModalOpen] = useState(false);
   const [inwardProductId, setInwardProductId] = useState<string | undefined>(undefined);
   const [inwardWarehouseId, setInwardWarehouseId] = useState<string | undefined>(undefined);
   const [inwardBatchNo, setInwardBatchNo] = useState<string | undefined>(undefined);
-  const [transferModalOpen, setTransferModalOpen] = useState(false);
-  const [selectedTransferStock, setSelectedTransferStock] = useState<StockItem | null>(null);
   const [adjustModalOpen, setAdjustModalOpen] = useState(false);
   const [selectedAdjustStock, setSelectedAdjustStock] = useState<StockItem | null>(null);
   const [productFormModalOpen, setProductFormModalOpen] = useState(false);
@@ -109,7 +105,7 @@ export default function StockScreen() {
   const handleZeroOutStock = (productId: string, productName: string) => {
     Alert.alert(
       'Zero-Out Inventory',
-      `Are you sure you want to reset all warehouse stock for "${productName}" to 0?`,
+      `Are you sure you want to reset all inventory stock for "${productName}" to 0?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -165,42 +161,16 @@ export default function StockScreen() {
   const filteredStocks = useMemo(() => {
     const q = search.toLowerCase().trim();
     return inStockBatches.filter((s) => {
-      const matchesWarehouse =
-        selectedWarehouse === 'ALL' || s.warehouseId === selectedWarehouse;
+      const matchesCat =
+        selectedCategory === 'ALL' || s.product?.category === selectedCategory;
       const matchesSearch =
         !q ||
         (s.product?.name?.toLowerCase().includes(q) ?? false) ||
         (s.product?.category?.toLowerCase().includes(q) ?? false) ||
-        (s.warehouse?.name?.toLowerCase().includes(q) ?? false) ||
         (s.batchNo?.toLowerCase().includes(q) ?? false);
-      return matchesWarehouse && matchesSearch;
+      return matchesCat && matchesSearch;
     });
-  }, [inStockBatches, search, selectedWarehouse]);
-
-  const warehouseOptions = useMemo(() => {
-    return [
-      {
-        label: 'All Godowns',
-        value: 'ALL',
-        count: new Set(
-          inStockBatches.filter((s) => Boolean(s.productId)).map((s) => s.productId),
-        ).size,
-        icon: 'business-outline' as const,
-        color: '#FFFFFF',
-      },
-      ...warehouses.map((w) => ({
-        label: w.name,
-        value: w.id,
-        count: new Set(
-          inStockBatches
-            .filter((s) => s.warehouseId === w.id && Boolean(s.productId))
-            .map((s) => s.productId),
-        ).size,
-        icon: 'business-outline' as const,
-        color: '#818CF8',
-      })),
-    ];
-  }, [warehouses, inStockBatches]);
+  }, [inStockBatches, search, selectedCategory]);
 
   const categoryOptions = useMemo(() => {
     const cats = Array.from(new Set(products.map((p) => p.category).filter(Boolean)));
@@ -238,7 +208,7 @@ export default function StockScreen() {
     <View style={styles.screen}>
       <Header
         title="Stock & Inventory"
-        subtitle="Warehouse Ledgers & Product Catalog"
+        subtitle="Inventory & Product Catalog"
       />
 
       <View style={styles.topControlContainer}>
@@ -255,32 +225,21 @@ export default function StockScreen() {
           onChangeText={setSearch}
           placeholder={
             activeTab === 'STOCK'
-              ? 'Search product, warehouse, batch...'
+              ? 'Search product, batch...'
               : 'Search product catalog, category, HSN...'
           }
         />
 
-        {/* Dropdown of Godowns with Inward Stock Button Beside It */}
+        {/* Dropdown of Categories with Inward/New Product Action Beside It */}
         <View style={styles.dropdownActionRow}>
-          {activeTab === 'STOCK' ? (
-            <FilterDropdown
-              label="Godown"
-              value={selectedWarehouse}
-              options={warehouseOptions}
-              onSelect={setSelectedWarehouse}
-              icon="business-outline"
-              containerStyle={{ flex: 1.15 }}
-            />
-          ) : (
-            <FilterDropdown
-              label="Category"
-              value={selectedCategory}
-              options={categoryOptions}
-              onSelect={setSelectedCategory}
-              icon="grid-outline"
-              containerStyle={{ flex: 1.15 }}
-            />
-          )}
+          <FilterDropdown
+            label="Category"
+            value={selectedCategory}
+            options={categoryOptions}
+            onSelect={setSelectedCategory}
+            icon="grid-outline"
+            containerStyle={{ flex: 1.15 }}
+          />
 
           {isOwnerOrAdmin && (
             activeTab === 'STOCK' ? (
@@ -334,12 +293,10 @@ export default function StockScreen() {
               ? `Showing ${filteredStocks.length} of ${inStockBatches.length} inventory batches`
               : `Showing ${filteredProducts.length} of ${products.length} products`}
           </Text>
-          {((activeTab === 'STOCK' ? selectedWarehouse !== 'ALL' : selectedCategory !== 'ALL') ||
-            Boolean(search.trim())) ? (
+          {(selectedCategory !== 'ALL' || Boolean(search.trim())) ? (
             <TouchableOpacity
               onPress={() => {
-                if (activeTab === 'STOCK') setSelectedWarehouse('ALL');
-                else setSelectedCategory('ALL');
+                setSelectedCategory('ALL');
                 setSearch('');
               }}
             >
@@ -370,7 +327,7 @@ export default function StockScreen() {
             <EmptyState
               icon="cube-outline"
               title="No Stock Records"
-              description="No warehouse inventory items found matching your search."
+              description="No inventory items found matching your search."
             />
           }
           renderItem={({ item }) => (
@@ -384,10 +341,6 @@ export default function StockScreen() {
                 setInwardWarehouseId(stock.warehouseId);
                 setInwardBatchNo(stock.batchNo);
                 setInwardModalOpen(true);
-              }}
-              onTransfer={(stock) => {
-                setSelectedTransferStock(stock);
-                setTransferModalOpen(true);
               }}
               onAdjust={(stock) => {
                 setSelectedAdjustStock(stock);
@@ -450,18 +403,6 @@ export default function StockScreen() {
         initialBatchNo={inwardBatchNo}
       />
 
-      <StockTransferModal
-        visible={transferModalOpen}
-        onClose={() => {
-          setTransferModalOpen(false);
-          setSelectedTransferStock(null);
-        }}
-        onSuccess={() => loadData(true)}
-        products={products}
-        warehouses={warehouses}
-        stocks={stocks}
-        initialStockItem={selectedTransferStock}
-      />
 
       <StockAdjustModal
         visible={adjustModalOpen}

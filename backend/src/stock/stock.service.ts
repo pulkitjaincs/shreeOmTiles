@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AdjustStockDto, TransferStockDto } from './dto/stock.dto';
-import { Prisma, StockLedger, Product, Warehouse, Role } from '@prisma/client';
+import { Prisma, Role } from '@prisma/client';
 
 @Injectable()
 export class StockService {
@@ -22,33 +22,11 @@ export class StockService {
     },
     user?: { id: string; role: Role; scope?: string | null },
   ): Promise<any> {
-    const where: Prisma.StockLedgerWhereInput = {};
-    if (query?.productId) where.productId = query.productId;
-    if (query?.warehouseId) where.warehouseId = query.warehouseId;
-    if (query?.inStockOnly) {
-      where.quantity = { gt: 0 };
-    }
-
     const isSupervisor = user?.role === Role.SUPERVISOR;
-    if (isSupervisor && user?.scope) {
-      where.warehouseId = user.scope;
-    }
 
-    const includeRelations = {
-      product: true,
-      warehouse: true,
-    };
-
-    const sanitizeStockForSupervisor = <T extends Record<string, unknown>>(
-      item: T,
-    ): T => {
-      if (!item) return item;
-      const rawProd =
-        item.product && typeof item.product === 'object'
-          ? (item.product as Record<string, unknown>)
-          : null;
-      if (!rawProd) return item;
-      let cleanAttrs = rawProd.attributes;
+    const sanitizeProduct = <T extends Record<string, unknown>>(prod: T): T => {
+      if (!prod) return prod;
+      let cleanAttrs = prod.attributes;
       if (cleanAttrs && typeof cleanAttrs === 'object') {
         const copy = { ...(cleanAttrs as Record<string, unknown>) };
         delete copy.price;
@@ -59,164 +37,195 @@ export class StockService {
         cleanAttrs = copy;
       }
       return {
-        ...item,
-        product: {
-          ...rawProd,
-          attributes: cleanAttrs,
-        },
+        ...prod,
+        attributes: cleanAttrs,
       };
     };
+
+    // Query active products with their stock ledgers
+    const productWhere: Prisma.ProductWhereInput = {
+      isActive: true,
+      ...(query?.productId ? { id: query.productId } : {}),
+    };
+
+    const products = await this.prisma.product.findMany({
+      where: productWhere,
+      include: {
+        stockLedgers: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    // Aggregate warehouse-level stock into a single available quantity per product
+    const aggregated = products
+      .map((prod) => {
+        const totalQty = prod.stockLedgers.reduce(
+          (sum, l) => sum + Number(l.quantity || 0),
+          0,
+        );
+
+        let latestUpdatedAt = prod.updatedAt;
+        for (const l of prod.stockLedgers) {
+          if (l.updatedAt && l.updatedAt > latestUpdatedAt) {
+            latestUpdatedAt = l.updatedAt;
+          }
+        }
+
+        const cleanProd = isSupervisor ? sanitizeProduct(prod) : prod;
+
+        return {
+          id: prod.id,
+          productId: prod.id,
+          quantity: Number(totalQty.toFixed(2)),
+          availableQuantity: Number(totalQty.toFixed(2)),
+          product: cleanProd,
+          batchNo: null,
+          warehouseId: null,
+          warehouse: null,
+          updatedAt: latestUpdatedAt,
+        };
+      })
+      .filter((item) => {
+        if (query?.inStockOnly) {
+          return item.quantity > 0;
+        }
+        return true;
+      });
 
     if (query?.page !== undefined || query?.limit !== undefined) {
       const page = Math.max(1, query.page || 1);
       const limit = Math.min(Math.max(1, query.limit || 50), 100);
       const skip = (page - 1) * limit;
 
-      const [data, total] = await Promise.all([
-        this.prisma.stockLedger.findMany({
-          where,
-          include: includeRelations,
-          orderBy: [
-            { product: { name: 'asc' } },
-          ],
-          skip,
-          take: limit,
-        }),
-        this.prisma.stockLedger.count({ where }),
-      ]);
+      const pagedData = aggregated.slice(skip, skip + limit);
 
       return {
-        data: isSupervisor
-          ? data.map((item) => sanitizeStockForSupervisor(item))
-          : data,
-        total,
+        data: pagedData,
+        total: aggregated.length,
         page,
         limit,
-        totalPages: Math.ceil(total / limit),
+        totalPages: Math.ceil(aggregated.length / limit),
       };
     }
 
-    const items = await this.prisma.stockLedger.findMany({
-      where,
-      include: includeRelations,
-      orderBy: [{ product: { name: 'asc' } }],
-      take: 250,
-    });
-
-    return isSupervisor
-      ? items.map((item) => sanitizeStockForSupervisor(item))
-      : items;
+    return aggregated;
   }
 
   async adjustStock(
     dto: AdjustStockDto,
     actorId?: string,
-    user?: { id: string; role: Role; scope?: string | null },
-  ): Promise<StockLedger & { product: Product; warehouse: Warehouse | null }> {
-    if (user?.role === Role.SUPERVISOR && user.scope) {
-      if (dto.warehouseId && dto.warehouseId !== user.scope) {
-        throw new ForbiddenException(
-          'Supervisors can only adjust stock in their assigned warehouse.',
-        );
-      }
-    }
-
-    const batchNo = dto.batchNo || null;
-
+    _user?: { id: string; role: Role; scope?: string | null },
+  ): Promise<any> {
     const product = await this.prisma.product.findUnique({
       where: { id: dto.productId },
     });
     if (!product) throw new NotFoundException('Product not found');
 
-    const warehouse = dto.warehouseId
-      ? await this.prisma.warehouse.findUnique({
-          where: { id: dto.warehouseId },
-        })
-      : null;
-
     return this.prisma.$transaction(async (tx) => {
-      const existing = await tx.stockLedger.findFirst({
-        where: {
-          productId: dto.productId,
-          ...(dto.warehouseId ? { warehouseId: dto.warehouseId } : {}),
-          batchNo: batchNo,
-        },
+      // Find all existing stock ledgers for this product
+      const ledgers = await tx.stockLedger.findMany({
+        where: { productId: dto.productId },
       });
 
-      let currentQty = 0;
+      const currentTotalQty = ledgers.reduce(
+        (sum, l) => sum + Number(l.quantity || 0),
+        0,
+      );
+
       let targetQuantity: number;
-      let updated: StockLedger & { product: Product; warehouse: Warehouse | null };
-
-      if (existing) {
-        const lockedRows = await tx.$queryRaw<
-          Array<{ id: string; quantity: number | string }>
-        >`
-          SELECT id, quantity FROM "StockLedger" WHERE id = ${existing.id} FOR UPDATE
-        `;
-        const lockedQty = Number(lockedRows[0]?.quantity ?? existing.quantity ?? 0);
-        currentQty = lockedQty;
-
-        if (dto.mode === 'ADD') {
-          targetQuantity = lockedQty + dto.quantity;
-        } else {
-          targetQuantity = dto.quantity;
-        }
-
-        updated = await tx.stockLedger.update({
-          where: { id: existing.id },
-          data: { quantity: new Prisma.Decimal(targetQuantity.toFixed(2)) },
-          include: { product: true, warehouse: true },
-        });
+      if (dto.mode === 'ADD') {
+        targetQuantity = currentTotalQty + dto.quantity;
       } else {
         targetQuantity = dto.quantity;
-        updated = await tx.stockLedger.create({
+      }
+
+      // Pick primary ledger (prefer warehouseId: null, or first ledger)
+      let primaryLedger =
+        ledgers.find((l) => l.warehouseId === null) || ledgers[0];
+
+      if (primaryLedger) {
+        await tx.$queryRawUnsafe(
+          `SELECT id, quantity FROM "StockLedger" WHERE id = $1 FOR UPDATE`,
+          primaryLedger.id,
+        );
+
+        if (dto.mode === 'ADD') {
+          primaryLedger = await tx.stockLedger.update({
+            where: { id: primaryLedger.id },
+            data: {
+              quantity: {
+                increment: new Prisma.Decimal(dto.quantity.toFixed(2)),
+              },
+            },
+            include: { product: true, warehouse: true },
+          });
+        } else {
+          primaryLedger = await tx.stockLedger.update({
+            where: { id: primaryLedger.id },
+            data: { quantity: new Prisma.Decimal(targetQuantity.toFixed(2)) },
+            include: { product: true, warehouse: true },
+          });
+
+          const otherLedgerIds = ledgers
+            .filter(
+              (l) => l.id !== primaryLedger.id && Number(l.quantity) !== 0,
+            )
+            .map((l) => l.id);
+
+          if (otherLedgerIds.length > 0) {
+            await tx.stockLedger.updateMany({
+              where: { id: { in: otherLedgerIds } },
+              data: { quantity: new Prisma.Decimal(0) },
+            });
+          }
+        }
+      } else {
+        primaryLedger = await tx.stockLedger.create({
           data: {
             productId: dto.productId,
-            warehouseId: dto.warehouseId || null,
-            batchNo,
+            warehouseId: null,
+            batchNo: null,
             quantity: new Prisma.Decimal(targetQuantity.toFixed(2)),
           },
           include: { product: true, warehouse: true },
         });
       }
 
-      // Record in Audit Log
       await tx.auditLog.create({
         data: {
           actorId,
           action: dto.mode === 'ADD' ? 'STOCK_INWARD' : 'STOCK_ADJUSTMENT',
           entity: 'StockLedger',
-          entityId: updated.id,
+          entityId: primaryLedger.id,
           diff: {
             mode: dto.mode || 'SET',
-            previousQuantity: currentQty,
+            previousQuantity: currentTotalQty,
             operationQuantity: dto.quantity,
             newQuantity: targetQuantity,
             productName: product.name,
-            warehouseName: warehouse?.name || 'Direct Stock',
-            batchNo,
           },
         },
       });
 
-      return updated;
+      return {
+        id: product.id,
+        productId: product.id,
+        quantity: Number(targetQuantity.toFixed(2)),
+        availableQuantity: Number(targetQuantity.toFixed(2)),
+        product,
+        warehouseId: null,
+        warehouse: null,
+        batchNo: null,
+        updatedAt: primaryLedger.updatedAt,
+      };
     });
   }
 
   async zeroOutStock(
     query: { productId?: string; warehouseId?: string },
     actorId?: string,
-    user?: { id: string; role: Role; scope?: string | null },
+    _user?: { id: string; role: Role; scope?: string | null },
   ) {
-    if (user?.role === Role.SUPERVISOR && user.scope) {
-      if (query.warehouseId && query.warehouseId !== user.scope) {
-        throw new ForbiddenException(
-          'Supervisors can only zero out stock in their assigned warehouse.',
-        );
-      }
-      query.warehouseId = user.scope;
-    }
-
     if (!query.productId && !query.warehouseId) {
       throw new BadRequestException(
         'Either productId or warehouseId must be specified to zero out stock',
@@ -234,7 +243,7 @@ export class StockService {
       });
 
       for (const rec of records) {
-        if (rec.quantity > 0) {
+        if (Number(rec.quantity) !== 0) {
           await tx.stockLedger.update({
             where: { id: rec.id },
             data: { quantity: 0 },
@@ -247,10 +256,10 @@ export class StockService {
               entity: 'StockLedger',
               entityId: rec.id,
               diff: {
-                previousQuantity: rec.quantity,
+                previousQuantity: Number(rec.quantity),
                 newQuantity: 0,
                 productName: rec.product.name,
-                warehouseName: rec.warehouse.name,
+                warehouseName: rec.warehouse?.name || 'Direct Stock',
                 batchNo: rec.batchNo,
               },
             },
@@ -317,7 +326,7 @@ export class StockService {
 
       if (!lockedSource || lockedSource.quantity < dto.quantity) {
         throw new BadRequestException(
-          `Insufficient stock in source warehouse. Available: ${lockedSource?.quantity ?? 0}, Requested: ${dto.quantity}`,
+          `Insufficient stock in source warehouse. Available: ${Number(lockedSource?.quantity ?? 0)}, Requested: ${dto.quantity}`,
         );
       }
 

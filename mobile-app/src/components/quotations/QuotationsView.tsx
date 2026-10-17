@@ -58,7 +58,7 @@ export function QuotationsView() {
   const handleConvert = (quote: any) => {
     Alert.alert(
       'Convert to Invoice',
-      `Generate official Tax Invoice from Price Estimate #${quote.quotationNo || quote.estimateNo}? This will reserve warehouse inventory.`,
+      `Generate official Tax Invoice from Price Estimate #${quote.quotationNo || quote.estimateNo}? This will reserve inventory.`,
       [
         { text: 'Cancel', style: 'cancel' },
         {

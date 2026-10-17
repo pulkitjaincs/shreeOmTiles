@@ -104,9 +104,13 @@ export default function TransactionsScreen() {
   const [activeTab, setActiveTab] = useState<ActiveTabType>(
     params.tab === 'daybook' ? 'daybook' : 'all',
   );
-  const [selectedDate, setSelectedDate] = useState(() => {
-    return new Date().toISOString().slice(0, 10);
+  const [todayStr] = useState(() => new Date().toISOString().slice(0, 10));
+  const [yesterdayStr] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().slice(0, 10);
   });
+  const [selectedDate, setSelectedDate] = useState(() => todayStr);
   const [dateFilterMode, setDateFilterMode] = useState<'all' | 'specific'>(
     params.tab === 'daybook' ? 'specific' : 'all',
   );
@@ -534,7 +538,7 @@ export default function TransactionsScreen() {
                 style={[
                   styles.quickDateBtn,
                   dateFilterMode === 'specific' &&
-                    selectedDate === new Date(Date.now() - 86400000).toISOString().slice(0, 10) &&
+                    selectedDate === yesterdayStr &&
                     styles.quickDateBtnActive,
                 ]}
               >
@@ -546,7 +550,7 @@ export default function TransactionsScreen() {
                 style={[
                   styles.quickDateBtn,
                   dateFilterMode === 'specific' &&
-                    selectedDate === new Date().toISOString().slice(0, 10) &&
+                    selectedDate === todayStr &&
                     styles.quickDateBtnActive,
                 ]}
               >

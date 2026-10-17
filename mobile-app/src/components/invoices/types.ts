@@ -5,6 +5,8 @@ export interface Product {
   hsnCode?: string;
   unit: string;
   attributes?: Record<string, unknown>;
+  availableQuantity?: number;
+  totalStock?: number;
 }
 
 export interface Warehouse {

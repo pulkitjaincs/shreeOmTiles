@@ -51,7 +51,7 @@ export function DriverTopStatusCards({
         <Text style={styles.title}>
           {activeDelivery
             ? activeDelivery.status === 'OUT_FOR_PICKUP'
-              ? `Warehouse Pickup (${pickedCount}/${totalItemsCount})`
+              ? `Item Pickup (${pickedCount}/${totalItemsCount})`
               : activeDelivery.status === 'OUT_FOR_DELIVERY'
               ? 'Out for Delivery (Loaded)'
               : activeDelivery.status === 'DELIVERED'

@@ -5,7 +5,6 @@ import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
 import { Colors } from '@/constants/theme';
 import { formatINR, formatDate } from '@/lib/formatters';
 import { mobileApiRequest } from '@/lib/api';
@@ -22,7 +21,7 @@ interface ReturnInvoiceModalProps {
   onDownloadPdf?: (id: string, invoiceNo: string) => Promise<void> | void;
 }
 
-type ReturnAllocation = { qty: number; warehouseId?: string; batchNo?: string };
+type ReturnAllocation = { qty: number };
 
 export function ReturnInvoiceModal({
   invoice,
@@ -49,8 +48,6 @@ export function ReturnInvoiceModal({
     (found.items || []).forEach((item: any) => {
       initial[item.id] = {
         qty: 0,
-        warehouseId: item.warehouseId || item.warehouse?.id || undefined,
-        batchNo: item.batchNo || undefined,
       };
     });
     setAllocations(initial);
@@ -136,8 +133,6 @@ export function ReturnInvoiceModal({
       if (!allocation?.qty) return [];
       return [{
         productId: item.productId || item.product?.id,
-        warehouseId: allocation.warehouseId || undefined,
-        batchNo: allocation.batchNo || item.batchNo || undefined,
         qty: allocation.qty,
         unitPrice: Number(item.unitPrice || 0),
       }];

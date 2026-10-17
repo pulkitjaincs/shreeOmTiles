@@ -97,7 +97,7 @@ export function DeleteInvoiceModal({
             <Ionicons name="warning" size={16} color="#EF4444" />
             <Text style={styles.warningTitle}>Irreversible Action & System Effects:</Text>
           </View>
-          <Text style={styles.warningBullet}>• Product quantities will be restored back to warehouse stock.</Text>
+          <Text style={styles.warningBullet}>• Product quantities will be restored back to inventory stock.</Text>
           <Text style={styles.warningBullet}>• Associated deliveries, trips, and ledger entries will be removed.</Text>
           <Text style={styles.warningBullet}>• Outstanding customer balances for this invoice will be reversed.</Text>
           <Text style={styles.warningBullet}>• An immutable audit log records this deletion.</Text>
@@ -128,7 +128,7 @@ export function DeleteInvoiceModal({
             <View style={{ flex: 1 }}>
               <Text style={styles.checkboxTitle}>Goods Have Already Been Delivered</Text>
               <Text style={styles.checkboxSub}>
-                I verify that physical goods from this order have either returned to warehouse stock or were explicitly written off.
+                I verify that physical goods from this order have either returned to stock or were explicitly written off.
               </Text>
             </View>
           </TouchableOpacity>

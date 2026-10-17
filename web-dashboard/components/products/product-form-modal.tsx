@@ -35,8 +35,7 @@ export function ProductFormModal({
   const [purchasePrice, setPurchasePrice] = useState<number | ''>('');
   const [minStockAlert, setMinStockAlert] = useState<number | ''>(10);
 
-  // Initial Warehouse Inward (Add mode only)
-  const [initialWarehouseId, setInitialWarehouseId] = useState('');
+  // Initial Stock Inward (Add mode only)
   const [initialQuantity, setInitialQuantity] = useState<number | ''>('');
   const [initialBatchNo, setInitialBatchNo] = useState('');
 
@@ -68,7 +67,6 @@ export function ProductFormModal({
         setWholesalePrice('');
         setPurchasePrice('');
         setMinStockAlert(10);
-        setInitialWarehouseId('');
         setInitialQuantity('');
         setInitialBatchNo('');
       }
@@ -129,7 +127,6 @@ export function ProductFormModal({
               wholesalePrice: wholesalePrice !== '' ? Number(wholesalePrice) : undefined,
               purchasePrice: purchasePrice !== '' ? Number(purchasePrice) : undefined,
             },
-            initialWarehouseId: initialWarehouseId || undefined,
             initialQuantity: initialQuantity ? Number(initialQuantity) : undefined,
             initialBatchNo: initialBatchNo.trim() || undefined,
           }),
@@ -325,65 +322,46 @@ export function ProductFormModal({
             </span>
           </div>
 
-          {/* Initial Warehouse Inward Section (Add mode only) */}
+          {/* Initial Stock Inward Section (Add mode only) */}
           {!isEditing && (
             <div className="pt-3 border-t border-border/60 space-y-3 bg-muted/30 p-3 rounded-[0.875rem] border border-border/60">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-primary">
-                  📦 Initial Warehouse Inward (Optional)
+                  📦 Initial Stock Inward (Optional)
                 </span>
                 <span className="text-[0.6875rem] text-muted-foreground">
                   Stock directly upon creation
                 </span>
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-foreground mb-1">Select Warehouse</label>
-                <select
-                  value={initialWarehouseId}
-                  onChange={(e) => setInitialWarehouseId(e.target.value)}
-                  className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  <option value="">Do not assign initial stock (Catalog only)</option>
-                  {warehouses.map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.name} ({w.type})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {initialWarehouseId && (
-                <div className="grid grid-cols-2 gap-3 animate-in fade-in">
-                  <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">
-                      Initial Quantity ({unit}) *
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      required={!!initialWarehouseId}
-                      placeholder="e.g. 50"
-                      className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                      value={initialQuantity}
-                      onChange={(e) => setInitialQuantity(e.target.value === '' ? '' : Number(e.target.value))}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">
-                      Batch / Lot No
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. BATCH-2024-01"
-                      className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                      value={initialBatchNo}
-                      onChange={(e) => setInitialBatchNo(e.target.value)}
-                    />
-                  </div>
+              <div className="grid grid-cols-2 gap-3 animate-in fade-in">
+                <div>
+                  <label className="block text-xs font-medium text-foreground mb-1">
+                    Initial Quantity ({unit})
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    placeholder="e.g. 50"
+                    className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    value={initialQuantity}
+                    onChange={(e) => setInitialQuantity(e.target.value === '' ? '' : Number(e.target.value))}
+                  />
                 </div>
-              )}
+
+                <div>
+                  <label className="block text-xs font-medium text-foreground mb-1">
+                    Batch / Lot No
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. BATCH-2024-01"
+                    className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                    value={initialBatchNo}
+                    onChange={(e) => setInitialBatchNo(e.target.value)}
+                  />
+                </div>
+              </div>
             </div>
           )}
 

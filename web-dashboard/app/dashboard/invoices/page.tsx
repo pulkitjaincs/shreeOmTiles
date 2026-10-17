@@ -48,7 +48,6 @@ export default function InvoicesPage() {
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
   const [allStock, setAllStock] = useState<StockLedgerRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,7 +66,6 @@ export default function InvoicesPage() {
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
   const [deletingInvoice, setDeletingInvoice] = useState<Invoice | null>(null);
   const [createdInvoiceSuccess, setCreatedInvoiceSuccess] = useState<Invoice | null>(null);
-  const [isLocationDropdownOpen, setIsLocationDropdownOpen] = useState(false);
 
   // Loading & Feedback
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -77,7 +75,7 @@ export default function InvoicesPage() {
 
   const loadInitialData = useCallback(async (force = false) => {
     try {
-      const [invList, prodList, whList, partyList, stockList] = await Promise.all([
+      const [invList, prodList, partyList, stockList] = await Promise.all([
         cachedApiRequest<Invoice[]>('/invoices', {
           forceRefresh: force,
           onRevalidate: (fresh) => setInvoices(fresh),
@@ -85,10 +83,6 @@ export default function InvoicesPage() {
         cachedApiRequest<Product[]>('/products', {
           forceRefresh: force,
           onRevalidate: (fresh) => setProducts(fresh),
-        }).catch(() => []),
-        cachedApiRequest<Warehouse[]>('/warehouses', {
-          forceRefresh: force,
-          onRevalidate: (fresh) => setWarehouses(fresh),
         }).catch(() => []),
         cachedApiRequest<Party[]>('/parties', {
           forceRefresh: force,
@@ -101,7 +95,6 @@ export default function InvoicesPage() {
       ]);
       setInvoices(invList);
       setProducts(prodList);
-      setWarehouses(whList);
       setParties(partyList);
       setAllStock(stockList);
     } catch (err) {
@@ -332,48 +325,6 @@ export default function InvoicesPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {warehouses.length > 0 && (
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setIsLocationDropdownOpen(!isLocationDropdownOpen)}
-                className="inline-flex items-center gap-2 px-3.5 py-2 rounded-[0.75rem] border border-border bg-card hover:bg-muted/70 text-xs font-semibold text-foreground transition shadow-2xs group cursor-pointer"
-                aria-expanded={isLocationDropdownOpen}
-              >
-                <Building2 className="h-4 w-4 text-primary shrink-0" />
-                <span>Active Locations ({warehouses.length})</span>
-                <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground group-hover:text-foreground transition-transform duration-200 ${isLocationDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-
-              {isLocationDropdownOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-30"
-                    onClick={() => setIsLocationDropdownOpen(false)}
-                  />
-                  <div className="absolute right-0 top-full mt-2 z-40 w-72 rounded-[1rem] border border-border bg-card/95 backdrop-blur-xl shadow-xl p-2.5 space-y-1.5 animate-in fade-in zoom-in-95">
-                    <div className="flex items-center justify-between px-2 py-1 text-[0.6875rem] font-bold text-muted-foreground uppercase tracking-wider border-b border-border/50">
-                      <span>Configured Godowns</span>
-                      <span className="text-primary font-mono text-[0.625rem]">{warehouses.length} Active</span>
-                    </div>
-                    <div className="max-h-60 overflow-y-auto space-y-1 pt-1">
-                      {warehouses.map((wh) => (
-                        <div
-                          key={wh.id}
-                          className="flex items-center justify-between px-2.5 py-1.5 rounded-[0.625rem] bg-muted/40 border border-border/40 text-xs text-foreground"
-                        >
-                          <span className="font-medium truncate">{wh.name}</span>
-                          <span className="font-mono text-[0.6875rem] px-2 py-0.5 rounded-md bg-background border border-border/60 text-muted-foreground shrink-0 ml-2">
-                            {wh.code ? wh.code : (wh.type || 'Godown')}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
           {!isSalesman && !isSupervisor && (
             <Button
               onClick={() => setShowReturnModal(true)}
@@ -699,7 +650,6 @@ export default function InvoicesPage() {
       <ReturnInvoiceModal
         isOpen={showReturnModal}
         onClose={() => setShowReturnModal(false)}
-        warehouses={warehouses}
         onSuccess={loadInitialData}
         onDownloadPdf={handleDownloadPdf}
         downloadingId={downloadingId}

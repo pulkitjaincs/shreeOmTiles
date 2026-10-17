@@ -29,7 +29,6 @@ export function StockAdjustModal({
   initialStockItem,
 }: StockAdjustModalProps) {
   const [selectedProductId, setSelectedProductId] = useState('');
-  const [selectedLocationKey, setSelectedLocationKey] = useState('');
   const [quantity, setQuantity] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -38,66 +37,25 @@ export function StockAdjustModal({
     if (visible) {
       if (initialStockItem) {
         setSelectedProductId(initialStockItem.productId);
-        setSelectedLocationKey(`${initialStockItem.warehouseId || ''}:::${initialStockItem.batchNo || ''}`);
         setQuantity(String(initialStockItem.quantity));
       } else {
         const initialProdId = products[0]?.id || '';
         setSelectedProductId(initialProdId);
-
-        const prodStocks = stocks.filter((s) => s.productId === initialProdId);
-        if (prodStocks.length > 0) {
-          setSelectedLocationKey(`${prodStocks[0].warehouseId || ''}:::${prodStocks[0].batchNo || ''}`);
-          setQuantity(String(prodStocks[0].quantity));
-        } else {
-          const firstWhId = warehouses[0]?.id || '';
-          setSelectedLocationKey(`${firstWhId}:::`);
-          setQuantity('0');
-        }
+        const match = stocks.find((s) => s.productId === initialProdId);
+        setQuantity(match ? String(match.quantity) : '0');
       }
     }
-  }, [visible, products, warehouses, stocks, initialStockItem]);
+  }, [visible, products, stocks, initialStockItem]);
 
-  // When product changes, re-select location
   const handleProductChange = (prodId: string) => {
     setSelectedProductId(prodId);
-    const prodStocks = stocks.filter((s) => s.productId === prodId);
-    if (prodStocks.length > 0) {
-      setSelectedLocationKey(`${prodStocks[0].warehouseId || ''}:::${prodStocks[0].batchNo || ''}`);
-      setQuantity(String(prodStocks[0].quantity));
-    } else {
-      const firstWhId = warehouses[0]?.id || '';
-      setSelectedLocationKey(`${firstWhId}:::`);
-      setQuantity('0');
-    }
+    const match = stocks.find((s) => s.productId === prodId);
+    setQuantity(match ? String(match.quantity) : '0');
   };
 
-  const [warehouseId, batchNo] = selectedLocationKey ? selectedLocationKey.split(':::') : ['', ''];
-
   const selectedProduct = products.find((p) => p.id === selectedProductId);
-  const matchingStock = stocks.find(
-    (s) =>
-      s.productId === selectedProductId &&
-      s.warehouseId === warehouseId &&
-      (batchNo ? s.batchNo === batchNo : !s.batchNo),
-  );
-  const currentQty = matchingStock?.quantity || 0;
-
-  // Locations dropdown options
-  const productStocks = stocks.filter((s) => s.productId === selectedProductId);
-  const locationOptions =
-    productStocks.length > 0
-      ? productStocks.map((s) => ({
-          value: `${s.warehouseId}:::${s.batchNo || ''}`,
-          label: `${s.warehouse?.name || 'Warehouse'}${s.batchNo ? ` [Batch: ${s.batchNo}]` : ''}`,
-          subLabel: `Current Stock: ${s.quantity} ${s.product?.unit || 'units'} • ${s.warehouse?.type || 'Godown'}`,
-          badge: `${s.quantity} units`,
-        }))
-      : warehouses.map((wh) => ({
-          value: `${wh.id}:::`,
-          label: wh.name,
-          subLabel: `Current Stock: 0 units • ${wh.address || wh.type || ''}`,
-          badge: '0 units',
-        }));
+  const matchingStock = stocks.find((s) => s.productId === selectedProductId);
+  const currentQty = matchingStock?.quantity ?? selectedProduct?.availableQuantity ?? 0;
 
   const handleAdjust = async () => {
     if (!selectedProductId || quantity === '') {
@@ -116,8 +74,6 @@ export function StockAdjustModal({
         method: 'POST',
         body: JSON.stringify({
           productId: selectedProductId,
-          warehouseId: warehouseId || undefined,
-          batchNo: batchNo?.trim() || undefined,
           quantity: qtyNum,
           mode: 'SET',
         }),
@@ -138,7 +94,7 @@ export function StockAdjustModal({
       visible={visible}
       onClose={onClose}
       title="Audit Physical Count"
-      subtitle="Select product & location to verify or correct physical inventory"
+      subtitle="Verify or correct product physical inventory count"
     >
       <View>
         {/* Product Search & Selector */}
@@ -155,26 +111,6 @@ export function StockAdjustModal({
             label: p.name,
             subLabel: `${p.category || 'Standard'} • Unit: ${p.unit}`,
           }))}
-        />
-
-        {/* Location Dropdown */}
-        <Select
-          label="Location / Warehouse to Adjust"
-          placeholder="Choose location..."
-          value={selectedLocationKey}
-          onChange={(val) => {
-            setSelectedLocationKey(val);
-            const [wId, bNo] = val.split(':::');
-            const match = stocks.find(
-              (s) =>
-                s.productId === selectedProductId &&
-                s.warehouseId === wId &&
-                (bNo ? s.batchNo === bNo : !s.batchNo),
-            );
-            setQuantity(String(match?.quantity || 0));
-          }}
-          icon="business-outline"
-          options={locationOptions}
         />
 
         {/* Original Amount Display & Quick Zero */}

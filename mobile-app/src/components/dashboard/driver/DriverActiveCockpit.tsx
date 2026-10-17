@@ -76,7 +76,7 @@ export function DriverActiveCockpit({
               ]}
             >
               {activeDelivery.status === 'OUT_FOR_PICKUP'
-                ? 'TASK 1: WAREHOUSE PICKUP'
+                ? 'TASK 1: ITEM PICKUP'
                 : activeDelivery.status === 'DELIVERED'
                 ? 'ORDER DELIVERED'
                 : activeDelivery.status === 'ASSIGNED'

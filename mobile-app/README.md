@@ -283,12 +283,22 @@ npx expo start -c
 The project includes an optimized EAS build configuration in `eas.json` with `arm64-v8a` compilation:
 
 ```bash
-eas build -p android --profile preview
+cd mobile-app
+
+# Android Standalone APK (Preview Profile)
+eas build -p android --profile preview --non-interactive
+
+# Android Standalone APK (Production Profile)
+eas build -p android --profile production --non-interactive
+
+# iOS Build (Requires Apple Developer Account)
+eas build -p ios --profile production --non-interactive
 ```
 
-- **Package**: `com.shreeomtiles.erp` (Version 1.0.0)
+- **Package**: `com.shreeomtiles.erp` (Version 1.0.1, versionCode: 3)
 - **Uses Cleartext Traffic**: Enabled via `expo-build-properties` to allow local HTTP backend communication.
 - **Compilation Arch**: Pinned to `arm64-v8a` to reduce C++ build times.
+- **Build Output**: Standalone installable `.apk` file hosted directly on Expo EAS servers.
 
 ---
 
@@ -296,15 +306,23 @@ eas build -p android --profile preview
 
 The mobile application is pre-configured with `expo-updates` and EAS Update to ship hotfixes, UI improvements, and new features instantly to installed APKs and user devices without recompiling binary packages or waiting for app store reviews.
 
-### Publishing an Update to Production
+### Channel Routing & Branch Setup
+- **Channels**: `production` and `preview` are created on EAS and mapped to branch `production`.
+- **Runtime Version Policy**: Configured as `{"policy": "appVersion"}` ensuring compatibility between compiled native code and JavaScript bundles matching `version` (e.g. `1.0.1`).
+- **Startup Caching Policy**: Configured with `fallbackToCacheTimeout: 5000` (5-second splash screen window to fetch and apply updates before app render).
+- **Proactive In-App Updater**: `src/app/_layout.tsx` checks for updates in the background post-launch and alerts the user with an instant restart prompt when a new update is ready.
+
+### Publishing an Update
+To deploy updates to all active devices on channel `production` and `preview`:
 
 ```bash
 cd mobile-app
-eas update --branch production --environment production --message "feat: mobile quotations, purchases, zero-stock filtering & transaction sync" --non-interactive
+eas update --branch production --environment production --message "feat: <description-of-changes>" --non-interactive
 ```
 
-### Channel Routing & Runtime Version Policy
-- **Runtime Version Policy**: Configured as `{"policy": "appVersion"}` ensuring compatibility between compiled native code and JavaScript bundles.
-- **Channels**: Linked to build environments (`production`, `preview`, `development`) in `eas.json`.
-- **Automatic Client Retrieval**: When the app starts, `expo-updates` checks the EAS remote endpoint (`https://u.expo.dev/...`) in the background and applies updates automatically on next launch.
+### OTA Update Troubleshooting Checklist
+1. **Native Module Additions**: If new native dependencies or plugins are installed (e.g., adding `expo-updates`, camera, biometric plugins), an OTA update cannot modify native binaries. A fresh `eas build` must be generated.
+2. **Channel Mapping**: Check active channels with `eas channel:list`. Ensure that `channel:create preview` and `channel:create production` exist and are pointing to the target branch.
+3. **Runtime Version Alignment**: Updates are delivered only to native binaries whose `runtimeVersion` exactly matches the update's runtime version (`1.0.1`).
+4. **App Restart Requirement**: In addition to the startup timeout, cold-restarting the app or accepting the in-app restart prompt activates the newly downloaded bundle.
 

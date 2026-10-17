@@ -11,7 +11,6 @@ interface WarehouseStockCardProps {
   isSupervisor?: boolean;
   userWarehouseId?: string | null;
   onInward?: (item: StockItem) => void;
-  onTransfer?: (item: StockItem) => void;
   onAdjust?: (item: StockItem) => void;
 }
 
@@ -21,7 +20,6 @@ export function WarehouseStockCard({
   isSupervisor = false,
   userWarehouseId,
   onInward,
-  onTransfer,
   onAdjust,
 }: WarehouseStockCardProps) {
   const isZeroStock = Number(item.quantity || 0) <= 0;
@@ -58,19 +56,11 @@ export function WarehouseStockCard({
 
       <View style={styles.stockMeta}>
         <View style={[styles.metaItem, { flex: 1 }]}>
-          <Ionicons name="barcode-outline" size={13} color="#A1A1AA" />
+          <Ionicons name="checkmark-circle-outline" size={13} color="#10B981" />
           <Text style={styles.metaText} numberOfLines={1}>
-            Batch: <Text style={styles.metaBatchVal}>{item.batchNo || 'Standard Batch'}</Text>
+            Stock Status: <Text style={styles.metaBatchVal}>{item.batchNo ? `Batch: ${item.batchNo}` : 'Unified Stock'}</Text>
           </Text>
         </View>
-        {item.warehouse?.name ? (
-          <View style={styles.metaItem}>
-            <Ionicons name="business-outline" size={13} color="#818CF8" />
-            <Text style={styles.metaText} numberOfLines={1}>
-              {item.warehouse.name}
-            </Text>
-          </View>
-        ) : null}
       </View>
 
       {/* Row-Level Quick Actions Matching Web Dashboard */}

@@ -136,7 +136,6 @@ export function InvoiceDetailsModal({
             <View key={it.id || index} style={styles.itemDetailRow}>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.itemDetailName}>{it.product?.name || 'Item'}</Text>
-                <Text style={styles.itemDetailSub}>{it.warehouse?.name || 'Showroom'} • Batch: {it.batchNo || '—'}</Text>
                 {!isSupervisor && Number(it.discount || 0) > 0 ? <Text style={styles.itemDetailSub}>Discount: {formatINR(it.discount)}</Text> : null}
                 {isReturned ? (
                   <View style={styles.returnedBadge}>
@@ -189,7 +188,7 @@ export function InvoiceDetailsModal({
                 ) : null}
                 {(refund.items || []).map((item: any, index: number) => (
                   <Text key={item.id || index} style={styles.refundItemText}>
-                    {item.product?.name || 'Item'} · {item.qty} {item.product?.unit || ''} · {item.warehouse?.name || 'Warehouse'} · {formatINR(item.total)}
+                    {item.product?.name || 'Item'} · {item.qty} {item.product?.unit || ''} · {formatINR(item.total)}
                   </Text>
                 ))}
               </Card>

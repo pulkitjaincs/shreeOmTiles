@@ -311,7 +311,7 @@ export function CreatePurchaseModal({
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center gap-1.5">
                 <Layers className="h-4 w-4 text-primary" />
-                Purchased Products & Receiving Warehouses
+                Purchased Products & Stock Inward
               </span>
               <button
                 type="button"

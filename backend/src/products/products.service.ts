@@ -31,16 +31,12 @@ export class ProductsService {
         },
       });
 
-      if (
-        data.initialWarehouseId &&
-        data.initialQuantity &&
-        data.initialQuantity > 0
-      ) {
+      if (data.initialQuantity && data.initialQuantity > 0) {
         const batchNo = data.initialBatchNo?.trim() || null;
         const stockLedger = await tx.stockLedger.create({
           data: {
             productId: product.id,
-            warehouseId: data.initialWarehouseId,
+            warehouseId: null,
             batchNo,
             quantity: data.initialQuantity,
           },
@@ -55,7 +51,6 @@ export class ProductsService {
             diff: {
               productId: product.id,
               productName: product.name,
-              warehouseId: data.initialWarehouseId,
               quantity: data.initialQuantity,
               batchNo,
             },
@@ -107,6 +102,27 @@ export class ProductsService {
 
     const isSupervisor = user?.role === Role.SUPERVISOR;
 
+    const formatProduct = (p: any) => {
+      const stockLedgers = p.stockLedgers || [];
+      const totalStock = stockLedgers.reduce(
+        (sum: number, s: any) => sum + Number(s.quantity || 0),
+        0,
+      );
+      const sanitized = isSupervisor ? this.sanitizeProductForSupervisor(p) : p;
+      return {
+        ...sanitized,
+        availableQuantity: Number(totalStock.toFixed(2)),
+        totalStock: Number(totalStock.toFixed(2)),
+        stockLedgers: stockLedgers.map((s: any) => ({
+          id: s.id,
+          quantity: Number(s.quantity || 0),
+          batchNo: s.batchNo || null,
+          warehouseId: null,
+          warehouse: null,
+        })),
+      };
+    };
+
     if (query?.page !== undefined || query?.limit !== undefined) {
       const page = Math.max(1, query.page || 1);
       const limit = Math.min(Math.max(1, query.limit || 25), 100);
@@ -124,9 +140,7 @@ export class ProductsService {
       ]);
 
       return {
-        data: isSupervisor
-          ? data.map((p) => this.sanitizeProductForSupervisor(p))
-          : data,
+        data: data.map((p) => formatProduct(p)),
         total,
         page,
         limit,
@@ -138,12 +152,9 @@ export class ProductsService {
       where,
       include: includeRelations,
       orderBy: { createdAt: 'desc' },
-      take: 200,
     });
 
-    return isSupervisor
-      ? products.map((p) => this.sanitizeProductForSupervisor(p))
-      : products;
+    return products.map((p) => formatProduct(p));
   }
 
   private sanitizeProductForSupervisor<T extends Record<string, unknown>>(
@@ -177,11 +188,28 @@ export class ProductsService {
     });
     if (!product) throw new NotFoundException(`Product ${id} not found`);
 
-    if (user?.role === Role.SUPERVISOR) {
-      return this.sanitizeProductForSupervisor(product);
-    }
+    const isSupervisor = user?.role === Role.SUPERVISOR;
+    const stockLedgers = product.stockLedgers || [];
+    const totalStock = stockLedgers.reduce(
+      (sum, s) => sum + Number(s.quantity || 0),
+      0,
+    );
+    const sanitized = isSupervisor
+      ? this.sanitizeProductForSupervisor(product)
+      : product;
 
-    return product;
+    return {
+      ...sanitized,
+      availableQuantity: Number(totalStock.toFixed(2)),
+      totalStock: Number(totalStock.toFixed(2)),
+      stockLedgers: stockLedgers.map((s) => ({
+        id: s.id,
+        quantity: Number(s.quantity || 0),
+        batchNo: s.batchNo || null,
+        warehouseId: null,
+        warehouse: null,
+      })),
+    };
   }
 
   async update(id: string, data: UpdateProductDto) {

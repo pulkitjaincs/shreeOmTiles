@@ -13,6 +13,8 @@ export interface Product {
   price?: number;
   attributes?: Record<string, unknown>;
   stockLedgers?: StockLedgerEntry[];
+  availableQuantity?: number;
+  totalStock?: number;
 }
 
 export interface Warehouse {

@@ -2,7 +2,8 @@ import React, { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Platform, StatusBar as RNStatusBar } from 'react-native';
+import { Platform, StatusBar as RNStatusBar, Alert } from 'react-native';
+import * as Updates from 'expo-updates';
 import { AuthProvider } from '@/lib/auth-context';
 import { setupNotificationListeners } from '@/lib/notifications';
 import { Colors } from '@/constants/theme';
@@ -12,6 +13,54 @@ function NotificationListenerWrapper() {
     const unsubscribe = setupNotificationListeners();
     return () => {
       unsubscribe();
+    };
+  }, []);
+
+  return null;
+}
+
+function OtaUpdateListenerWrapper() {
+  useEffect(() => {
+    if (__DEV__ || !Updates.isEnabled) return;
+
+    let isMounted = true;
+    async function checkForUpdates() {
+      try {
+        const update = await Updates.checkForUpdateAsync();
+        if (update.isAvailable && isMounted) {
+          const fetchResult = await Updates.fetchUpdateAsync();
+          if (fetchResult.isNew && isMounted) {
+            Alert.alert(
+              'Update Available',
+              'A new ERP update has been downloaded. Restart the app now to apply the changes?',
+              [
+                { text: 'Later', style: 'cancel' },
+                {
+                  text: 'Restart Now',
+                  onPress: () => {
+                    Updates.reloadAsync().catch((err) => {
+                      console.warn('[OTA] Failed to reload:', err);
+                    });
+                  },
+                },
+              ]
+            );
+          }
+        }
+      } catch (error) {
+        // Suppress network errors in offline mode
+        console.warn('[OTA] Update check failed or offline:', error);
+      }
+    }
+
+    // Run check 3 seconds after launch to ensure initial render completes smoothly
+    const timer = setTimeout(() => {
+      checkForUpdates();
+    }, 3000);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
     };
   }, []);
 
@@ -28,6 +77,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <AuthProvider>
         <NotificationListenerWrapper />
+        <OtaUpdateListenerWrapper />
         <StatusBar style="light" />
         <Stack
           screenOptions={{

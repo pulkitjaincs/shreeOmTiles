@@ -24,7 +24,7 @@ interface CreateInvoiceModalProps {
   onClose: () => void;
   onSuccess: (newInvoice?: any) => void;
   products: Product[];
-  warehouses: Warehouse[];
+  warehouses?: Warehouse[];
   parties: Party[];
   stockList: StockLedger[];
   onRefreshStock: () => Promise<StockLedger[]>;
@@ -42,7 +42,7 @@ export function CreateInvoiceModal({
 }: CreateInvoiceModalProps) {
   const wasVisible = useRef(false);
   const [customerMode, setCustomerMode] = useState<'existing' | 'new'>('existing');
-  const [selectedPartyId, setSelectedPartyId] = useState(parties[0]?.id || '');
+  const [selectedPartyId, setSelectedPartyId] = useState('');
   const [newPartyName, setNewPartyName] = useState('');
   const [newPartyPhone, setNewPartyPhone] = useState('');
   const [newPartyAddress, setNewPartyAddress] = useState('');
@@ -52,9 +52,7 @@ export function CreateInvoiceModal({
   const [items, setItems] = useState<InvoiceLineItem[]>([
     {
       productId: '',
-      warehouseId: '',
-      allocations: [],
-      qty: 0,
+      qty: 1,
       unitPrice: 0,
       discount: 0,
     },
@@ -80,42 +78,38 @@ export function CreateInvoiceModal({
   } | null>(null);
   const [loadingQr, setLoadingQr] = useState(false);
 
-  // Only return warehouses where quantity > 0 for this specific product
-  const getAvailableWarehouses = useCallback(
-    (productId: string, sourceStock = currentStockList) => {
-      if (!productId) return [];
-      return warehouses
-        .map((wh) => {
-          const qty = sourceStock
-            .filter((s) => s.productId === productId && s.warehouseId === wh.id)
-            .reduce((sum, s) => sum + Number(s.quantity || 0), 0);
-          return { ...wh, availableQty: qty };
-        })
-        .filter((wh) => wh.availableQty > 0);
-    },
-    [warehouses, currentStockList],
-  );
+  const onRefreshStockRef = useRef(onRefreshStock);
+  useEffect(() => {
+    onRefreshStockRef.current = onRefreshStock;
+  }, [onRefreshStock]);
 
-  const getStockAllocations = useCallback((productId: string, initialQty = 0, sourceStock = currentStockList) => {
-    if (!productId) return [];
-    const rows = sourceStock.filter((stock) => stock.productId === productId);
-    if (rows.length > 0) {
-      return rows.map((stock, index) => ({
-        warehouseId: stock.warehouseId,
-        batchNo: stock.batchNo,
-        availableQty: Number(stock.quantity),
-        qty: index === 0 ? initialQty : 0,
-      }));
-    }
-    return [
-      {
-        warehouseId: undefined,
-        batchNo: 'MASTER-IMPORT',
-        availableQty: 0,
-        qty: initialQty,
-      },
-    ];
-  }, [currentStockList]);
+  const stockListRef = useRef(stockList);
+  useEffect(() => {
+    stockListRef.current = stockList;
+  }, [stockList]);
+
+  const resetForm = useCallback(() => {
+    setCustomerMode('existing');
+    setSelectedPartyId('');
+    setNewPartyName('');
+    setNewPartyPhone('');
+    setNewPartyAddress('');
+    setNewPartyGstin('');
+    setSaveNewParty(true);
+    setItems([{
+      productId: '',
+      qty: 1,
+      unitPrice: 0,
+      discount: 0,
+    }]);
+    setTaxRate(18);
+    setTransportCost('0');
+    setTransportGstRate(0);
+    setPaymentMode('UPI');
+    setAmountPaidNow('0');
+    setNotes('');
+    setUpiPreviewData(null);
+  }, []);
 
   const resolveProductPrice = useCallback(
     (prod: Product | undefined, currentPartyId?: string) => {
@@ -144,75 +138,95 @@ export function CreateInvoiceModal({
     );
   };
 
-  // Reset or initialize modal
+  // Reset or initialize modal lifecycle when opened
   useEffect(() => {
     if (!visible) {
       wasVisible.current = false;
+      setRefreshingStock(false);
       return;
     }
     if (wasVisible.current) return;
     wasVisible.current = true;
-    let cancelled = false;
+
+    let isMountedOrOpen = true;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    // Immediately reset the form state so old inputs do not persist
+    resetForm();
     setRefreshingStock(true);
-    const initializeForm = async () => {
-      let freshStock = stockList;
+
+    const initializeStock = async () => {
       try {
-        freshStock = await onRefreshStock();
-      } catch {
-        // Existing cached stock still lets the customer continue if refresh is offline.
+        const STOCK_CHECK_TIMEOUT_MS = 4000;
+        const timeoutPromise = new Promise<StockLedger[]>((_, reject) => {
+          timeoutId = setTimeout(() => {
+            reject(new Error('STOCK_TIMEOUT'));
+          }, STOCK_CHECK_TIMEOUT_MS);
+        });
+
+        const rawStockResult = typeof onRefreshStockRef.current === 'function'
+          ? onRefreshStockRef.current()
+          : (stockListRef.current || []);
+        const stockPromise = Promise.resolve(rawStockResult);
+        // Prevent unhandled promise rejection if timeout fires first and stockPromise fails later
+        stockPromise.catch(() => {});
+
+        const freshStock = await Promise.race([stockPromise, timeoutPromise]);
+        if (!isMountedOrOpen) return;
+        if (Array.isArray(freshStock)) {
+          setCurrentStockList(freshStock);
+        }
+      } catch (err: any) {
+        if (err?.message !== 'STOCK_TIMEOUT') {
+          console.warn('[CreateInvoiceModal] Stock verification failed, using cached stock:', err?.message);
+        } else {
+          console.warn('[CreateInvoiceModal] Stock verification timed out after 4s, using cached stock');
+        }
+        if (!isMountedOrOpen) return;
+        if (Array.isArray(stockListRef.current)) {
+          setCurrentStockList(stockListRef.current);
+        }
+      } finally {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+        if (isMountedOrOpen) {
+          setRefreshingStock(false);
+        }
       }
-      if (cancelled) return;
-      setCurrentStockList(freshStock);
-      const initialPartyId = '';
-      setItems([{
-        productId: '',
-        warehouseId: '',
-        allocations: [],
-        qty: 0,
-        unitPrice: 0,
-        discount: 0,
-      }]);
-      setSelectedPartyId(initialPartyId);
-      setCustomerMode('existing');
-      setNewPartyName('');
-      setNewPartyPhone('');
-      setNewPartyAddress('');
-      setNewPartyGstin('');
-      setSaveNewParty(true);
-      setTaxRate(18);
-      setTransportCost('0');
-      setTransportGstRate(0);
-      setPaymentMode('UPI');
-      setAmountPaidNow('0');
-      setNotes('');
-      setUpiPreviewData(null);
-      setRefreshingStock(false);
     };
 
-    void initializeForm();
+    void initializeStock();
 
     // Load UPI Accounts from Settings
     cachedMobileApiRequest<{ upiAccounts?: UpiAccount[] }>('/settings')
       .then((res) => {
+        if (!isMountedOrOpen) return;
         const accounts = res?.upiAccounts || [];
         setUpiAccounts(accounts);
         const primary = accounts.find((a) => a.isPrimary) || accounts[0] || null;
         setSelectedUpiAccount(primary);
       })
       .catch((err) => {
-        console.warn('Failed to load UPI accounts:', err.message);
+        console.warn('Failed to load UPI accounts:', err?.message);
       });
-    return () => { cancelled = true; };
-  }, [visible, products, parties, stockList, onRefreshStock, getAvailableWarehouses, getStockAllocations, resolveProductPrice]);
 
-  useEffect(() => setCurrentStockList(stockList), [stockList]);
+    return () => {
+      isMountedOrOpen = false;
+      wasVisible.current = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      setRefreshingStock(false);
+    };
+  }, [visible, resetForm]);
 
   useEffect(() => {
-    if (!visible) return;
-    if (customerMode === 'existing' && !selectedPartyId && parties[0]) {
-      setSelectedPartyId(parties[0].id);
+    if (Array.isArray(stockList)) {
+      setCurrentStockList(stockList);
     }
-  }, [visible, parties, customerMode, selectedPartyId]);
+  }, [stockList]);
+
 
   const handleProductChange = (index: number, newProductId: string) => {
     if (!newProductId) {
@@ -222,10 +236,7 @@ export function CreateInvoiceModal({
             ? {
                 ...item,
                 productId: '',
-                warehouseId: '',
-                allocations: [],
-                batchNo: undefined,
-                qty: 0,
+                qty: 1,
                 unitPrice: 0,
                 discount: 0,
               }
@@ -238,8 +249,6 @@ export function CreateInvoiceModal({
       Alert.alert('Duplicate Product', 'Each product can be added only once to an invoice.');
       return;
     }
-    const availWh = getAvailableWarehouses(newProductId);
-    const allocations = getStockAllocations(newProductId, 0);
     const selectedProd = products.find((p) => p.id === newProductId);
     const defaultPrice = resolveProductPrice(selectedProd, selectedPartyId);
 
@@ -249,15 +258,7 @@ export function CreateInvoiceModal({
           ? {
               ...item,
               productId: newProductId,
-              warehouseId: availWh[0]?.id || '',
-              allocations,
-              qty: allocations.reduce((sum, allocation) => sum + allocation.qty, 0),
-              batchNo: (() => {
-                const batches = stockList.filter(
-                  (s) => s.productId === newProductId && s.warehouseId === availWh[0]?.id && Number(s.quantity) > 0,
-                );
-                return batches.length === 1 ? batches[0].batchNo : undefined;
-              })(),
+              qty: item.qty > 0 ? item.qty : 1,
               unitPrice: defaultPrice > 0 ? defaultPrice : 0,
             }
           : item,
@@ -280,9 +281,7 @@ export function CreateInvoiceModal({
       ...prev,
       {
         productId: '',
-        warehouseId: '',
-        allocations: [],
-        qty: 0,
+        qty: 1,
         unitPrice: 0,
         discount: 0,
       },
@@ -294,22 +293,9 @@ export function CreateInvoiceModal({
     setItems((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleAllocationQty = (itemIndex: number, allocationIndex: number, text: string) => {
-    const qty = Math.max(0, Number.parseFloat(text) || 0);
+  const handleQtyChange = (index: number, qty: number) => {
     setItems((prev) =>
-      prev.map((item, index) => {
-        if (index !== itemIndex) return item;
-        const allocations = (item.allocations || []).map((allocation, allocationIdx) =>
-          allocationIdx === allocationIndex
-            ? { ...allocation, qty }
-            : allocation,
-        );
-        return {
-          ...item,
-          allocations,
-          qty: allocations.reduce((sum, allocation) => sum + allocation.qty, 0),
-        };
-      }),
+      prev.map((item, i) => (i === index ? { ...item, qty: Math.max(0, qty) } : item)),
     );
   };
 
@@ -342,26 +328,6 @@ export function CreateInvoiceModal({
     : 0;
   const balanceDue = Math.max(0, Number((grandTotal - effectivePaidNow).toFixed(2)));
 
-  const resetForm = () => {
-    setCustomerMode('existing');
-    setSelectedPartyId('');
-    setNewPartyName('');
-    setNewPartyPhone('');
-    setNewPartyAddress('');
-    setNewPartyGstin('');
-    setItems([{
-      productId: '',
-      warehouseId: '',
-      allocations: [],
-      qty: 0,
-      unitPrice: 0,
-      discount: 0,
-    }]);
-    setTaxRate(18);
-    setPaymentMode('UPI');
-    setAmountPaidNow('0');
-    setNotes('');
-  };
 
   const fetchPreviewQr = async (amt: number, targetAcc?: UpiAccount | null) => {
     const acc = targetAcc !== undefined ? targetAcc : selectedUpiAccount;
@@ -412,11 +378,7 @@ export function CreateInvoiceModal({
         return;
       }
       if (Number(it.qty) <= 0) {
-        Alert.alert('Validation Error', 'Allocate at least one unit of stock for every line item.');
-        return;
-      }
-      if (!(it.allocations || []).some((allocation) => allocation.qty > 0)) {
-        Alert.alert('Out of Stock', 'Please allocate quantity for every item from available stock.');
+        Alert.alert('Validation Error', 'Please enter a valid quantity for all line items.');
         return;
       }
       if (!(it.unitPrice > 0)) {
@@ -446,18 +408,12 @@ export function CreateInvoiceModal({
         transportGstRate,
         paymentMode: finalMode,
         notes: notes.trim() || undefined,
-        items: items.flatMap((it) => {
-          const allocations = (it.allocations || []).filter((allocation) => allocation.qty > 0);
-          const totalAllocated = allocations.reduce((sum, allocation) => sum + allocation.qty, 0);
-          return allocations.map((allocation) => ({
-            productId: it.productId,
-            warehouseId: allocation.warehouseId || undefined,
-            batchNo: allocation.batchNo?.trim() || undefined,
-            qty: Number(allocation.qty),
-            unitPrice: Number(it.unitPrice),
-            discount: totalAllocated > 0 ? Number(((Number(it.discount || 0) * allocation.qty) / totalAllocated).toFixed(2)) : 0,
-          }));
-        }),
+        items: items.map((it) => ({
+          productId: it.productId,
+          qty: Number(it.qty),
+          unitPrice: Number(it.unitPrice),
+          discount: Number(it.discount || 0),
+        })),
         amountPaidNow: finalPaid,
       };
 
@@ -535,10 +491,10 @@ export function CreateInvoiceModal({
             index={idx}
             item={item}
             products={products}
-            warehouses={warehouses}
+            stockList={currentStockList}
             canRemove={items.length > 1}
             onProductChange={(newProductId) => handleProductChange(idx, newProductId)}
-            onAllocationQtyChange={(allocationIndex, text) => handleAllocationQty(idx, allocationIndex, text)}
+            onQtyChange={(qty) => handleQtyChange(idx, qty)}
             onUnitPriceChange={(price) => handleUpdateItem(idx, 'unitPrice', price)}
             onDiscountChange={(discount) => handleUpdateItem(idx, 'discount', discount)}
             onRemove={() => handleRemoveItem(idx)}

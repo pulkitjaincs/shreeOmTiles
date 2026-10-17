@@ -25,7 +25,13 @@ export class StockController {
   constructor(private readonly stockService: StockService) {}
 
   @Get()
-  @Roles(Role.ADMIN, Role.SALESMAN, Role.SUPERVISOR, Role.ACCOUNTANT)
+  @Roles(
+    Role.OWNER,
+    Role.ADMIN,
+    Role.SALESMAN,
+    Role.SUPERVISOR,
+    Role.ACCOUNTANT,
+  )
   findAll(
     @Request() req: RequestWithUser,
     @Query('productId') productId?: string,
@@ -53,13 +59,13 @@ export class StockController {
   }
 
   @Post('adjust')
-  @Roles(Role.ADMIN, Role.SUPERVISOR)
+  @Roles(Role.OWNER, Role.ADMIN, Role.SUPERVISOR)
   adjustStock(@Request() req: RequestWithUser, @Body() dto: AdjustStockDto) {
     return this.stockService.adjustStock(dto, req.user.id, req.user);
   }
 
   @Post('transfer')
-  @Roles(Role.ADMIN, Role.SUPERVISOR)
+  @Roles(Role.OWNER, Role.ADMIN, Role.SUPERVISOR)
   transferStock(
     @Request() req: RequestWithUser,
     @Body() dto: TransferStockDto,
@@ -68,7 +74,7 @@ export class StockController {
   }
 
   @Post('zero-out')
-  @Roles(Role.ADMIN, Role.SUPERVISOR)
+  @Roles(Role.OWNER, Role.ADMIN, Role.SUPERVISOR)
   zeroOutStock(@Request() req: RequestWithUser, @Body() dto: ZeroOutStockDto) {
     return this.stockService.zeroOutStock(dto, req.user.id, req.user);
   }

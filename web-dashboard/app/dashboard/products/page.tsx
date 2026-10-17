@@ -82,8 +82,8 @@ export default function ProductsPage() {
           <h1 className="text-2xl font-bold text-foreground tracking-tight">Products & Catalog</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {canManage
-              ? 'Manage tiles, sanitaryware, fittings, and inward new designs directly into warehouses.'
-              : 'Browse tiles, sanitaryware, specifications, and live stock across all warehouses.'}
+              ? 'Manage tiles, sanitaryware, fittings, and inward new designs directly into inventory.'
+              : 'Browse tiles, sanitaryware, specifications, and unified live stock.'}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -92,7 +92,7 @@ export default function ProductsPage() {
             className="inline-flex items-center gap-2 bg-muted/50 hover:bg-muted text-foreground font-medium px-4 py-2 rounded-[0.75rem] border border-border/60 transition-all text-xs sm:text-sm active:scale-98 shadow-2xs"
           >
             <PackagePlus className="h-4 w-4 text-primary" />
-            Go to Warehouses
+            Go to Stock & Inventory
           </Link>
           {canManage && (
             <Button
@@ -155,7 +155,7 @@ export default function ProductsPage() {
                 </tr>
               ) : (
                 filtered.map((prod) => {
-                  const totalStock = prod.stockLedgers?.reduce((sum, s) => sum + s.quantity, 0) ?? 0;
+                  const totalStock = prod.availableQuantity ?? prod.totalStock ?? prod.stockLedgers?.reduce((sum, s) => sum + s.quantity, 0) ?? 0;
                   const threshold = prod.minStockAlert ?? 10;
                   const isLowStock = totalStock <= threshold;
                   const attrs = (prod.attributes as Record<string, unknown>) || {};

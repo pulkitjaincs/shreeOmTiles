@@ -73,34 +73,21 @@ export function CreateInvoiceModal({
   const [upiAccounts, setUpiAccounts] = useState<UpiAccount[]>([]);
   const [selectedUpiAccount, setSelectedUpiAccount] = useState<UpiAccount | null>(null);
 
-  const getProductStockOptions = useCallback(
-    (prodId: string, currentStock: StockLedgerRecord[]): StockOptionAllocation[] => {
-      if (!prodId) return [];
+  const getProductAvailableStock = useCallback(
+    (prodId: string, currentStock: StockLedgerRecord[]): number => {
+      if (!prodId) return 0;
       const forProd = currentStock.filter((s) => s.productId === prodId);
       if (forProd.length > 0) {
-        return forProd.map((s) => ({
-          stockLedgerId: s.id,
-          warehouseId: s.warehouseId,
-          warehouseName: s.warehouse?.name || 'Main Stock',
-          warehouseCode: s.warehouse?.code,
-          batchNo: s.batchNo || 'MASTER-IMPORT',
-          availableQty: s.quantity,
-          takeQty: 0,
-        }));
+        return forProd.reduce(
+          (sum, s) =>
+            sum + Number(s.quantity ?? (s as any).availableQuantity ?? 0),
+          0,
+        );
       }
-      return [
-        {
-          stockLedgerId: 'direct-stock',
-          warehouseId: undefined,
-          warehouseName: 'Direct Stock',
-          warehouseCode: undefined,
-          batchNo: 'MASTER-IMPORT',
-          availableQty: 0,
-          takeQty: 0,
-        },
-      ];
+      const prod = products.find((p) => p.id === prodId);
+      return prod?.availableQuantity ?? prod?.totalStock ?? 0;
     },
-    [],
+    [products],
   );
 
   const resolveProductPrice = useCallback(
@@ -128,9 +115,9 @@ export function CreateInvoiceModal({
       setItems([
         {
           productId: '',
+          qty: 1,
           unitPrice: 0,
           discount: 0,
-          options: [],
         },
       ]);
       setFormError('');
@@ -181,9 +168,9 @@ export function CreateInvoiceModal({
       ...items,
       {
         productId: '',
+        qty: 1,
         unitPrice: 0,
         discount: 0,
-        options: [],
       },
     ]);
   };
@@ -212,9 +199,9 @@ export function CreateInvoiceModal({
       newItems[index] = {
         ...newItems[index],
         productId: '',
+        qty: 1,
         unitPrice: 0,
         discount: 0,
-        options: [],
       };
       setItems(newItems);
       return;
@@ -225,32 +212,24 @@ export function CreateInvoiceModal({
       return;
     }
     const newItems = [...items];
-    const newOptions = getProductStockOptions(newProdId, allStock);
     const selectedProd = products.find((p) => p.id === newProdId);
     const defaultPrice = resolveProductPrice(selectedProd, partyId);
 
     newItems[index] = {
       ...newItems[index],
       productId: newProdId,
+      qty: newItems[index].qty > 0 ? newItems[index].qty : 1,
       unitPrice: defaultPrice > 0 ? defaultPrice : 0,
-      options: newOptions,
+      discount: newItems[index].discount || 0,
     };
     setItems(newItems);
   };
 
-  const handleOptionQtyChange = (itemIdx: number, optIdx: number, valStr: string) => {
+  const handleQtyChange = (index: number, valStr: string) => {
     const parsed = parseFloat(valStr);
     const qty = isNaN(parsed) ? 0 : parsed;
     const newItems = [...items];
-    const currentItem = { ...newItems[itemIdx] };
-    const currentOptions = [...currentItem.options];
-    const targetOpt = { ...currentOptions[optIdx] };
-
-    // Allow selling past available stock into negative quantities
-    targetOpt.takeQty = Math.max(0, qty);
-    currentOptions[optIdx] = targetOpt;
-    currentItem.options = currentOptions;
-    newItems[itemIdx] = currentItem;
+    newItems[index] = { ...newItems[index], qty: Math.max(0, qty) };
     setItems(newItems);
   };
 
@@ -268,8 +247,7 @@ export function CreateInvoiceModal({
 
   // Calculations
   const subtotal = items.reduce((sum, item) => {
-    const itemTotalQty = item.options.reduce((s, o) => s + (o.takeQty || 0), 0);
-    return sum + (itemTotalQty * item.unitPrice - (item.discount || 0));
+    return sum + (item.qty * item.unitPrice - (item.discount || 0));
   }, 0);
   const activeTaxRate = taxRate === '' ? 0 : Number(taxRate);
   const itemsTax = (subtotal * activeTaxRate) / 100;
@@ -310,7 +288,6 @@ export function CreateInvoiceModal({
       const item = items[i];
       const prod = products.find((p) => p.id === item.productId);
       const prodName = prod?.name || `Item #${i + 1}`;
-      const totalQty = item.options.reduce((sum, opt) => sum + (opt.takeQty || 0), 0);
 
       if (!item.productId) {
         throw new Error(`Please select a valid product for Line #${i + 1}`);
@@ -318,31 +295,17 @@ export function CreateInvoiceModal({
       if (item.unitPrice <= 0) {
         throw new Error(`Please provide a positive unit price for "${prodName}"`);
       }
-      if (totalQty <= 0) {
-        throw new Error(`Please specify quantity to allocate for "${prodName}".`);
+      if (item.qty <= 0) {
+        throw new Error(`Please specify quantity for "${prodName}".`);
       }
     }
 
-    const invoicePayloadItems = items.flatMap((item) => {
-      const totalItemQty = item.options.reduce((s, o) => s + (o.takeQty || 0), 0);
-      const activeOptions = item.options.filter((o) => o.takeQty > 0);
-
-      return activeOptions.map((opt) => {
-        const proportionalDiscount =
-          totalItemQty > 0
-            ? Number(((item.discount || 0) * (opt.takeQty / totalItemQty)).toFixed(2))
-            : 0;
-
-        return {
-          productId: item.productId,
-          warehouseId: opt.warehouseId,
-          batchNo: opt.batchNo || undefined,
-          qty: opt.takeQty,
-          unitPrice: Number(item.unitPrice),
-          discount: proportionalDiscount,
-        };
-      });
-    });
+    const invoicePayloadItems = items.map((item) => ({
+      productId: item.productId,
+      qty: Number(item.qty),
+      unitPrice: Number(item.unitPrice),
+      discount: Number(item.discount || 0),
+    }));
 
     return {
       partyId: customerMode === 'EXISTING' ? partyId : undefined,
@@ -441,7 +404,7 @@ export function CreateInvoiceModal({
             <div>
               <h2 className="text-[1.25rem] font-bold text-foreground">Create Tax Invoice</h2>
               <p className="text-[0.75rem] text-muted-foreground mt-0.5">
-                Select available quantities directly across showrooms, godowns & batch lots
+                Add products with unified live stock availability for instant billing
               </p>
             </div>
             <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
@@ -805,20 +768,28 @@ export function CreateInvoiceModal({
               <div className="space-y-4">
                 {items.map((item, idx) => {
                   const selectedProd = products.find((p) => p.id === item.productId);
-                  const totalAllocatedQty = item.options.reduce((s, o) => s + (o.takeQty || 0), 0);
-                  const lineSubtotal = totalAllocatedQty * item.unitPrice - (item.discount || 0);
+                  const availableStock = getProductAvailableStock(item.productId, allStock);
+                  const lineSubtotal = item.qty * item.unitPrice - (item.discount || 0);
 
                   return (
                     <div key={idx} className="p-4 rounded-[1rem] border border-border bg-muted/20 space-y-3">
                       <div className="grid grid-cols-12 gap-3 items-end">
-                        <div className="col-span-12 sm:col-span-5 space-y-1 relative">
+                        <div className="col-span-12 sm:col-span-4 space-y-1 relative">
                           <div className="flex items-center justify-between">
                             <label className="text-[0.6875rem] font-medium text-foreground">
                               Product / Tile #{idx + 1} *
                             </label>
-                            <span className="text-[0.625rem] text-muted-foreground">
-                              Click to browse or search
-                            </span>
+                            {item.productId && (
+                              <span
+                                className={`text-[0.625rem] font-semibold px-2 py-0.5 rounded-full ${
+                                  availableStock > 0
+                                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                                    : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                                }`}
+                              >
+                                Stock: {availableStock} {selectedProd?.unit || 'units'}
+                              </span>
+                            )}
                           </div>
 
                           <div className="relative">
@@ -949,6 +920,22 @@ export function CreateInvoiceModal({
 
                         <div className="col-span-6 sm:col-span-2">
                           <label className="text-[0.6875rem] font-medium text-foreground block mb-1">
+                            Quantity ({selectedProd?.unit || 'units'}) *
+                          </label>
+                          <input
+                            type="number"
+                            min="0.01"
+                            step="any"
+                            required
+                            value={item.qty === 0 ? '' : item.qty}
+                            placeholder="1"
+                            onChange={(e) => handleQtyChange(idx, e.target.value)}
+                            className="w-full rounded-[0.5rem] border border-input bg-background px-3 py-2 text-[0.75rem] font-bold text-foreground focus:border-primary focus:outline-none"
+                          />
+                        </div>
+
+                        <div className="col-span-6 sm:col-span-2">
+                          <label className="text-[0.6875rem] font-medium text-foreground block mb-1">
                             Unit Price (Rs.) *
                           </label>
                           <input
@@ -978,7 +965,7 @@ export function CreateInvoiceModal({
                           />
                         </div>
 
-                        <div className="col-span-10 sm:col-span-2 text-right">
+                        <div className="col-span-4 sm:col-span-1 text-right">
                           <span className="text-[0.625rem] text-muted-foreground block mb-0.5">Line Total</span>
                           <span className="text-[0.875rem] font-bold text-foreground">
                             ₹{Math.max(0, lineSubtotal).toFixed(2)}
@@ -996,75 +983,6 @@ export function CreateInvoiceModal({
                             <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
-                      </div>
-
-                      {/* Stock / Batch Option Selector */}
-                      <div className="rounded-[0.75rem] border border-border bg-background/60 p-3 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5 text-[0.75rem] font-semibold text-foreground">
-                            <Layers className="h-3.5 w-3.5 text-primary" />
-                            <span>Available Stock Lots for this Product:</span>
-                          </div>
-                          <span
-                            className={`text-[0.6875rem] font-medium px-2 py-0.5 rounded-full ${
-                              !item.productId
-                                ? 'bg-muted text-muted-foreground border border-border'
-                                : totalAllocatedQty > 0
-                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
-                                : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
-                            }`}
-                          >
-                            {!item.productId
-                              ? 'No product selected'
-                              : `Total Selected: ${totalAllocatedQty} ${selectedProd?.unit || 'units'}`}
-                          </span>
-                        </div>
-
-                        {!item.productId ? (
-                          <div className="p-3 text-center text-[0.75rem] text-muted-foreground bg-muted/20 rounded-[0.5rem] border border-dashed border-border flex items-center justify-center gap-2">
-                            <Search className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span>Select a product above to view available stock lots.</span>
-                          </div>
-                        ) : item.options.length === 0 ? (
-                          <div className="p-3 text-center text-[0.75rem] text-amber-700 dark:text-amber-300 bg-amber-500/10 rounded-[0.5rem] border border-amber-500/20">
-                            ⚠️ No available stock found for this product.
-                          </div>
-                        ) : (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-1">
-                            {item.options.map((opt, optIdx) => (
-                              <div
-                                key={opt.stockLedgerId}
-                                className={`p-2.5 rounded-[0.625rem] border text-[0.75rem] flex items-center justify-between transition ${
-                                  opt.takeQty > 0
-                                    ? 'border-primary/40 bg-primary/5 text-foreground'
-                                    : 'border-border bg-muted/20 text-muted-foreground'
-                                }`}
-                              >
-                                <div>
-                                  <div className="font-semibold text-foreground">
-                                    {opt.batchNo ? `Batch: ${opt.batchNo}` : 'Standard Inventory'}
-                                  </div>
-                                  <div className="text-[0.6875rem] text-muted-foreground flex items-center gap-2 mt-0.5">
-                                    <span className="text-emerald-600 dark:text-emerald-400 font-medium">Available: {opt.availableQty} {selectedProd?.unit || 'units'}</span>
-                                  </div>
-                                </div>
-
-                                <div className="flex items-center gap-1.5">
-                                  <label className="text-[0.625rem] text-muted-foreground">Qty:</label>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    max={opt.availableQty}
-                                    value={opt.takeQty === 0 ? '' : opt.takeQty}
-                                    placeholder="0"
-                                    onChange={(e) => handleOptionQtyChange(idx, optIdx, e.target.value)}
-                                    className="w-16 rounded-[0.375rem] border border-input bg-background px-2 py-1 text-center font-bold text-foreground text-[0.75rem] focus:border-primary focus:outline-none"
-                                  />
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
                       </div>
                     </div>
                   );

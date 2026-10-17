@@ -100,25 +100,28 @@ export class PurchasesService {
 
       for (const item of calculatedItems) {
         let stock = await tx.stockLedger.findFirst({
-          where: {
-            productId: item.productId,
-            ...(item.warehouseId ? { warehouseId: item.warehouseId } : {}),
-            batchNo: item.batchNo ?? null,
-          },
+          where: { productId: item.productId },
+          orderBy: { updatedAt: 'desc' },
         });
 
         const itemQty = Number(item.qty);
 
         if (stock) {
-          await tx.$queryRawUnsafe(
+          const lockedRows = await tx.$queryRawUnsafe<
+            Array<{ id: string; quantity: string | number }>
+          >(
             `SELECT id, quantity FROM "StockLedger" WHERE id = $1 FOR UPDATE`,
             stock.id,
           );
-          const prevQty = Number(stock.quantity);
+          const prevQty = Number(lockedRows[0]?.quantity ?? stock.quantity);
           const newQty = prevQty + itemQty;
           stock = await tx.stockLedger.update({
             where: { id: stock.id },
-            data: { quantity: new Prisma.Decimal(newQty.toFixed(2)) },
+            data: {
+              quantity: {
+                increment: new Prisma.Decimal(itemQty.toFixed(2)),
+              },
+            },
           });
 
           await tx.auditLog.create({
@@ -130,7 +133,6 @@ export class PurchasesService {
               diff: {
                 purchaseNo,
                 productId: item.productId,
-                warehouseId: item.warehouseId || null,
                 qtyAdded: itemQty,
                 previousQuantity: prevQty,
                 newQuantity: newQty,
@@ -141,8 +143,8 @@ export class PurchasesService {
           stock = await tx.stockLedger.create({
             data: {
               productId: item.productId,
-              warehouseId: item.warehouseId || null,
-              batchNo: item.batchNo ?? null,
+              warehouseId: null,
+              batchNo: null,
               quantity: new Prisma.Decimal(itemQty.toFixed(2)),
             },
           });
@@ -156,7 +158,6 @@ export class PurchasesService {
               diff: {
                 purchaseNo,
                 productId: item.productId,
-                warehouseId: item.warehouseId || null,
                 qtyAdded: itemQty,
                 previousQuantity: 0,
                 newQuantity: itemQty,
@@ -167,8 +168,8 @@ export class PurchasesService {
 
         purchaseItemsData.push({
           productId: item.productId,
-          warehouseId: item.warehouseId || null,
-          batchNo: item.batchNo ?? null,
+          warehouseId: null,
+          batchNo: null,
           qty: new Prisma.Decimal(itemQty.toFixed(2)),
           unitPrice: new Prisma.Decimal(item.unitPrice.toFixed(2)),
           discount: new Prisma.Decimal(item.discount.toFixed(2)),
