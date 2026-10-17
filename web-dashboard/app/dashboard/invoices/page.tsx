@@ -19,6 +19,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { ThemedSelect } from '@/components/ui/themed-select';
+import { TablePagination } from '@/components/ui/table-pagination';
 
 import {
   Invoice,
@@ -51,7 +52,7 @@ export default function InvoicesPage() {
 
   // Filters
   const [search, setSearch] = useState('');
-  const [datePreset, setDatePreset] = useState<DatePreset>('ALL');
+  const [datePreset, setDatePreset] = useState<DatePreset>('TODAY');
   const [customFromDate, setCustomFromDate] = useState('');
   const [customToDate, setCustomToDate] = useState('');
   const [statusFilter, setStatusFilter] = useState<InvoiceStatusFilter>('ALL');
@@ -309,6 +310,21 @@ export default function InvoicesPage() {
     });
   }, [invoices, deferredSearch, datePreset, customFromDate, customToDate, statusFilter, modeFilter]);
 
+  // Pagination
+  const [pageSize, setPageSize] = useState(50);
+  const [currentPage, setCurrentPage] = useState(1);
+  const filterKey = `${deferredSearch}_${datePreset}_${customFromDate}_${customToDate}_${statusFilter}_${modeFilter}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
+    setCurrentPage(1);
+  }
+
+  const paginatedInvoices = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredInvoices.slice(start, start + pageSize);
+  }, [filteredInvoices, currentPage, pageSize]);
+
   const hasActiveFilters =
     search.trim() !== '' ||
     datePreset !== 'ALL' ||
@@ -520,7 +536,7 @@ export default function InvoicesPage() {
                   </td>
                 </tr>
               ) : (
-                filteredInvoices.map((inv) => (
+                paginatedInvoices.map((inv) => (
                   <tr
                     key={inv.id}
                     onClick={() => handleOpenInvoiceView(inv)}
@@ -660,6 +676,13 @@ export default function InvoicesPage() {
             </tbody>
           </table>
         </div>
+        <TablePagination
+          currentPage={currentPage}
+          totalItems={filteredInvoices.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+        />
       </div>
 
       {/* Modals & Drawers */}

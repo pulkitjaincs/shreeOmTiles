@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -137,6 +138,22 @@ export function PurchasesView({
     );
   }, [purchases, deferredSearch]);
 
+  // 50-item Pagination
+  const PAGE_SIZE = 50;
+  const [currentPage, setCurrentPage] = useState(1);
+  const [prevSearch, setPrevSearch] = useState(deferredSearch);
+  if (deferredSearch !== prevSearch) {
+    setPrevSearch(deferredSearch);
+    setCurrentPage(1);
+  }
+
+  const totalPages = Math.max(1, Math.ceil(filteredPurchases.length / PAGE_SIZE));
+
+  const paginatedPurchases = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredPurchases.slice(start, start + PAGE_SIZE);
+  }, [filteredPurchases, currentPage]);
+
   const totalBilled = useMemo(
     () => purchases.reduce((sum, p) => sum + Number(p.total || 0), 0),
     [purchases],
@@ -248,7 +265,7 @@ export function PurchasesView({
         ) : filteredPurchases.length === 0 ? (
           <Text style={styles.emptyText}>No inward purchases found.</Text>
         ) : (
-          filteredPurchases.map((item) => {
+          paginatedPurchases.map((item) => {
             const dueAmt = getPurchaseDueAmount(item);
             const billNo = item.vendorBillNo || item.supplierInvoiceNo;
             return (
@@ -301,6 +318,34 @@ export function PurchasesView({
               </Card>
             );
           })
+        )}
+
+        {totalPages > 1 && (
+          <View style={styles.paginationRow}>
+            <TouchableOpacity
+              style={[styles.pageBtn, currentPage === 1 && styles.pageBtnDisabled]}
+              disabled={currentPage === 1}
+              onPress={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            >
+              <Text style={[styles.pageBtnText, currentPage === 1 && styles.pageBtnTextDisabled]}>
+                Previous
+              </Text>
+            </TouchableOpacity>
+
+            <Text style={styles.paginationInfo}>
+              Page {currentPage} of {totalPages} ({filteredPurchases.length} total)
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.pageBtn, currentPage >= totalPages && styles.pageBtnDisabled]}
+              disabled={currentPage >= totalPages}
+              onPress={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            >
+              <Text style={[styles.pageBtnText, currentPage >= totalPages && styles.pageBtnTextDisabled]}>
+                Next
+              </Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
 
@@ -446,5 +491,37 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
     fontSize: 12,
     marginTop: 24,
+  },
+  paginationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    marginTop: 8,
+  },
+  pageBtn: {
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  pageBtnDisabled: {
+    opacity: 0.35,
+  },
+  pageBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  pageBtnTextDisabled: {
+    color: Colors.dark.textTertiary,
+  },
+  paginationInfo: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: Colors.dark.textSecondary,
   },
 });

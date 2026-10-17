@@ -19,6 +19,7 @@ import { Product, Warehouse } from '@/components/products/types';
 
 import { ProductFormModal } from '@/components/products/product-form-modal';
 import { DeleteProductModal, ZeroOutStockModal } from '@/components/products/product-danger-modals';
+import { TablePagination } from '@/components/ui/table-pagination';
 
 export default function ProductsPage() {
   const { user } = useAuth();
@@ -84,6 +85,18 @@ export default function ProductsPage() {
       ),
     [products, deferredSearch],
   );
+  const [pageSize, setPageSize] = useState(50);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [prevFilterKey, setPrevFilterKey] = useState(deferredSearch);
+  if (deferredSearch !== prevFilterKey) {
+    setPrevFilterKey(deferredSearch);
+    setCurrentPage(1);
+  }
+
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, currentPage, pageSize]);
 
   return (
     <div className="space-y-6">
@@ -165,7 +178,7 @@ export default function ProductsPage() {
                   </td>
                 </tr>
               ) : (
-                filtered.map((prod) => {
+                paginatedProducts.map((prod) => {
                   const totalStock = prod.availableQuantity ?? prod.totalStock ?? prod.stockLedgers?.reduce((sum, s) => sum + s.quantity, 0) ?? 0;
                   const threshold = prod.minStockAlert ?? 10;
                   const isLowStock = totalStock <= threshold;
@@ -297,6 +310,13 @@ export default function ProductsPage() {
             </tbody>
           </table>
         </div>
+        <TablePagination
+          currentPage={currentPage}
+          totalItems={filtered.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+        />
       </div>
 
       {/* Add / Edit Product Modal */}

@@ -18,6 +18,7 @@ import { Party } from '@/components/parties/types';
 import { PartyFormModal } from '@/components/parties/party-form-modal';
 import { DeletePartyModal } from '@/components/parties/delete-party-modal';
 import { PartyStatementDrawer } from '@/components/parties/party-statement-drawer';
+import { TablePagination } from '@/components/ui/table-pagination';
 
 export default function PartiesPage() {
   const { user } = useAuth();
@@ -138,6 +139,20 @@ export default function PartiesPage() {
       return true;
     });
   }, [parties, deferredSearch, regFilter, dueFilter, partyMeta]);
+
+  const [pageSize, setPageSize] = useState(50);
+  const [currentPage, setCurrentPage] = useState(1);
+  const filterKey = `${deferredSearch}_${regFilter}_${dueFilter}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
+    setCurrentPage(1);
+  }
+
+  const paginatedParties = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, currentPage, pageSize]);
 
   // Ageing Buckets Calculation (Only un-settled RECEIVABLES across all customers)
   // Runs once per data load, not on every search/filter change
@@ -366,7 +381,7 @@ export default function PartiesPage() {
                   </td>
                 </tr>
               ) : (
-                filtered.map((party) => {
+                paginatedParties.map((party) => {
                   const m = partyMeta.get(party.id);
                   const totalDue = m?.due ?? 0;
                   const partyPayable = m?.payable ?? 0;
@@ -512,6 +527,13 @@ export default function PartiesPage() {
             </tbody>
           </table>
         </div>
+        <TablePagination
+          currentPage={currentPage}
+          totalItems={filtered.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+        />
       </div>
 
       {/* Customer 360° View Modal / Drawer */}

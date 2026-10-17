@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  TouchableOpacity,
 } from 'react-native';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -92,6 +93,22 @@ export function QuotationsView() {
         item.party?.phone?.includes(q),
     );
   }, [quotations, deferredSearch]);
+
+  // 50-item Pagination
+  const PAGE_SIZE = 50;
+  const [currentPage, setCurrentPage] = useState(1);
+  const [prevSearch, setPrevSearch] = useState(deferredSearch);
+  if (deferredSearch !== prevSearch) {
+    setPrevSearch(deferredSearch);
+    setCurrentPage(1);
+  }
+
+  const totalPages = Math.max(1, Math.ceil(filteredQuotations.length / PAGE_SIZE));
+
+  const paginatedQuotations = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredQuotations.slice(start, start + PAGE_SIZE);
+  }, [filteredQuotations, currentPage]);
 
   const handleConvert = (quote: any) => {
     Alert.alert(
@@ -195,7 +212,7 @@ export function QuotationsView() {
             ) : null}
           </View>
         ) : (
-          filteredQuotations.map((item) => (
+          paginatedQuotations.map((item) => (
             <Card key={item.id} style={styles.quoteCard}>
               <View style={styles.quoteTop}>
                 <View style={{ flex: 1 }}>
@@ -248,6 +265,34 @@ export function QuotationsView() {
               </View>
             </Card>
           ))
+        )}
+
+        {totalPages > 1 && (
+          <View style={styles.paginationRow}>
+            <TouchableOpacity
+              style={[styles.pageBtn, currentPage === 1 && styles.pageBtnDisabled]}
+              disabled={currentPage === 1}
+              onPress={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            >
+              <Text style={[styles.pageBtnText, currentPage === 1 && styles.pageBtnTextDisabled]}>
+                Previous
+              </Text>
+            </TouchableOpacity>
+
+            <Text style={styles.paginationInfo}>
+              Page {currentPage} of {totalPages} ({filteredQuotations.length} total)
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.pageBtn, currentPage >= totalPages && styles.pageBtnDisabled]}
+              disabled={currentPage >= totalPages}
+              onPress={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            >
+              <Text style={[styles.pageBtnText, currentPage >= totalPages && styles.pageBtnTextDisabled]}>
+                Next
+              </Text>
+            </TouchableOpacity>
+          </View>
         )}
       </View>
 
@@ -390,5 +435,37 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: Colors.dark.textSecondary,
     fontSize: 12.5,
+  },
+  paginationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    marginTop: 8,
+  },
+  pageBtn: {
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  pageBtnDisabled: {
+    opacity: 0.35,
+  },
+  pageBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  pageBtnTextDisabled: {
+    color: Colors.dark.textTertiary,
+  },
+  paginationInfo: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: Colors.dark.textSecondary,
   },
 });

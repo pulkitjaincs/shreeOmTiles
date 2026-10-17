@@ -56,7 +56,7 @@ export default function InvoicesScreen() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [modeFilter, setModeFilter] = useState('ALL');
-  const [dateFilter, setDateFilter] = useState('ALL');
+  const [dateFilter, setDateFilter] = useState('TODAY');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 

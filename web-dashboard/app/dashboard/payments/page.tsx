@@ -30,6 +30,7 @@ import {
 } from '@/components/payments/types';
 import { SettlementModal } from '@/components/payments/settlement-modal';
 import { CreditLedgerModal } from '@/components/payments/credit-ledger-modal';
+import { TablePagination } from '@/components/ui/table-pagination';
 
 export interface DayBookResponse {
   date: string;
@@ -112,7 +113,7 @@ export default function TransactionsPage() {
   const [selectedDate, setSelectedDate] = useState(() => {
     return new Date().toISOString().slice(0, 10);
   });
-  const [dateFilterMode, setDateFilterMode] = useState<'all' | 'specific'>('all');
+  const [dateFilterMode, setDateFilterMode] = useState<'all' | 'specific'>('specific');
   const [dayBookData, setDayBookData] = useState<DayBookResponse | null>(null);
   const [dayBookLoading, setDayBookLoading] = useState(false);
 
@@ -470,6 +471,45 @@ export default function TransactionsPage() {
       return partyName.toLowerCase().includes(q) || invNo.toLowerCase().includes(q) || notes.toLowerCase().includes(q);
     });
   }, [creditLedgers, deferredSearch]);
+
+  // Pagination
+  const [pageSize, setPageSize] = useState(50);
+  const [currentPage, setCurrentPage] = useState(1);
+  const filterKey = `${activeTab}_${deferredSearch}_${dateFilterMode}_${selectedDate}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
+    setCurrentPage(1);
+  }
+
+  const filteredInflows = useMemo(() => {
+    return filteredPayments.filter((p) => p.status === 'CONFIRMED');
+  }, [filteredPayments]);
+
+  const paginatedDues = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredDues.slice(start, start + pageSize);
+  }, [filteredDues, currentPage, pageSize]);
+
+  const paginatedPayables = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredPayables.slice(start, start + pageSize);
+  }, [filteredPayables, currentPage, pageSize]);
+
+  const paginatedPayments = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredPayments.slice(start, start + pageSize);
+  }, [filteredPayments, currentPage, pageSize]);
+
+  const paginatedInflows = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredInflows.slice(start, start + pageSize);
+  }, [filteredInflows, currentPage, pageSize]);
+
+  const paginatedCredits = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredCredits.slice(start, start + pageSize);
+  }, [filteredCredits, currentPage, pageSize]);
 
   return (
     <div className="space-y-6">
@@ -967,7 +1007,7 @@ export default function TransactionsPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredDues.map((item) => (
+                  paginatedDues.map((item) => (
                     <tr key={item.id} className="hover:bg-muted/30 transition-colors group">
                       <td className="py-3.5 px-4 font-medium text-foreground">
                         <div className="flex items-center gap-2.5">
@@ -1024,6 +1064,13 @@ export default function TransactionsPage() {
               </tbody>
             </table>
           </div>
+          <TablePagination
+            currentPage={currentPage}
+            totalItems={filteredDues.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
         </div>
       )}
 
@@ -1078,7 +1125,7 @@ export default function TransactionsPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredPayables.map((item) => (
+                  paginatedPayables.map((item) => (
                     <tr key={item.id} className="hover:bg-muted/30 transition-colors group">
                       <td className="py-3.5 px-4 font-medium text-foreground">
                         <div className="flex items-center gap-2.5">
@@ -1135,6 +1182,13 @@ export default function TransactionsPage() {
               </tbody>
             </table>
           </div>
+          <TablePagination
+            currentPage={currentPage}
+            totalItems={filteredPayables.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
         </div>
       )}
 
@@ -1169,7 +1223,7 @@ export default function TransactionsPage() {
                     </td>
                   </tr>
                 ) : (
-                  (activeTab === 'inflows' ? filteredPayments.filter((p) => p.status === 'CONFIRMED') : filteredPayments).map(
+                  (activeTab === 'inflows' ? paginatedInflows : paginatedPayments).map(
                     (payment) => {
                       const partyName = payment.invoice?.party?.name || payment.party?.name || 'Walk-in Customer';
                       const partyPhone = payment.invoice?.party?.phone || payment.party?.phone || '';
@@ -1288,6 +1342,13 @@ export default function TransactionsPage() {
               </tbody>
             </table>
           </div>
+          <TablePagination
+            currentPage={currentPage}
+            totalItems={activeTab === 'inflows' ? filteredInflows.length : filteredPayments.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
         </div>
       )}
 
@@ -1317,7 +1378,7 @@ export default function TransactionsPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredCredits.map((cl) => {
+                  paginatedCredits.map((cl) => {
                     const isPayable = cl.type === 'PAYABLE';
                     return (
                       <tr key={cl.id} className="hover:bg-muted/30 transition-colors">
@@ -1431,6 +1492,13 @@ export default function TransactionsPage() {
               </tbody>
             </table>
           </div>
+          <TablePagination
+            currentPage={currentPage}
+            totalItems={filteredCredits.length}
+            pageSize={pageSize}
+            onPageChange={setCurrentPage}
+            onPageSizeChange={setPageSize}
+          />
         </div>
       )}
 

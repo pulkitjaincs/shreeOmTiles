@@ -36,6 +36,7 @@ import { PushDeliveryModal } from '@/components/deliveries/push-delivery-modal';
 import { PushSuccessModal } from '@/components/deliveries/push-success-modal';
 import { AddTripModal } from '@/components/deliveries/add-trip-modal';
 import { formatINR, cleanPhoneNumber, formatDate } from '@/lib/formatters';
+import { TablePagination } from '@/components/ui/table-pagination';
 
 export default function DeliveriesPage() {
   const { user } = useAuth();
@@ -167,6 +168,20 @@ export default function DeliveriesPage() {
       return true;
     });
   }, [deliveries, activeFilter, searchQuery]);
+
+  const [pageSize, setPageSize] = useState(50);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [prevFilterKey, setPrevFilterKey] = useState(`${searchQuery}_${activeFilter}`);
+  const currentFilterKey = `${searchQuery}_${activeFilter}`;
+  if (currentFilterKey !== prevFilterKey) {
+    setPrevFilterKey(currentFilterKey);
+    setCurrentPage(1);
+  }
+
+  const paginatedDeliveries = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredDeliveries.slice(start, start + pageSize);
+  }, [filteredDeliveries, currentPage, pageSize]);
 
   const handleStatusUpdate = async (id: string, status: string) => {
     try {
@@ -517,7 +532,7 @@ ${itemsList}
                   </td>
                 </tr>
               ) : (
-                filteredDeliveries.map((delivery) => {
+                paginatedDeliveries.map((delivery) => {
                   const totalTripCost =
                     delivery.trips?.reduce((sum, t) => sum + Number(t.cost || 0), 0) || 0;
                   const isDriverAssigned = Boolean(delivery.driverId);
@@ -860,6 +875,13 @@ ${itemsList}
             </tbody>
           </table>
         </div>
+        <TablePagination
+          currentPage={currentPage}
+          totalItems={filteredDeliveries.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+        />
       </div>
 
       {/* Push Delivery Modal */}

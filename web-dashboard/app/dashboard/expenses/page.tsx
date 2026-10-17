@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
 import { cachedApiRequest } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { 
@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { CreateExpenseModal } from '@/components/expenses/create-expense-modal';
 import { formatINR, formatDate } from '@/lib/formatters';
+import { TablePagination } from '@/components/ui/table-pagination';
 
 interface ExpenseRecord {
   id: string;
@@ -96,11 +97,13 @@ export default function ExpensesPage() {
       .reduce((sum, e) => sum + Number(e.amount || 0), 0);
   }, [expenses]);
 
+  const deferredSearch = useDeferredValue(search);
+
   const filteredExpenses = useMemo(() => {
     return expenses.filter((e) => {
       if (categoryFilter !== 'ALL' && e.category !== categoryFilter) return false;
-      if (search.trim()) {
-        const q = search.toLowerCase().trim();
+      if (deferredSearch.trim()) {
+        const q = deferredSearch.toLowerCase().trim();
         const cat = (CATEGORY_LABELS[e.category] || e.category).toLowerCase();
         const paidTo = (e.paidTo || '').toLowerCase();
         const notes = (e.notes || '').toLowerCase();
@@ -108,7 +111,21 @@ export default function ExpensesPage() {
       }
       return true;
     });
-  }, [expenses, search, categoryFilter]);
+  }, [expenses, deferredSearch, categoryFilter]);
+
+  const [pageSize, setPageSize] = useState(50);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [prevFilterKey, setPrevFilterKey] = useState(`${deferredSearch}_${categoryFilter}`);
+  const currentFilterKey = `${deferredSearch}_${categoryFilter}`;
+  if (currentFilterKey !== prevFilterKey) {
+    setPrevFilterKey(currentFilterKey);
+    setCurrentPage(1);
+  }
+
+  const paginatedExpenses = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredExpenses.slice(start, start + pageSize);
+  }, [filteredExpenses, currentPage, pageSize]);
 
   return (
     <div className="space-y-6">
@@ -254,7 +271,7 @@ export default function ExpensesPage() {
                   </td>
                 </tr>
               ) : (
-                filteredExpenses.map((exp) => (
+                paginatedExpenses.map((exp) => (
                   <tr key={exp.id} className="hover:bg-muted/30 transition-colors">
                     <td className="py-3 px-4">
                       <span className="inline-flex items-center gap-1.5 font-semibold text-foreground">
@@ -288,6 +305,13 @@ export default function ExpensesPage() {
             </tbody>
           </table>
         </div>
+        <TablePagination
+          currentPage={currentPage}
+          totalItems={filteredExpenses.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+        />
       </div>
 
       {/* Create Modal */}

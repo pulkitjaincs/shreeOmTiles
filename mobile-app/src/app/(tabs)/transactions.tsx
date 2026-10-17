@@ -111,9 +111,7 @@ export default function TransactionsScreen() {
     return d.toISOString().slice(0, 10);
   });
   const [selectedDate, setSelectedDate] = useState(() => todayStr);
-  const [dateFilterMode, setDateFilterMode] = useState<'all' | 'specific'>(
-    params.tab === 'daybook' ? 'specific' : 'all',
-  );
+  const [dateFilterMode, setDateFilterMode] = useState<'all' | 'specific'>('specific');
 
   useEffect(() => {
     if (params.tab === 'daybook') {

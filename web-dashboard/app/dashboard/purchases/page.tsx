@@ -16,6 +16,7 @@ import { Product, Warehouse, Party } from '@/components/invoices/types';
 import { CreatePurchaseModal } from '@/components/purchases/create-purchase-modal';
 import { formatINR, formatDate } from '@/lib/formatters';
 import { useAuth } from '@/components/auth-provider';
+import { TablePagination } from '@/components/ui/table-pagination';
 
 interface PurchaseItem {
   id: string;
@@ -159,6 +160,19 @@ export default function PurchasesPage() {
       return pNo.includes(q) || vBill.includes(q) || sName.includes(q) || sPhone.includes(q);
     });
   }, [purchases, deferredSearch]);
+
+  const [pageSize, setPageSize] = useState(50);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [prevFilterKey, setPrevFilterKey] = useState(deferredSearch);
+  if (deferredSearch !== prevFilterKey) {
+    setPrevFilterKey(deferredSearch);
+    setCurrentPage(1);
+  }
+
+  const paginatedPurchases = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredPurchases.slice(start, start + pageSize);
+  }, [filteredPurchases, currentPage, pageSize]);
 
   const handleCreateDebitNote = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -356,7 +370,7 @@ export default function PurchasesPage() {
                   </td>
                 </tr>
               ) : (
-                filteredPurchases.map((p) => {
+                paginatedPurchases.map((p) => {
                   const debitTotal =
                     p.debitNotes?.reduce((s, dn) => s + Number(dn.amount || 0), 0) || 0;
 
@@ -434,6 +448,13 @@ export default function PurchasesPage() {
             </tbody>
           </table>
         </div>
+        <TablePagination
+          currentPage={currentPage}
+          totalItems={filteredPurchases.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+        />
       </div>
 
       {/* Create Inward Purchase Modal */}

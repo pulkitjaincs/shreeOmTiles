@@ -18,6 +18,7 @@ import {
 import { Product, StockItem } from '@/components/warehouses/types';
 import { InwardStockModal } from '@/components/warehouses/inward-stock-modal';
 import { StockAdjustModal } from '@/components/warehouses/stock-adjust-modal';
+import { TablePagination } from '@/components/ui/table-pagination';
 
 export default function WarehousesPage() {
   const { user } = useAuth();
@@ -68,12 +69,17 @@ export default function WarehousesPage() {
   }, []);
 
   useEffect(() => {
-    loadData();
+    const timer = setTimeout(() => {
+      void loadData();
+    }, 0);
     const handleRefresh = () => {
       loadData(true);
     };
     window.addEventListener('app:refresh-active-page', handleRefresh);
-    return () => window.removeEventListener('app:refresh-active-page', handleRefresh);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('app:refresh-active-page', handleRefresh);
+    };
   }, [loadData]);
 
   // Open Inward Modal
@@ -122,6 +128,21 @@ export default function WarehousesPage() {
       return hasStock && matchesCat && matchesSearch;
     });
   }, [stocks, selectedCategory, search]);
+
+  // Pagination
+  const [pageSize, setPageSize] = useState(50);
+  const [currentPage, setCurrentPage] = useState(1);
+  const filterKey = `${search}_${selectedCategory}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
+    setCurrentPage(1);
+  }
+
+  const paginatedStocks = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredStocks.slice(start, start + pageSize);
+  }, [filteredStocks, currentPage, pageSize]);
 
   return (
     <div className="space-y-6">
@@ -285,7 +306,7 @@ export default function WarehousesPage() {
                   </td>
                 </tr>
               ) : (
-                filteredStocks.map((stock) => (
+                paginatedStocks.map((stock) => (
                   <tr key={stock.id} className="hover:bg-muted/30 transition">
                     <td className="py-3.5 px-4 font-medium text-foreground">
                       <div className="font-semibold text-foreground">{stock.product?.name}</div>
@@ -349,6 +370,13 @@ export default function WarehousesPage() {
             </tbody>
           </table>
         </div>
+        <TablePagination
+          currentPage={currentPage}
+          totalItems={filteredStocks.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+        />
       </div>
 
       {/* Modals */}

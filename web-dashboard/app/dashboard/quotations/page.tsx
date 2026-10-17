@@ -18,6 +18,7 @@ import { Product, Party } from '@/components/invoices/types';
 import { CreateQuotationModal } from '@/components/quotations/create-quotation-modal';
 import { MultiPaymentSplitSelector, SplitRow } from '@/components/shared/multi-payment-split-selector';
 import { formatINR, formatDate } from '@/lib/formatters';
+import { TablePagination } from '@/components/ui/table-pagination';
 
 interface QuotationItem {
   id: string;
@@ -143,6 +144,20 @@ export default function QuotationsPage() {
       return true;
     });
   }, [quotations, deferredSearch, statusFilter]);
+
+  const [pageSize, setPageSize] = useState(50);
+  const [currentPage, setCurrentPage] = useState(1);
+  const filterKey = `${deferredSearch}_${statusFilter}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
+    setCurrentPage(1);
+  }
+
+  const paginatedQuotes = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredQuotes.slice(start, start + pageSize);
+  }, [filteredQuotes, currentPage, pageSize]);
 
   const handleDownloadPdf = async (quote: QuotationRecord) => {
     setDownloadingPdfId(quote.id);
@@ -302,7 +317,7 @@ export default function QuotationsPage() {
                   </td>
                 </tr>
               ) : (
-                filteredQuotes.map((q) => {
+                paginatedQuotes.map((q) => {
                   const customerDisplayName = q.party?.name || q.customerName || 'Walk-in Prospect';
                   const customerPhone = q.party?.phone || q.customerPhone || '';
                   const isConverted = q.status === 'CONVERTED';
@@ -391,6 +406,13 @@ export default function QuotationsPage() {
             </tbody>
           </table>
         </div>
+        <TablePagination
+          currentPage={currentPage}
+          totalItems={filteredQuotes.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+        />
       </div>
 
       {/* Create Modal */}
