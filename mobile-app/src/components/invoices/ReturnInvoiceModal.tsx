@@ -33,7 +33,6 @@ interface StandaloneItem {
   customItemName?: string;
   qty: number;
   unitPrice: number;
-  taxRate: number;
 }
 
 export function ReturnInvoiceModal({
@@ -70,6 +69,7 @@ export function ReturnInvoiceModal({
   const [standalonePartyId, setStandalonePartyId] = useState('');
   const [standaloneReason, setStandaloneReason] = useState('Legacy / Standalone Return');
   const [standaloneMode, setStandaloneMode] = useState<'CASH' | 'UPI' | 'CARD' | 'CREDIT'>('CASH');
+  const [standaloneTaxRate, setStandaloneTaxRate] = useState(18);
   const [standaloneItems, setStandaloneItems] = useState<StandaloneItem[]>([
     {
       id: 'item-1',
@@ -77,7 +77,6 @@ export function ReturnInvoiceModal({
       customItemName: 'Other Returned Goods',
       qty: 1,
       unitPrice: 0,
-      taxRate: 18,
     },
   ]);
 
@@ -232,6 +231,10 @@ export function ReturnInvoiceModal({
         setError('Please provide a name for custom items.');
         return;
       }
+      if (!it.isCustom && !it.productId) {
+        setError('Please select a valid catalog product.');
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -249,7 +252,7 @@ export function ReturnInvoiceModal({
           customItemName: it.isCustom ? it.customItemName : undefined,
           qty: it.qty,
           unitPrice: it.unitPrice,
-          taxRate: it.taxRate,
+          taxRate: standaloneTaxRate,
         })),
       };
 
@@ -275,7 +278,6 @@ export function ReturnInvoiceModal({
           customItemName: 'Other Returned Goods',
           qty: 1,
           unitPrice: 0,
-          taxRate: 18,
         },
       ]);
     } catch (err: any) {
@@ -289,12 +291,12 @@ export function ReturnInvoiceModal({
     return standaloneItems.reduce(
       (acc, it) => {
         const sub = (it.qty || 0) * (it.unitPrice || 0);
-        const tax = (sub * (it.taxRate || 0)) / 100;
+        const tax = (sub * standaloneTaxRate) / 100;
         return { subtotal: acc.subtotal + sub, tax: acc.tax + tax, total: acc.total + sub + tax };
       },
       { subtotal: 0, tax: 0, total: 0 },
     );
-  }, [standaloneItems]);
+  }, [standaloneItems, standaloneTaxRate]);
 
   const close = () => {
     setActiveInvoice(null);
@@ -553,16 +555,45 @@ export function ReturnInvoiceModal({
                   ) : null}
                 </View>
 
-                <Input
-                  label="Description / Goods Name"
-                  placeholder="e.g. Mosaic Wall Tiles"
-                  value={it.customItemName}
-                  onChangeText={(val) =>
+                <Select
+                  label="Item"
+                  value={it.isCustom ? '__custom__' : it.productId || ''}
+                  placeholder="Select product or custom item"
+                  searchable
+                  searchPlaceholder="Search product name..."
+                  options={[
+                    ...products.map((product) => ({
+                      value: product.id,
+                      label: product.name,
+                      subLabel: product.unit ? `Unit: ${product.unit}` : undefined,
+                    })),
+                    { value: '__custom__', label: 'Custom item' },
+                  ]}
+                  onChange={(value) =>
                     setStandaloneItems((prev) =>
-                      prev.map((item) => (item.id === it.id ? { ...item, customItemName: val } : item)),
+                      prev.map((item) =>
+                        item.id === it.id
+                          ? value === '__custom__'
+                            ? { ...item, isCustom: true, productId: undefined }
+                            : { ...item, isCustom: false, productId: value, customItemName: undefined }
+                          : item,
+                      ),
                     )
                   }
                 />
+
+                {it.isCustom ? (
+                  <Input
+                    label="Description / Goods Name"
+                    placeholder="e.g. Mosaic Wall Tiles"
+                    value={it.customItemName}
+                    onChangeText={(val) =>
+                      setStandaloneItems((prev) =>
+                        prev.map((item) => (item.id === it.id ? { ...item, customItemName: val } : item)),
+                      )
+                    }
+                  />
+                ) : null}
 
                 <View style={styles.rowInputs}>
                   <View style={{ flex: 1 }}>
@@ -596,21 +627,6 @@ export function ReturnInvoiceModal({
                     />
                   </View>
                 </View>
-                <Input
-                  label="GST Rate (%)"
-                  placeholder="18"
-                  value={String(it.taxRate)}
-                  onChangeText={(value) =>
-                    setStandaloneItems((prev) =>
-                      prev.map((item) =>
-                        item.id === it.id
-                          ? { ...item, taxRate: Math.max(0, parseFloat(value) || 0) }
-                          : item,
-                      ),
-                    )
-                  }
-                  keyboardType="numeric"
-                />
               </Card>
             ))}
 
@@ -625,7 +641,6 @@ export function ReturnInvoiceModal({
                     customItemName: 'Other Returned Goods',
                     qty: 1,
                     unitPrice: 0,
-                    taxRate: 18,
                   },
                 ])
               }
@@ -635,7 +650,25 @@ export function ReturnInvoiceModal({
               <Text style={styles.addStandaloneItemDashedBtnText}>Add Product / Item</Text>
             </TouchableOpacity>
 
+            <Input
+              label="GST Rate (%)"
+              placeholder="Enter GST rate"
+              value={String(standaloneTaxRate)}
+              onChangeText={(value) =>
+                setStandaloneTaxRate(Math.max(0, parseFloat(value) || 0))
+              }
+              keyboardType="numeric"
+            />
+
             <Card style={styles.summaryCard}>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Subtotal</Text>
+                <Text style={styles.summaryVal}>{formatINR(standaloneTotals.subtotal)}</Text>
+              </View>
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>GST ({standaloneTaxRate}%)</Text>
+                <Text style={styles.summaryVal}>{formatINR(standaloneTotals.tax)}</Text>
+              </View>
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Total Refund Amount</Text>
                 <Text style={styles.summaryVal}>{formatINR(standaloneTotals.total)}</Text>

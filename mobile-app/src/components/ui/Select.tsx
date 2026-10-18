@@ -360,7 +360,7 @@ export function Select({
       >
         <Pressable style={styles.pickerBackdrop} onPress={() => setIsOpen(false)}>
           <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={[styles.pickerAlign, { paddingBottom: Math.max(insets.bottom, 12) }]}
           >
             <Pressable style={styles.pickerSheet} onPress={(event) => event.stopPropagation()}>

@@ -37,6 +37,7 @@ import { InvoiceDetailsDrawer } from '@/components/invoices/invoice-details-draw
 import { PartyStatementDrawer } from '@/components/parties/party-statement-drawer';
 import type { Party as PartyStatementType } from '@/components/parties/types';
 import { Invoice } from '@/components/invoices/types';
+import { useAuth } from '@/components/auth-provider';
 
 export interface DayBookResponse {
   date: string;
@@ -99,6 +100,8 @@ interface SettlementConfig {
 }
 
 export default function TransactionsPage() {
+  const { user } = useAuth();
+  const isSalesman = user?.role === 'SALESMAN';
   // Data states
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [creditLedgers, setCreditLedgers] = useState<CreditLedgerRecord[]>([]);
@@ -124,6 +127,7 @@ export default function TransactionsPage() {
   const [dateFilterMode, setDateFilterMode] = useState<'all' | 'specific'>('specific');
   const [dayBookData, setDayBookData] = useState<DayBookResponse | null>(null);
   const [dayBookLoading, setDayBookLoading] = useState(false);
+  const [ownedInvoiceIds, setOwnedInvoiceIds] = useState<Set<string> | null>(null);
 
   // Modal states
   const [settlementConfig, setSettlementConfig] = useState<SettlementConfig>({
@@ -249,7 +253,7 @@ export default function TransactionsPage() {
   // Load All Data
   const loadData = useCallback(async (force = false) => {
     try {
-      const [paymentsData, statsData, pendingData, creditsData, partiesData] = await Promise.all([
+      const [paymentsData, statsData, pendingData, creditsData, partiesData, invoicesData] = await Promise.all([
         cachedApiRequest<PaymentRecord[]>('/payments', {
           forceRefresh: force,
           onRevalidate: (fresh) => setPayments(fresh),
@@ -283,19 +287,36 @@ export default function TransactionsPage() {
           forceRefresh: force,
           onRevalidate: (fresh) => setParties(fresh),
         }).catch(() => []),
+        user?.role === 'SALESMAN'
+          ? cachedApiRequest<Invoice[]>('/invoices', { forceRefresh: force }).catch(() => [])
+          : Promise.resolve(null),
       ]);
 
-      setPayments(paymentsData);
+      const ownedIds =
+        user?.role === 'SALESMAN'
+          ? new Set((invoicesData || []).map((invoice) => invoice.id))
+          : null;
+      setOwnedInvoiceIds(ownedIds);
+      setPayments(
+        ownedIds === null
+          ? paymentsData
+          : paymentsData.filter((payment) => Boolean(payment.invoiceId && ownedIds.has(payment.invoiceId))),
+      );
       setStats(statsData);
       setCreditLedgers(creditsData);
       setParties(partiesData);
-      setPendingItems(formatPendingList(pendingData));
+      const formattedPending = formatPendingList(pendingData);
+      setPendingItems(
+        ownedIds === null
+          ? formattedPending
+          : formattedPending.filter((item) => !item.isCreditLedger && ownedIds.has(item.id)),
+      );
     } catch (err) {
       console.error('Failed to load transactions data:', err);
     } finally {
       setLoading(false);
     }
-  }, [formatPendingList]);
+  }, [formatPendingList, user]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -326,7 +347,7 @@ export default function TransactionsPage() {
 
   useEffect(() => {
     let timer: NodeJS.Timeout | null = null;
-    if (activeTab === 'daybook' || dateFilterMode === 'specific') {
+    if (!isSalesman && (activeTab === 'daybook' || dateFilterMode === 'specific')) {
       timer = setTimeout(() => {
         void fetchDayBook(selectedDate);
       }, 0);
@@ -334,7 +355,7 @@ export default function TransactionsPage() {
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, [selectedDate, activeTab, dateFilterMode, fetchDayBook]);
+  }, [selectedDate, activeTab, dateFilterMode, fetchDayBook, isSalesman]);
 
   // Support direct redirect / link: /dashboard/payments?tab=daybook
   useEffect(() => {
@@ -432,6 +453,7 @@ export default function TransactionsPage() {
   // Open Modal directly from a Pending Row
   const handleOpenActionForPending = (item: PendingItem) => {
     const isPayable = item.creditType === 'PAYABLE';
+    if (isSalesman && isPayable) return;
     setSettlementConfig({
       isOpen: true,
       direction: isPayable ? 'PAY' : 'COLLECT',
@@ -459,6 +481,7 @@ export default function TransactionsPage() {
 
   // Open Pay Modal from Header Button (Store paying party/vendor)
   const handleOpenGeneralPay = () => {
+    if (isSalesman) return;
     setSettlementConfig({
       isOpen: true,
       direction: 'PAY',
@@ -516,7 +539,9 @@ export default function TransactionsPage() {
   }, [storePayables, deferredSearch]);
 
   const filteredPayments = useMemo(() => {
-    let base = payments;
+    let base = ownedInvoiceIds
+      ? payments.filter((payment) => Boolean(payment.invoiceId && ownedInvoiceIds.has(payment.invoiceId)))
+      : payments;
     if (dateFilterMode === 'specific' && selectedDate) {
       base = base.filter((p) => {
         const pDate = p.paidAt || p.createdAt;
@@ -531,18 +556,21 @@ export default function TransactionsPage() {
       const utr = p.upiUtr || '';
       return partyName.toLowerCase().includes(q) || invNo.toLowerCase().includes(q) || utr.toLowerCase().includes(q);
     });
-  }, [payments, dateFilterMode, selectedDate, deferredSearch]);
+  }, [payments, dateFilterMode, selectedDate, deferredSearch, ownedInvoiceIds]);
 
   const filteredCredits = useMemo(() => {
     const q = deferredSearch.toLowerCase().trim();
-    if (!q) return creditLedgers;
-    return creditLedgers.filter((cl) => {
+    const visibleCredits = ownedInvoiceIds
+      ? creditLedgers.filter((cl) => Boolean(cl.invoiceId && ownedInvoiceIds.has(cl.invoiceId)))
+      : creditLedgers;
+    if (!q) return visibleCredits;
+    return visibleCredits.filter((cl) => {
       const partyName = cl.party?.name || '';
       const invNo = cl.invoice?.invoiceNo || '';
       const notes = cl.notes || '';
       return partyName.toLowerCase().includes(q) || invNo.toLowerCase().includes(q) || notes.toLowerCase().includes(q);
     });
-  }, [creditLedgers, deferredSearch]);
+  }, [creditLedgers, deferredSearch, ownedInvoiceIds]);
 
   // Pagination
   const [pageSize, setPageSize] = useState(50);
@@ -606,13 +634,15 @@ export default function TransactionsPage() {
             Collect
           </Button>
 
-          <Button
-            onClick={handleOpenGeneralPay}
-            className="inline-flex shrink-0 items-center gap-1 sm:gap-2 bg-amber-600 hover:bg-amber-500 text-white font-medium px-2 sm:px-3.5 py-2 rounded-[0.75rem] text-[0.625rem] sm:text-sm shadow-sm active:scale-98 whitespace-nowrap"
-          >
-            <ArrowUpRight className="h-4 w-4" />
-            Pay Party
-          </Button>
+          {!isSalesman && (
+            <Button
+              onClick={handleOpenGeneralPay}
+              className="inline-flex shrink-0 items-center gap-1 sm:gap-2 bg-amber-600 hover:bg-amber-500 text-white font-medium px-2 sm:px-3.5 py-2 rounded-[0.75rem] text-[0.625rem] sm:text-sm shadow-sm active:scale-98 whitespace-nowrap"
+            >
+              <ArrowUpRight className="h-4 w-4" />
+              Pay Party
+            </Button>
+          )}
 
           <Button
             variant="outline"
@@ -721,7 +751,7 @@ export default function TransactionsPage() {
       </div>
 
       {/* Daily Till Drawer Summary (Opening Cash, Inflows, Outflows, Expenses, Net Flow & Closing Cash) */}
-      {(dateFilterMode === 'specific' || activeTab === 'daybook') && (
+      {!isSalesman && (dateFilterMode === 'specific' || activeTab === 'daybook') && (
         <div className="rounded-2xl border border-border/80 bg-card/90 p-4 shadow-sm space-y-3">
           <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
             <div className="flex items-center gap-2">
@@ -813,17 +843,19 @@ export default function TransactionsPage() {
       )}
 
       {/* Financial KPI Summary Cards (Extracted Component) */}
-      <PaymentStatsGrid
-        stats={stats}
-        activeTab={activeTab}
-        onTabChange={(tab) => setActiveTab(tab)}
-      />
+      {!isSalesman && (
+        <PaymentStatsGrid
+          stats={stats}
+          activeTab={activeTab}
+          onTabChange={(tab) => setActiveTab(tab)}
+        />
+      )}
 
       {/* Tabs & Search Filter */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-2">
         <div className="flex items-center gap-2 overflow-x-auto">
           {/* 0. Till & Day Book Tab */}
-          <button
+          {!isSalesman && <button
             onClick={() => {
               setActiveTab('daybook');
               setDateFilterMode('specific');
@@ -836,7 +868,7 @@ export default function TransactionsPage() {
           >
             <BookOpen className="h-3.5 w-3.5" />
             Till & Day Book
-          </button>
+          </button>}
 
           {/* 1. Customer Dues Tab */}
           <button
@@ -852,7 +884,7 @@ export default function TransactionsPage() {
           </button>
 
           {/* 2. Store Payables Tab */}
-          <button
+          {!isSalesman && <button
             onClick={() => setActiveTab('payables')}
             className={`px-3.5 py-1.5 rounded-[0.625rem] text-xs font-semibold transition-all flex items-center gap-1.5 active:scale-98 ${
               activeTab === 'payables'
@@ -862,7 +894,7 @@ export default function TransactionsPage() {
           >
             <ArrowUpRight className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
             Store Payables ({storePayables.length})
-          </button>
+          </button>}
 
           {/* 3. All Transactions Tab */}
           <button
@@ -891,7 +923,7 @@ export default function TransactionsPage() {
           </button>
 
           {/* 5. Credit Ledger Tab */}
-          <button
+          {!isSalesman && <button
             onClick={() => setActiveTab('credits')}
             className={`px-3.5 py-1.5 rounded-[0.625rem] text-xs font-semibold transition-all flex items-center gap-1.5 active:scale-98 ${
               activeTab === 'credits'
@@ -901,7 +933,7 @@ export default function TransactionsPage() {
           >
             <CreditCard className="h-3.5 w-3.5" />
             Credit Ledger ({creditLedgers.length})
-          </button>
+          </button>}
         </div>
 
         {/* Search */}
@@ -928,7 +960,7 @@ export default function TransactionsPage() {
       {/* ========================================================================= */}
       {/* TAB 0: TILL & DAY BOOK RECONCILIATION JOURNAL                            */}
       {/* ========================================================================= */}
-      {activeTab === 'daybook' && (
+      {activeTab === 'daybook' && !isSalesman && (
         <div className="rounded-[1rem] border border-border/60 bg-card/75 backdrop-blur-xl overflow-hidden shadow-xs">
           <div className="p-4 border-b border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-muted/20">
             <div>
@@ -1210,7 +1242,7 @@ export default function TransactionsPage() {
       {/* ========================================================================= */}
       {/* TAB 2: STORE PAYABLES (DEBTS WE OWE TO PARTIES/VENDORS)                   */}
       {/* ========================================================================= */}
-      {activeTab === 'payables' && (
+      {activeTab === 'payables' && !isSalesman && (
         <div className="rounded-[1rem] border border-border/60 bg-card/75 backdrop-blur-xl overflow-hidden shadow-xs">
           <div className="p-4 border-b border-border/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-muted/20">
             <div>
@@ -1545,7 +1577,7 @@ export default function TransactionsPage() {
       {/* ========================================================================= */}
       {/* TAB 4: CREDIT & DEBTS LEDGER TABLE                                        */}
       {/* ========================================================================= */}
-      {activeTab === 'credits' && (
+      {activeTab === 'credits' && !isSalesman && (
         <div className="rounded-[1rem] border border-border/60 bg-card/75 backdrop-blur-xl overflow-hidden shadow-xs">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm text-foreground">

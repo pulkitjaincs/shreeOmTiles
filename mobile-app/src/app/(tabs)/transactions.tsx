@@ -38,6 +38,7 @@ import {
   SettlementSuccessModal,
   SettlementSuccessData,
 } from '@/components/payments';
+import { useAuth } from '@/lib/auth-context';
 
 interface DayBookResponse {
   date: string;
@@ -101,6 +102,7 @@ export interface DayBookEntry {
 type TransactionListItem = PendingItem | PaymentRecord | CreditLedgerRecord | DayBookEntry;
 
 export default function TransactionsScreen() {
+  const { user } = useAuth();
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const params = useLocalSearchParams<{ tab?: string }>();
@@ -162,11 +164,12 @@ export default function TransactionsScreen() {
 
   // Confirming state for pending payments
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [ownedInvoiceIds, setOwnedInvoiceIds] = useState<Set<string> | null>(null);
 
   // Load all data matching web-dashboard loadData()
   const loadData = useCallback(async (force = false) => {
     try {
-      const [paymentsData, statsData, pendingData, creditsData, partiesData] = await Promise.all([
+      const [paymentsData, statsData, pendingData, creditsData, partiesData, invoicesData] = await Promise.all([
         cachedMobileApiRequest<PaymentRecord[]>('/payments', {
           forceRefresh: force,
           onRevalidate: (fresh) => {
@@ -255,6 +258,9 @@ export default function TransactionsScreen() {
             setParties(list);
           },
         }).catch(() => []),
+        user?.role === 'SALESMAN'
+          ? cachedMobileApiRequest<any[]>('/invoices', { forceRefresh: force }).catch(() => [])
+          : Promise.resolve(null),
       ]);
 
       const pList = Array.isArray(paymentsData) ? paymentsData : (paymentsData as any)?.data || [];
@@ -264,6 +270,20 @@ export default function TransactionsScreen() {
       setStats(statsData);
       setCreditLedgers(cList);
       setParties(partList);
+      const ownedIds =
+        user?.role === 'SALESMAN'
+          ?           new Set<string>(
+              (Array.isArray(invoicesData) ? invoicesData : (invoicesData as any)?.data || []).map(
+                (invoice: any) => invoice.id,
+              ),
+            )
+          : null;
+      setOwnedInvoiceIds(ownedIds);
+      const visiblePayments =
+        ownedIds === null
+          ? pList
+          : pList.filter((payment: PaymentRecord) => Boolean(payment.invoiceId && ownedIds.has(payment.invoiceId)));
+      setPayments(visiblePayments);
 
       // Unify pending items: pending invoices + unsettled credit ledgers
       const formattedPending: PendingItem[] = [
@@ -305,14 +325,18 @@ export default function TransactionsScreen() {
             creditType: cl.type as 'RECEIVABLE' | 'PAYABLE',
           })),
       ];
-      setPendingItems(formattedPending);
+      setPendingItems(
+        ownedIds === null
+          ? formattedPending
+          : formattedPending.filter((item) => !item.isCreditLedger && ownedIds.has(item.id)),
+      );
     } catch (err: any) {
       console.warn('Transactions load error:', err.message);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [user]);
 
   useFocusEffect(
     useCallback(() => {
@@ -528,6 +552,7 @@ export default function TransactionsScreen() {
       });
     }
     return base.filter((p) => {
+      if (ownedInvoiceIds && (!p.invoiceId || !ownedInvoiceIds.has(p.invoiceId))) return false;
       const partyName = p.invoice?.party?.name || p.party?.name || '';
       const invNo = p.invoice?.invoiceNo || '';
       const utr = p.upiUtr || p.upiTxnRef || '';
@@ -540,7 +565,7 @@ export default function TransactionsScreen() {
         (modeFilter === 'BANK_TRANSFER' && normalizedMode === 'BANK');
       return matchesSearch && matchesMode;
     });
-  }, [payments, deferredSearch, modeFilter, dateFilterMode, selectedDate]);
+  }, [payments, deferredSearch, modeFilter, dateFilterMode, selectedDate, ownedInvoiceIds]);
 
   const filteredInflows = useMemo(() => {
     return filteredPayments.filter(
@@ -550,13 +575,16 @@ export default function TransactionsScreen() {
 
   const filteredCredits = useMemo(() => {
     const q = deferredSearch.toLowerCase().trim();
-    return creditLedgers.filter((cl) => {
+    const visibleCredits = ownedInvoiceIds
+      ? creditLedgers.filter((cl) => Boolean(cl.invoiceId && ownedInvoiceIds.has(cl.invoiceId)))
+      : creditLedgers;
+    return visibleCredits.filter((cl) => {
       const partyName = cl.party?.name || '';
       const invNo = cl.invoice?.invoiceNo || '';
       const notes = cl.notes || '';
       return partyName.toLowerCase().includes(q) || invNo.toLowerCase().includes(q) || notes.toLowerCase().includes(q);
     });
-  }, [creditLedgers, deferredSearch]);
+  }, [creditLedgers, deferredSearch, ownedInvoiceIds]);
 
   return (
     <View style={styles.screen}>
@@ -783,14 +811,16 @@ export default function TransactionsScreen() {
                 <Text style={styles.collectBtnText}>Collect</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.makePaymentBtn}
-                onPress={handleOpenGeneralPay}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="arrow-up-circle-outline" size={14} color="#F59E0B" />
-                <Text style={styles.makePaymentBtnText}>Pay</Text>
-              </TouchableOpacity>
+              {user?.role !== 'SALESMAN' ? (
+                <TouchableOpacity
+                  style={styles.makePaymentBtn}
+                  onPress={handleOpenGeneralPay}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="arrow-up-circle-outline" size={14} color="#F59E0B" />
+                  <Text style={styles.makePaymentBtnText}>Pay</Text>
+                </TouchableOpacity>
+              ) : null}
 
               <TouchableOpacity
                 style={styles.recordCreditBtn}

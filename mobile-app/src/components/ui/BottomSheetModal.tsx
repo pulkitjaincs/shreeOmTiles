@@ -115,7 +115,7 @@ export function BottomSheetModal({
         <View style={styles.backdrop}>
           <TouchableWithoutFeedback>
             <KeyboardAvoidingView
-              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
               style={[
                 styles.sheet,
                 {

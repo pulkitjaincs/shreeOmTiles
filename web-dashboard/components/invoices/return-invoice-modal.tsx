@@ -26,7 +26,6 @@ interface StandaloneReturnItem {
   customItemName?: string;
   qty: number;
   unitPrice: number;
-  taxRate: number;
 }
 
 interface ReturnInvoiceModalProps {
@@ -83,6 +82,7 @@ export function ReturnInvoiceModal({
   const [standaloneCustomerPhone, setStandaloneCustomerPhone] = useState<string>('');
   const [standaloneRefundMode, setStandaloneRefundMode] = useState<'CASH' | 'UPI' | 'CARD' | 'CREDIT'>('CASH');
   const [standaloneReason, setStandaloneReason] = useState('Legacy / Standalone Bill Return');
+  const [standaloneTaxRate, setStandaloneTaxRate] = useState(18);
   const [standaloneItems, setStandaloneItems] = useState<StandaloneReturnItem[]>([
     {
       id: 'item-1',
@@ -90,7 +90,6 @@ export function ReturnInvoiceModal({
       productId: products[0]?.id || '',
       qty: 1,
       unitPrice: products[0]?.price ? Number(products[0].price) : 0,
-      taxRate: 18,
     },
   ]);
 
@@ -252,7 +251,7 @@ export function ReturnInvoiceModal({
           customItemName: it.isCustom ? it.customItemName?.trim() : undefined,
           qty: Number(it.qty),
           unitPrice: Number(it.unitPrice),
-          taxRate: Number(it.taxRate ?? 18),
+          taxRate: standaloneTaxRate,
         })),
       };
 
@@ -292,7 +291,6 @@ export function ReturnInvoiceModal({
           productId: products[0]?.id || '',
           qty: 1,
           unitPrice: products[0]?.price ? Number(products[0].price) : 0,
-          taxRate: 18,
         },
       ]);
       setStandaloneCustomerName('');
@@ -322,7 +320,6 @@ export function ReturnInvoiceModal({
         productId: products[0]?.id || '',
         qty: 1,
         unitPrice: products[0]?.price ? Number(products[0].price) : 0,
-        taxRate: 18,
       },
     ]);
   };
@@ -336,7 +333,7 @@ export function ReturnInvoiceModal({
   const standaloneTotals = standaloneItems.reduce(
     (acc, it) => {
       const lineSubtotal = (Number(it.qty) || 0) * (Number(it.unitPrice) || 0);
-      const lineTax = (lineSubtotal * (Number(it.taxRate) || 0)) / 100;
+      const lineTax = (lineSubtotal * standaloneTaxRate) / 100;
       return {
         subtotal: acc.subtotal + lineSubtotal,
         tax: acc.tax + lineTax,
@@ -926,36 +923,10 @@ export function ReturnInvoiceModal({
                           />
                         </div>
 
-                        <div className="sm:col-span-2">
-                          <label className="text-[0.625rem] text-muted-foreground block mb-0.5">
-                            GST %
-                          </label>
-                          <ThemedSelect
-                            value={String(item.taxRate)}
-                            onChange={(val) => {
-                              const rate = parseFloat(val) || 0;
-                              setStandaloneItems((prev) =>
-                                prev.map((it) =>
-                                  it.id === item.id ? { ...it, taxRate: rate } : it,
-                                ),
-                              );
-                            }}
-                            options={[
-                              { value: '0', label: '0% (Exempt)' },
-                              { value: '5', label: '5%' },
-                              { value: '12', label: '12%' },
-                              { value: '18', label: '18% (Standard)' },
-                              { value: '28', label: '28%' },
-                            ]}
-                          />
-                        </div>
-
-                        <div className="sm:col-span-1 flex flex-col justify-end text-right">
+                        <div className="sm:col-span-3 flex flex-col justify-end text-right">
                           <span className="text-[0.625rem] text-muted-foreground block mb-0.5">Total</span>
                           <span className="text-[0.75rem] font-bold text-foreground">
-                            {formatINR(
-                              item.qty * item.unitPrice * (1 + (item.taxRate || 0) / 100),
-                            )}
+                            {formatINR(item.qty * item.unitPrice)}
                           </span>
                         </div>
                       </div>
@@ -972,6 +943,21 @@ export function ReturnInvoiceModal({
                   <Plus className="h-4 w-4" />
                   <span>Add Product / Item</span>
                 </button>
+
+                <div className="max-w-xs">
+                  <label className="text-[0.625rem] text-muted-foreground block mb-0.5">
+                    GST Rate (%)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="Enter GST rate"
+                    value={standaloneTaxRate}
+                    onChange={(e) => setStandaloneTaxRate(Math.max(0, parseFloat(e.target.value) || 0))}
+                    className="w-full rounded-[0.5rem] border border-input bg-background px-2.5 py-2 text-[0.75rem] font-bold text-foreground focus:border-primary focus:outline-none"
+                  />
+                </div>
 
                 {/* Standalone Financial Breakdown */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-[0.875rem] border border-primary/20 bg-primary/5 text-[0.75rem] gap-2">

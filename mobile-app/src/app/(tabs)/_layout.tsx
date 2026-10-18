@@ -118,11 +118,11 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* 5. Transactions Tab (Director/Admin/Accountant) */}
+      {/* 5. Transactions Tab (Salesmen see their own collection records) */}
       <Tabs.Screen
         name="transactions"
         options={{
-          href: (isOwnerOrAdmin || isAccountant) ? undefined : null,
+          href: (isOwnerOrAdmin || isAccountant || isSalesman) ? undefined : null,
           title: 'Transactions',
           tabBarLabel: 'Transactions',
           tabBarIcon: ({ color, size, focused }) => (
