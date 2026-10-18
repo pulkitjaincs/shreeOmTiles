@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { formatINR, formatDate, cleanPhoneNumber } from '@/lib/formatters';
 import { buildFullDeliveryManifestShareUrl } from '@/lib/whatsapp';
 import { downloadAndSharePdf } from '@/lib/pdf';
@@ -41,6 +41,8 @@ export const DeliveryCard = React.memo(function DeliveryCard({
   onUpdateStatus,
   onSupervisorConfirmPick,
 }: DeliveryCardProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const partyPhone = delivery.invoice?.party?.phone;
   const partyAddress = delivery.invoice?.party?.address;
 
@@ -159,7 +161,7 @@ export const DeliveryCard = React.memo(function DeliveryCard({
           </TouchableOpacity>
         ) : (
           <View style={styles.pickupPill}>
-            <Ionicons name="storefront-outline" size={11} color={Colors.dark.textSecondary} />
+            <Ionicons name="storefront-outline" size={11} color={colors.textSecondary} />
             <Text style={styles.pickupPillText}>Counter Pickup</Text>
           </View>
         )}
@@ -171,7 +173,7 @@ export const DeliveryCard = React.memo(function DeliveryCard({
           <Ionicons
             name={delivery.driver ? 'person' : 'person-outline'}
             size={12}
-            color={delivery.driver ? '#10B981' : Colors.dark.textSecondary}
+            color={delivery.driver ? '#10B981' : colors.textSecondary}
           />
           <Text style={styles.driverText} numberOfLines={1}>
             {delivery.driver?.name ? delivery.driver.name : 'Unassigned Driver'}
@@ -219,6 +221,17 @@ export const DeliveryCard = React.memo(function DeliveryCard({
           </View>
         )}
       </View>
+
+      {/* Assigned Supervisors */}
+      {delivery.supervisors && delivery.supervisors.length > 0 ? (
+        <View style={styles.supervisorsRow}>
+          <Ionicons name="shield-checkmark-outline" size={12} color="#D97706" />
+          <Text style={styles.supervisorsLabel}>Supervisors:</Text>
+          <Text style={styles.supervisorsNames} numberOfLines={1}>
+            {delivery.supervisors.map((s) => s.supervisor?.name || 'Supervisor').join(', ')}
+          </Text>
+        </View>
+      ) : null}
 
       {/* Warehouse Items Pickup Progress Bar */}
       {totalCount > 0 ? (
@@ -418,332 +431,356 @@ export const DeliveryCard = React.memo(function DeliveryCard({
   );
 });
 
-const styles = StyleSheet.create({
-  card: {
-    marginHorizontal: 16,
-    marginBottom: 10,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    backgroundColor: Colors.dark.card,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
-  invoiceNoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  invoiceNo: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    fontFamily: 'monospace',
-  },
-  dateText: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-  },
-  partyName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.dark.text,
-    marginTop: 2,
-  },
-  destinationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 8,
-    flexWrap: 'wrap',
-  },
-  phoneChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(56, 189, 248, 0.1)',
-    borderRadius: 6,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.25)',
-  },
-  phoneChipText: {
-    fontSize: 11,
-    color: '#38BDF8',
-    fontFamily: 'monospace',
-    fontWeight: '600',
-  },
-  addressChip: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.dark.cardElevated,
-    borderRadius: 6,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  addressChipText: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-  },
-  pickupPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.dark.cardElevated,
-    borderRadius: 6,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  pickupPillText: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    fontWeight: '600',
-  },
-  driverCashRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 8,
-    gap: 8,
-  },
-  driverTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flex: 1,
-  },
-  driverText: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    fontWeight: '600',
-  },
-  settledBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    borderRadius: 6,
-    paddingVertical: 2.5,
-    paddingHorizontal: 7,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-  },
-  settledBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#10B981',
-    fontFamily: 'monospace',
-  },
-  inDriverHandBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    borderRadius: 6,
-    paddingVertical: 2.5,
-    paddingHorizontal: 7,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.35)',
-  },
-  inDriverHandText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#F59E0B',
-    fontFamily: 'monospace',
-  },
-  toCollectBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    borderRadius: 6,
-    paddingVertical: 2.5,
-    paddingHorizontal: 7,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.25)',
-  },
-  toCollectText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#F59E0B',
-    fontFamily: 'monospace',
-  },
-  prepaidBadge: {
-    backgroundColor: Colors.dark.cardElevated,
-    borderRadius: 6,
-    paddingVertical: 2.5,
-    paddingHorizontal: 7,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  prepaidText: {
-    fontSize: 10,
-    color: Colors.dark.textSecondary,
-    fontWeight: '600',
-  },
-  progressContainer: {
-    marginTop: 10,
-  },
-  progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  progressLabel: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    fontWeight: '600',
-  },
-  progressCount: {
-    fontSize: 11,
-    color: '#A855F7',
-    fontWeight: '700',
-  },
-  progressTrack: {
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#A855F7',
-    borderRadius: 3,
-  },
-  progressFillComplete: {
-    backgroundColor: '#10B981',
-  },
-  handoverBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.25)',
-    padding: 8,
-    marginTop: 10,
-  },
-  handoverBannerTitle: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#F59E0B',
-  },
-  handoverBannerSub: {
-    fontSize: 10,
-    color: Colors.dark.textSecondary,
-    marginTop: 1,
-  },
-  verifyBtn: {
-    minWidth: 74,
-    height: 32,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    marginVertical: 10,
-  },
-  cardActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  actionBtn: {
-    flex: 1,
-    height: 36,
-    borderRadius: 8,
-    paddingHorizontal: 6,
-  },
-  waManifestBtn: {
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-  },
-  directorActionsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 8,
-  },
-  challanIconBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: 'rgba(56, 189, 248, 0.1)',
-    borderRadius: 6,
-    paddingVertical: 3,
-    paddingHorizontal: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.25)',
-  },
-  challanIconText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#38BDF8',
-  },
-  supervisorItemsBox: {
-    marginTop: 10,
-    padding: 10,
-    borderRadius: 10,
-    backgroundColor: 'rgba(168, 85, 247, 0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(168, 85, 247, 0.25)',
-    gap: 8,
-  },
-  supervisorBoxTitle: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#C084FC',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  supervisorItemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-    paddingVertical: 4,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  supervisorItemName: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  supervisorItemSub: {
-    fontSize: 10,
-    color: Colors.dark.textTertiary,
-    marginTop: 1,
-  },
-  supervisorPickedPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.25)',
-  },
-  supervisorPickedText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#10B981',
-  },
-});
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    card: {
+      marginHorizontal: 16,
+      marginBottom: 10,
+      padding: 14,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+    },
+    cardHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      gap: 10,
+    },
+    invoiceNoRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    invoiceNo: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.text,
+      fontFamily: 'monospace',
+    },
+    dateText: {
+      fontSize: 11,
+      color: colors.textSecondary,
+    },
+    partyName: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.text,
+      marginTop: 2,
+    },
+    destinationRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginTop: 8,
+      flexWrap: 'wrap',
+    },
+    phoneChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: 'rgba(56, 189, 248, 0.1)',
+      borderRadius: 6,
+      paddingVertical: 3,
+      paddingHorizontal: 8,
+      borderWidth: 1,
+      borderColor: 'rgba(56, 189, 248, 0.25)',
+    },
+    phoneChipText: {
+      fontSize: 11,
+      color: '#38BDF8',
+      fontFamily: 'monospace',
+      fontWeight: '600',
+    },
+    addressChip: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: colors.cardElevated,
+      borderRadius: 6,
+      paddingVertical: 3,
+      paddingHorizontal: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    addressChipText: {
+      fontSize: 11,
+      color: colors.textSecondary,
+    },
+    pickupPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: colors.cardElevated,
+      borderRadius: 6,
+      paddingVertical: 3,
+      paddingHorizontal: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    pickupPillText: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    driverCashRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 8,
+      gap: 8,
+    },
+    supervisorsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      marginTop: 6,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      backgroundColor: 'rgba(217, 119, 6, 0.08)',
+      borderWidth: 1,
+      borderColor: 'rgba(217, 119, 6, 0.2)',
+    },
+    supervisorsLabel: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: '#D97706',
+    },
+    supervisorsNames: {
+      flex: 1,
+      fontSize: 11,
+      fontWeight: '500',
+      color: colors.text,
+    },
+    driverTag: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      flex: 1,
+    },
+    driverText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    settledBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+      borderRadius: 6,
+      paddingVertical: 2.5,
+      paddingHorizontal: 7,
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+    },
+    settledBadgeText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: '#10B981',
+      fontFamily: 'monospace',
+    },
+    inDriverHandBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: 'rgba(245, 158, 11, 0.15)',
+      borderRadius: 6,
+      paddingVertical: 2.5,
+      paddingHorizontal: 7,
+      borderWidth: 1,
+      borderColor: 'rgba(245, 158, 11, 0.35)',
+    },
+    inDriverHandText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: '#F59E0B',
+      fontFamily: 'monospace',
+    },
+    toCollectBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: 'rgba(245, 158, 11, 0.1)',
+      borderRadius: 6,
+      paddingVertical: 2.5,
+      paddingHorizontal: 7,
+      borderWidth: 1,
+      borderColor: 'rgba(245, 158, 11, 0.25)',
+    },
+    toCollectText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: '#F59E0B',
+      fontFamily: 'monospace',
+    },
+    prepaidBadge: {
+      backgroundColor: colors.cardElevated,
+      borderRadius: 6,
+      paddingVertical: 2.5,
+      paddingHorizontal: 7,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    prepaidText: {
+      fontSize: 10,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    progressContainer: {
+      marginTop: 10,
+    },
+    progressHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 4,
+    },
+    progressLabel: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    progressCount: {
+      fontSize: 11,
+      color: '#A855F7',
+      fontWeight: '700',
+    },
+    progressTrack: {
+      height: 5,
+      borderRadius: 3,
+      backgroundColor: colors.border,
+      overflow: 'hidden',
+    },
+    progressFill: {
+      height: '100%',
+      backgroundColor: '#A855F7',
+      borderRadius: 3,
+    },
+    progressFillComplete: {
+      backgroundColor: '#10B981',
+    },
+    handoverBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+      backgroundColor: 'rgba(245, 158, 11, 0.1)',
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: 'rgba(245, 158, 11, 0.25)',
+      padding: 8,
+      marginTop: 10,
+    },
+    handoverBannerTitle: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      color: '#F59E0B',
+    },
+    handoverBannerSub: {
+      fontSize: 10,
+      color: colors.textSecondary,
+      marginTop: 1,
+    },
+    verifyBtn: {
+      minWidth: 74,
+      height: 32,
+      borderRadius: 8,
+      paddingHorizontal: 10,
+    },
+    divider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginVertical: 10,
+    },
+    cardActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    actionBtn: {
+      flex: 1,
+      height: 36,
+      borderRadius: 8,
+      paddingHorizontal: 6,
+    },
+    waManifestBtn: {
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+    },
+    directorActionsRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginTop: 8,
+    },
+    challanIconBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      backgroundColor: 'rgba(56, 189, 248, 0.1)',
+      borderRadius: 6,
+      paddingVertical: 3,
+      paddingHorizontal: 6,
+      borderWidth: 1,
+      borderColor: 'rgba(56, 189, 248, 0.25)',
+    },
+    challanIconText: {
+      fontSize: 10.5,
+      fontWeight: '700',
+      color: '#38BDF8',
+    },
+    supervisorItemsBox: {
+      marginTop: 10,
+      padding: 10,
+      borderRadius: 10,
+      backgroundColor: 'rgba(168, 85, 247, 0.06)',
+      borderWidth: 1,
+      borderColor: 'rgba(168, 85, 247, 0.25)',
+      gap: 8,
+    },
+    supervisorBoxTitle: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: '#C084FC',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    supervisorItemRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+      paddingVertical: 4,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    supervisorItemName: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    supervisorItemSub: {
+      fontSize: 10,
+      color: colors.textTertiary,
+      marginTop: 1,
+    },
+    supervisorPickedPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.25)',
+    },
+    supervisorPickedText: {
+      fontSize: 10,
+      fontWeight: '800',
+      color: '#10B981',
+    },
+  });

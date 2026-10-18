@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { MultiSelect } from '@/components/ui/MultiSelect';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { mobileApiRequest } from '@/lib/api';
 import { buildFullDeliveryManifestShareUrl } from '@/lib/whatsapp';
 import { Delivery, DriverUser, SupervisorUser, DispatchSelectionItem, PushSuccessDialogData } from './types';
@@ -33,6 +33,8 @@ export function PushDeliveryModal({
   onSuccess,
   drivers,
 }: PushDeliveryModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [selectedDriverId, setSelectedDriverId] = useState('');
   const [supervisors, setSupervisors] = useState<SupervisorUser[]>([]);
   const [selectedSupervisorIds, setSelectedSupervisorIds] = useState<string[]>([]);
@@ -56,7 +58,12 @@ export function PushDeliveryModal({
         .then((res) => {
           const list: SupervisorUser[] = Array.isArray(res) ? res : res?.data || [];
           setSupervisors(list);
-          if (list.length === 1) {
+          const existingSupIds = (delivery.supervisors || []).map(
+            (s: any) => s.supervisorId || s.supervisor?.id || s.id,
+          );
+          if (existingSupIds.length > 0) {
+            setSelectedSupervisorIds(existingSupIds);
+          } else if (list.length === 1) {
             setSelectedSupervisorIds([list[0].id]);
           } else {
             setSelectedSupervisorIds([]);
@@ -336,190 +343,191 @@ export function PushDeliveryModal({
   );
 }
 
-const styles = StyleSheet.create({
-  fieldLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    marginBottom: 6,
-    textTransform: 'uppercase',
-  },
-  driverChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    marginRight: 8,
-  },
-  driverChipActive: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
-  },
-  driverChipText: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  driverChipTextActive: {
-    color: '#09090B',
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 12,
-    marginBottom: 6,
-  },
-  modalSectionTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    textTransform: 'uppercase',
-  },
-  toggleAllText: {
-    fontSize: 12,
-    color: Colors.dark.primary,
-    fontWeight: '700',
-  },
-  dispatchItemCard: {
-    padding: 12,
-    marginBottom: 8,
-    backgroundColor: Colors.dark.card,
-    borderRadius: 12,
-  },
-  dispatchItemCardInactive: {
-    opacity: 0.5,
-  },
-  dispatchItemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  itemTapArea: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  checkbox: {
-    width: 24,
-    height: 24,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: Colors.dark.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkboxDone: {
-    backgroundColor: '#10B981',
-    borderColor: '#10B981',
-  },
-  dispatchItemName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  dispatchItemNameDim: {
-    color: Colors.dark.textTertiary,
-  },
-  dispatchItemSub: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  dispatchItemMax: {
-    fontSize: 10.5,
-    color: Colors.dark.textTertiary,
-    marginTop: 1,
-  },
-  dispatchStepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.dark.secondary,
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  dispatchStepBtn: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.dark.cardElevated,
-  },
-  dispatchStepBtnText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '800',
-  },
-  dispatchStepVal: {
-    width: 30,
-    textAlign: 'center',
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  supervisorSection: {
-    marginTop: 12,
-    marginBottom: 16,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: Colors.dark.cardElevated,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  supervisorSectionTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 2,
-  },
-  supervisorSectionSub: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginBottom: 8,
-  },
-  supervisorLoadingText: {
-    fontSize: 11,
-    color: Colors.dark.textTertiary,
-    fontStyle: 'italic',
-  },
-  supervisorEmptyText: {
-    fontSize: 11,
-    color: Colors.dark.textTertiary,
-    fontStyle: 'italic',
-  },
-  supervisorChipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  supervisorChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: Colors.dark.secondary,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  supervisorChipActive: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    borderColor: '#10B981',
-  },
-  supervisorChipText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.dark.textSecondary,
-  },
-  supervisorChipTextActive: {
-    color: '#10B981',
-    fontWeight: '700',
-  },
-});
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    fieldLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      marginBottom: 6,
+      textTransform: 'uppercase',
+    },
+    driverChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: 10,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginRight: 8,
+    },
+    driverChipActive: {
+      backgroundColor: colors.text,
+      borderColor: colors.text,
+    },
+    driverChipText: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    driverChipTextActive: {
+      color: colors.background,
+    },
+    sectionHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 12,
+      marginBottom: 6,
+    },
+    modalSectionTitle: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.text,
+      textTransform: 'uppercase',
+    },
+    toggleAllText: {
+      fontSize: 12,
+      color: colors.primary,
+      fontWeight: '700',
+    },
+    dispatchItemCard: {
+      padding: 12,
+      marginBottom: 8,
+      backgroundColor: colors.card,
+      borderRadius: 12,
+    },
+    dispatchItemCardInactive: {
+      opacity: 0.5,
+    },
+    dispatchItemRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    itemTapArea: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    checkbox: {
+      width: 24,
+      height: 24,
+      borderRadius: 6,
+      borderWidth: 2,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    checkboxDone: {
+      backgroundColor: '#10B981',
+      borderColor: '#10B981',
+    },
+    dispatchItemName: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    dispatchItemNameDim: {
+      color: colors.textTertiary,
+    },
+    dispatchItemSub: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    dispatchItemMax: {
+      fontSize: 10.5,
+      color: colors.textTertiary,
+      marginTop: 1,
+    },
+    dispatchStepper: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.secondary,
+      borderRadius: 8,
+      overflow: 'hidden',
+    },
+    dispatchStepBtn: {
+      width: 28,
+      height: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: colors.cardElevated,
+    },
+    dispatchStepBtnText: {
+      color: colors.text,
+      fontSize: 15,
+      fontWeight: '800',
+    },
+    dispatchStepVal: {
+      width: 30,
+      textAlign: 'center',
+      color: colors.text,
+      fontSize: 12,
+      fontWeight: '800',
+    },
+    supervisorSection: {
+      marginTop: 12,
+      marginBottom: 16,
+      padding: 12,
+      borderRadius: 12,
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    supervisorSectionTitle: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.text,
+      marginBottom: 2,
+    },
+    supervisorSectionSub: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginBottom: 8,
+    },
+    supervisorLoadingText: {
+      fontSize: 11,
+      color: colors.textTertiary,
+      fontStyle: 'italic',
+    },
+    supervisorEmptyText: {
+      fontSize: 11,
+      color: colors.textTertiary,
+      fontStyle: 'italic',
+    },
+    supervisorChipRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    supervisorChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 8,
+      backgroundColor: colors.secondary,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    supervisorChipActive: {
+      backgroundColor: 'rgba(16, 185, 129, 0.15)',
+      borderColor: '#10B981',
+    },
+    supervisorChipText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    supervisorChipTextActive: {
+      color: '#10B981',
+      fontWeight: '700',
+    },
+  });
