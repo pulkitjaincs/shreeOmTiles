@@ -17,6 +17,14 @@ export const CACHE_PREFIX = 'dhra_mobile_cache:';
 
 // Default network timeout. Heavy list endpoints can pass a larger `timeoutMs`.
 const DEFAULT_REQUEST_TIMEOUT_MS = 15000;
+const CACHE_STORAGE_TIMEOUT_MS = 1500;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), timeoutMs)),
+  ]);
+}
 
 // Android's AsyncStorage (SQLite) cannot read a single row larger than ~2MB back
 // ("Row too big to fit into CursorWindow") and the whole DB is capped at ~6MB.
@@ -210,6 +218,7 @@ export async function mobileApiRequest<T = any>(
   }
 
   let res: Response;
+  let responseBody: T | undefined;
   for (let attempt = 0; ; attempt += 1) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), requestTimeoutMs);
@@ -226,10 +235,13 @@ export async function mobileApiRequest<T = any>(
 
     try {
       res = await fetch(url, { ...restOptions, headers, signal: controller.signal });
-      clearTimeout(timer);
+      if (res.ok) {
+        responseBody = await res.json();
+      }
       if (callerSignal) {
         callerSignal.removeEventListener('abort', onCallerAbort);
       }
+      clearTimeout(timer);
       break;
     } catch (error: any) {
       clearTimeout(timer);
@@ -329,7 +341,10 @@ export async function mobileApiRequest<T = any>(
     notifyAppSync();
   }
 
-  return res.json();
+  if (responseBody === undefined) {
+    throw new Error('The server returned an empty response. Please try again.');
+  }
+  return responseBody;
 }
 
 export interface CachedMobileRequestOptions<T = any> extends RequestInit {
@@ -375,23 +390,13 @@ async function fetchAndCacheMobile<T>(
         return fresh;
       }
 
-      try {
-        const serialized = JSON.stringify({ data: fresh, timestamp: Date.now() });
-        if (serialized.length <= MAX_PERSISTED_CACHE_CHARS) {
-          await AsyncStorage.setItem(cacheKey, serialized);
-        } else {
-          // Too large to read back reliably on Android SQLite CursorWindow: drop stale copy
-          await AsyncStorage.removeItem(cacheKey);
-        }
-      } catch {
-        // A failed write must only drop THIS entry. Wiping every cache here (the old
-        // behaviour) also cleared the in-flight map and every screen's listeners.
-        try {
-          await AsyncStorage.removeItem(cacheKey);
-        } catch {
-          // ignore: cache is best effort
-        }
-      }
+      const serialized = JSON.stringify({ data: fresh, timestamp: Date.now() });
+      const persist = serialized.length <= MAX_PERSISTED_CACHE_CHARS
+        ? AsyncStorage.setItem(cacheKey, serialized)
+        : AsyncStorage.removeItem(cacheKey);
+      withTimeout(persist, CACHE_STORAGE_TIMEOUT_MS, undefined).catch(() => {
+        // Cache persistence is best effort; the network response must not be blocked.
+      });
 
       // Notify all registered listeners for this cache key
       const listeners = revalidateListeners.get(cacheKey);
@@ -454,7 +459,11 @@ export async function cachedMobileApiRequest<T = any>(
 
   if (!forceRefresh) {
     try {
-      const cached = await AsyncStorage.getItem(cacheKey);
+      const cached = await withTimeout(
+        AsyncStorage.getItem(cacheKey),
+        CACHE_STORAGE_TIMEOUT_MS,
+        null,
+      );
       if (cached) {
         const parsed = JSON.parse(cached) as { data: T; timestamp: number };
         const age = Date.now() - parsed.timestamp;
