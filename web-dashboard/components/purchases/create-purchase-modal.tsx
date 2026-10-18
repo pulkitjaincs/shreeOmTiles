@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { apiRequest } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { ThemedSelect } from '@/components/ui/themed-select';
@@ -65,6 +65,26 @@ export function CreatePurchaseModal({
 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
+  const partyOptions = useMemo(
+    () =>
+      parties.map((party) => ({
+        value: party.id,
+        label: party.name,
+        subLabel: party.phone,
+        badge: party.gstin ? 'GST' : undefined,
+      })),
+    [parties],
+  );
+  const productOptions = useMemo(
+    () =>
+      products.map((product) => ({
+        value: product.id,
+        label: product.name,
+        subLabel: product.unit ? `Unit: ${product.unit}` : undefined,
+        badge: product.category,
+      })),
+    [products],
+  );
 
   if (!isOpen) return null;
 
@@ -256,12 +276,7 @@ export function CreatePurchaseModal({
                     onChange={(val) => setPartyId(val)}
                     searchable
                     searchPlaceholder="Search supplier name, phone..."
-                    options={parties.map((p) => ({
-                      value: p.id,
-                      label: p.name,
-                      subLabel: p.phone,
-                      badge: p.gstin ? 'GST' : undefined,
-                    }))}
+                    options={partyOptions}
                   />
                 </div>
                 <div>
@@ -358,12 +373,7 @@ export function CreatePurchaseModal({
                         onChange={(v) => handleItemChange(idx, 'productId', v)}
                         searchable
                         searchPlaceholder="Search product or tile..."
-                        options={products.map((p) => ({
-                          value: p.id,
-                          label: p.name,
-                          subLabel: p.unit ? `Unit: ${p.unit}` : undefined,
-                          badge: p.category,
-                        }))}
+                        options={productOptions}
                       />
                     </div>
 

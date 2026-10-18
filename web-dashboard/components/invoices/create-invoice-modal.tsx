@@ -70,6 +70,18 @@ export function CreateInvoiceModal({
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const productById = useMemo(
+    () => new Map(products.map((product) => [product.id, product])),
+    [products],
+  );
+  const stockByProductId = useMemo(() => {
+    const totals = new Map<string, number>();
+    for (const stock of allStock) {
+      totals.set(stock.productId, (totals.get(stock.productId) || 0) + Number(stock.quantity ?? 0));
+    }
+    return totals;
+  }, [allStock]);
+
   // Selected party for balance context
   const selectedParty = useMemo(() => parties.find((p) => p.id === partyId), [parties, partyId]);
 
@@ -91,20 +103,14 @@ export function CreateInvoiceModal({
   const [selectedUpiAccount, setSelectedUpiAccount] = useState<UpiAccount | null>(null);
 
   const getProductAvailableStock = useCallback(
-    (prodId: string, currentStock: StockLedgerRecord[]): number => {
+    (prodId: string): number => {
       if (!prodId) return 0;
-      const forProd = currentStock.filter((s) => s.productId === prodId);
-      if (forProd.length > 0) {
-        return forProd.reduce(
-          (sum, s) =>
-            sum + Number(s.quantity ?? 0),
-          0,
-        );
-      }
-      const prod = products.find((p) => p.id === prodId);
+      const stockTotal = stockByProductId.get(prodId);
+      if (stockTotal !== undefined) return stockTotal;
+      const prod = productById.get(prodId);
       return prod?.availableQuantity ?? prod?.totalStock ?? 0;
     },
-    [products],
+    [productById, stockByProductId],
   );
 
   const resolveProductPrice = useCallback(
@@ -127,7 +133,9 @@ export function CreateInvoiceModal({
     if (!isOpen) return;
 
     const initItems = async () => {
-      await onRefreshStock().catch(() => allStock);
+      void onRefreshStock().catch((error) => {
+        console.error('Failed to refresh invoice stock:', error);
+      });
 
       if (invoiceToEdit) {
         setItems(
@@ -390,7 +398,7 @@ export function CreateInvoiceModal({
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      const prod = products.find((p) => p.id === item.productId);
+      const prod = productById.get(item.productId);
       const prodName = prod?.name || `Item #${i + 1}`;
 
       if (!item.productId) {
@@ -839,8 +847,8 @@ export function CreateInvoiceModal({
 
               <div className="space-y-4">
                 {items.map((item, idx) => {
-                  const selectedProd = products.find((p) => p.id === item.productId);
-                  const availableStock = getProductAvailableStock(item.productId, allStock);
+                  const selectedProd = productById.get(item.productId);
+                  const availableStock = getProductAvailableStock(item.productId);
                   const lineSubtotal = item.qty * item.unitPrice - (item.discount || 0);
 
                   return (
@@ -1376,4 +1384,3 @@ export function EditInvoiceModal(
 ) {
   return <CreateInvoiceModal {...props} invoiceToEdit={props.invoice} />;
 }
-

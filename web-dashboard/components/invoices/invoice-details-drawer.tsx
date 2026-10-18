@@ -72,8 +72,8 @@ export function InvoiceDetailsDrawer({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 overflow-y-auto animate-in fade-in">
-      <div className="w-full max-w-4xl rounded-[1.5rem] border border-border bg-card shadow-2xl space-y-6 my-8 max-h-[88dvh] overflow-y-auto p-[clamp(1.25rem,2.5vw,1.75rem)] text-foreground">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto animate-in fade-in">
+      <div className="w-full max-w-4xl rounded-[1.5rem] border border-border bg-card shadow-2xl space-y-6 my-8 max-h-[88dvh] overflow-y-auto p-[clamp(1.25rem,2.5vw,1.75rem)] text-foreground [contain:content]">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-border gap-3">
           <div className="space-y-1">
