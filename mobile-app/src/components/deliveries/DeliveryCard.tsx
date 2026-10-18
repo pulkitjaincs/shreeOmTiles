@@ -107,7 +107,7 @@ export const DeliveryCard = React.memo(function DeliveryCard({
     <Card elevated style={styles.card}>
       {/* Top Header: Invoice ID only & Status Badge */}
       <View style={styles.cardHeader}>
-        <View style={{ flex: 1 }}>
+        <View style={styles.headerContent}>
           <View style={styles.invoiceNoRow}>
             <Text style={styles.invoiceNo}>#{delivery.invoice?.invoiceNo || 'N/A'}</Text>
             <Text style={styles.dateText}>{formatDate(delivery.createdAt)}</Text>
@@ -117,7 +117,7 @@ export const DeliveryCard = React.memo(function DeliveryCard({
           </Text>
         </View>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <View style={styles.headerActions}>
           <TouchableOpacity
             style={styles.challanIconBtn}
             onPress={() =>
@@ -175,7 +175,7 @@ export const DeliveryCard = React.memo(function DeliveryCard({
             size={12}
             color={delivery.driver ? '#10B981' : colors.textSecondary}
           />
-          <Text style={styles.driverText} numberOfLines={1}>
+          <Text style={styles.driverText} numberOfLines={1} ellipsizeMode="tail">
             {delivery.driver?.name ? delivery.driver.name : 'Unassigned Driver'}
           </Text>
           {delivery.driver?.phone ? (
@@ -448,26 +448,40 @@ const createStyles = (colors: any) =>
       alignItems: 'flex-start',
       gap: 10,
     },
+    headerActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      flexShrink: 0,
+    },
+    headerContent: {
+      flex: 1,
+      minWidth: 0,
+    },
     invoiceNoRow: {
       flexDirection: 'row',
       alignItems: 'center',
       gap: 8,
+      minWidth: 0,
     },
     invoiceNo: {
       fontSize: 14,
       fontWeight: '800',
       color: colors.text,
       fontFamily: 'monospace',
+      flexShrink: 1,
     },
     dateText: {
       fontSize: 11,
       color: colors.textSecondary,
+      flexShrink: 1,
     },
     partyName: {
       fontSize: 13,
       fontWeight: '700',
       color: colors.text,
       marginTop: 2,
+      flexShrink: 1,
     },
     destinationRow: {
       flexDirection: 'row',
@@ -475,6 +489,7 @@ const createStyles = (colors: any) =>
       gap: 6,
       marginTop: 8,
       flexWrap: 'wrap',
+      minWidth: 0,
     },
     phoneChip: {
       flexDirection: 'row',
@@ -486,6 +501,7 @@ const createStyles = (colors: any) =>
       paddingHorizontal: 8,
       borderWidth: 1,
       borderColor: 'rgba(56, 189, 248, 0.25)',
+      flexShrink: 0,
     },
     phoneChipText: {
       fontSize: 11,
@@ -495,6 +511,7 @@ const createStyles = (colors: any) =>
     },
     addressChip: {
       flex: 1,
+      minWidth: 0,
       flexDirection: 'row',
       alignItems: 'center',
       gap: 4,
@@ -508,6 +525,7 @@ const createStyles = (colors: any) =>
     addressChipText: {
       fontSize: 11,
       color: colors.textSecondary,
+      flexShrink: 1,
     },
     pickupPill: {
       flexDirection: 'row',
@@ -527,10 +545,10 @@ const createStyles = (colors: any) =>
     },
     driverCashRow: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
+      alignItems: 'flex-start',
       marginTop: 8,
       gap: 8,
+      flexWrap: 'wrap',
     },
     supervisorsRow: {
       flexDirection: 'row',
@@ -560,11 +578,13 @@ const createStyles = (colors: any) =>
       alignItems: 'center',
       gap: 6,
       flex: 1,
+      minWidth: 0,
     },
     driverText: {
       fontSize: 12,
       color: colors.textSecondary,
       fontWeight: '600',
+      flexShrink: 1,
     },
     settledBadge: {
       flexDirection: 'row',
@@ -576,12 +596,14 @@ const createStyles = (colors: any) =>
       paddingHorizontal: 7,
       borderWidth: 1,
       borderColor: 'rgba(16, 185, 129, 0.3)',
+      maxWidth: '58%',
     },
     settledBadgeText: {
       fontSize: 11,
       fontWeight: '700',
       color: '#10B981',
       fontFamily: 'monospace',
+      flexShrink: 1,
     },
     inDriverHandBadge: {
       flexDirection: 'row',
@@ -593,12 +615,14 @@ const createStyles = (colors: any) =>
       paddingHorizontal: 7,
       borderWidth: 1,
       borderColor: 'rgba(245, 158, 11, 0.35)',
+      maxWidth: '58%',
     },
     inDriverHandText: {
       fontSize: 11,
       fontWeight: '700',
       color: '#F59E0B',
       fontFamily: 'monospace',
+      flexShrink: 1,
     },
     toCollectBadge: {
       flexDirection: 'row',
@@ -610,12 +634,14 @@ const createStyles = (colors: any) =>
       paddingHorizontal: 7,
       borderWidth: 1,
       borderColor: 'rgba(245, 158, 11, 0.25)',
+      maxWidth: '58%',
     },
     toCollectText: {
       fontSize: 11,
       fontWeight: '700',
       color: '#F59E0B',
       fontFamily: 'monospace',
+      flexShrink: 1,
     },
     prepaidBadge: {
       backgroundColor: colors.cardElevated,
@@ -700,9 +726,12 @@ const createStyles = (colors: any) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
+      flexWrap: 'wrap',
     },
     actionBtn: {
-      flex: 1,
+      flexGrow: 1,
+      flexBasis: 100,
+      minWidth: 96,
       height: 36,
       borderRadius: 8,
       paddingHorizontal: 6,
