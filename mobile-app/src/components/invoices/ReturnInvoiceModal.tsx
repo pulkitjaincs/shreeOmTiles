@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Alert, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Card } from '@/components/ui/Card';
@@ -20,6 +20,7 @@ interface ReturnInvoiceModalProps {
   warehouses?: Warehouse[];
   products?: Product[];
   parties?: Party[];
+  onPartyCreated?: (party: Party) => void;
   onDownloadRefundPdf?: (refundId: string, refundNo: string) => Promise<void> | void;
   onDownloadPdf?: (id: string, invoiceNo: string) => Promise<void> | void;
 }
@@ -44,6 +45,7 @@ export function ReturnInvoiceModal({
   warehouses = [],
   products = [],
   parties = [],
+  onPartyCreated,
   onDownloadRefundPdf,
   onDownloadPdf,
 }: ReturnInvoiceModalProps) {
@@ -68,6 +70,11 @@ export function ReturnInvoiceModal({
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [standalonePartyId, setStandalonePartyId] = useState('');
+  const [creatingParty, setCreatingParty] = useState(false);
+  const [newPartyName, setNewPartyName] = useState('');
+  const [newPartyPhone, setNewPartyPhone] = useState('');
+  const [newPartyAddress, setNewPartyAddress] = useState('');
+  const [creatingPartyLoading, setCreatingPartyLoading] = useState(false);
   const [standaloneReason, setStandaloneReason] = useState('Legacy / Standalone Return');
   const [standaloneMode, setStandaloneMode] = useState<'CASH' | 'UPI' | 'CARD' | 'CREDIT'>('CASH');
   const [standaloneItems, setStandaloneItems] = useState<StandaloneItem[]>([
@@ -285,6 +292,44 @@ export function ReturnInvoiceModal({
     }
   };
 
+  const handleCreateParty = async () => {
+    const name = newPartyName.trim();
+    const phone = newPartyPhone.replace(/\D/g, '');
+    if (!name) {
+      Alert.alert('Required Field', 'Please enter the party name.');
+      return;
+    }
+    if (phone && phone.length !== 10) {
+      Alert.alert('Invalid Mobile', 'Mobile number must be exactly 10 digits.');
+      return;
+    }
+
+    setCreatingPartyLoading(true);
+    try {
+      const party = await mobileApiRequest<Party>('/parties', {
+        method: 'POST',
+        body: JSON.stringify({
+          name,
+          phone: phone || undefined,
+          address: newPartyAddress.trim() || undefined,
+        }),
+      });
+      setStandalonePartyId(party.id);
+      setCustomerName(party.name);
+      setCustomerPhone(party.phone || '');
+      onPartyCreated?.(party);
+      setCreatingParty(false);
+      setNewPartyName('');
+      setNewPartyPhone('');
+      setNewPartyAddress('');
+      Alert.alert('Party Created', `${party.name} was created and selected.`);
+    } catch (err: any) {
+      Alert.alert('Could Not Create Party', err.message || 'Please try again.');
+    } finally {
+      setCreatingPartyLoading(false);
+    }
+  };
+
   const standaloneTotals = useMemo(() => {
     return standaloneItems.reduce(
       (acc, it) => {
@@ -496,28 +541,54 @@ export function ReturnInvoiceModal({
               </Text>
             </View>
 
-            <Select
-              label="Party (Optional)"
-              value={standalonePartyId}
-              placeholder="Walk-in / Custom Customer"
-              searchable
-              options={[
-                { value: '', label: 'Walk-in / Custom Customer' },
-                ...parties.map((party) => ({
-                  value: party.id,
-                  label: party.name,
-                  subLabel: party.phone || undefined,
-                })),
-              ]}
-              onChange={(value) => {
-                setStandalonePartyId(value);
-                const party = parties.find((item) => item.id === value);
-                if (party) {
-                  setCustomerName(party.name);
-                  setCustomerPhone(party.phone || '');
-                }
-              }}
-            />
+            {creatingParty ? (
+              <Card style={styles.newPartyCard}>
+                <View style={styles.standaloneItemHeader}>
+                  <Text style={styles.standaloneItemIdx}>Create Party On the Spot</Text>
+                  <TouchableOpacity onPress={() => setCreatingParty(false)}>
+                    <Text style={styles.cancelPartyText}>Cancel</Text>
+                  </TouchableOpacity>
+                </View>
+                <Input label="Party Name *" placeholder="e.g. Ramesh Tiles Depot" value={newPartyName} onChangeText={setNewPartyName} />
+                <Input label="Phone (Optional)" placeholder="10-digit mobile number" value={newPartyPhone} onChangeText={setNewPartyPhone} keyboardType="phone-pad" />
+                <Input label="Address (Optional)" placeholder="Site or billing address" value={newPartyAddress} onChangeText={setNewPartyAddress} />
+                <Button title={creatingPartyLoading ? 'Saving...' : 'Save & Select Party'} loading={creatingPartyLoading} onPress={() => void handleCreateParty()} />
+              </Card>
+            ) : (
+              <View style={styles.partyPicker}>
+                <View style={styles.partyPickerHeader}>
+                  <Text style={styles.partyPickerLabel}>Party (Optional)</Text>
+                  <TouchableOpacity onPress={() => setCreatingParty(true)}>
+                    <Text style={styles.createPartyText}>+ New Party</Text>
+                  </TouchableOpacity>
+                </View>
+                <Select
+                  placeholder="Walk-in / Custom Customer"
+                  value={standalonePartyId}
+                  searchable
+                  searchPlaceholder="Search party name or phone..."
+                  options={[
+                    { value: '', label: 'Walk-in / Custom Customer' },
+                    ...parties.map((party) => ({
+                      value: party.id,
+                      label: party.name,
+                      subLabel: party.phone || undefined,
+                    })),
+                  ]}
+                  onChange={(value) => {
+                    setStandalonePartyId(value);
+                    const party = parties.find((item) => item.id === value);
+                    if (party) {
+                      setCustomerName(party.name);
+                      setCustomerPhone(party.phone || '');
+                    } else if (!value) {
+                      setCustomerName('');
+                      setCustomerPhone('');
+                    }
+                  }}
+                />
+              </View>
+            )}
 
             <Input
               label="Customer Name (Optional)"
@@ -882,6 +953,36 @@ const createStyles = (colors: ThemeColors, isDark: boolean) =>
     standaloneItemCard: {
       padding: 12,
       marginBottom: 10,
+    },
+    partyPicker: {
+      marginBottom: 8,
+    },
+    partyPickerHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 6,
+    },
+    partyPickerLabel: {
+      fontSize: 12.5,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    createPartyText: {
+      color: '#10B981',
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    newPartyCard: {
+      padding: 12,
+      marginBottom: 8,
+      borderColor: 'rgba(16, 185, 129, 0.35)',
+      borderWidth: 1,
+    },
+    cancelPartyText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      fontWeight: '600',
     },
     standaloneItemHeader: {
       flexDirection: 'row',

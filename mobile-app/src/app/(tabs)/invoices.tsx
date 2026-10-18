@@ -216,10 +216,10 @@ export default function InvoicesScreen() {
   }, [parties.length]);
 
   useEffect(() => {
-    if (createModalOpen || editingInvoice) {
+    if (createModalOpen || editingInvoice || returnInvoice) {
       void loadPartiesLazy();
     }
-  }, [createModalOpen, editingInvoice, loadPartiesLazy]);
+  }, [createModalOpen, editingInvoice, returnInvoice, loadPartiesLazy]);
 
   useFocusEffect(
     useCallback(() => {
@@ -554,6 +554,12 @@ export default function InvoicesScreen() {
         visible={Boolean(returnInvoice)}
         onClose={() => setReturnInvoice(null)}
         warehouses={warehouses}
+        parties={parties}
+        onPartyCreated={(party) =>
+          setParties((current) =>
+            current.some((item) => item.id === party.id) ? current : [party, ...current],
+          )
+        }
         onDownloadRefundPdf={handleDownloadRefundPdf}
         onDownloadPdf={handleDownloadInvoicePdf}
         onSuccess={() => loadData(true)}
