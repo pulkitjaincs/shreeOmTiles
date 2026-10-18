@@ -52,7 +52,7 @@ export function PaymentStatsGrid({
           ₹{stats.totalCollected.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
         </div>
         <span className="text-[0.625rem] text-emerald-800/80 dark:text-emerald-300/80 mt-0.5 block">
-          Total Inflows (Cash, UPI, Bank Transfer)
+          Total Inflows (Cash, UPI, Bank, Card)
         </span>
       </div>
 
@@ -131,14 +131,18 @@ export function PaymentStatsGrid({
               ₹{(stats.upiCollected || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
             </span>
           </div>
-          {(stats.bankCollected ?? 0) > 0 && (
-            <div className="flex items-center justify-between text-xs font-semibold text-foreground">
-              <span className="text-muted-foreground">Bank:</span>
-              <span className="font-mono text-indigo-600 dark:text-indigo-400">
-                ₹{(stats.bankCollected || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-              </span>
-            </div>
-          )}
+          <div className="flex items-center justify-between text-xs font-semibold text-foreground">
+            <span className="text-muted-foreground">Bank:</span>
+            <span className="font-mono text-indigo-600 dark:text-indigo-400">
+              ₹{(stats.bankCollected || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-xs font-semibold text-foreground">
+            <span className="text-muted-foreground">Card:</span>
+            <span className="font-mono text-amber-600 dark:text-amber-400">
+              ₹{(stats.cardCollected || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+            </span>
+          </div>
         </div>
       </div>
     </div>

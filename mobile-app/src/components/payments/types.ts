@@ -82,6 +82,7 @@ export interface FinancialStats {
   cashCollected: number;
   upiCollected: number;
   bankCollected?: number;
+  cardCollected?: number;
   pendingReceivables: number;
   creditsOwed: number;
 }

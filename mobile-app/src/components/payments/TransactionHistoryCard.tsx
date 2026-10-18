@@ -91,6 +91,8 @@ export function TransactionHistoryCard({
                 ? '#10B981'
                 : isBank
                 ? '#818CF8'
+                : mode === 'CARD'
+                ? '#F59E0B'
                 : isSplit
                 ? '#A855F7'
                 : colors.textSecondary;
@@ -101,6 +103,8 @@ export function TransactionHistoryCard({
                 ? 'rgba(16, 185, 129, 0.12)'
                 : isBank
                 ? 'rgba(99, 102, 241, 0.12)'
+                : mode === 'CARD'
+                ? 'rgba(245, 158, 11, 0.12)'
                 : isSplit
                 ? 'rgba(168, 85, 247, 0.12)'
                 : 'transparent';
@@ -111,6 +115,8 @@ export function TransactionHistoryCard({
                 ? 'rgba(16, 185, 129, 0.3)'
                 : isBank
                 ? 'rgba(99, 102, 241, 0.3)'
+                : mode === 'CARD'
+                ? 'rgba(245, 158, 11, 0.3)'
                 : isSplit
                 ? 'rgba(168, 85, 247, 0.3)'
                 : colors.border;
@@ -118,7 +124,7 @@ export function TransactionHistoryCard({
               return (
                 <View style={[styles.modeBadge, { backgroundColor: bg, borderColor: border }]}>
                   <Text style={[styles.modeBadgeText, { color }]}>
-                    {isBank ? 'BANK' : payment.mode}
+                    {mode === 'CARD' ? 'CARD (POS)' : isBank ? 'BANK' : payment.mode}
                   </Text>
                 </View>
               );

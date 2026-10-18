@@ -111,6 +111,7 @@ export default function TransactionsPage() {
     cashCollected: 0,
     upiCollected: 0,
     bankCollected: 0,
+    cardCollected: 0,
     pendingReceivables: 0,
     creditsOwed: 0,
   });
@@ -263,6 +264,7 @@ export default function TransactionsPage() {
           cashCollected: 0,
           upiCollected: 0,
           bankCollected: 0,
+          cardCollected: 0,
           pendingReceivables: 0,
           creditsOwed: 0,
         })),
@@ -595,21 +597,21 @@ export default function TransactionsPage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-nowrap items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1">
           <Button
             onClick={handleOpenGeneralCollect}
-            className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-4 py-2 rounded-[0.75rem] text-xs sm:text-sm shadow-sm active:scale-98"
+            className="inline-flex shrink-0 items-center gap-1 sm:gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-2.5 sm:px-4 py-2 rounded-[0.75rem] text-[0.6875rem] sm:text-sm shadow-sm active:scale-98 whitespace-nowrap"
           >
             <Banknote className="h-4 w-4" />
-            Collect Payment
+            <span className="sm:hidden">Collect</span><span className="hidden sm:inline">Collect Payment</span>
           </Button>
 
           <Button
             onClick={handleOpenGeneralPay}
-            className="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-500 text-white font-medium px-3.5 py-2 rounded-[0.75rem] text-xs sm:text-sm shadow-sm active:scale-98"
+            className="inline-flex shrink-0 items-center gap-1 sm:gap-2 bg-amber-600 hover:bg-amber-500 text-white font-medium px-2.5 sm:px-3.5 py-2 rounded-[0.75rem] text-[0.6875rem] sm:text-sm shadow-sm active:scale-98 whitespace-nowrap"
           >
             <ArrowUpRight className="h-4 w-4" />
-            Make Payment (Pay Party)
+            <span className="sm:hidden">Pay</span><span className="hidden sm:inline">Make Payment (Pay Party)</span>
           </Button>
 
           <Button
@@ -618,10 +620,10 @@ export default function TransactionsPage() {
               setCreditPartyId(parties[0]?.id || '');
               setIsCreditModalOpen(true);
             }}
-            className="inline-flex items-center gap-2 border-border/60 text-foreground font-medium px-3.5 py-2 rounded-[0.75rem] text-xs sm:text-sm active:scale-98"
+            className="inline-flex shrink-0 items-center gap-1 sm:gap-2 border-border/60 text-foreground font-medium px-2.5 sm:px-3.5 py-2 rounded-[0.75rem] text-[0.6875rem] sm:text-sm active:scale-98 whitespace-nowrap"
           >
             <CreditCard className="h-4 w-4 text-amber-500" />
-            Record Credit / Advance
+            <span className="sm:hidden">Credit</span><span className="hidden sm:inline">Record Credit / Advance</span>
           </Button>
         </div>
       </div>
@@ -803,7 +805,7 @@ export default function TransactionsPage() {
                 ₹{(dayBookData?.summary.digital.totalDigital || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
               </div>
               <span className="text-[10px] text-muted-foreground truncate block">
-                UPI: ₹{(dayBookData?.summary.digital.upiIn || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })} • Bank: ₹{(dayBookData?.summary.digital.bankIn || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                UPI: ₹{(dayBookData?.summary.digital.upiIn || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })} • Bank: ₹{(dayBookData?.summary.digital.bankIn || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })} • Card: ₹{(dayBookData?.summary.digital.cardIn || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
               </span>
             </div>
           </div>
@@ -992,18 +994,24 @@ export default function TransactionsPage() {
                         <td className="py-3 px-4">
                           <span
                             className={`text-[11px] px-2 py-0.5 rounded-md font-medium border ${
-                              entry.mode === 'UPI'
+                              entry.mode.toUpperCase() === 'UPI'
                                 ? 'bg-primary/10 text-primary border-primary/20'
-                                : entry.mode === 'CASH'
+                                : entry.mode.toUpperCase() === 'CASH'
                                 ? 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-400 border-emerald-500/20'
-                                : entry.mode === 'BANK_TRANSFER' || entry.mode === 'BANK'
+                                : entry.mode.toUpperCase() === 'BANK_TRANSFER' || entry.mode.toUpperCase() === 'BANK'
                                 ? 'bg-indigo-500/10 text-indigo-800 dark:text-indigo-400 border-indigo-500/20'
-                                : entry.mode === 'SPLIT'
+                                : entry.mode.toUpperCase() === 'CARD'
+                                ? 'bg-amber-500/10 text-amber-800 dark:text-amber-400 border-amber-500/20'
+                                : entry.mode.toUpperCase() === 'SPLIT'
                                 ? 'bg-purple-500/10 text-purple-800 dark:text-purple-400 border-purple-500/20'
                                 : 'bg-muted text-muted-foreground border-border/50'
                             }`}
                           >
-                            {entry.mode === 'BANK_TRANSFER' ? 'BANK' : entry.mode}
+                            {entry.mode.toUpperCase() === 'CARD'
+                              ? 'CARD (POS)'
+                              : entry.mode.toUpperCase() === 'BANK_TRANSFER' || entry.mode.toUpperCase() === 'BANK'
+                              ? 'BANK'
+                              : entry.mode}
                           </span>
                         </td>
                         <td className="py-3 px-4 text-right font-mono font-bold text-xs whitespace-nowrap">

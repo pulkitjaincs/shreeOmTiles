@@ -137,6 +137,7 @@ export default function TransactionsScreen() {
     cashCollected: 0,
     upiCollected: 0,
     bankCollected: 0,
+    cardCollected: 0,
     pendingReceivables: 0,
     creditsOwed: 0,
   });
@@ -183,6 +184,7 @@ export default function TransactionsScreen() {
           cashCollected: 0,
           upiCollected: 0,
           bankCollected: 0,
+          cardCollected: 0,
           pendingReceivables: 0,
           creditsOwed: 0,
         })),
@@ -531,10 +533,11 @@ export default function TransactionsScreen() {
       const utr = p.upiUtr || p.upiTxnRef || '';
       const matchesSearch =
         partyName.toLowerCase().includes(q) || invNo.toLowerCase().includes(q) || utr.toLowerCase().includes(q);
+      const normalizedMode = p.mode?.toUpperCase();
       const matchesMode =
         modeFilter === 'ALL' ||
-        p.mode === modeFilter ||
-        (modeFilter === 'BANK_TRANSFER' && p.mode === 'BANK');
+        normalizedMode === modeFilter ||
+        (modeFilter === 'BANK_TRANSFER' && normalizedMode === 'BANK');
       return matchesSearch && matchesMode;
     });
   }, [payments, deferredSearch, modeFilter, dateFilterMode, selectedDate]);
@@ -703,7 +706,7 @@ export default function TransactionsScreen() {
                 <View style={styles.digitalSplitRow}>
                   <Text style={styles.digitalSplitLabel}>Digital Collections:</Text>
                   <Text style={styles.digitalSplitVal}>
-                    UPI: {formatINR(dayBookData?.summary.digital.upiIn || 0)} • Bank: {formatINR(dayBookData?.summary.digital.bankIn || 0)}
+                    UPI: {formatINR(dayBookData?.summary.digital.upiIn || 0)} • Bank: {formatINR(dayBookData?.summary.digital.bankIn || 0)} • Card: {formatINR(dayBookData?.summary.digital.cardIn || 0)}
                   </Text>
                 </View>
               </Card>
@@ -1045,7 +1048,7 @@ const createStyles = (colors: ThemeColors, isDark: boolean) =>
       paddingHorizontal: 16,
       marginTop: 2,
       marginBottom: 8,
-      gap: 10,
+      gap: 6,
     },
     collectBtn: {
       flexDirection: 'row',
@@ -1055,7 +1058,7 @@ const createStyles = (colors: ThemeColors, isDark: boolean) =>
       borderWidth: 1,
       borderColor: 'rgba(16, 185, 129, 0.35)',
       borderRadius: 10,
-      paddingHorizontal: 10,
+      paddingHorizontal: 7,
       paddingVertical: 9,
       minHeight: 38,
       gap: 5,
@@ -1073,7 +1076,7 @@ const createStyles = (colors: ThemeColors, isDark: boolean) =>
       borderWidth: 1,
       borderColor: 'rgba(245, 158, 11, 0.35)',
       borderRadius: 10,
-      paddingHorizontal: 10,
+      paddingHorizontal: 7,
       paddingVertical: 9,
       minHeight: 38,
       gap: 5,
@@ -1091,7 +1094,7 @@ const createStyles = (colors: ThemeColors, isDark: boolean) =>
       borderWidth: 1,
       borderColor: 'rgba(245, 158, 11, 0.35)',
       borderRadius: 10,
-      paddingHorizontal: 13,
+      paddingHorizontal: 7,
       paddingVertical: 9,
       minHeight: 38,
       gap: 6,

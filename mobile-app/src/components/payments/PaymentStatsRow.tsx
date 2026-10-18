@@ -59,7 +59,7 @@ export function PaymentStatsRow({ stats, activeTab, onTabChange }: PaymentStatsR
             {formatINR(stats.totalCollected || 0)}
           </Text>
           <Text style={[styles.statMiniSub, { color: 'rgba(16, 185, 129, 0.75)' }]}>
-            Cash, UPI & Bank Transfer
+            Cash, UPI, Bank & Card
           </Text>
         </Card>
       </TouchableOpacity>
@@ -173,14 +173,18 @@ export function PaymentStatsRow({ stats, activeTab, onTabChange }: PaymentStatsR
             {formatINR(stats.upiCollected || 0)}
           </Text>
         </View>
-        {(stats.bankCollected ?? 0) > 0 && (
-          <View style={styles.splitRow}>
-            <Text style={styles.splitLabel}>Bank:</Text>
-            <Text style={styles.splitValBank} numberOfLines={1} adjustsFontSizeToFit>
-              {formatINR(stats.bankCollected || 0)}
-            </Text>
-          </View>
-        )}
+        <View style={styles.splitRow}>
+          <Text style={styles.splitLabel}>Bank:</Text>
+          <Text style={styles.splitValBank} numberOfLines={1} adjustsFontSizeToFit>
+            {formatINR(stats.bankCollected || 0)}
+          </Text>
+        </View>
+        <View style={styles.splitRow}>
+          <Text style={styles.splitLabel}>Card:</Text>
+          <Text style={styles.splitValCard} numberOfLines={1} adjustsFontSizeToFit>
+            {formatINR(stats.cardCollected || 0)}
+          </Text>
+        </View>
       </Card>
     </ScrollView>
   );
@@ -267,6 +271,12 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: 12,
       fontWeight: '800',
       color: '#818CF8',
+      fontFamily: 'monospace',
+    },
+    splitValCard: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: '#F59E0B',
       fontFamily: 'monospace',
     },
   });

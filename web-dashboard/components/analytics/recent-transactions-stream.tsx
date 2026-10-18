@@ -79,13 +79,17 @@ export function RecentTransactionsStream({
                         <Truck className="h-3 w-3 text-emerald-500" />
                         Handed by {tx.driverName}
                       </span>
-                    ) : tx.mode === 'CASH' ? (
+                    ) : tx.mode.toUpperCase() === 'CASH' ? (
                       <span className="px-2 py-0.5 rounded-full font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 text-[0.6875rem]">
                         Counter Cash
                       </span>
-                    ) : tx.mode === 'BANK_TRANSFER' || tx.mode === 'BANK' ? (
+                    ) : tx.mode.toUpperCase() === 'BANK_TRANSFER' || tx.mode.toUpperCase() === 'BANK' ? (
                       <span className="px-2 py-0.5 rounded-full font-semibold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20 text-[0.6875rem]">
                         Bank Transfer Inflow
+                      </span>
+                    ) : tx.mode.toUpperCase() === 'CARD' ? (
+                      <span className="px-2 py-0.5 rounded-full font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 text-[0.6875rem]">
+                        Card (POS) Inflow
                       </span>
                     ) : (
                       <span className="px-2 py-0.5 rounded-full font-semibold bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 text-[0.6875rem]">

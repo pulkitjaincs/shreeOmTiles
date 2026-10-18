@@ -576,6 +576,7 @@ export class PaymentsService {
       cashAgg,
       upiAgg,
       bankAgg,
+      cardAgg,
       receivablesAgg,
       payablesAgg,
     ] = await Promise.all([
@@ -617,6 +618,14 @@ export class PaymentsService {
         },
         _sum: { amount: true },
       }),
+      this.prisma.payment.aggregate({
+        where: {
+          status: PaymentStatus.CONFIRMED,
+          mode: PaymentMode.CARD,
+          type: PaymentType.INFLOW,
+        },
+        _sum: { amount: true },
+      }),
       this.prisma.creditLedger.aggregate({
         where: { status: { not: 'SETTLED' }, type: CreditType.RECEIVABLE },
         _sum: { amountDue: true },
@@ -639,6 +648,7 @@ export class PaymentsService {
       cashCollected: Number(cashAgg._sum.amount || 0),
       upiCollected: Number(upiAgg._sum.amount || 0),
       bankCollected: Number(bankAgg._sum.amount || 0),
+      cardCollected: Number(cardAgg._sum.amount || 0),
       pendingReceivables: Number(receivablesAgg._sum.amountDue || 0),
       creditsOwed: Number(payablesAgg._sum.amountDue || 0),
     };
