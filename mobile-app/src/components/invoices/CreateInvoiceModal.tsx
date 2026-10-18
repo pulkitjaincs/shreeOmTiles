@@ -100,10 +100,11 @@ export function CreateInvoiceModal({
     if (!selectedParty?.creditLedgers) return 0;
     return selectedParty.creditLedgers.reduce((sum: number, cl: any) => {
       if (cl.status === 'SETTLED') return sum;
+      if (invoiceToEdit && cl.invoiceId === invoiceToEdit.id) return sum;
       const amt = Number(cl.amountDue || 0);
       return cl.type === 'RECEIVABLE' ? sum + amt : sum - amt;
     }, 0);
-  }, [selectedParty]);
+  }, [selectedParty, invoiceToEdit]);
 
   const resetForm = useCallback(() => {
     setCustomerMode('existing');
@@ -494,7 +495,12 @@ export function CreateInvoiceModal({
       } else if (customerMode === 'existing') {
         payload.partyId = selectedPartyId;
         payload.address = billAddress.trim() || undefined;
-        payload.previousBalance = partyBalance;
+        payload.previousBalance =
+          invoiceToEdit &&
+          (invoiceToEdit.partyId === selectedPartyId ||
+            (invoiceToEdit as any).party?.id === selectedPartyId)
+            ? Number(invoiceToEdit.previousBalance || 0)
+            : partyBalance;
       } else {
         payload.address = newPartyAddress.trim() || undefined;
         payload.newParty = {

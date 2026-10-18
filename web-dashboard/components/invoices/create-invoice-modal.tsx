@@ -77,10 +77,11 @@ export function CreateInvoiceModal({
     if (!selectedParty || !selectedParty.creditLedgers) return 0;
     return selectedParty.creditLedgers.reduce((sum, cl) => {
       if (cl.status === 'SETTLED') return sum;
+      if (invoiceToEdit && cl.invoiceId === invoiceToEdit.id) return sum;
       const amt = Number(cl.amountDue || 0);
       return cl.type === 'RECEIVABLE' ? sum + amt : sum - amt;
     }, 0);
-  }, [selectedParty]);
+  }, [selectedParty, invoiceToEdit]);
 
   // Live UPI Checkout Modal (Counter Screen)
   const [showUpiCheckoutModal, setShowUpiCheckoutModal] = useState(false);
@@ -429,7 +430,13 @@ export function CreateInvoiceModal({
           : undefined,
       address: billAddress.trim() || (customerMode !== 'EXISTING' ? newParty.address.trim() : undefined) || undefined,
       isCashSale: customerMode === 'UNREGISTERED',
-      previousBalance: partyBalance,
+      previousBalance:
+        invoiceToEdit &&
+        (!partyId ||
+          partyId === invoiceToEdit.partyId ||
+          partyId === invoiceToEdit.party?.id)
+          ? Number(invoiceToEdit.previousBalance || 0)
+          : partyBalance,
       paymentMode: primaryMode,
       amountPaidNow: effectivePaidNow,
       payments: validPayments,

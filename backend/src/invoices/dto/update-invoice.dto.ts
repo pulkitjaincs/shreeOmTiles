@@ -29,6 +29,10 @@ export class UpdateInvoiceDto {
   @IsOptional()
   isCashSale?: boolean;
 
+  @IsNumber()
+  @IsOptional()
+  previousBalance?: number;
+
   @IsEnum(PaymentMode)
   @IsOptional()
   paymentMode?: PaymentMode;
@@ -56,6 +60,10 @@ export class UpdateInvoiceDto {
   @IsOptional()
   @Min(0)
   transportGstRate?: number;
+
+  @IsString()
+  @IsOptional()
+  quotationId?: string;
 
   @IsString()
   @IsOptional()

@@ -2163,6 +2163,33 @@ export class InvoicesService {
       }
 
       // 9. Update the Invoice record
+      let resolvedPreviousBalance = Number(existing.previousBalance || 0);
+      if (party.id !== existing.partyId) {
+        if (data.previousBalance !== undefined) {
+          resolvedPreviousBalance = Number(data.previousBalance);
+        } else {
+          const priorLedgers = await tx.creditLedger.findMany({
+            where: {
+              partyId: party.id,
+              invoiceId: { not: id },
+              status: { not: CreditStatus.SETTLED },
+            },
+          });
+          resolvedPreviousBalance = priorLedgers.reduce(
+            (sum, cl) =>
+              cl.type === CreditType.RECEIVABLE
+                ? sum + Number(cl.amountDue || 0)
+                : sum - Number(cl.amountDue || 0),
+            0,
+          );
+        }
+      } else if (
+        data.previousBalance !== undefined &&
+        (existing.previousBalance === null || Number(existing.previousBalance) === 0)
+      ) {
+        resolvedPreviousBalance = Number(data.previousBalance);
+      }
+
       const updateData = {
         partyId: party.id,
         status: newStatus,
@@ -2173,6 +2200,11 @@ export class InvoicesService {
             ? data.address
             : existingExtended.address || party.address || null,
         isCashSale,
+        previousBalance: new Prisma.Decimal(resolvedPreviousBalance.toFixed(2)),
+        quotationId:
+          data.quotationId !== undefined
+            ? data.quotationId
+            : existing.quotationId,
         subtotal: new Prisma.Decimal(subtotal.toFixed(2)),
         tax: new Prisma.Decimal(taxAmount.toFixed(2)),
         taxRate: new Prisma.Decimal(taxRate.toFixed(2)),

@@ -27,6 +27,7 @@ export interface Party {
   category?: 'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER';
   creditLedgers?: Array<{
     id: string;
+    invoiceId?: string | null;
     amountDue: number | string;
     type: 'RECEIVABLE' | 'PAYABLE';
     status: string;
@@ -191,4 +192,4 @@ export interface UpiAccount {
 export type CustomerMode = 'EXISTING' | 'NEW_SAVED' | 'UNREGISTERED';
 export type DatePreset = 'ALL' | 'TODAY' | 'YESTERDAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'CUSTOM';
 export type InvoiceStatusFilter = 'ALL' | 'PAID' | 'PARTIAL' | 'CREATED';
-export type PaymentModeFilter = 'ALL' | 'UPI' | 'CASH' | 'CREDIT' | 'SPLIT';
+export type PaymentModeFilter = 'ALL' | 'UPI' | 'CASH' | 'CARD' | 'CREDIT' | 'SPLIT';
