@@ -247,16 +247,29 @@ export class AnalyticsService {
   }
 
   async getPaymentSplit() {
-    const invoices = await this.prisma.invoice.groupBy({
-      by: ['paymentMode'],
-      _sum: { total: true },
-      _count: { id: true },
+    const payments = await this.prisma.payment.findMany({
+      where: {
+        status: PaymentStatus.CONFIRMED,
+        type: PaymentType.INFLOW,
+      },
+      select: { mode: true, amount: true, invoiceId: true },
     });
 
-    return invoices.map((inv) => ({
-      name: inv.paymentMode || 'OTHER',
-      value: Math.round(Number(inv._sum.total || 0)),
-      count: inv._count.id,
+    const splitMap = new Map<string, { value: number; invoiceIds: Set<string> }>();
+    for (const payment of payments) {
+      const current = splitMap.get(payment.mode) || {
+        value: 0,
+        invoiceIds: new Set<string>(),
+      };
+      current.value += Number(payment.amount);
+      if (payment.invoiceId) current.invoiceIds.add(payment.invoiceId);
+      splitMap.set(payment.mode, current);
+    }
+
+    return Array.from(splitMap.entries()).map(([name, data]) => ({
+      name,
+      value: Math.round(data.value),
+      count: data.invoiceIds.size,
     }));
   }
 
@@ -438,7 +451,7 @@ export class AnalyticsService {
       partyCount,
       salesmanSalesRaw,
       allSalesStaff,
-      paymentSplitAgg,
+      paymentSplitPayments,
       categorySplitRaw,
       recentPayments,
       topReceivablesLedgers,
@@ -599,14 +612,16 @@ export class AnalyticsService {
             orderBy: { name: 'asc' },
           }),
       // Payment mode split
-      this.prisma.invoice.groupBy({
-        by: ['paymentMode'],
+      this.prisma.payment.findMany({
         where: {
-          ...(salesmanScope || {}),
-          ...(dateFilter ? { createdAt: dateFilter } : {}),
+          status: PaymentStatus.CONFIRMED,
+          type: PaymentType.INFLOW,
+          ...(dateFilter ? { paidAt: dateFilter } : {}),
+          ...(salesmanScope
+            ? { invoice: { salesmanId: salesmanScope.salesmanId } }
+            : {}),
         },
-        _sum: { total: true },
-        _count: { id: true },
+        select: { mode: true, amount: true, invoiceId: true },
       }),
       // Category split via SQL GROUP BY (Zero full table scan)
       this.prisma.$queryRaw<Array<{ name: string; value: number }>>`
@@ -784,11 +799,26 @@ export class AnalyticsService {
     const categorySplit = categorySplitRaw;
 
     // Payment split
-    const paymentSplit = paymentSplitAgg.map((inv) => ({
-      name: inv.paymentMode || 'OTHER',
-      value: Math.round(Number(inv._sum.total || 0)),
-      count: inv._count.id,
-    }));
+    const paymentSplitMap = new Map<
+      string,
+      { value: number; invoiceIds: Set<string> }
+    >();
+    for (const payment of paymentSplitPayments) {
+      const current = paymentSplitMap.get(payment.mode) || {
+        value: 0,
+        invoiceIds: new Set<string>(),
+      };
+      current.value += Number(payment.amount);
+      if (payment.invoiceId) current.invoiceIds.add(payment.invoiceId);
+      paymentSplitMap.set(payment.mode, current);
+    }
+    const paymentSplit = Array.from(paymentSplitMap.entries()).map(
+      ([name, data]) => ({
+        name,
+        value: Math.round(data.value),
+        count: data.invoiceIds.size,
+      }),
+    );
 
     // Credit status breakdown map from consolidated query
     const creditStatusMap = new Map<string, { count: number; total: number }>();

@@ -597,21 +597,21 @@ export default function TransactionsPage() {
           </p>
         </div>
 
-        <div className="flex flex-nowrap items-center gap-1.5 sm:gap-2 overflow-x-auto pb-1">
+        <div className="flex flex-nowrap items-center gap-1 sm:gap-2">
           <Button
             onClick={handleOpenGeneralCollect}
-            className="inline-flex shrink-0 items-center gap-1 sm:gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-2.5 sm:px-4 py-2 rounded-[0.75rem] text-[0.6875rem] sm:text-sm shadow-sm active:scale-98 whitespace-nowrap"
+            className="inline-flex shrink-0 items-center gap-1 sm:gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-2 sm:px-4 py-2 rounded-[0.75rem] text-[0.625rem] sm:text-sm shadow-sm active:scale-98 whitespace-nowrap"
           >
             <Banknote className="h-4 w-4" />
-            <span className="sm:hidden">Collect</span><span className="hidden sm:inline">Collect Payment</span>
+            Collect
           </Button>
 
           <Button
             onClick={handleOpenGeneralPay}
-            className="inline-flex shrink-0 items-center gap-1 sm:gap-2 bg-amber-600 hover:bg-amber-500 text-white font-medium px-2.5 sm:px-3.5 py-2 rounded-[0.75rem] text-[0.6875rem] sm:text-sm shadow-sm active:scale-98 whitespace-nowrap"
+            className="inline-flex shrink-0 items-center gap-1 sm:gap-2 bg-amber-600 hover:bg-amber-500 text-white font-medium px-2 sm:px-3.5 py-2 rounded-[0.75rem] text-[0.625rem] sm:text-sm shadow-sm active:scale-98 whitespace-nowrap"
           >
             <ArrowUpRight className="h-4 w-4" />
-            <span className="sm:hidden">Pay</span><span className="hidden sm:inline">Make Payment (Pay Party)</span>
+            Pay Party
           </Button>
 
           <Button
@@ -620,10 +620,10 @@ export default function TransactionsPage() {
               setCreditPartyId(parties[0]?.id || '');
               setIsCreditModalOpen(true);
             }}
-            className="inline-flex shrink-0 items-center gap-1 sm:gap-2 border-border/60 text-foreground font-medium px-2.5 sm:px-3.5 py-2 rounded-[0.75rem] text-[0.6875rem] sm:text-sm active:scale-98 whitespace-nowrap"
+            className="inline-flex shrink-0 items-center gap-1 sm:gap-2 border-border/60 text-foreground font-medium px-2 sm:px-3.5 py-2 rounded-[0.75rem] text-[0.625rem] sm:text-sm active:scale-98 whitespace-nowrap"
           >
             <CreditCard className="h-4 w-4 text-amber-500" />
-            <span className="sm:hidden">Credit</span><span className="hidden sm:inline">Record Credit / Advance</span>
+            Record Credit / Advance
           </Button>
         </div>
       </div>

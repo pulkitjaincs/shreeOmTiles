@@ -45,8 +45,8 @@ export function PaymentCategoryBreakdown({
                   case 'BANK_TRANSFER':
                   case 'BANK':
                     return { label: 'Bank Transfer', colorClass: 'bg-indigo-500' };
-                  case 'SPLIT':
-                    return { label: 'Split Payment', colorClass: 'bg-purple-500' };
+                  case 'CARD':
+                    return { label: 'Card (POS)', colorClass: 'bg-amber-500' };
                   case 'CREDIT':
                     return { label: 'Credit', colorClass: 'bg-rose-500' };
                   default:
