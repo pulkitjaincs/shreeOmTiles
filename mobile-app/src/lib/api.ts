@@ -218,6 +218,7 @@ export async function mobileApiRequest<T = any>(
   }
 
   let res: Response;
+  let responseBody: T | undefined;
   for (let attempt = 0; ; attempt += 1) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), requestTimeoutMs);
@@ -234,10 +235,13 @@ export async function mobileApiRequest<T = any>(
 
     try {
       res = await fetch(url, { ...restOptions, headers, signal: controller.signal });
-      clearTimeout(timer);
+      if (res.ok) {
+        responseBody = await res.json();
+      }
       if (callerSignal) {
         callerSignal.removeEventListener('abort', onCallerAbort);
       }
+      clearTimeout(timer);
       break;
     } catch (error: any) {
       clearTimeout(timer);
@@ -337,7 +341,10 @@ export async function mobileApiRequest<T = any>(
     notifyAppSync();
   }
 
-  return res.json();
+  if (responseBody === undefined) {
+    throw new Error('The server returned an empty response. Please try again.');
+  }
+  return responseBody;
 }
 
 export interface CachedMobileRequestOptions<T = any> extends RequestInit {
