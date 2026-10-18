@@ -200,14 +200,14 @@ const createStyles = (colors: ThemeColors) =>
       gap: 10,
     },
     statMiniCard: {
-      width: 148,
+      width: 160,
+      height: 132,
       padding: 12,
       borderRadius: 14,
       borderWidth: 1,
       borderColor: colors.border,
       backgroundColor: colors.card,
       justifyContent: 'space-between',
-      minHeight: 90,
     },
     statCardActiveEmerald: {
       borderWidth: 1.5,
