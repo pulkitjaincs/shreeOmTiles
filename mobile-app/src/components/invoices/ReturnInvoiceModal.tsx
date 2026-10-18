@@ -5,6 +5,7 @@ import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import type { ThemeColors } from '@/constants/theme';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { formatINR } from '@/lib/formatters';
@@ -56,6 +57,7 @@ export function ReturnInvoiceModal({
   const [allocations, setAllocations] = useState<Record<string, ReturnAllocation>>({});
   const [returnMode, setReturnMode] = useState<'CASH' | 'UPI' | 'CARD' | 'CREDIT'>('CASH');
   const [returnReason, setReturnReason] = useState('Customer Return');
+  const [returnTaxRate, setReturnTaxRate] = useState(18);
   const [loadingInvoice, setLoadingInvoice] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
@@ -65,6 +67,7 @@ export function ReturnInvoiceModal({
   // Standalone Return State
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [standalonePartyId, setStandalonePartyId] = useState('');
   const [standaloneReason, setStandaloneReason] = useState('Legacy / Standalone Return');
   const [standaloneMode, setStandaloneMode] = useState<'CASH' | 'UPI' | 'CARD' | 'CREDIT'>('CASH');
   const [standaloneItems, setStandaloneItems] = useState<StandaloneItem[]>([
@@ -151,15 +154,9 @@ export function ReturnInvoiceModal({
       const qty = allocations[item.id]?.qty || 0;
       return sum + qty * Number(item.unitPrice || 0);
     }, 0);
-    const rate = Number(
-      activeInvoice.taxBreakup?.rate ??
-        (Number(activeInvoice.subtotal) > 0
-          ? (Number(activeInvoice.tax || 0) / Number(activeInvoice.subtotal)) * 100
-          : 18),
-    );
-    const tax = (subtotal * (Number.isFinite(rate) ? rate : 18)) / 100;
+    const tax = (subtotal * returnTaxRate) / 100;
     return { subtotal, tax, total: subtotal + tax };
-  }, [activeInvoice, allocations]);
+  }, [activeInvoice, allocations, returnTaxRate]);
 
   const updateAllocation = (itemId: string, patch: Partial<ReturnAllocation>) => {
     setAllocations((current) => ({
@@ -195,6 +192,7 @@ export function ReturnInvoiceModal({
         body: JSON.stringify({
           refundMode: returnMode,
           reason: returnReason.trim() || undefined,
+          taxRate: returnTaxRate,
           items: itemsToReturn,
         }),
       });
@@ -241,6 +239,7 @@ export function ReturnInvoiceModal({
     setSuccess(null);
     try {
       const payload = {
+        partyId: standalonePartyId || undefined,
         customerName: customerName.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
         refundMode: standaloneMode,
@@ -448,6 +447,14 @@ export function ReturnInvoiceModal({
                   </View>
                 </Card>
 
+                <Input
+                  label="GST Rate (%)"
+                  placeholder="18"
+                  value={String(returnTaxRate)}
+                  onChangeText={(value) => setReturnTaxRate(Math.max(0, parseFloat(value) || 0))}
+                  keyboardType="numeric"
+                />
+
                 <Text style={styles.sectionTitle}>Refund Payout Method</Text>
                 <View style={styles.modeRow}>
                   {(['CASH', 'UPI', 'CARD', 'CREDIT'] as const).map((m) => (
@@ -488,6 +495,29 @@ export function ReturnInvoiceModal({
                 Create standalone credit notes for legacy paper bills or non-catalog goods. Items are credited directly and restocked without delivery queuing.
               </Text>
             </View>
+
+            <Select
+              label="Party (Optional)"
+              value={standalonePartyId}
+              placeholder="Walk-in / Custom Customer"
+              searchable
+              options={[
+                { value: '', label: 'Walk-in / Custom Customer' },
+                ...parties.map((party) => ({
+                  value: party.id,
+                  label: party.name,
+                  subLabel: party.phone || undefined,
+                })),
+              ]}
+              onChange={(value) => {
+                setStandalonePartyId(value);
+                const party = parties.find((item) => item.id === value);
+                if (party) {
+                  setCustomerName(party.name);
+                  setCustomerPhone(party.phone || '');
+                }
+              }}
+            />
 
             <Input
               label="Customer Name (Optional)"
@@ -566,6 +596,21 @@ export function ReturnInvoiceModal({
                     />
                   </View>
                 </View>
+                <Input
+                  label="GST Rate (%)"
+                  placeholder="18"
+                  value={String(it.taxRate)}
+                  onChangeText={(value) =>
+                    setStandaloneItems((prev) =>
+                      prev.map((item) =>
+                        item.id === it.id
+                          ? { ...item, taxRate: Math.max(0, parseFloat(value) || 0) }
+                          : item,
+                      ),
+                    )
+                  }
+                  keyboardType="numeric"
+                />
               </Card>
             ))}
 
