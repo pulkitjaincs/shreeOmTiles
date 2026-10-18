@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { formatINR } from '@/lib/formatters';
 import { PaymentMethodType, PaymentSplitItem } from '@/components/invoices/types';
 
@@ -37,8 +37,216 @@ export function MultiPaymentSplitSelector({
   onPreviewUpi,
   previewUpiLoading = false,
 }: MultiPaymentSplitSelectorProps) {
+  const { colors } = useTheme();
   const effectiveCreditLabel = balanceLabel || creditLabel || 'Due:';
   const effectiveAllowCredit = allowCredit ?? allowZero ?? true;
+
+  const styles = useThemedStyles((c) =>
+    StyleSheet.create({
+      container: {
+        backgroundColor: c.cardElevated,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: c.borderMedium,
+        padding: 14,
+        marginVertical: 6,
+      },
+      header: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 10,
+      },
+      headerTitleWrap: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+      },
+      label: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: c.text,
+      },
+      subLabel: {
+        fontSize: 11,
+        color: c.textTertiary,
+      },
+      splitEvenlyButton: {
+        backgroundColor: c.cardHover,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: c.border,
+      },
+      splitEvenlyText: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: c.textSecondary,
+      },
+      chipsContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginBottom: 10,
+      },
+      chip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 10,
+        paddingVertical: 7,
+        borderRadius: 10,
+        backgroundColor: c.card,
+        borderWidth: 1,
+        borderColor: c.border,
+      },
+      chipText: {
+        fontSize: 12,
+        fontWeight: '500',
+        color: c.textSecondary,
+      },
+      emptyWrap: {
+        padding: 12,
+        borderRadius: 8,
+        backgroundColor: c.card,
+        borderWidth: 1,
+        borderColor: c.border,
+        borderStyle: 'dashed',
+        alignItems: 'center',
+      },
+      emptyText: {
+        fontSize: 12,
+        color: c.textTertiary,
+        textAlign: 'center',
+        lineHeight: 16,
+      },
+      rowsList: {
+        gap: 8,
+      },
+      rowCard: {
+        backgroundColor: c.card,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: c.border,
+        padding: 10,
+      },
+      rowHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 8,
+      },
+      modeIconWrap: {
+        padding: 5,
+        borderRadius: 6,
+        marginRight: 8,
+      },
+      modeName: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: c.text,
+        flex: 1,
+      },
+      deleteButton: {
+        padding: 4,
+      },
+      inputActionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+      },
+      amountInputWrap: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: c.inputBackground,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: c.inputBorder,
+        paddingHorizontal: 10,
+      },
+      currencyPrefix: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: c.textSecondary,
+        marginRight: 4,
+      },
+      amountInput: {
+        flex: 1,
+        fontSize: 14,
+        fontWeight: '700',
+        color: c.text,
+        paddingVertical: 7,
+      },
+      fillButton: {
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        borderRadius: 8,
+        backgroundColor: c.cardHover,
+        borderWidth: 1,
+        borderColor: c.borderMedium,
+      },
+      fillButtonText: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: c.text,
+      },
+      qrButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        borderRadius: 8,
+        backgroundColor: 'rgba(99, 102, 241, 0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(99, 102, 241, 0.3)',
+      },
+      qrButtonText: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: '#6366F1',
+      },
+      footer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginTop: 10,
+        paddingTop: 8,
+        borderTopWidth: 1,
+        borderTopColor: c.border,
+      },
+      footerLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+      },
+      footerText: {
+        fontSize: 12,
+        color: c.textSecondary,
+      },
+      footerPaidAmount: {
+        fontWeight: '700',
+        color: c.text,
+      },
+      balanceDueText: {
+        fontSize: 12,
+        color: c.statusPending,
+      },
+      balanceDueBold: {
+        fontWeight: '700',
+      },
+      fullyPaidText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: c.statusPaid,
+      },
+      overpaidText: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: c.statusCancelled,
+      },
+    })
+  );
   const modeConfigs: Record<
     PaymentMethodType,
     { label: string; icon: keyof typeof Ionicons.glyphMap; color: string; bgColor: string }
@@ -140,7 +348,7 @@ export function MultiPaymentSplitSelector({
 
       {/* Mode Chips Selector */}
       <View style={styles.chipsContainer}>
-        {(['CASH', 'UPI', 'BANK_TRANSFER'] as const).map((mode) => {
+        {(['CASH', 'UPI', 'BANK_TRANSFER', 'CARD'] as const).map((mode) => {
           const isSelected = splits.some((s) => s.mode === mode);
           const config = modeConfigs[mode];
           return (
@@ -165,7 +373,7 @@ export function MultiPaymentSplitSelector({
               <Ionicons
                 name={config.icon}
                 size={14}
-                color={isSelected ? config.color : Colors.dark.textSecondary}
+                color={isSelected ? config.color : colors.textSecondary}
               />
               <Text
                 style={[
@@ -178,7 +386,7 @@ export function MultiPaymentSplitSelector({
               {isSelected ? (
                 <Ionicons name="checkmark-circle" size={14} color={config.color} />
               ) : (
-                <Ionicons name="add" size={14} color={Colors.dark.textTertiary} />
+                <Ionicons name="add" size={14} color={colors.textTertiary} />
               )}
             </TouchableOpacity>
           );
@@ -213,7 +421,7 @@ export function MultiPaymentSplitSelector({
                     onPress={() => handleRemoveMode(row.mode)}
                     activeOpacity={0.7}
                   >
-                    <Ionicons name="trash-outline" size={16} color={Colors.dark.statusCancelled} />
+                    <Ionicons name="trash-outline" size={16} color={colors.statusCancelled} />
                   </TouchableOpacity>
                 </View>
 
@@ -224,7 +432,7 @@ export function MultiPaymentSplitSelector({
                       style={styles.amountInput}
                       keyboardType="decimal-pad"
                       placeholder="0.00"
-                      placeholderTextColor={Colors.dark.textTertiary}
+                      placeholderTextColor={colors.textTertiary}
                       value={row.amount}
                       onChangeText={(val) => handleAmountChange(idx, val)}
                     />
@@ -294,208 +502,3 @@ export function MultiPaymentSplitSelector({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    backgroundColor: Colors.dark.cardElevated,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-    padding: 14,
-    marginVertical: 6,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  headerTitleWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  label: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.dark.text,
-  },
-  subLabel: {
-    fontSize: 11,
-    color: Colors.dark.textTertiary,
-  },
-  splitEvenlyButton: {
-    backgroundColor: Colors.dark.cardHover,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  splitEvenlyText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.dark.textSecondary,
-  },
-  chipsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 10,
-  },
-  chip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 10,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  chipText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: Colors.dark.textSecondary,
-  },
-  emptyWrap: {
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    borderStyle: 'dashed',
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 12,
-    color: Colors.dark.textTertiary,
-    textAlign: 'center',
-    lineHeight: 16,
-  },
-  rowsList: {
-    gap: 8,
-  },
-  rowCard: {
-    backgroundColor: Colors.dark.card,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    padding: 10,
-  },
-  rowHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  modeIconWrap: {
-    padding: 5,
-    borderRadius: 6,
-    marginRight: 8,
-  },
-  modeName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.dark.text,
-    flex: 1,
-  },
-  deleteButton: {
-    padding: 4,
-  },
-  inputActionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  amountInputWrap: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.dark.inputBackground,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.dark.inputBorder,
-    paddingHorizontal: 10,
-  },
-  currencyPrefix: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    marginRight: 4,
-  },
-  amountInput: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.dark.text,
-    paddingVertical: 7,
-  },
-  fillButton: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: Colors.dark.cardHover,
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-  },
-  fillButtonText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.dark.text,
-  },
-  qrButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(99, 102, 241, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(99, 102, 241, 0.3)',
-  },
-  qrButtonText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#6366F1',
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 10,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: Colors.dark.border,
-  },
-  footerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  footerText: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-  },
-  footerPaidAmount: {
-    fontWeight: '700',
-    color: Colors.dark.text,
-  },
-  balanceDueText: {
-    fontSize: 12,
-    color: Colors.dark.statusPending,
-  },
-  balanceDueBold: {
-    fontWeight: '700',
-  },
-  fullyPaidText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.statusPaid,
-  },
-  overpaidText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.dark.statusCancelled,
-  },
-});

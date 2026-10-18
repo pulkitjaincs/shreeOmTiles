@@ -60,6 +60,16 @@ export function InvoiceDetailsDrawer({
     invoice.refundInvoices?.reduce((sum, r) => sum + Number(r.total || 0), 0) || 0;
   const netAdjustedTotal = Math.max(0, Number(invoice.total) - totalRefunded);
 
+  const isCashSaleParty = Boolean(
+    invoice.isCashSale ||
+    invoice.party?.isSaved === false ||
+    !invoice.party?.name ||
+    invoice.party.name.trim().toLowerCase() === 'cash sale' ||
+    invoice.party.name.trim().toLowerCase() === 'walk-in customer' ||
+    invoice.party.name.trim().toLowerCase().includes('cash sale') ||
+    invoice.party.name.trim().toLowerCase().includes('walk-in')
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 overflow-y-auto animate-in fade-in">
       <div className="w-full max-w-4xl rounded-[1.5rem] border border-border bg-card shadow-2xl space-y-6 my-8 max-h-[88dvh] overflow-y-auto p-[clamp(1.25rem,2.5vw,1.75rem)] text-foreground">
@@ -181,13 +191,13 @@ export function InvoiceDetailsDrawer({
               <span className="text-[0.6875rem] font-semibold text-muted-foreground uppercase tracking-wider block">
                 Customer / Billed To
               </span>
-              {invoice.isCashSale && (
+              {isCashSaleParty && (
                 <span className="text-[0.625rem] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
                   Cash Sale (Pickup)
                 </span>
               )}
             </div>
-            {invoice.party && !invoice.isCashSale && onOpenPartyStatement ? (
+            {invoice.party && !isCashSaleParty && onOpenPartyStatement ? (
               <button
                 type="button"
                 onClick={() => onOpenPartyStatement(invoice.party)}
@@ -199,7 +209,7 @@ export function InvoiceDetailsDrawer({
               </button>
             ) : (
               <p className="text-[0.875rem] font-bold text-foreground">
-                {invoice.party?.name || (invoice.isCashSale ? 'Cash Sale' : 'Walk-in Customer')}
+                {invoice.party?.name || (isCashSaleParty ? 'Cash Sale' : 'Walk-in Customer')}
               </p>
             )}
             <p className="text-[0.75rem] text-muted-foreground font-mono">
@@ -216,7 +226,7 @@ export function InvoiceDetailsDrawer({
                 </div>
               </div>
             )}
-            {Number(invoice.previousBalance || 0) > 0 && (
+            {Number(invoice.previousBalance || 0) > 0 && !isCashSaleParty && (
               <div className="mt-2 pt-2 border-t border-border/60 text-[0.6875rem] text-amber-600 dark:text-amber-400 font-medium flex items-center justify-between">
                 <span>Prior Balance Context:</span>
                 <span className="font-mono font-bold">{formatINR(Number(invoice.previousBalance))}</span>

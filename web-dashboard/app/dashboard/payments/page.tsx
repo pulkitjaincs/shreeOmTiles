@@ -1081,23 +1081,35 @@ export default function TransactionsPage() {
                     <tr key={item.id} className="hover:bg-muted/30 transition-colors group">
                       <td className="py-3.5 px-4 font-medium text-foreground">
                         <div className="flex items-center gap-2.5">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenParty(item.partyId, item.partyName)}
-                            className="h-8 w-8 rounded-[0.5rem] bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 flex items-center justify-center text-xs font-bold uppercase transition active:scale-95 shrink-0"
-                            title="Open Party Ledger Statement"
-                          >
-                            {item.partyName.slice(0, 2)}
-                          </button>
-                          <div>
+                          {item.partyName.toLowerCase().includes('cash sale') || item.partyName.toLowerCase().includes('walk-in') || !item.partyId ? (
+                            <span className="h-8 w-8 rounded-[0.5rem] bg-muted text-muted-foreground border border-border flex items-center justify-center text-xs font-bold uppercase shrink-0">
+                              {item.partyName.slice(0, 2)}
+                            </span>
+                          ) : (
                             <button
                               type="button"
                               onClick={() => handleOpenParty(item.partyId, item.partyName)}
-                              className="font-semibold text-foreground hover:text-primary hover:underline text-left transition"
+                              className="h-8 w-8 rounded-[0.5rem] bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 flex items-center justify-center text-xs font-bold uppercase transition active:scale-95 shrink-0"
                               title="Open Party Ledger Statement"
                             >
-                              {item.partyName}
+                              {item.partyName.slice(0, 2)}
                             </button>
+                          )}
+                          <div>
+                            {item.partyName.toLowerCase().includes('cash sale') || item.partyName.toLowerCase().includes('walk-in') || !item.partyId ? (
+                              <span className="font-semibold text-foreground text-left">
+                                {item.partyName}
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenParty(item.partyId, item.partyName)}
+                                className="font-semibold text-foreground hover:text-primary hover:underline text-left transition"
+                                title="Open Party Ledger Statement"
+                              >
+                                {item.partyName}
+                              </button>
+                            )}
                             {item.partyPhone && (
                               <p className="text-xs text-muted-foreground font-mono">{item.partyPhone}</p>
                             )}
@@ -1377,7 +1389,10 @@ export default function TransactionsPage() {
                           </td>
 
                           <td className="py-3.5 px-4">
-                            {payment.invoice?.isCashSale ? (
+                            {payment.invoice?.isCashSale ||
+                            (!payment.invoice?.party?.id && !payment.party?.id) ||
+                            partyName.toLowerCase().includes('cash sale') ||
+                            partyName.toLowerCase().includes('walk-in') ? (
                               <span className="font-semibold text-foreground text-sm">
                                 {partyName}
                               </span>

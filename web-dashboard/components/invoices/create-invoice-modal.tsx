@@ -348,6 +348,19 @@ export function CreateInvoiceModal({
   }, [paymentSplits]);
   const upiSplitAmount = upiSplit ? parseFloat(upiSplit.amount) : 0;
 
+  const primaryDisplayMode = useMemo(() => {
+    const valid = paymentSplits.filter((s) => {
+      const val = parseFloat(s.amount);
+      return !isNaN(val) && val > 0;
+    });
+    if (valid.length === 0) return 'Credit';
+    if (valid.length > 1) return 'Split';
+    const m = valid[0].mode;
+    if (m === 'CARD') return 'Card (POS)';
+    if (m === 'BANK_TRANSFER') return 'Bank';
+    return m;
+  }, [paymentSplits]);
+
   const validateAndBuildPayload = () => {
     if (customerMode === 'EXISTING' && !partyId) {
       throw new Error('Please select a customer from the list');
@@ -1149,7 +1162,7 @@ export function CreateInvoiceModal({
               </div>
               {effectivePaidNow > 0 && (
                 <div className="flex justify-between text-[0.75rem] text-emerald-600 dark:text-emerald-400 font-medium">
-                  <span>Amount Paid Now ({paymentMode}):</span>
+                  <span>Amount Paid Now ({primaryDisplayMode}):</span>
                   <span>₹{effectivePaidNow.toFixed(2)}</span>
                 </div>
               )}

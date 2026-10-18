@@ -167,7 +167,7 @@ export interface PaymentReceipt {
 }
 
 export interface PaymentSplitItem {
-  mode: 'CASH' | 'UPI' | 'BANK_TRANSFER';
+  mode: 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'CARD';
   amount: string;
   upiTxnRef?: string;
   upiUtr?: string;

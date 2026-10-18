@@ -116,7 +116,7 @@ export function MultiPaymentSplitSelector({
 
       {/* Mode Toggle Chips */}
       <div className="flex flex-wrap gap-2">
-        {(['CASH', 'UPI', 'BANK_TRANSFER'] as const).map((mode) => {
+        {(['CASH', 'UPI', 'BANK_TRANSFER', 'CARD'] as const).map((mode) => {
           const isSelected = splits.some((s) => s.mode === mode);
           const config = modeConfig[mode];
           const Icon = config.icon;
