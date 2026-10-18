@@ -195,7 +195,19 @@ export async function generateRefundInvoicePdf(
     font: fontBold,
     color: accentRed,
   });
-  page.drawText(safePdfText(`Refund Settlement Mode: ${refund.refundMode}`), {
+  const formatRefundMode = (m: string) =>
+    m === 'CARD'
+      ? 'Card (POS Machine)'
+      : m === 'BANK_TRANSFER' || m === 'BANK'
+      ? 'Bank Transfer'
+      : m === 'CASH'
+      ? 'Cash'
+      : m === 'UPI'
+      ? 'UPI'
+      : m === 'CREDIT'
+      ? 'Store Credit'
+      : m;
+  page.drawText(safePdfText(`Refund Settlement Mode: ${formatRefundMode(refund.refundMode)}`), {
     x: rightBoxX + 10,
     y: cardTopY - 28,
     size: 8.5,

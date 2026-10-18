@@ -15,6 +15,7 @@ import {
   Banknote,
   QrCode,
   Building2,
+  CreditCard,
   Pencil,
   ExternalLink,
 } from 'lucide-react';
@@ -241,15 +242,33 @@ export function InvoiceDetailsDrawer({
             </span>
             <div className="text-[0.75rem] space-y-1">
               {!isSupervisor && (
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Payment Mode:</span>
-                  <span className="font-semibold text-foreground">
-                    {invoice.paymentMode === 'SPLIT' && invoice.payments && invoice.payments.length > 1
-                      ? `Split (${invoice.payments.map((p) => p.mode).join(' + ')})`
-                      : invoice.paymentMode === 'CARD'
-                      ? 'Card (POS Machine)'
-                      : invoice.paymentMode || 'CREDIT'}
-                  </span>
+                <div className="flex justify-between items-start gap-2">
+                  <span className="text-muted-foreground shrink-0">Payment Options:</span>
+                  <div className="text-right">
+                    {invoice.payments && invoice.payments.length > 0 ? (
+                      <div className="flex flex-col items-end gap-0.5">
+                        {invoice.payments.map((p, idx) => (
+                          <span key={p.id || idx} className="font-semibold text-foreground text-[0.6875rem]">
+                            {p.mode === 'CARD'
+                              ? 'Card (POS)'
+                              : p.mode === 'BANK_TRANSFER' || p.mode === 'BANK'
+                              ? 'Bank'
+                              : p.mode === 'CASH'
+                              ? 'Cash'
+                              : p.mode}: {formatINR(p.amount)}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="font-semibold text-foreground">
+                        {invoice.paymentMode === 'CARD'
+                          ? 'Card (POS Machine)'
+                          : invoice.paymentMode === 'BANK_TRANSFER'
+                          ? 'Bank Transfer'
+                          : invoice.paymentMode || 'CREDIT'}
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
               <div className="flex justify-between">
@@ -452,16 +471,24 @@ export function InvoiceDetailsDrawer({
                   <div className="flex items-center gap-2.5">
                     <div className="p-1.5 rounded-[0.5rem] bg-primary/10 text-primary">
                       {p.mode === 'UPI' ? (
-                        <QrCode className="h-4 w-4" />
+                        <QrCode className="h-4 w-4 text-indigo-500" />
                       ) : p.mode === 'CASH' ? (
-                        <Banknote className="h-4 w-4" />
+                        <Banknote className="h-4 w-4 text-emerald-500" />
+                      ) : p.mode === 'CARD' ? (
+                        <CreditCard className="h-4 w-4 text-amber-500" />
                       ) : (
-                        <Building2 className="h-4 w-4" />
+                        <Building2 className="h-4 w-4 text-sky-500" />
                       )}
                     </div>
                     <div>
                       <div className="text-[0.8125rem] font-semibold text-foreground">
-                        {p.mode}
+                        {p.mode === 'CARD'
+                          ? 'Card (POS Machine)'
+                          : p.mode === 'BANK_TRANSFER' || p.mode === 'BANK'
+                          ? 'Bank Transfer'
+                          : p.mode === 'CASH'
+                          ? 'Cash in Hand'
+                          : p.mode}
                       </div>
                       <div className="text-[0.6875rem] text-muted-foreground">
                         {p.paidAt ? formatDateTime(p.paidAt) : 'Confirmed'}

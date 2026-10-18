@@ -4,7 +4,8 @@ import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { Colors } from '@/constants/theme';
+import { Colors, ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { formatINR, formatDate } from '@/lib/formatters';
 import { downloadAndSharePdf } from '@/lib/pdf';
 
@@ -33,6 +34,8 @@ export function InvoiceDetailsModal({
   onDeleteInvoice,
   isSupervisor = false,
 }: InvoiceDetailsModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [downloading, setDownloading] = useState(false);
   if (!invoice) return null;
 
@@ -69,7 +72,7 @@ export function InvoiceDetailsModal({
             {!isSupervisor ? (
               <Text style={styles.detailTotalAmount}>{formatINR(invoice.total)}</Text>
             ) : (
-              <Text style={[styles.detailTotalAmount, { fontSize: 18, color: '#FFFFFF' }]}>
+              <Text style={[styles.detailTotalAmount, { fontSize: 18, color: colors.text }]}>
                 {invoice.items?.length || 0} Line Items
               </Text>
             )}
@@ -119,7 +122,20 @@ export function InvoiceDetailsModal({
             </View>
           ) : null}
           {!isSupervisor ? (
-            <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Payment Mode</Text><Text style={styles.summaryVal}>{invoice.paymentMode === 'CARD' ? 'Card (POS Machine)' : invoice.paymentMode || 'CASH'}</Text></View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Payment Mode</Text>
+              <Text style={styles.summaryVal}>
+                {(invoice.payments || []).length > 0
+                  ? (invoice.payments || [])
+                      .map((p: any) => `${p.mode === 'CARD' ? 'Card (POS)' : p.mode === 'BANK_TRANSFER' ? 'Bank' : p.mode}: ${formatINR(p.amount)}`)
+                      .join(' • ')
+                  : invoice.paymentMode === 'CARD'
+                  ? 'Card (POS Machine)'
+                  : invoice.paymentMode === 'BANK_TRANSFER'
+                  ? 'Bank Transfer'
+                  : invoice.paymentMode || 'CASH'}
+              </Text>
+            </View>
           ) : null}
           <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Billed By</Text><Text style={styles.summaryVal}>{invoice.salesman?.name || 'Staff'}</Text></View>
           <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Line Items</Text><Text style={styles.summaryVal}>{invoice.items?.length || 0}</Text></View>
@@ -204,14 +220,21 @@ export function InvoiceDetailsModal({
               <View key={pm.id || idx} style={styles.itemDetailRow}>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text style={styles.itemDetailName}>
-                    {pm.mode} {pm.status && pm.status !== 'CONFIRMED' ? `(${pm.status})` : ''}
+                    {pm.mode === 'CARD'
+                      ? 'Card (POS Machine)'
+                      : pm.mode === 'BANK_TRANSFER' || pm.mode === 'BANK'
+                      ? 'Bank Transfer'
+                      : pm.mode === 'CASH'
+                      ? 'Cash in Hand'
+                      : pm.mode}{' '}
+                    {pm.status && pm.status !== 'CONFIRMED' ? `(${pm.status})` : ''}
                   </Text>
                   <Text style={styles.itemDetailSub}>
                     {pm.referenceNo ? `Ref: ${pm.referenceNo} · ` : ''}{formatDate(pm.createdAt)}
                   </Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={[styles.itemDetailTotal, { color: Colors.dark.statusPaid }]}>
+                  <Text style={[styles.itemDetailTotal, { color: colors.statusPaid }]}>
                     {formatINR(pm.amount)}
                   </Text>
                 </View>
@@ -325,118 +348,119 @@ export function InvoiceDetailsModal({
   );
 }
 
-const styles = StyleSheet.create({
-  detailsHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 14,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.dark.border,
-  },
-  detailTotalAmount: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#10B981',
-    fontFamily: 'monospace',
-  },
-  detailDateText: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  modalSectionTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  totalUnitsText: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    fontWeight: '600',
-  },
-  itemDetailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  itemDetailName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.dark.text,
-  },
-  itemDetailSub: {
-    fontSize: 11,
-    color: Colors.dark.textTertiary,
-    marginTop: 2,
-  },
-  itemDetailQty: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-  },
-  itemDetailTotal: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.dark.text,
-    marginTop: 2,
-  },
-  detailMetaCard: {
-    padding: 12,
-    backgroundColor: Colors.dark.card,
-    borderRadius: 12,
-    marginVertical: 4,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginVertical: 3,
-  },
-  summaryLabel: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-  },
-  summaryVal: {
-    fontSize: 12,
-    color: Colors.dark.text,
-    fontWeight: '600',
-  },
-  financialCard: { padding: 12, marginTop: 10, backgroundColor: Colors.dark.card },
-  financialTitle: { color: Colors.dark.text, fontSize: 13, fontWeight: '800', marginBottom: 7 },
-  netTotalRow: { borderTopWidth: 1, borderColor: Colors.dark.border, paddingTop: 8, marginTop: 6 },
-  netTotalLabel: { color: Colors.dark.text, fontSize: 13, fontWeight: '800' },
-  netTotalValue: { color: '#34D399', fontSize: 15, fontWeight: '900' },
-  refundAmountLabel: { color: '#F87171', fontSize: 11, fontWeight: '700' },
-  wrapValue: { maxWidth: '65%', textAlign: 'right' },
-  notesBox: { marginTop: 5, paddingTop: 7, borderTopWidth: 1, borderTopColor: Colors.dark.border },
-  noteValue: { color: Colors.dark.text, fontSize: 12, marginTop: 3 },
-  emptyText: { color: Colors.dark.textTertiary, fontSize: 12, paddingVertical: 10 },
-  refundCard: { padding: 12, marginBottom: 8, borderColor: 'rgba(248,113,113,0.25)' },
-  refundHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 7 },
-  refundNo: { color: '#F87171', fontSize: 14, fontWeight: '900' },
-  refundItemText: { color: Colors.dark.textSecondary, fontSize: 11, paddingTop: 5 },
-  returnedBadge: {
-    alignSelf: 'flex-start',
-    marginTop: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    backgroundColor: 'rgba(239, 68, 68, 0.14)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.25)',
-  },
-  returnedBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#EF4444',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    detailsHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 14,
+      paddingBottom: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    detailTotalAmount: {
+      fontSize: 24,
+      fontWeight: '900',
+      color: '#10B981',
+      fontFamily: 'monospace',
+    },
+    detailDateText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    sectionHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 12,
+      marginBottom: 8,
+    },
+    modalSectionTitle: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    totalUnitsText: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    itemDetailRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingVertical: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    itemDetailName: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    itemDetailSub: {
+      fontSize: 11,
+      color: colors.textTertiary,
+      marginTop: 2,
+    },
+    itemDetailQty: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    itemDetailTotal: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.text,
+      marginTop: 2,
+    },
+    detailMetaCard: {
+      padding: 12,
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      marginVertical: 4,
+    },
+    summaryRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginVertical: 3,
+    },
+    summaryLabel: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    summaryVal: {
+      fontSize: 12,
+      color: colors.text,
+      fontWeight: '600',
+    },
+    financialCard: { padding: 12, marginTop: 10, backgroundColor: colors.card },
+    financialTitle: { color: colors.text, fontSize: 13, fontWeight: '800', marginBottom: 7 },
+    netTotalRow: { borderTopWidth: 1, borderColor: colors.border, paddingTop: 8, marginTop: 6 },
+    netTotalLabel: { color: colors.text, fontSize: 13, fontWeight: '800' },
+    netTotalValue: { color: '#34D399', fontSize: 15, fontWeight: '900' },
+    refundAmountLabel: { color: '#F87171', fontSize: 11, fontWeight: '700' },
+    wrapValue: { maxWidth: '65%', textAlign: 'right' },
+    notesBox: { marginTop: 5, paddingTop: 7, borderTopWidth: 1, borderTopColor: colors.border },
+    noteValue: { color: colors.text, fontSize: 12, marginTop: 3 },
+    emptyText: { color: colors.textTertiary, fontSize: 12, paddingVertical: 10 },
+    refundCard: { padding: 12, marginBottom: 8, borderColor: 'rgba(248,113,113,0.25)' },
+    refundHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 7 },
+    refundNo: { color: '#F87171', fontSize: 14, fontWeight: '900' },
+    refundItemText: { color: colors.textSecondary, fontSize: 11, paddingTop: 5 },
+    returnedBadge: {
+      alignSelf: 'flex-start',
+      marginTop: 4,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+      backgroundColor: 'rgba(239, 68, 68, 0.14)',
+      borderWidth: 1,
+      borderColor: 'rgba(239, 68, 68, 0.25)',
+    },
+    returnedBadgeText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: '#EF4444',
+    },
+  });

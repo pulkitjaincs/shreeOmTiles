@@ -567,40 +567,85 @@ export async function generateInvoicePdf(
     color: lightBorder,
   });
 
-  page.drawText('Payment mode', {
+  page.drawText('Payment Breakdown / Options Used:', {
     x: wordsLeftX,
-    y: currentY - 62,
-    size: 8,
-    font: fontRegular,
+    y: currentY - 58,
+    size: 7.5,
+    font: fontBold,
     color: darkGray,
   });
+
   const formatModeLabel = (m: string) =>
-    m === 'CARD' ? 'Card (POS)' : m === 'BANK_TRANSFER' ? 'Bank' : m;
-  let paymentModeDisplay = formatModeLabel(invoice.paymentMode || 'Credit');
-  if (Array.isArray(invoice.payments) && invoice.payments.length > 0) {
-    const validPayments = (
-      invoice.payments as unknown as Array<{ mode: string; amount: unknown }>
-    ).filter((p) => Number(p.amount) > 0);
-    if (validPayments.length > 1) {
-      const parts = validPayments.map(
-        (p) =>
-          `${formatModeLabel(p.mode)}: Rs. ${Math.round(Number(p.amount)).toLocaleString('en-IN')}`,
-      );
-      paymentModeDisplay = parts.join(' | ');
-    } else if (validPayments.length === 1) {
-      paymentModeDisplay = `${formatModeLabel(validPayments[0].mode)}: Rs. ${Math.round(Number(validPayments[0].amount)).toLocaleString('en-IN')}`;
+    m === 'CARD'
+      ? 'Card (POS Machine)'
+      : m === 'BANK_TRANSFER' || m === 'BANK'
+      ? 'Bank Transfer'
+      : m === 'CASH'
+      ? 'Cash in Hand'
+      : m === 'UPI'
+      ? 'UPI'
+      : m === 'CREDIT'
+      ? 'Credit'
+      : m;
+
+  const validPayments = (
+    Array.isArray(invoice.payments) ? invoice.payments : []
+  ).filter((p: any) => Number(p.amount) > 0);
+
+  let payLineY = currentY - 69;
+  const payLineHeight = 10;
+  const maxLines = 4;
+  let linesRendered = 0;
+
+  if (validPayments.length > 0) {
+    for (const p of validPayments as any[]) {
+      if (linesRendered >= maxLines) break;
+      const amtStr = `Rs. ${Math.round(Number(p.amount)).toLocaleString('en-IN')}`;
+      const utrStr = p.upiUtr ? ` (UTR: ${p.upiUtr})` : '';
+      const text = safePdfText(`• ${formatModeLabel(p.mode)}: ${amtStr}${utrStr}`);
+
+      page.drawText(text, {
+        x: wordsLeftX,
+        y: payLineY,
+        size: 7.5,
+        font: fontBold,
+        color: black,
+      });
+      payLineY -= payLineHeight;
+      linesRendered++;
     }
+
+    if (balance > 0 && linesRendered < maxLines) {
+      page.drawText(
+        safePdfText(
+          `• Unpaid Credit Due: Rs. ${Math.round(balance).toLocaleString('en-IN')}`,
+        ),
+        {
+          x: wordsLeftX,
+          y: payLineY,
+          size: 7,
+          font: fontRegular,
+          color: brandRed,
+        },
+      );
+      payLineY -= payLineHeight;
+    }
+  } else {
+    const modeLabel = formatModeLabel(invoice.paymentMode || 'CREDIT');
+    const payText = safePdfText(
+      balance > 0
+        ? `• ${modeLabel}: Rs. ${Math.round(balance).toLocaleString('en-IN')} (Pay Later)`
+        : `• ${modeLabel}`,
+    );
+    page.drawText(payText, {
+      x: wordsLeftX,
+      y: payLineY,
+      size: 7.5,
+      font: fontBold,
+      color: black,
+    });
+    payLineY -= payLineHeight;
   }
-  const modeText = safePdfText(paymentModeDisplay);
-  const modeFontSize =
-    modeText.length > 45 ? 7 : modeText.length > 30 ? 7.5 : 8.5;
-  page.drawText(modeText, {
-    x: wordsLeftX,
-    y: currentY - 74,
-    size: modeFontSize,
-    font: fontBold,
-    color: black,
-  });
 
   if (hasReturns) {
     const refundNos = (invoice.refundInvoices || [])
@@ -621,7 +666,7 @@ export async function generateInvoicePdf(
     }
     page.drawText(displayNote, {
       x: wordsLeftX,
-      y: currentY - 88,
+      y: Math.max(payLineY, currentY - amountsBoxHeight + 8),
       size: 7,
       font: fontBold,
       color: brandRed,
