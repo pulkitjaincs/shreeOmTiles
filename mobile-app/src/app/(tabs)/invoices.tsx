@@ -207,9 +207,13 @@ export default function InvoicesScreen() {
     if (parties.length > 0) return; // already loaded, skip
     try {
       const data = await cachedMobileApiRequest<Party[]>('/parties', {
-        onRevalidate: (fresh) => setParties(fresh || []),
+        onRevalidate: (fresh) => {
+          const list = Array.isArray(fresh) ? fresh : (fresh as any)?.data || [];
+          setParties(Array.isArray(list) ? list : []);
+        },
       });
-      setParties(data || []);
+      const list = Array.isArray(data) ? data : (data as any)?.data || [];
+      setParties(Array.isArray(list) ? list : []);
     } catch (err: any) {
       console.warn('Failed to lazy-load parties:', err.message);
     }
