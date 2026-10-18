@@ -62,7 +62,6 @@ export function ReturnInvoiceModal({
     Record<string, { qty: number; batchNo?: string }>
   >({});
   const [returnRefundMode, setReturnRefundMode] = useState<'CASH' | 'UPI' | 'CARD' | 'CREDIT'>('CASH');
-  const [returnTaxRate, setReturnTaxRate] = useState(18);
   const [returnReason, setReturnReason] = useState('Customer Return');
   const [returnSubmitting, setReturnSubmitting] = useState(false);
   const [returnSuccessMsg, setReturnSuccessMsg] = useState('');
@@ -183,7 +182,6 @@ export function ReturnInvoiceModal({
           items: itemsToReturn,
           refundMode: returnRefundMode,
           reason: returnReason,
-          taxRate: returnTaxRate,
         }),
       });
 
@@ -600,13 +598,13 @@ export function ReturnInvoiceModal({
                           previewSubtotal += alloc.qty * Number(it.unitPrice);
                         }
                       });
-                      const previewTax = (previewSubtotal * returnTaxRate) / 100;
+                      const previewTax = (previewSubtotal * 18) / 100;
                       const previewTotal = previewSubtotal + previewTax;
 
                       return (
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-[0.875rem] border border-primary/20 bg-primary/5 text-[0.75rem] gap-2">
                           <span className="text-foreground font-medium">
-                            Estimated Refund (Items + {returnTaxRate}% GST reversal):
+                            Estimated Refund (Items + 18% GST reversal):
                           </span>
                           <div className="flex items-center gap-3">
                             <span className="text-[0.6875rem] text-muted-foreground">
@@ -623,19 +621,6 @@ export function ReturnInvoiceModal({
 
                   {/* Refund Settlement Options */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                    <div>
-                      <label className="block text-[0.75rem] font-medium text-foreground mb-1">
-                        GST Rate (%)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={returnTaxRate}
-                        onChange={(e) => setReturnTaxRate(Math.max(0, Number(e.target.value) || 0))}
-                        className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-[0.75rem] text-foreground focus:border-primary focus:outline-none"
-                      />
-                    </div>
                     <div>
                       <label className="block text-[0.75rem] font-medium text-foreground mb-1">
                         Refund Payout Mode

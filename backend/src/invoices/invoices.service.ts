@@ -994,11 +994,7 @@ export class InvoicesService {
       const originalTaxBreakup =
         (invoice.taxBreakup as unknown as TaxBreakupData) || {};
       const taxRate =
-        data.taxRate !== undefined
-          ? Math.max(0, data.taxRate)
-          : originalTaxBreakup.rate !== undefined
-            ? originalTaxBreakup.rate
-            : 18;
+        originalTaxBreakup.rate !== undefined ? originalTaxBreakup.rate : 18;
 
       let subtotal = 0;
       const returnedSummaries: string[] = [];

@@ -207,23 +207,19 @@ export default function InvoicesScreen() {
     if (parties.length > 0) return; // already loaded, skip
     try {
       const data = await cachedMobileApiRequest<Party[]>('/parties', {
-        onRevalidate: (fresh) => {
-          const list = Array.isArray(fresh) ? fresh : (fresh as any)?.data || [];
-          setParties(Array.isArray(list) ? list : []);
-        },
+        onRevalidate: (fresh) => setParties(fresh || []),
       });
-      const list = Array.isArray(data) ? data : (data as any)?.data || [];
-      setParties(Array.isArray(list) ? list : []);
+      setParties(data || []);
     } catch (err: any) {
       console.warn('Failed to lazy-load parties:', err.message);
     }
   }, [parties.length]);
 
   useEffect(() => {
-    if (createModalOpen || editingInvoice || returnInvoice) {
+    if (createModalOpen || editingInvoice) {
       void loadPartiesLazy();
     }
-  }, [createModalOpen, editingInvoice, returnInvoice, loadPartiesLazy]);
+  }, [createModalOpen, editingInvoice, loadPartiesLazy]);
 
   useFocusEffect(
     useCallback(() => {
@@ -558,12 +554,6 @@ export default function InvoicesScreen() {
         visible={Boolean(returnInvoice)}
         onClose={() => setReturnInvoice(null)}
         warehouses={warehouses}
-        parties={parties}
-        onPartyCreated={(party) =>
-          setParties((current) =>
-            current.some((item) => item.id === party.id) ? current : [party, ...current],
-          )
-        }
         onDownloadRefundPdf={handleDownloadRefundPdf}
         onDownloadPdf={handleDownloadInvoicePdf}
         onSuccess={() => loadData(true)}
