@@ -49,6 +49,11 @@ export class ProcessReturnDto {
   @IsEnum(PaymentMode)
   refundMode: PaymentMode;
 
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  taxRate?: number;
+
   @IsString()
   @IsOptional()
   reason?: string;
