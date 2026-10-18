@@ -342,7 +342,7 @@ export function SalesmanDashboardView({
           <View style={{ flex: 1 }}>
             <Text style={styles.policyTitle}>Sales Operational Policy</Text>
             <Text style={styles.policyText}>
-              Sales staff can collect full payments upfront (Cash/UPI), accept partial payments, or offer customer store credit. Approving returns and payouts remain restricted to Administrators.
+              Sales staff can collect full payments upfront (Cash/UPI), accept partial payments, offer customer store credit, and process customer returns. Store payouts remain restricted to Administrators.
             </Text>
           </View>
         </View>

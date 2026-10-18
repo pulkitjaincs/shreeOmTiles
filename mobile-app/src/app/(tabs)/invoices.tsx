@@ -45,7 +45,7 @@ export default function InvoicesScreen() {
   const isSupervisor = user?.role === 'SUPERVISOR';
   const isDirectorOrAdmin = user?.role === 'OWNER' || (user?.role as any) === 'DIRECTOR' || user?.role === 'ADMIN';
   const isOwnerOrAdmin = isDirectorOrAdmin;
-  const canReturn = Boolean(user && user.role !== 'SALESMAN' && user.role !== 'SUPERVISOR');
+  const canReturn = Boolean(user && user.role !== 'SUPERVISOR');
 
   const styles = useThemedStyles((c) =>
     StyleSheet.create({

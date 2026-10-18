@@ -610,7 +610,7 @@ export default function SalesmanDashboard({
         <ShieldAlert className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
         <div>
           <span className="font-semibold text-foreground">Sales Operational Policy:</span>{' '}
-          Sales staff can collect full payments upfront (Cash/UPI), accept partial payments, or offer customer store credit. Customer returns and store payouts remain restricted to Administrators.
+          Sales staff can collect full payments upfront (Cash/UPI), accept partial payments, offer customer store credit, and process customer returns. Store payouts remain restricted to Administrators.
         </div>
       </div>
     </div>

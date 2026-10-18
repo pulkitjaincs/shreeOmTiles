@@ -42,7 +42,6 @@ import { formatINR, formatDate, cleanPhoneNumber } from '@/lib/formatters';
 
 export default function InvoicesPage() {
   const { user } = useAuth();
-  const isSalesman = user?.role === 'SALESMAN';
   const isSupervisor = user?.role === 'SUPERVISOR';
   const canDeleteInvoice = !isSupervisor && (user?.role === 'OWNER' || user?.role === 'ADMIN');
 
@@ -357,7 +356,7 @@ export default function InvoicesPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          {!isSalesman && !isSupervisor && (
+          {!isSupervisor && (
             <Button
               onClick={() => setShowReturnModal(true)}
               className="flex items-center gap-2 bg-card hover:bg-muted text-foreground border border-border shadow-2xs"

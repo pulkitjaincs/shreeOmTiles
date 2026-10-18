@@ -113,7 +113,7 @@ export class InvoicesController {
   }
 
   @Post(':id/return')
-  @Roles(Role.ADMIN)
+  @Roles(Role.SALESMAN, Role.ADMIN)
   processReturn(
     @Param('id') id: string,
     @Body() returnData: ProcessReturnDto,
