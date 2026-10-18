@@ -539,12 +539,17 @@ export class InvoicesService {
 
   async findAll(
     user: { id: string; role: Role },
-    pagination?: PaginationParams,
+    pagination?: PaginationParams & { createdById?: string },
   ): Promise<any> {
     const where: Prisma.InvoiceWhereInput = {};
     // Salesmen only view their own sales unless Admin/Owner
     if (user.role === Role.SALESMAN) {
       where.salesmanId = user.id;
+    } else if (
+      pagination?.createdById &&
+      (user.role === Role.OWNER || user.role === Role.ADMIN)
+    ) {
+      where.salesmanId = pagination.createdById;
     }
 
     const includeRelations = {

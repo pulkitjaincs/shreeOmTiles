@@ -77,12 +77,14 @@ export class InvoicesController {
     @Request() req: RequestWithUser,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('createdById') createdById?: string,
   ) {
     const pageNum = page ? parseInt(page, 10) : undefined;
     const limitNum = limit ? parseInt(limit, 10) : undefined;
     return this.invoicesService.findAll(req.user, {
       page: pageNum,
       limit: limitNum,
+      createdById,
     });
   }
 

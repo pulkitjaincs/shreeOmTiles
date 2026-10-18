@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useCallback, useDeferredValue } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
 import { apiRequest, cachedApiRequest } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -58,6 +59,9 @@ export default function InvoicesPage() {
   const [customToDate, setCustomToDate] = useState('');
   const [statusFilter, setStatusFilter] = useState<InvoiceStatusFilter>('ALL');
   const [modeFilter, setModeFilter] = useState<PaymentModeFilter>('ALL');
+  const searchParams = useSearchParams();
+  const [createdById, setCreatedById] = useState(searchParams.get('createdById') || 'ALL');
+  const [staff, setStaff] = useState<Array<{ id: string; name: string; role: string }>>([]);
 
   // Modals & Active State
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -76,8 +80,8 @@ export default function InvoicesPage() {
 
   const loadInitialData = useCallback(async (force = false) => {
     try {
-      const [invList, prodList, partyList, stockList] = await Promise.all([
-        cachedApiRequest<Invoice[]>('/invoices', {
+      const [invList, prodList, partyList, stockList, staffList] = await Promise.all([
+        cachedApiRequest<Invoice[]>(`/invoices${createdById !== 'ALL' ? `?createdById=${encodeURIComponent(createdById)}` : ''}`, {
           forceRefresh: force,
           onRevalidate: (fresh) => setInvoices(fresh),
         }).catch(() => []),
@@ -93,17 +97,23 @@ export default function InvoicesPage() {
           forceRefresh: force,
           onRevalidate: (fresh) => setAllStock(fresh),
         }).catch(() => []),
+        canDeleteInvoice
+          ? cachedApiRequest<Array<{ id: string; name: string; role: string }>>('/users', {
+              forceRefresh: force,
+            }).catch(() => [])
+          : Promise.resolve([]),
       ]);
       setInvoices(invList);
       setProducts(prodList);
       setParties(partyList);
       setAllStock(stockList);
+      setStaff(staffList);
     } catch (err) {
       console.error('Failed to load invoice dependencies', err);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [canDeleteInvoice, createdById]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -343,6 +353,7 @@ export default function InvoicesPage() {
     setCustomToDate('');
     setStatusFilter('ALL');
     setModeFilter('ALL');
+    setCreatedById('ALL');
   };
 
   return (
@@ -432,6 +443,25 @@ export default function InvoicesPage() {
                 ]}
               />
             </div>
+
+            {canDeleteInvoice && (
+              <div className="w-full sm:w-52">
+                <ThemedSelect
+                  value={createdById}
+                  onChange={setCreatedById}
+                  options={[
+                    { value: 'ALL', label: 'All Creators' },
+                    ...staff
+                      .filter((member) => ['SALESMAN', 'ADMIN', 'OWNER'].includes(member.role))
+                      .map((member) => ({
+                        value: member.id,
+                        label: member.name,
+                        badge: member.role,
+                      })),
+                  ]}
+                />
+              </div>
+            )}
           </div>
 
           {/* Date Presets Row & Match Summary */}

@@ -16,6 +16,7 @@ import { mobileApiRequest, cachedMobileApiRequest, subscribeToAppSync } from '@/
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { Header } from '@/components/ui/Header';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { FilterDropdown } from '@/components/ui/FilterDropdown';
 import { downloadAndSharePdf } from '@/lib/pdf';
 import { buildFullInvoiceShareUrl } from '@/lib/whatsapp';
 import { Ionicons } from '@expo/vector-icons';
@@ -136,6 +137,8 @@ export default function InvoicesScreen() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [modeFilter, setModeFilter] = useState('ALL');
+  const [createdById, setCreatedById] = useState('ALL');
+  const [staff, setStaff] = useState<Array<{ id: string; name: string; role: string }>>([]);
   const [dateFilter, setDateFilter] = useState('TODAY');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -153,14 +156,17 @@ export default function InvoicesScreen() {
 
   const loadData = useCallback(async (force = false) => {
     try {
-      const [invData, prodData, whData, stockData] = await Promise.all([
-        cachedMobileApiRequest<any[]>('/invoices', {
+      const [invData, prodData, whData, stockData, usersData] = await Promise.all([
+        cachedMobileApiRequest<any[]>(
+          `/invoices${isOwnerOrAdmin && createdById !== 'ALL' ? `?createdById=${encodeURIComponent(createdById)}` : ''}`,
+          {
           forceRefresh: force,
           onRevalidate: (fresh) => {
             const list = Array.isArray(fresh) ? fresh : (fresh as any)?.data || [];
             setInvoices(list);
           },
-        }),
+          },
+        ),
         cachedMobileApiRequest<Product[]>('/products', {
           forceRefresh: force,
           onRevalidate: (fresh) => setProducts(fresh || []),
@@ -173,6 +179,11 @@ export default function InvoicesScreen() {
           forceRefresh: force,
           onRevalidate: (fresh) => setStockList(fresh || []),
         }).catch(() => []),
+        isOwnerOrAdmin
+          ? cachedMobileApiRequest<Array<{ id: string; name: string; role: string }>>('/users', {
+              forceRefresh: force,
+            }).catch(() => [])
+          : Promise.resolve([]),
       ]);
 
       const list = Array.isArray(invData) ? invData : (invData as any)?.data || [];
@@ -180,13 +191,14 @@ export default function InvoicesScreen() {
       setProducts(prodData || []);
       setWarehouses(whData || []);
       setStockList(stockData || []);
+      setStaff(Array.isArray(usersData) ? usersData : []);
     } catch (err: any) {
       console.warn('Failed to load invoices data', err.message);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [createdById, isOwnerOrAdmin]);
 
   // Lazy-load parties only when the Create Invoice modal is about to open.
   // /parties carries full creditLedger arrays and can be several MB — loading it
@@ -398,6 +410,29 @@ export default function InvoicesScreen() {
               <Text style={styles.returnActionText}>Process Return</Text>
             </TouchableOpacity>
           ) : null}
+        </View>
+      ) : null}
+
+      {isOwnerOrAdmin ? (
+        <View style={{ paddingHorizontal: 16, marginBottom: 6 }}>
+          <FilterDropdown
+            label="Created By"
+            value={createdById}
+            onSelect={setCreatedById}
+            options={[
+              { label: 'All Creators', value: 'ALL', icon: 'people-outline', color: '#FFFFFF' },
+              ...staff
+                .filter((member) => ['SALESMAN', 'ADMIN', 'OWNER'].includes(member.role))
+                .map((member) => ({
+                  label: member.name,
+                  value: member.id,
+                  icon: 'person-outline' as const,
+                  color: member.role === 'SALESMAN' ? '#38BDF8' : '#F59E0B',
+                })),
+            ]}
+            hideLabelPrefix
+            showCountOnTrigger
+          />
         </View>
       ) : null}
 

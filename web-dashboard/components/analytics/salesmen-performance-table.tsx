@@ -96,10 +96,10 @@ export function SalesmenPerformanceTable({
                         <div className="h-7 w-7 rounded-xl bg-primary/10 text-primary font-bold flex items-center justify-center text-xs border border-primary/20">
                           {salesman.name.charAt(0).toUpperCase()}
                         </div>
-                        <div>
-                          <div className="font-semibold text-foreground">{salesman.name}</div>
+                        <Link href={`/dashboard/invoices?createdById=${encodeURIComponent(salesman.id)}`} className="group">
+                          <div className="font-semibold text-foreground group-hover:text-primary group-hover:underline">{salesman.name}</div>
                           <div className="text-[10px] text-muted-foreground font-mono">{salesman.phone}</div>
-                        </div>
+                        </Link>
                       </div>
                     </td>
                     <td className="py-3 px-4">
