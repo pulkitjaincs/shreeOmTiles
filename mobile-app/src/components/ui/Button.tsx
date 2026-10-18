@@ -9,7 +9,7 @@ import {
   View,
   StyleProp,
 } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { Ionicons } from '@expo/vector-icons';
 
 interface ButtonProps {
@@ -35,6 +35,7 @@ export function Button({
   style,
   textStyle,
 }: ButtonProps) {
+  const { colors, isDark } = useTheme();
   const isPrimary = variant === 'primary';
   const isSecondary = variant === 'secondary';
   const isOutline = variant === 'outline';
@@ -43,6 +44,72 @@ export function Button({
 
   const isSmall = size === 'sm';
   const isLarge = size === 'lg';
+
+  const styles = useThemedStyles((c) =>
+    StyleSheet.create({
+      base: {
+        height: 48,
+        borderRadius: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 16,
+      },
+      sm: {
+        height: 38,
+        paddingHorizontal: 12,
+        borderRadius: 8,
+      },
+      lg: {
+        height: 54,
+        paddingHorizontal: 20,
+        borderRadius: 14,
+      },
+      primary: {
+        backgroundColor: c.primary,
+      },
+      secondary: {
+        backgroundColor: c.secondary,
+        borderWidth: 1,
+        borderColor: c.borderMedium,
+      },
+      outline: {
+        backgroundColor: 'transparent',
+        borderWidth: 1,
+        borderColor: c.borderMedium,
+      },
+      danger: {
+        backgroundColor: 'rgba(239, 68, 68, 0.15)',
+        borderWidth: 1,
+        borderColor: 'rgba(239, 68, 68, 0.3)',
+      },
+      ghost: {
+        backgroundColor: 'transparent',
+      },
+      disabled: {
+        opacity: 0.45,
+      },
+      content: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+      },
+      icon: {
+        marginRight: 8,
+      },
+      text: {
+        fontSize: 14,
+        fontWeight: '700',
+        letterSpacing: 0.2,
+      },
+      textSm: {
+        fontSize: 12.5,
+      },
+      textLg: {
+        fontSize: 15.5,
+      },
+    })
+  );
 
   const containerStyles: StyleProp<ViewStyle> = [
     styles.base,
@@ -57,9 +124,9 @@ export function Button({
     style,
   ];
 
-  let textColor: string = Colors.dark.primaryForeground;
-  if (isSecondary || isOutline || isGhost) textColor = Colors.dark.text;
-  if (isDanger) textColor = '#FCA5A5';
+  let textColor: string = colors.primaryForeground;
+  if (isSecondary || isOutline || isGhost) textColor = colors.text;
+  if (isDanger) textColor = isDark ? '#FCA5A5' : '#DC2626';
 
   return (
     <TouchableOpacity
@@ -71,7 +138,7 @@ export function Button({
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={isPrimary ? '#000000' : '#FFFFFF'}
+          color={isPrimary ? colors.primaryForeground : colors.text}
         />
       ) : (
         <View style={styles.content}>
@@ -99,67 +166,3 @@ export function Button({
     </TouchableOpacity>
   );
 }
-
-const styles = StyleSheet.create({
-  base: {
-    height: 48,
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 16,
-  },
-  sm: {
-    height: 38,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-  },
-  lg: {
-    height: 54,
-    paddingHorizontal: 20,
-    borderRadius: 14,
-  },
-  primary: {
-    backgroundColor: '#FFFFFF',
-  },
-  secondary: {
-    backgroundColor: Colors.dark.secondary,
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-  },
-  outline: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-  },
-  danger: {
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-  },
-  ghost: {
-    backgroundColor: 'transparent',
-  },
-  disabled: {
-    opacity: 0.45,
-  },
-  content: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  icon: {
-    marginRight: 8,
-  },
-  text: {
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-  textSm: {
-    fontSize: 12.5,
-  },
-  textLg: {
-    fontSize: 15.5,
-  },
-});

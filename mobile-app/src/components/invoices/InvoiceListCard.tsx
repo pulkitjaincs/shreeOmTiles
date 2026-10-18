@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui/Card';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { formatDate, formatINR } from '@/lib/formatters';
 import { InvoiceListEntry } from './types';
 
@@ -28,6 +28,9 @@ export const InvoiceListCard = React.memo(function InvoiceListCard({
   onReturn,
   onEdit,
 }: InvoiceListCardProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   const refundedTotal = (invoice.refundInvoices || []).reduce(
     (sum, refund) => sum + Number(refund.total || 0),
     0,
@@ -69,7 +72,7 @@ export const InvoiceListCard = React.memo(function InvoiceListCard({
               {formatINR(invoice.total)}
             </Text>
           ) : (
-            <Text style={[styles.totalAmount, { fontSize: 12, color: Colors.dark.textSecondary }]}>
+            <Text style={[styles.totalAmount, { fontSize: 12, color: colors.textSecondary }]}>
               {invoice.items?.length ? `${invoice.items.length} items` : 'Order Items'}
             </Text>
           )}
@@ -155,69 +158,70 @@ export const InvoiceListCard = React.memo(function InvoiceListCard({
   );
 });
 
-const styles = StyleSheet.create({
-  invoiceCard: { padding: 16, marginBottom: 10 },
-  cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  invoiceNumber: { fontSize: 15, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.2 },
-  partyName: { fontSize: 13, color: Colors.dark.textSecondary, marginTop: 2, fontWeight: '500' },
-  partyPhone: { fontSize: 11, color: Colors.dark.textTertiary, marginTop: 1, fontFamily: 'monospace' },
-  dateText: { fontSize: 11, color: Colors.dark.textTertiary, marginTop: 4 },
-  totalAmount: { fontSize: 16, fontWeight: '900', color: '#FFFFFF', marginBottom: 4 },
-  cardDivider: { height: 1, backgroundColor: Colors.dark.border, marginVertical: 12 },
-  cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, flexWrap: 'wrap' },
-  modeBadge: { backgroundColor: Colors.dark.secondary, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
-  modeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
-  splitBadge: {
-    backgroundColor: 'rgba(167, 139, 250, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(167, 139, 250, 0.3)',
-  },
-  splitText: {
-    color: '#A78BFA',
-  },
-  cardBadge: {
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.35)',
-  },
-  cardText: {
-    color: '#F59E0B',
-  },
-  refundText: { color: '#F87171', fontSize: 10, fontWeight: '700' },
-  salesmanText: { color: Colors.dark.textTertiary, fontSize: 11 },
-  actionsRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginLeft: 8 },
-  actionIconBtn: { padding: 4 },
-  refundCountBadge: {
-    marginTop: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.25)',
-  },
-  refundCountText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#F87171',
-  },
-  cashSalePill: {
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 4,
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-  },
-  cashSalePillText: {
-    color: '#10B981',
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  addressText: {
-    fontSize: 10,
-    color: Colors.dark.textTertiary,
-    marginTop: 2,
-  },
-});
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    invoiceCard: { padding: 16, marginBottom: 10 },
+    cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+    invoiceNumber: { fontSize: 15, fontWeight: '800', color: colors.text, letterSpacing: -0.2 },
+    partyName: { fontSize: 13, color: colors.textSecondary, marginTop: 2, fontWeight: '500' },
+    partyPhone: { fontSize: 11, color: colors.textTertiary, marginTop: 1, fontFamily: 'monospace' },
+    dateText: { fontSize: 11, color: colors.textTertiary, marginTop: 4 },
+    totalAmount: { fontSize: 16, fontWeight: '900', color: colors.text, marginBottom: 4 },
+    cardDivider: { height: 1, backgroundColor: colors.border, marginVertical: 12 },
+    cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    badgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1, flexWrap: 'wrap' },
+    modeBadge: { backgroundColor: colors.secondary, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
+    modeText: { color: colors.secondaryForeground, fontSize: 10, fontWeight: '800' },
+    splitBadge: {
+      backgroundColor: 'rgba(167, 139, 250, 0.15)',
+      borderWidth: 1,
+      borderColor: 'rgba(167, 139, 250, 0.3)',
+    },
+    splitText: {
+      color: '#A78BFA',
+    },
+    cardBadge: {
+      backgroundColor: 'rgba(245, 158, 11, 0.15)',
+      borderWidth: 1,
+      borderColor: 'rgba(245, 158, 11, 0.35)',
+    },
+    cardText: {
+      color: '#F59E0B',
+    },
+    refundText: { color: '#F87171', fontSize: 10, fontWeight: '700' },
+    salesmanText: { color: colors.textTertiary, fontSize: 11 },
+    actionsRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginLeft: 8 },
+    actionIconBtn: { padding: 4 },
+    refundCountBadge: {
+      marginTop: 4,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+      backgroundColor: 'rgba(239, 68, 68, 0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(239, 68, 68, 0.25)',
+    },
+    refundCountText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: '#F87171',
+    },
+    cashSalePill: {
+      paddingHorizontal: 6,
+      paddingVertical: 1,
+      borderRadius: 4,
+      backgroundColor: 'rgba(16, 185, 129, 0.15)',
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+    },
+    cashSalePillText: {
+      color: '#10B981',
+      fontSize: 9,
+      fontWeight: '800',
+    },
+    addressText: {
+      fontSize: 10,
+      color: colors.textTertiary,
+      marginTop: 2,
+    },
+  });

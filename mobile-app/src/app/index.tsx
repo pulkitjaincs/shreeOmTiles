@@ -3,12 +3,13 @@ import { View, ActivityIndicator, StyleSheet, Text, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/lib/auth-context';
-import { Colors } from '@/constants/theme';
+import { useTheme } from '@/lib/theme-context';
 
 export default function AppEntryScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { isAuthenticated, isLoading } = useAuth();
+  const { colors, isDark } = useTheme();
 
   useEffect(() => {
     if (!isLoading) {
@@ -25,20 +26,29 @@ export default function AppEntryScreen() {
       style={[
         styles.container,
         {
+          backgroundColor: colors.background,
           paddingTop: Math.max(insets.top, 24),
           paddingBottom: Math.max(insets.bottom, 24),
         },
       ]}
     >
-      <View style={styles.logoBadge}>
+      <View
+        style={[
+          styles.logoBadge,
+          {
+            backgroundColor: isDark ? '#000000' : '#FFFFFF',
+            borderColor: colors.borderMedium,
+          },
+        ]}
+      >
         <Image
           source={require('@/assets/images/icon.png')}
           style={styles.logoImage}
           resizeMode="contain"
         />
       </View>
-      <ActivityIndicator size="small" color="#FFFFFF" style={styles.spinner} />
-      <Text style={styles.loadingText}>Loading Shree Om Tiles...</Text>
+      <ActivityIndicator size="small" color={colors.text} style={styles.spinner} />
+      <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Loading Shree Om Tiles...</Text>
     </View>
   );
 }
@@ -46,7 +56,6 @@ export default function AppEntryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.dark.background,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
@@ -55,10 +64,8 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 18,
-    backgroundColor: '#000000',
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
@@ -72,7 +79,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   loadingText: {
-    color: Colors.dark.textSecondary,
     fontSize: 12,
     fontWeight: '500',
     letterSpacing: 0.2,

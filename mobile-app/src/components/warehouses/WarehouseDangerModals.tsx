@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Button } from '@/components/ui/Button';
-import { Colors } from '@/constants/theme';
+import { Colors, ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { mobileApiRequest } from '@/lib/api';
 import { Warehouse } from './types';
 
@@ -25,6 +26,8 @@ export function DeleteWarehouseModal({
   onSuccess,
   totalUnits = 0,
 }: DeleteWarehouseModalProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [submitting, setSubmitting] = useState(false);
 
   if (!warehouse) return null;
@@ -100,14 +103,14 @@ export function DeleteWarehouseModal({
                 Verified empty with{' '}
                 <Text style={{ fontWeight: 'bold', color: '#10B981' }}>0 units</Text>.
                 Are you sure you want to permanently remove{' '}
-                <Text style={{ fontWeight: 'bold', color: '#FFFFFF' }}>{`"${warehouse.name}"`}</Text>?
+                <Text style={{ fontWeight: 'bold', color: colors.text }}>{`"${warehouse.name}"`}</Text>?
               </Text>
             </View>
           </View>
 
           {warehouse.address ? (
             <View style={styles.addressBox}>
-              <Ionicons name="location-outline" size={16} color={Colors.dark.textSecondary} />
+              <Ionicons name="location-outline" size={16} color={colors.textSecondary} />
               <Text style={styles.addressText}>{warehouse.address}</Text>
             </View>
           ) : null}
@@ -154,6 +157,8 @@ export function ZeroOutWarehouseModal({
   onSuccess,
   totalUnits = 0,
 }: ZeroOutWarehouseModalProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [submitting, setSubmitting] = useState(false);
 
   if (!warehouse) return null;
@@ -192,7 +197,7 @@ export function ZeroOutWarehouseModal({
             <Text style={styles.amberWarningTitle}>Clear All Stock to 0</Text>
             <Text style={styles.amberWarningDesc}>
               This will reset all{' '}
-              <Text style={{ fontWeight: 'bold', color: '#FFFFFF' }}>{totalUnits} units</Text> of
+              <Text style={{ fontWeight: 'bold', color: colors.text }}>{totalUnits} units</Text> of
               inventory in this location to 0 across all batches.
             </Text>
           </View>
@@ -228,116 +233,117 @@ export function ZeroOutWarehouseModal({
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    paddingTop: 8,
-    gap: 14,
-  },
-  blockedBanner: {
-    flexDirection: 'row',
-    gap: 12,
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-    alignItems: 'center',
-  },
-  blockedTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#EF4444',
-  },
-  blockedDesc: {
-    fontSize: 12,
-    color: '#D4D4D8',
-    marginTop: 3,
-    lineHeight: 17,
-  },
-  warningBanner: {
-    flexDirection: 'row',
-    gap: 12,
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
-    alignItems: 'center',
-  },
-  warningTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#F59E0B',
-  },
-  warningDesc: {
-    fontSize: 12,
-    color: '#D4D4D8',
-    marginTop: 3,
-    lineHeight: 17,
-  },
-  amberWarningBanner: {
-    flexDirection: 'row',
-    gap: 12,
-    backgroundColor: 'rgba(217, 119, 6, 0.14)',
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(217, 119, 6, 0.35)',
-    alignItems: 'center',
-  },
-  amberWarningTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FBBF24',
-  },
-  amberWarningDesc: {
-    fontSize: 12,
-    color: '#E4E4E7',
-    marginTop: 3,
-    lineHeight: 17,
-  },
-  addressBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: Colors.dark.cardElevated,
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  addressText: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    flex: 1,
-  },
-  infoCard: {
-    backgroundColor: Colors.dark.cardElevated,
-    padding: 14,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    gap: 6,
-  },
-  infoTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  infoDesc: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    lineHeight: 18,
-  },
-  infoStep: {
-    fontSize: 11.5,
-    color: Colors.dark.textSecondary,
-    lineHeight: 17,
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 8,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    content: {
+      paddingTop: 8,
+      gap: 14,
+    },
+    blockedBanner: {
+      flexDirection: 'row',
+      gap: 12,
+      backgroundColor: 'rgba(239, 68, 68, 0.12)',
+      padding: 14,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: 'rgba(239, 68, 68, 0.3)',
+      alignItems: 'center',
+    },
+    blockedTitle: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: '#EF4444',
+    },
+    blockedDesc: {
+      fontSize: 12,
+      color: '#D4D4D8',
+      marginTop: 3,
+      lineHeight: 17,
+    },
+    warningBanner: {
+      flexDirection: 'row',
+      gap: 12,
+      backgroundColor: 'rgba(245, 158, 11, 0.12)',
+      padding: 14,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: 'rgba(245, 158, 11, 0.3)',
+      alignItems: 'center',
+    },
+    warningTitle: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: '#F59E0B',
+    },
+    warningDesc: {
+      fontSize: 12,
+      color: '#D4D4D8',
+      marginTop: 3,
+      lineHeight: 17,
+    },
+    amberWarningBanner: {
+      flexDirection: 'row',
+      gap: 12,
+      backgroundColor: 'rgba(217, 119, 6, 0.14)',
+      padding: 14,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: 'rgba(217, 119, 6, 0.35)',
+      alignItems: 'center',
+    },
+    amberWarningTitle: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: '#FBBF24',
+    },
+    amberWarningDesc: {
+      fontSize: 12,
+      color: '#E4E4E7',
+      marginTop: 3,
+      lineHeight: 17,
+    },
+    addressBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: colors.cardElevated,
+      padding: 12,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    addressText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      flex: 1,
+    },
+    infoCard: {
+      backgroundColor: colors.cardElevated,
+      padding: 14,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: 6,
+    },
+    infoTitle: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.text,
+      marginBottom: 4,
+    },
+    infoDesc: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      lineHeight: 18,
+    },
+    infoStep: {
+      fontSize: 11.5,
+      color: colors.textSecondary,
+      lineHeight: 17,
+    },
+    actionsRow: {
+      flexDirection: 'row',
+      gap: 10,
+      marginTop: 8,
+    },
+  });

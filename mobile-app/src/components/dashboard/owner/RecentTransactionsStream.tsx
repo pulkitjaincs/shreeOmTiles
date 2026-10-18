@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { useThemedStyles, ThemeColors } from '@/lib/theme-context';
 import { Card } from '@/components/ui/Card';
 import { formatINR, formatDate } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +15,7 @@ export function RecentTransactionsStream({
   recentTransactions = [],
   onViewLedger,
 }: RecentTransactionsStreamProps) {
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.container}>
       <View style={styles.headerRow}>
@@ -149,142 +150,143 @@ export function RecentTransactionsStream({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 14,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#10B981',
-  },
-  title: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.2,
-  },
-  sub: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  link: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#38BDF8',
-  },
-  card: {
-    padding: 12,
-    marginBottom: 8,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  iconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: Colors.dark.cardElevated,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-  },
-  partyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  partyName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.dark.text,
-    flexShrink: 1,
-  },
-  invoiceTag: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#38BDF8',
-    flexShrink: 0,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 3,
-  },
-  sourceBadge: {
-    paddingHorizontal: 5,
-    paddingVertical: 1.5,
-    borderRadius: 4,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  sourceText: {
-    fontSize: 9.5,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  badgeMuted: {
-    backgroundColor: Colors.dark.secondary,
-  },
-  badgeEmerald: {
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-  },
-  badgeSky: {
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
-  },
-  badgeAmber: {
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
-  },
-  dateText: {
-    fontSize: 10.5,
-    color: Colors.dark.textTertiary,
-  },
-  confirmedBy: {
-    fontSize: 10,
-    color: Colors.dark.textTertiary,
-    marginTop: 2,
-  },
-  amount: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    flexShrink: 0,
-  },
-  confirmedBadge: {
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  confirmedBadgeText: {
-    fontSize: 8.5,
-    fontWeight: '800',
-    color: '#10B981',
-  },
-  emptyCard: {
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyText: {
-    fontSize: 11.5,
-    color: Colors.dark.textSecondary,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      marginTop: 14,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: 8,
+    },
+    titleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    liveDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: '#10B981',
+    },
+    title: {
+      fontSize: 13.5,
+      fontWeight: '800',
+      color: colors.text,
+      letterSpacing: -0.2,
+    },
+    sub: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    link: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      color: '#38BDF8',
+    },
+    card: {
+      padding: 12,
+      marginBottom: 8,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    iconCircle: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: colors.cardElevated,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.borderMedium,
+    },
+    partyRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    partyName: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.text,
+      flexShrink: 1,
+    },
+    invoiceTag: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: '#38BDF8',
+      flexShrink: 0,
+    },
+    metaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 3,
+    },
+    sourceBadge: {
+      paddingHorizontal: 5,
+      paddingVertical: 1.5,
+      borderRadius: 4,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+    },
+    sourceText: {
+      fontSize: 9.5,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    badgeMuted: {
+      backgroundColor: colors.secondary,
+    },
+    badgeEmerald: {
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    },
+    badgeSky: {
+      backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    },
+    badgeAmber: {
+      backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    },
+    dateText: {
+      fontSize: 10.5,
+      color: colors.textTertiary,
+    },
+    confirmedBy: {
+      fontSize: 10,
+      color: colors.textTertiary,
+      marginTop: 2,
+    },
+    amount: {
+      fontSize: 13.5,
+      fontWeight: '800',
+      flexShrink: 0,
+    },
+    confirmedBadge: {
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+      paddingHorizontal: 5,
+      paddingVertical: 1,
+      borderRadius: 4,
+    },
+    confirmedBadgeText: {
+      fontSize: 8.5,
+      fontWeight: '800',
+      color: '#10B981',
+    },
+    emptyCard: {
+      padding: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    emptyText: {
+      fontSize: 11.5,
+      color: colors.textSecondary,
+    },
+  });

@@ -11,7 +11,8 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { Colors } from '@/constants/theme';
+import { Colors, ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
 import { formatINR, formatDate } from '@/lib/formatters';
 import { downloadAndSharePdf } from '@/lib/pdf';
@@ -20,6 +21,8 @@ import { CreateQuotationModal } from './CreateQuotationModal';
 import { Party, Product } from '@/components/invoices/types';
 
 export function QuotationsView() {
+  const { colors, isDark } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [quotations, setQuotations] = useState<any[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -189,13 +192,13 @@ export function QuotationsView() {
 
       <View style={styles.scrollList}>
         {loading && quotations.length === 0 ? (
-          <ActivityIndicator size="small" color="#FFFFFF" style={{ marginTop: 24 }} />
+          <ActivityIndicator size="small" color={colors.text} style={{ marginTop: 24 }} />
         ) : filteredQuotations.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Ionicons
               name="document-text-outline"
               size={36}
-              color={Colors.dark.textTertiary}
+              color={colors.textTertiary}
               style={{ marginBottom: 6 }}
             />
             <Text style={styles.emptyText}>
@@ -310,162 +313,163 @@ export function QuotationsView() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  headerBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-    marginTop: 4,
-  },
-  headerInfo: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.2,
-  },
-  headerSubtitle: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  newEstimateBtn: {
-    height: 38,
-    paddingHorizontal: 14,
-    borderRadius: 9,
-  },
-  scrollList: {
-    paddingBottom: 24,
-    paddingTop: 8,
-  },
-  quoteCard: {
-    padding: 12,
-    marginBottom: 8,
-    backgroundColor: Colors.dark.card,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  quoteTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  estimateNo: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#38BDF8',
-    fontFamily: 'monospace',
-  },
-  customerName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginTop: 2,
-  },
-  customerPhone: {
-    fontSize: 10.5,
-    color: Colors.dark.textSecondary,
-    marginTop: 1,
-  },
-  quoteDate: {
-    fontSize: 10.5,
-    color: Colors.dark.textTertiary,
-    marginTop: 2,
-  },
-  quoteTotal: {
-    fontSize: 14.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    fontFamily: 'monospace',
-    marginBottom: 4,
-  },
-  itemsSub: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 6,
-    paddingTop: 6,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  actionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 10,
-  },
-  actionBtn: {
-    flex: 1,
-    height: 36,
-    borderRadius: 8,
-  },
-  convertBtn: {
-    backgroundColor: '#3B82F6',
-  },
-  convertedPill: {
-    flex: 1,
-    height: 36,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.25)',
-  },
-  convertedText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 36,
-    paddingHorizontal: 20,
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: Colors.dark.textSecondary,
-    fontSize: 12.5,
-  },
-  paginationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-    marginTop: 8,
-  },
-  pageBtn: {
-    paddingVertical: 7,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-  },
-  pageBtnDisabled: {
-    opacity: 0.35,
-  },
-  pageBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  pageBtnTextDisabled: {
-    color: Colors.dark.textTertiary,
-  },
-  paginationInfo: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: Colors.dark.textSecondary,
-  },
-});
+const createStyles = (colors: ThemeColors, isDark: boolean) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    headerBar: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+      marginTop: 4,
+    },
+    headerInfo: {
+      flex: 1,
+    },
+    headerTitle: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: colors.text,
+      letterSpacing: 0.2,
+    },
+    headerSubtitle: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    newEstimateBtn: {
+      height: 38,
+      paddingHorizontal: 14,
+      borderRadius: 9,
+    },
+    scrollList: {
+      paddingBottom: 24,
+      paddingTop: 8,
+    },
+    quoteCard: {
+      padding: 12,
+      marginBottom: 8,
+      backgroundColor: colors.card,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    quoteTop: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+    },
+    estimateNo: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: '#38BDF8',
+      fontFamily: 'monospace',
+    },
+    customerName: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.text,
+      marginTop: 2,
+    },
+    customerPhone: {
+      fontSize: 10.5,
+      color: colors.textSecondary,
+      marginTop: 1,
+    },
+    quoteDate: {
+      fontSize: 10.5,
+      color: colors.textTertiary,
+      marginTop: 2,
+    },
+    quoteTotal: {
+      fontSize: 14.5,
+      fontWeight: '800',
+      color: colors.text,
+      fontFamily: 'monospace',
+      marginBottom: 4,
+    },
+    itemsSub: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 6,
+      paddingTop: 6,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    actionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 10,
+    },
+    actionBtn: {
+      flex: 1,
+      height: 36,
+      borderRadius: 8,
+    },
+    convertBtn: {
+      backgroundColor: '#3B82F6',
+    },
+    convertedPill: {
+      flex: 1,
+      height: 36,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 5,
+      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.25)',
+    },
+    convertedText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: '#10B981',
+    },
+    emptyContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 36,
+      paddingHorizontal: 20,
+    },
+    emptyText: {
+      textAlign: 'center',
+      color: colors.textSecondary,
+      fontSize: 12.5,
+    },
+    paginationRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 14,
+      paddingHorizontal: 8,
+      marginTop: 8,
+    },
+    pageBtn: {
+      paddingVertical: 7,
+      paddingHorizontal: 14,
+      borderRadius: 8,
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    pageBtnDisabled: {
+      opacity: 0.35,
+    },
+    pageBtnText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    pageBtnTextDisabled: {
+      color: colors.textTertiary,
+    },
+    paginationInfo: {
+      fontSize: 12,
+      fontWeight: '500',
+      color: colors.textSecondary,
+    },
+  });

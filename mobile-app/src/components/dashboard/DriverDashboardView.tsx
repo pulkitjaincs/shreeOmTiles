@@ -9,7 +9,7 @@ import {
   Alert,
   Linking,
 } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles, ThemeColors } from '@/lib/theme-context';
 import { Header } from '@/components/ui/Header';
 import { Card } from '@/components/ui/Card';
 import { cleanPhoneNumber } from '@/lib/formatters';
@@ -42,6 +42,8 @@ export function DriverDashboardView({
   handleCall,
   handleMap,
 }: DriverDashboardViewProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [collectCashDelivery, setCollectCashDelivery] = useState<any | null>(null);
 
@@ -144,7 +146,7 @@ export function DriverDashboardView({
         style={styles.content}
         contentContainerStyle={styles.scrollContainer}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
         }
       >
         {/* 1. Top Status Cards (Pickup progress & Cash custody) */}
@@ -235,62 +237,63 @@ export function DriverDashboardView({
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: Colors.dark.background,
-  },
-  content: {
-    flex: 1,
-  },
-  scrollContainer: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  sectionTitle: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginTop: 18,
-    marginBottom: 8,
-    letterSpacing: -0.2,
-  },
-  shortcutsGrid: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  shortcutCard: {
-    flex: 1,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    borderRadius: 14,
-    padding: 14,
-    alignItems: 'center',
-    gap: 6,
-  },
-  shortcutText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  emptyCard: {
-    padding: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 10,
-  },
-  emptyTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginTop: 10,
-    marginBottom: 4,
-  },
-  emptySub: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    textAlign: 'center',
-    lineHeight: 16,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      flex: 1,
+    },
+    scrollContainer: {
+      padding: 16,
+      paddingBottom: 40,
+    },
+    sectionTitle: {
+      fontSize: 13.5,
+      fontWeight: '800',
+      color: colors.text,
+      marginTop: 18,
+      marginBottom: 8,
+      letterSpacing: -0.2,
+    },
+    shortcutsGrid: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    shortcutCard: {
+      flex: 1,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 14,
+      padding: 14,
+      alignItems: 'center',
+      gap: 6,
+    },
+    shortcutText: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    emptyCard: {
+      padding: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginVertical: 10,
+    },
+    emptyTitle: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: colors.text,
+      marginTop: 10,
+      marginBottom: 4,
+    },
+    emptySub: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      lineHeight: 16,
+    },
+  });

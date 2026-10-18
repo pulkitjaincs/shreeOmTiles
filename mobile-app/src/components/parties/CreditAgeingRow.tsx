@@ -2,7 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui/Card';
-import { Colors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { formatINR } from '@/lib/formatters';
 import { Party, CreditAgeingBuckets } from './types';
 
@@ -11,6 +12,8 @@ interface CreditAgeingRowProps {
 }
 
 export const CreditAgeingRow = React.memo(function CreditAgeingRow({ parties }: CreditAgeingRowProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [now] = useState(() => Date.now());
 
   const buckets: CreditAgeingBuckets = useMemo(() => {
@@ -54,7 +57,7 @@ export const CreditAgeingRow = React.memo(function CreditAgeingRow({ parties }: 
       <Card style={styles.statCard}>
         <View style={styles.cardHeader}>
           <Text style={styles.label}>Total Receivables</Text>
-          <Ionicons name="wallet-outline" size={14} color={Colors.dark.textSecondary} />
+          <Ionicons name="wallet-outline" size={14} color={colors.textSecondary} />
         </View>
         <Text style={styles.val}>{formatINR(buckets.totalReceivables)}</Text>
         <Text style={styles.subText}>Across all accounts</Text>
@@ -123,48 +126,49 @@ export const CreditAgeingRow = React.memo(function CreditAgeingRow({ parties }: 
   );
 });
 
-const styles = StyleSheet.create({
-  container: {
-    marginVertical: 8,
-    marginHorizontal: -16,
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-    gap: 10,
-  },
-  statCard: {
-    width: 140,
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    backgroundColor: Colors.dark.card,
-    justifyContent: 'space-between',
-    minHeight: 88,
-    marginBottom: 0,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  label: {
-    fontSize: 10,
-    color: Colors.dark.textSecondary,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  },
-  val: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: Colors.dark.text,
-    fontFamily: 'monospace',
-    marginTop: 4,
-    marginBottom: 2,
-  },
-  subText: {
-    fontSize: 9,
-    color: Colors.dark.textSecondary,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      marginVertical: 8,
+      marginHorizontal: -16,
+    },
+    scrollContent: {
+      paddingHorizontal: 16,
+      gap: 10,
+    },
+    statCard: {
+      width: 140,
+      padding: 12,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      justifyContent: 'space-between',
+      minHeight: 88,
+      marginBottom: 0,
+    },
+    cardHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    label: {
+      fontSize: 10,
+      color: colors.textSecondary,
+      fontWeight: '700',
+      textTransform: 'uppercase',
+      letterSpacing: 0.3,
+    },
+    val: {
+      fontSize: 16,
+      fontWeight: '900',
+      color: colors.text,
+      fontFamily: 'monospace',
+      marginTop: 4,
+      marginBottom: 2,
+    },
+    subText: {
+      fontSize: 9,
+      color: colors.textSecondary,
+    },
+  });

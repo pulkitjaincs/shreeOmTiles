@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { Colors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/lib/theme-context';
 import { formatINR, formatDate, cleanPhoneNumber } from '@/lib/formatters';
 import { buildStorePayableInquiryUrl } from '@/lib/whatsapp';
 import { PendingItem } from './types';
@@ -15,6 +16,7 @@ interface StorePayablesCardProps {
 }
 
 export function StorePayablesCard({ item, onPay }: StorePayablesCardProps) {
+  const styles = useThemedStyles(createStyles);
   const cleanPhone = cleanPhoneNumber(item.partyPhone);
 
   const handleCall = () => {
@@ -120,117 +122,118 @@ export function StorePayablesCard({ item, onPay }: StorePayablesCardProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    marginHorizontal: 16,
-    marginBottom: 10,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    backgroundColor: Colors.dark.card,
-  },
-  cardTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  avatarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 8,
-  },
-  avatarCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 9,
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#F59E0B',
-  },
-  partyTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.dark.text,
-  },
-  phoneActionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 3,
-  },
-  phoneTouch: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  phoneText: {
-    fontSize: 11,
-    color: '#38BDF8',
-    fontFamily: 'monospace',
-    fontWeight: '600',
-  },
-  refRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 3,
-  },
-  refBadge: {
-    backgroundColor: Colors.dark.cardElevated,
-    paddingHorizontal: 7,
-    paddingVertical: 2.5,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  refBadgeText: {
-    fontSize: 10,
-    fontFamily: 'monospace',
-    color: Colors.dark.textSecondary,
-  },
-  dateText: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-  },
-  amountCol: {
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    paddingLeft: 10,
-  },
-  amountLabel: {
-    fontSize: 10,
-    color: Colors.dark.textSecondary,
-    textTransform: 'uppercase',
-    fontWeight: '600',
-    letterSpacing: 0.3,
-  },
-  dueAmountVal: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: '#F59E0B',
-    fontFamily: 'monospace',
-    marginTop: 2,
-  },
-  billedText: {
-    fontSize: 10,
-    color: Colors.dark.textSecondary,
-    fontFamily: 'monospace',
-    marginTop: 2,
-  },
-  actionDivider: {
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    marginVertical: 10,
-  },
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    card: {
+      marginHorizontal: 16,
+      marginBottom: 10,
+      padding: 14,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+    },
+    cardTop: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+    },
+    avatarRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      marginBottom: 8,
+    },
+    avatarCircle: {
+      width: 36,
+      height: 36,
+      borderRadius: 9,
+      backgroundColor: 'rgba(245, 158, 11, 0.15)',
+      borderWidth: 1,
+      borderColor: 'rgba(245, 158, 11, 0.25)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avatarText: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: '#F59E0B',
+    },
+    partyTitle: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    phoneActionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 3,
+    },
+    phoneTouch: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    phoneText: {
+      fontSize: 11,
+      color: '#38BDF8',
+      fontFamily: 'monospace',
+      fontWeight: '600',
+    },
+    refRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 3,
+    },
+    refBadge: {
+      backgroundColor: colors.cardElevated,
+      paddingHorizontal: 7,
+      paddingVertical: 2.5,
+      borderRadius: 5,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    refBadgeText: {
+      fontSize: 10,
+      fontFamily: 'monospace',
+      color: colors.textSecondary,
+    },
+    dateText: {
+      fontSize: 11,
+      color: colors.textSecondary,
+    },
+    amountCol: {
+      alignItems: 'flex-end',
+      justifyContent: 'center',
+      paddingLeft: 10,
+    },
+    amountLabel: {
+      fontSize: 10,
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      fontWeight: '600',
+      letterSpacing: 0.3,
+    },
+    dueAmountVal: {
+      fontSize: 17,
+      fontWeight: '900',
+      color: '#F59E0B',
+      fontFamily: 'monospace',
+      marginTop: 2,
+    },
+    billedText: {
+      fontSize: 10,
+      color: colors.textSecondary,
+      fontFamily: 'monospace',
+      marginTop: 2,
+    },
+    actionDivider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginVertical: 10,
+    },
   cardBottomRow: {
     flexDirection: 'row',
     alignItems: 'center',

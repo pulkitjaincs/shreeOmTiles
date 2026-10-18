@@ -12,7 +12,8 @@ import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { Colors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
 import { formatINR } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
@@ -48,13 +49,14 @@ export function RecordSettlementModal({
   initialInvoiceNo = '',
   initialNotes = '',
 }: RecordSettlementModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [direction, setDirection] = useState<'COLLECT' | 'PAY'>(initialDirection);
   const [selectedPartyId, setSelectedPartyId] = useState(initialPartyId || '');
   const [amount, setAmount] = useState(initialAmount || '');
   const [splits, setSplits] = useState<PaymentSplitItem[]>([
     { mode: initialDirection === 'PAY' ? 'CASH' : 'UPI', amount: initialAmount || '' },
   ]);
-  const [mode, setMode] = useState<'CASH' | 'UPI'>('CASH');
   const [utr, setUtr] = useState('');
   const [notes, setNotes] = useState(initialNotes || '');
   const [invoiceId, setInvoiceId] = useState(initialInvoiceId || '');
@@ -71,7 +73,6 @@ export function RecordSettlementModal({
 
   // Guard refs to prevent re-render loops and state overwriting
   const prevVisibleRef = useRef(false);
-  const modeRef = useRef<'CASH' | 'UPI'>('CASH');
   const selectedUpiAccountRef = useRef<UpiAccount | null>(null);
   const upiReqIdRef = useRef(0);
 
@@ -126,8 +127,6 @@ export function RecordSettlementModal({
 
       const defaultMode = initialDirection === 'PAY' ? 'CASH' : 'UPI';
       setSplits([{ mode: defaultMode, amount: initialAmount || '' }]);
-      setMode(defaultMode);
-      modeRef.current = defaultMode;
 
       setUtr('');
       setNotes(initialNotes || '');
@@ -178,22 +177,6 @@ export function RecordSettlementModal({
       } else {
         setUpiPreview(null);
       }
-    }
-  };
-
-  const handleModeChange = (newMode: 'CASH' | 'UPI') => {
-    upiReqIdRef.current++;
-    setMode(newMode);
-    modeRef.current = newMode;
-    if (newMode === 'UPI' && direction === 'COLLECT') {
-      const amtNum = parseFloat(amount);
-      if (!isNaN(amtNum) && amtNum > 0) {
-        void generateUpiQr(amtNum, selectedUpiAccountRef.current);
-      }
-    } else {
-      setUpiPreview(null);
-      setUpiLoading(false);
-      setUtr('');
     }
   };
 
@@ -328,7 +311,7 @@ export function RecordSettlementModal({
             <Ionicons
               name="arrow-down-circle"
               size={15}
-              color={direction === 'COLLECT' ? '#10B981' : Colors.dark.textSecondary}
+              color={direction === 'COLLECT' ? '#10B981' : colors.textSecondary}
             />
             <Text
               style={[
@@ -352,7 +335,7 @@ export function RecordSettlementModal({
           <Ionicons
             name="arrow-up-circle"
             size={15}
-            color={direction === 'PAY' ? '#F59E0B' : Colors.dark.textSecondary}
+            color={direction === 'PAY' ? '#F59E0B' : colors.textSecondary}
           />
           <Text
             style={[
@@ -625,291 +608,292 @@ export function RecordSettlementModal({
   );
 }
 
-const styles = StyleSheet.create({
-  directionToggle: {
-    flexDirection: 'row',
-    backgroundColor: Colors.dark.card,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    padding: 3,
-    marginBottom: 12,
-  },
-  dirBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 9,
-    borderRadius: 8,
-  },
-  dirBtnActiveCollect: {
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    borderWidth: 1,
-    borderColor: '#10B981',
-  },
-  dirBtnActivePay: {
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    borderWidth: 1,
-    borderColor: '#F59E0B',
-  },
-  dirText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  fieldLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    marginBottom: 4,
-    marginTop: 8,
-    textTransform: 'uppercase',
-  },
-  partySelectHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  partySelectLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    textTransform: 'uppercase',
-  },
-  createPartyBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-  },
-  createPartyBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  spotPartyCard: {
-    backgroundColor: 'rgba(16, 185, 129, 0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 10,
-    gap: 6,
-  },
-  spotHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  spotTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  spotCancelBtn: {
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  spotCancelText: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    fontWeight: '600',
-  },
-  quickChipsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 6,
-    marginBottom: 4,
-  },
-  quickChipsLabel: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    fontWeight: '600',
-  },
-  quickChip: {
-    paddingVertical: 4,
-    paddingHorizontal: 9,
-    borderRadius: 6,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  quickChipText: {
-    fontSize: 11,
-    color: '#10B981',
-    fontWeight: '700',
-  },
-  modeToggleBar: {
-    flexDirection: 'row',
-    backgroundColor: Colors.dark.card,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    padding: 3,
-    marginBottom: 10,
-    gap: 6,
-  },
-  modeBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 9,
-    borderRadius: 8,
-  },
-  modeBtnActive: {
-    backgroundColor: '#FFFFFF',
-  },
-  modeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  modeTextActive: {
-    color: '#09090B',
-  },
-  upiContainer: {
-    backgroundColor: '#121216',
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 10,
-  },
-  qrLoadingBox: {
-    paddingVertical: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  qrLoadingText: {
-    color: Colors.dark.textSecondary,
-    fontSize: 11,
-    marginTop: 8,
-  },
-  qrCard: {
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  qrWhiteBox: {
-    backgroundColor: '#FFFFFF',
-    padding: 10,
-    borderRadius: 12,
-    marginBottom: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  qrImage: {
-    width: 170,
-    height: 170,
-  },
-  qrAmountText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  qrAmountHighlight: {
-    color: '#10B981',
-    fontWeight: '800',
-    fontFamily: 'monospace',
-  },
-  qrVpaText: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    fontFamily: 'monospace',
-    marginTop: 2,
-  },
-  qrSubText: {
-    fontSize: 10,
-    color: Colors.dark.textTertiary,
-    marginTop: 4,
-  },
-  qrPromptBox: {
-    paddingVertical: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  qrPromptText: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    textAlign: 'center',
-  },
-  cashContainer: {
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-    gap: 8,
-  },
-  cashHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  cashHeaderTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  cashSubText: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    lineHeight: 16,
-  },
-  cashAmountBox: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: Colors.dark.card,
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    marginVertical: 4,
-  },
-  cashAmountLabel: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    fontWeight: '600',
-  },
-  cashAmountVal: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#10B981',
-    fontFamily: 'monospace',
-  },
-  upiWarningBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.25)',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 10,
-  },
-  upiWarningText: {
-    fontSize: 11,
-    color: '#F59E0B',
-    flex: 1,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    directionToggle: {
+      flexDirection: 'row',
+      backgroundColor: colors.card,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 3,
+      marginBottom: 12,
+    },
+    dirBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 9,
+      borderRadius: 8,
+    },
+    dirBtnActiveCollect: {
+      backgroundColor: 'rgba(16, 185, 129, 0.15)',
+      borderWidth: 1,
+      borderColor: '#10B981',
+    },
+    dirBtnActivePay: {
+      backgroundColor: 'rgba(245, 158, 11, 0.15)',
+      borderWidth: 1,
+      borderColor: '#F59E0B',
+    },
+    dirText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    fieldLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      marginBottom: 4,
+      marginTop: 8,
+      textTransform: 'uppercase',
+    },
+    partySelectHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 4,
+    },
+    partySelectLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+    },
+    createPartyBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingVertical: 2,
+      paddingHorizontal: 6,
+    },
+    createPartyBtnText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: '#10B981',
+    },
+    spotPartyCard: {
+      backgroundColor: 'rgba(16, 185, 129, 0.05)',
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+      borderRadius: 12,
+      padding: 12,
+      marginBottom: 10,
+      gap: 6,
+    },
+    spotHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 6,
+    },
+    spotTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: '#10B981',
+    },
+    spotCancelBtn: {
+      paddingVertical: 3,
+      paddingHorizontal: 8,
+      borderRadius: 6,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    spotCancelText: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    quickChipsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginTop: 6,
+      marginBottom: 4,
+    },
+    quickChipsLabel: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    quickChip: {
+      paddingVertical: 4,
+      paddingHorizontal: 9,
+      borderRadius: 6,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    quickChipText: {
+      fontSize: 11,
+      color: '#10B981',
+      fontWeight: '700',
+    },
+    modeToggleBar: {
+      flexDirection: 'row',
+      backgroundColor: colors.card,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 3,
+      marginBottom: 10,
+      gap: 6,
+    },
+    modeBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 9,
+      borderRadius: 8,
+    },
+    modeBtnActive: {
+      backgroundColor: colors.primary,
+    },
+    modeText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    modeTextActive: {
+      color: colors.primaryForeground,
+    },
+    upiContainer: {
+      backgroundColor: colors.cardHover,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 12,
+      padding: 12,
+      marginBottom: 10,
+    },
+    qrLoadingBox: {
+      paddingVertical: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    qrLoadingText: {
+      color: colors.textSecondary,
+      fontSize: 11,
+      marginTop: 8,
+    },
+    qrCard: {
+      alignItems: 'center',
+      paddingVertical: 10,
+    },
+    qrWhiteBox: {
+      backgroundColor: '#FFFFFF',
+      padding: 10,
+      borderRadius: 12,
+      marginBottom: 8,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.15,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    qrImage: {
+      width: 170,
+      height: 170,
+    },
+    qrAmountText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    qrAmountHighlight: {
+      color: '#10B981',
+      fontWeight: '800',
+      fontFamily: 'monospace',
+    },
+    qrVpaText: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontFamily: 'monospace',
+      marginTop: 2,
+    },
+    qrSubText: {
+      fontSize: 10,
+      color: colors.textTertiary,
+      marginTop: 4,
+    },
+    qrPromptBox: {
+      paddingVertical: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+    },
+    qrPromptText: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+    cashContainer: {
+      backgroundColor: 'rgba(16, 185, 129, 0.08)',
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+      borderRadius: 12,
+      padding: 14,
+      marginBottom: 10,
+      gap: 8,
+    },
+    cashHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    cashHeaderTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: '#10B981',
+    },
+    cashSubText: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      lineHeight: 16,
+    },
+    cashAmountBox: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: colors.card,
+      borderRadius: 8,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginVertical: 4,
+    },
+    cashAmountLabel: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    cashAmountVal: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: '#10B981',
+      fontFamily: 'monospace',
+    },
+    upiWarningBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: 'rgba(245, 158, 11, 0.1)',
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: 'rgba(245, 158, 11, 0.25)',
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      marginBottom: 10,
+    },
+    upiWarningText: {
+      fontSize: 11,
+      color: '#F59E0B',
+      flex: 1,
+    },
+  });

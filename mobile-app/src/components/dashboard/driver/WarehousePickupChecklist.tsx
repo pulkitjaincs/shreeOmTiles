@@ -1,22 +1,22 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Linking, Alert } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { useThemedStyles, ThemeColors } from '@/lib/theme-context';
 import { Card } from '@/components/ui/Card';
 import { Ionicons } from '@expo/vector-icons';
 import { cleanPhoneNumber } from '@/lib/formatters';
 
 interface WarehousePickupChecklistProps {
-  warehouseGroups?: Array<{
+  warehouseGroups?: {
     warehouseName: string;
     warehouseAddress: string;
-    items: Array<{ item: any; originalIndex: number }>;
-  }>;
-  items?: Array<{ item: any; originalIndex: number }>;
-  supervisors?: Array<{
+    items: { item: any; originalIndex: number }[];
+  }[];
+  items?: { item: any; originalIndex: number }[];
+  supervisors?: {
     id?: string;
     supervisorId?: string;
     supervisor?: { id?: string; name: string; phone?: string };
-  }>;
+  }[];
   pickedCount: number;
   totalItemsCount: number;
   updatingIndex?: number | null;
@@ -30,6 +30,7 @@ export function WarehousePickupChecklist({
   pickedCount,
   totalItemsCount,
 }: WarehousePickupChecklistProps) {
+  const styles = useThemedStyles(createStyles);
   // Flatten items if items array passed, otherwise extract from warehouseGroups
   const checklistItems =
     items && items.length > 0
@@ -182,202 +183,203 @@ export function WarehousePickupChecklist({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 14,
-  },
-  supervisorCard: {
-    padding: 14,
-    borderRadius: 16,
-    marginBottom: 12,
-    backgroundColor: 'rgba(168, 85, 247, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(168, 85, 247, 0.25)',
-  },
-  supervisorHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 10,
-  },
-  supervisorIconBox: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: 'rgba(168, 85, 247, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  supervisorTitle: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  supervisorSub: {
-    fontSize: 10.5,
-    color: Colors.dark.textSecondary,
-    marginTop: 1,
-  },
-  supervisorsList: {
-    gap: 8,
-  },
-  supervisorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 10,
-    borderRadius: 10,
-    backgroundColor: Colors.dark.cardElevated,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  supervisorName: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  supervisorPhone: {
-    fontSize: 10.5,
-    color: Colors.dark.textSecondary,
-    marginTop: 1,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  callBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 6,
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.25)',
-  },
-  callBtnText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#38BDF8',
-  },
-  waBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 6,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.25)',
-  },
-  waBtnText: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  countText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#C084FC',
-  },
-  sub: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-    marginBottom: 10,
-  },
-  checklistCard: {
-    padding: 14,
-    borderRadius: 16,
-    marginBottom: 10,
-  },
-  itemsList: {
-    gap: 8,
-  },
-  itemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 10,
-    borderRadius: 10,
-    backgroundColor: Colors.dark.cardElevated,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    gap: 10,
-  },
-  itemRowPicked: {
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    backgroundColor: 'rgba(16, 185, 129, 0.05)',
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  itemName: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  qtyBadge: {
-    backgroundColor: Colors.dark.secondary,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  qtyText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  batchText: {
-    fontSize: 10,
-    color: Colors.dark.textTertiary,
-    marginTop: 2,
-    fontFamily: 'monospace',
-  },
-  pickedBadgeLocked: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.25)',
-  },
-  pickedText: {
-    color: '#10B981',
-    fontSize: 10.5,
-    fontWeight: '800',
-  },
-  awaitingBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.25)',
-  },
-  awaitingText: {
-    color: '#F59E0B',
-    fontSize: 10.5,
-    fontWeight: '700',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      marginTop: 14,
+    },
+    supervisorCard: {
+      padding: 14,
+      borderRadius: 16,
+      marginBottom: 12,
+      backgroundColor: 'rgba(168, 85, 247, 0.08)',
+      borderWidth: 1,
+      borderColor: 'rgba(168, 85, 247, 0.25)',
+    },
+    supervisorHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      marginBottom: 10,
+    },
+    supervisorIconBox: {
+      width: 32,
+      height: 32,
+      borderRadius: 8,
+      backgroundColor: 'rgba(168, 85, 247, 0.15)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    supervisorTitle: {
+      fontSize: 12.5,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    supervisorSub: {
+      fontSize: 10.5,
+      color: colors.textSecondary,
+      marginTop: 1,
+    },
+    supervisorsList: {
+      gap: 8,
+    },
+    supervisorRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: 10,
+      borderRadius: 10,
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    supervisorName: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    supervisorPhone: {
+      fontSize: 10.5,
+      color: colors.textSecondary,
+      marginTop: 1,
+    },
+    actionButtons: {
+      flexDirection: 'row',
+      gap: 6,
+    },
+    callBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 5,
+      borderRadius: 6,
+      backgroundColor: 'rgba(56, 189, 248, 0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(56, 189, 248, 0.25)',
+    },
+    callBtnText: {
+      fontSize: 10.5,
+      fontWeight: '700',
+      color: '#38BDF8',
+    },
+    waBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 8,
+      paddingVertical: 5,
+      borderRadius: 6,
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.25)',
+    },
+    waBtnText: {
+      fontSize: 10.5,
+      fontWeight: '700',
+      color: '#10B981',
+    },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    title: {
+      fontSize: 13.5,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    countText: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: '#C084FC',
+    },
+    sub: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 2,
+      marginBottom: 10,
+    },
+    checklistCard: {
+      padding: 14,
+      borderRadius: 16,
+      marginBottom: 10,
+    },
+    itemsList: {
+      gap: 8,
+    },
+    itemRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: 10,
+      borderRadius: 10,
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: 10,
+    },
+    itemRowPicked: {
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+      backgroundColor: 'rgba(16, 185, 129, 0.05)',
+    },
+    nameRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    itemName: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    qtyBadge: {
+      backgroundColor: colors.secondary,
+      paddingHorizontal: 6,
+      paddingVertical: 1,
+      borderRadius: 4,
+    },
+    qtyText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.secondaryForeground,
+    },
+    batchText: {
+      fontSize: 10,
+      color: colors.textTertiary,
+      marginTop: 2,
+      fontFamily: 'monospace',
+    },
+    pickedBadgeLocked: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+      paddingHorizontal: 8,
+      paddingVertical: 5,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.25)',
+    },
+    pickedText: {
+      color: '#10B981',
+      fontSize: 10.5,
+      fontWeight: '800',
+    },
+    awaitingBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: 'rgba(245, 158, 11, 0.12)',
+      paddingHorizontal: 8,
+      paddingVertical: 5,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: 'rgba(245, 158, 11, 0.25)',
+    },
+    awaitingText: {
+      color: '#F59E0B',
+      fontSize: 10.5,
+      fontWeight: '700',
+    },
+  });

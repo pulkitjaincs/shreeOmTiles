@@ -3,7 +3,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Card } from '@/components/ui/Card';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { Warehouse } from './types';
 
 interface ActiveLocationsModalProps {
@@ -17,6 +17,9 @@ export function ActiveLocationsModal({
   onClose,
   warehouses,
 }: ActiveLocationsModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   return (
     <BottomSheetModal
       visible={visible}
@@ -78,7 +81,7 @@ export function ActiveLocationsModal({
           })
         ) : (
           <View style={styles.emptyContainer}>
-            <Ionicons name="business-outline" size={32} color={Colors.dark.textTertiary} />
+            <Ionicons name="business-outline" size={32} color={colors.textTertiary} />
             <Text style={styles.emptyText}>No active warehouse or showroom locations found.</Text>
           </View>
         )}
@@ -87,82 +90,83 @@ export function ActiveLocationsModal({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    gap: 8,
-    paddingTop: 4,
-  },
-  locationCard: {
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    backgroundColor: Colors.dark.cardElevated,
-  },
-  cardRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  iconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconShowroom: {
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.25)',
-  },
-  iconWarehouse: {
-    backgroundColor: 'rgba(129, 140, 248, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(129, 140, 248, 0.25)',
-  },
-  locationName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  locationAddress: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  typeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  typeShowroom: {
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
-    borderColor: 'rgba(56, 189, 248, 0.25)',
-  },
-  typeWarehouse: {
-    backgroundColor: 'rgba(129, 140, 248, 0.12)',
-    borderColor: 'rgba(129, 140, 248, 0.25)',
-  },
-  typeText: {
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  typeTextShowroom: {
-    color: '#38BDF8',
-  },
-  typeTextWarehouse: {
-    color: '#818CF8',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 24,
-    gap: 8,
-  },
-  emptyText: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-  },
-});
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    container: {
+      gap: 8,
+      paddingTop: 4,
+    },
+    locationCard: {
+      padding: 12,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.cardElevated,
+    },
+    cardRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    iconBox: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    iconShowroom: {
+      backgroundColor: 'rgba(56, 189, 248, 0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(56, 189, 248, 0.25)',
+    },
+    iconWarehouse: {
+      backgroundColor: 'rgba(129, 140, 248, 0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(129, 140, 248, 0.25)',
+    },
+    locationName: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    locationAddress: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    typeBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      borderWidth: 1,
+    },
+    typeShowroom: {
+      backgroundColor: 'rgba(56, 189, 248, 0.12)',
+      borderColor: 'rgba(56, 189, 248, 0.25)',
+    },
+    typeWarehouse: {
+      backgroundColor: 'rgba(129, 140, 248, 0.12)',
+      borderColor: 'rgba(129, 140, 248, 0.25)',
+    },
+    typeText: {
+      fontSize: 10,
+      fontWeight: '800',
+    },
+    typeTextShowroom: {
+      color: '#38BDF8',
+    },
+    typeTextWarehouse: {
+      color: '#818CF8',
+    },
+    emptyContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 24,
+      gap: 8,
+    },
+    emptyText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+  });

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { useThemedStyles, ThemeColors } from '@/lib/theme-context';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { formatINR } from '@/lib/formatters';
@@ -14,6 +14,7 @@ export function QueuedAssignmentsList({
   pendingAssigned,
   onStartPickup,
 }: QueuedAssignmentsListProps) {
+  const styles = useThemedStyles(createStyles);
   if (pendingAssigned.length === 0) return null;
 
   return (
@@ -54,46 +55,47 @@ export function QueuedAssignmentsList({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 16,
-  },
-  title: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.2,
-  },
-  sub: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-    marginBottom: 10,
-  },
-  card: {
-    padding: 13,
-    marginBottom: 8,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  invoiceText: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  addressText: {
-    fontSize: 10.5,
-    color: Colors.dark.textTertiary,
-    marginTop: 1,
-  },
-  amountText: {
-    fontSize: 11,
-    color: '#F59E0B',
-    fontWeight: '700',
-    marginTop: 2,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      marginTop: 16,
+    },
+    title: {
+      fontSize: 13.5,
+      fontWeight: '800',
+      color: colors.text,
+      letterSpacing: -0.2,
+    },
+    sub: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 2,
+      marginBottom: 10,
+    },
+    card: {
+      padding: 13,
+      marginBottom: 8,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 10,
+    },
+    invoiceText: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    addressText: {
+      fontSize: 10.5,
+      color: colors.textTertiary,
+      marginTop: 1,
+    },
+    amountText: {
+      fontSize: 11,
+      color: '#F59E0B',
+      fontWeight: '700',
+      marginTop: 2,
+    },
+  });

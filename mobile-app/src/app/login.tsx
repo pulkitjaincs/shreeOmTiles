@@ -13,7 +13,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { mobileApiRequest } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
@@ -26,6 +26,105 @@ export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { login } = useAuth();
+  const { isDark } = useTheme();
+  const styles = useThemedStyles((colors) =>
+    StyleSheet.create({
+      screen: {
+        flex: 1,
+        backgroundColor: colors.background,
+      },
+      scrollContent: {
+        flexGrow: 1,
+        justifyContent: 'center',
+        padding: 24,
+      },
+      brandSection: {
+        alignItems: 'center',
+        marginBottom: 28,
+      },
+      logoBadge: {
+        width: 68,
+        height: 68,
+        borderRadius: 20,
+        backgroundColor: isDark ? '#000000' : '#FFFFFF',
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderColor: colors.borderMedium,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 14,
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: isDark ? 0.3 : 0.08,
+        shadowRadius: 10,
+        elevation: 4,
+      },
+      logoImage: {
+        width: 64,
+        height: 64,
+        borderRadius: 18,
+      },
+      brandTitle: {
+        color: colors.text,
+        fontSize: 22,
+        fontWeight: '800',
+        letterSpacing: -0.5,
+      },
+      brandSubtitle: {
+        color: colors.textSecondary,
+        fontSize: 13,
+        marginTop: 3,
+      },
+      card: {
+        padding: 22,
+        borderRadius: 18,
+      },
+      cardHeader: {
+        color: colors.text,
+        fontSize: 17,
+        fontWeight: '700',
+        letterSpacing: -0.2,
+      },
+      cardSub: {
+        color: colors.textSecondary,
+        fontSize: 12.5,
+        marginTop: 4,
+        marginBottom: 18,
+        lineHeight: 18,
+      },
+      errorBox: {
+        backgroundColor: 'rgba(239, 68, 68, 0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(239, 68, 68, 0.25)',
+        borderRadius: 10,
+        padding: 12,
+        marginBottom: 16,
+      },
+      errorText: {
+        color: isDark ? '#FCA5A5' : '#DC2626',
+        fontSize: 12.5,
+        lineHeight: 17,
+        fontWeight: '500',
+      },
+      submitBtn: {
+        marginTop: 8,
+      },
+      footer: {
+        alignItems: 'center',
+        marginTop: 32,
+      },
+      footerText: {
+        color: colors.textTertiary,
+        fontSize: 11.5,
+        fontWeight: '600',
+      },
+      footerSub: {
+        color: colors.textTertiary,
+        fontSize: 10.5,
+        marginTop: 2,
+      },
+    })
+  );
 
   const handleLogin = async () => {
     if (!phone || !password) {
@@ -62,7 +161,6 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.screen}
     >
-      <StatusBar barStyle="light-content" />
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
@@ -133,100 +231,3 @@ export default function LoginScreen() {
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: Colors.dark.background,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: 24,
-  },
-  brandSection: {
-    alignItems: 'center',
-    marginBottom: 28,
-  },
-  logoBadge: {
-    width: 68,
-    height: 68,
-    borderRadius: 20,
-    backgroundColor: '#000000',
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 4,
-  },
-  logoImage: {
-    width: 64,
-    height: 64,
-    borderRadius: 18,
-  },
-  brandTitle: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-  },
-  brandSubtitle: {
-    color: Colors.dark.textSecondary,
-    fontSize: 13,
-    marginTop: 3,
-  },
-  card: {
-    padding: 22,
-    borderRadius: 18,
-  },
-  cardHeader: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '700',
-    letterSpacing: -0.2,
-  },
-  cardSub: {
-    color: Colors.dark.textSecondary,
-    fontSize: 12.5,
-    marginTop: 4,
-    marginBottom: 18,
-    lineHeight: 18,
-  },
-  errorBox: {
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.25)',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 16,
-  },
-  errorText: {
-    color: '#FCA5A5',
-    fontSize: 12.5,
-    lineHeight: 17,
-    fontWeight: '500',
-  },
-  submitBtn: {
-    marginTop: 8,
-  },
-  footer: {
-    alignItems: 'center',
-    marginTop: 32,
-  },
-  footerText: {
-    color: Colors.dark.textTertiary,
-    fontSize: 11.5,
-    fontWeight: '600',
-  },
-  footerSub: {
-    color: Colors.dark.textTertiary,
-    fontSize: 10.5,
-    marginTop: 2,
-  },
-});

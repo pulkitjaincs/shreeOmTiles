@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 
 interface StockTabBarProps {
   activeTab: 'STOCK' | 'PRODUCTS';
@@ -16,6 +17,9 @@ export function StockTabBar({
   stockCount,
   productCount,
 }: StockTabBarProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   return (
     <View style={styles.viewToggleBar}>
       <TouchableOpacity
@@ -26,7 +30,7 @@ export function StockTabBar({
         <Ionicons
           name="cube-outline"
           size={16}
-          color={activeTab === 'STOCK' ? '#09090B' : Colors.dark.textSecondary}
+          color={activeTab === 'STOCK' ? (isDark ? '#09090B' : '#FFFFFF') : colors.textSecondary}
         />
         <Text
           style={[styles.toggleTabText, activeTab === 'STOCK' && styles.toggleTabTextActive]}
@@ -44,7 +48,7 @@ export function StockTabBar({
         <Ionicons
           name="layers-outline"
           size={16}
-          color={activeTab === 'PRODUCTS' ? '#09090B' : Colors.dark.textSecondary}
+          color={activeTab === 'PRODUCTS' ? (isDark ? '#09090B' : '#FFFFFF') : colors.textSecondary}
         />
         <Text
           style={[styles.toggleTabText, activeTab === 'PRODUCTS' && styles.toggleTabTextActive]}
@@ -57,36 +61,37 @@ export function StockTabBar({
   );
 }
 
-const styles = StyleSheet.create({
-  viewToggleBar: {
-    flexDirection: 'row',
-    backgroundColor: Colors.dark.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    padding: 3,
-    marginHorizontal: 16,
-    marginTop: 10,
-    marginBottom: 4,
-  },
-  toggleTab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 9,
-    borderRadius: 10,
-  },
-  toggleTabActive: {
-    backgroundColor: '#FFFFFF',
-  },
-  toggleTabText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  toggleTabTextActive: {
-    color: '#09090B',
-  },
-});
+const createStyles = (colors: ThemeColors, isDark: boolean) =>
+  StyleSheet.create({
+    viewToggleBar: {
+      flexDirection: 'row',
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 3,
+      marginHorizontal: 16,
+      marginTop: 10,
+      marginBottom: 4,
+    },
+    toggleTab: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 9,
+      borderRadius: 10,
+    },
+    toggleTabActive: {
+      backgroundColor: isDark ? '#FFFFFF' : '#09090B',
+    },
+    toggleTabText: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    toggleTabTextActive: {
+      color: isDark ? '#09090B' : '#FFFFFF',
+    },
+  });

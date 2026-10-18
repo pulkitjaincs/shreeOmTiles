@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useAuth } from '@/lib/auth-context';
 import { mobileApiRequest, cachedMobileApiRequest, subscribeToAppSync } from '@/lib/api';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { Header } from '@/components/ui/Header';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { downloadAndSharePdf } from '@/lib/pdf';
@@ -40,11 +40,90 @@ import {
 
 export default function InvoicesScreen() {
   const { user } = useAuth();
+  const { colors } = useTheme();
   const isSalesman = user?.role === 'SALESMAN';
   const isSupervisor = user?.role === 'SUPERVISOR';
   const isDirectorOrAdmin = user?.role === 'OWNER' || (user?.role as any) === 'DIRECTOR' || user?.role === 'ADMIN';
   const isOwnerOrAdmin = isDirectorOrAdmin;
   const canReturn = Boolean(user && user.role !== 'SALESMAN' && user.role !== 'SUPERVISOR');
+
+  const styles = useThemedStyles((c) =>
+    StyleSheet.create({
+      screen: {
+        flex: 1,
+        backgroundColor: c.background,
+      },
+      listContent: {
+        padding: 16,
+        paddingBottom: 28,
+      },
+      center: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+      },
+      loadingText: {
+        color: c.textSecondary,
+        fontSize: 12,
+        marginTop: 10,
+      },
+      utilityActions: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingTop: 8,
+        paddingBottom: 4,
+      },
+      newBillAction: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        minHeight: 34,
+        paddingHorizontal: 12,
+        borderRadius: 9,
+        backgroundColor: c.primary,
+      },
+      newBillActionText: {
+        color: c.primaryForeground,
+        fontSize: 12,
+        fontWeight: '800',
+      },
+      returnAction: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        minHeight: 34,
+        paddingHorizontal: 10,
+        borderRadius: 9,
+        borderWidth: 1,
+        borderColor: 'rgba(251,191,36,0.28)',
+        backgroundColor: 'rgba(251,191,36,0.08)',
+      },
+      returnActionText: {
+        color: '#FBBF24',
+        fontSize: 11,
+        fontWeight: '700',
+      },
+      scannerAction: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        minHeight: 34,
+        paddingHorizontal: 11,
+        borderRadius: 9,
+        borderWidth: 1,
+        borderColor: 'rgba(56, 189, 248, 0.35)',
+        backgroundColor: 'rgba(56, 189, 248, 0.08)',
+      },
+      scannerActionText: {
+        color: '#38BDF8',
+        fontSize: 12,
+        fontWeight: '700',
+      },
+    })
+  );
 
   const [invoices, setInvoices] = useState<InvoiceListEntry[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -294,7 +373,7 @@ export default function InvoicesScreen() {
                 }}
                 activeOpacity={0.8}
               >
-                <Ionicons name="add" size={16} color="#09090B" />
+                <Ionicons name="add" size={16} color={colors.primaryForeground} />
                 <Text style={styles.newBillActionText}>New Bill</Text>
               </TouchableOpacity>
             ) : null}
@@ -342,7 +421,7 @@ export default function InvoicesScreen() {
 
       {loading && !refreshing ? (
         <View style={styles.center}>
-          <ActivityIndicator size="small" color="#FFFFFF" />
+          <ActivityIndicator size="small" color={colors.text} />
           <Text style={styles.loadingText}>Fetching invoices registry...</Text>
         </View>
       ) : (
@@ -355,7 +434,7 @@ export default function InvoicesScreen() {
           windowSize={7}
           removeClippedSubviews={true}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />
           }
           ListEmptyComponent={
             <EmptyState
@@ -462,79 +541,3 @@ export default function InvoicesScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: Colors.dark.background,
-  },
-  listContent: {
-    padding: 16,
-    paddingBottom: 28,
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  loadingText: {
-    color: Colors.dark.textSecondary,
-    fontSize: 12,
-    marginTop: 10,
-  },
-  utilityActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 4,
-  },
-  newBillAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    minHeight: 34,
-    paddingHorizontal: 12,
-    borderRadius: 9,
-    backgroundColor: '#FFFFFF',
-  },
-  newBillActionText: {
-    color: '#09090B',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  returnAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    minHeight: 34,
-    paddingHorizontal: 10,
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: 'rgba(251,191,36,0.28)',
-    backgroundColor: 'rgba(251,191,36,0.08)',
-  },
-  returnActionText: {
-    color: '#FBBF24',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  scannerAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    minHeight: 34,
-    paddingHorizontal: 11,
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.35)',
-    backgroundColor: 'rgba(56, 189, 248, 0.08)',
-  },
-  scannerActionText: {
-    color: '#38BDF8',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-});

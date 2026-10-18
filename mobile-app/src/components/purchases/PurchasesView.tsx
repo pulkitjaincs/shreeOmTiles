@@ -10,7 +10,8 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { Colors } from '@/constants/theme';
+import { Colors, ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { invalidateMobileApiCache, cachedMobileApiRequest } from '@/lib/api';
 import { formatINR, formatDate } from '@/lib/formatters';
 import { useAuth } from '@/lib/auth-context';
@@ -68,6 +69,8 @@ export function PurchasesView({
   warehouses,
   parties,
 }: PurchasesViewProps = {}) {
+  const { colors, isDark } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { user } = useAuth();
   const isSupervisor = user?.role === 'SUPERVISOR';
   const isDirectorOrAdmin = user?.role === 'OWNER' || (user?.role as any) === 'DIRECTOR' || user?.role === 'ADMIN';
@@ -288,7 +291,7 @@ export function PurchasesView({
                         <StatusBadge status={getPurchaseStatus(item)} size="sm" />
                       </>
                     ) : (
-                      <Text style={[styles.purchaseTotal, { fontSize: 12, color: Colors.dark.textSecondary }]}>
+                      <Text style={[styles.purchaseTotal, { fontSize: 12, color: colors.textSecondary }]}>
                         {(item.items || []).length} items
                       </Text>
                     )}
@@ -360,168 +363,169 @@ export function PurchasesView({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  headerBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  headerInfo: {
-    flex: 1,
-    marginRight: 10,
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.3,
-  },
-  headerSubtitle: {
-    fontSize: 11.5,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  recordBtn: {
-    height: 38,
-    paddingHorizontal: 14,
-  },
-  kpiGrid: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 10,
-  },
-  kpiCard: {
-    flex: 1,
-    padding: 10,
-    backgroundColor: Colors.dark.card,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  kpiDueCard: {
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-  },
-  kpiLabel: {
-    fontSize: 9.5,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    textTransform: 'uppercase',
-  },
-  kpiValue: {
-    fontSize: 13.5,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    marginVertical: 2,
-    fontFamily: 'monospace',
-  },
-  kpiSub: {
-    fontSize: 9,
-    color: Colors.dark.textTertiary,
-  },
-  scrollList: {
-    paddingBottom: 24,
-    paddingTop: 8,
-  },
-  purchaseCard: {
-    padding: 12,
-    marginBottom: 8,
-    backgroundColor: Colors.dark.card,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  purchaseTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  purchaseNo: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#F59E0B',
-    fontFamily: 'monospace',
-  },
-  supplierName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginTop: 2,
-  },
-  purchaseDate: {
-    fontSize: 10.5,
-    color: Colors.dark.textTertiary,
-    marginTop: 2,
-  },
-  purchaseTotal: {
-    fontSize: 14.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    fontFamily: 'monospace',
-    marginBottom: 4,
-  },
-  purchaseBottomRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 8,
-    paddingTop: 6,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  itemsSub: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-  },
-  dueSub: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#EF4444',
-  },
-  paidSub: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: Colors.dark.textSecondary,
-    fontSize: 12,
-    marginTop: 24,
-  },
-  paginationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    paddingHorizontal: 8,
-    marginTop: 8,
-  },
-  pageBtn: {
-    paddingVertical: 7,
-    paddingHorizontal: 14,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-  },
-  pageBtnDisabled: {
-    opacity: 0.35,
-  },
-  pageBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  pageBtnTextDisabled: {
-    color: Colors.dark.textTertiary,
-  },
-  paginationInfo: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: Colors.dark.textSecondary,
-  },
-});
+const createStyles = (colors: ThemeColors, isDark: boolean) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    headerBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 12,
+    },
+    headerInfo: {
+      flex: 1,
+      marginRight: 10,
+    },
+    headerTitle: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: colors.text,
+      letterSpacing: -0.3,
+    },
+    headerSubtitle: {
+      fontSize: 11.5,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    recordBtn: {
+      height: 38,
+      paddingHorizontal: 14,
+    },
+    kpiGrid: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 10,
+    },
+    kpiCard: {
+      flex: 1,
+      padding: 10,
+      backgroundColor: colors.card,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    kpiDueCard: {
+      borderColor: 'rgba(239, 68, 68, 0.3)',
+    },
+    kpiLabel: {
+      fontSize: 9.5,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+    },
+    kpiValue: {
+      fontSize: 13.5,
+      fontWeight: '900',
+      color: colors.text,
+      marginVertical: 2,
+      fontFamily: 'monospace',
+    },
+    kpiSub: {
+      fontSize: 9,
+      color: colors.textTertiary,
+    },
+    scrollList: {
+      paddingBottom: 24,
+      paddingTop: 8,
+    },
+    purchaseCard: {
+      padding: 12,
+      marginBottom: 8,
+      backgroundColor: colors.card,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    purchaseTop: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+    },
+    purchaseNo: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: '#F59E0B',
+      fontFamily: 'monospace',
+    },
+    supplierName: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.text,
+      marginTop: 2,
+    },
+    purchaseDate: {
+      fontSize: 10.5,
+      color: colors.textTertiary,
+      marginTop: 2,
+    },
+    purchaseTotal: {
+      fontSize: 14.5,
+      fontWeight: '800',
+      color: colors.text,
+      fontFamily: 'monospace',
+      marginBottom: 4,
+    },
+    purchaseBottomRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 8,
+      paddingTop: 6,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    itemsSub: {
+      fontSize: 11,
+      color: colors.textSecondary,
+    },
+    dueSub: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: '#EF4444',
+    },
+    paidSub: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: '#10B981',
+    },
+    emptyText: {
+      textAlign: 'center',
+      color: colors.textSecondary,
+      fontSize: 12,
+      marginTop: 24,
+    },
+    paginationRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 14,
+      paddingHorizontal: 8,
+      marginTop: 8,
+    },
+    pageBtn: {
+      paddingVertical: 7,
+      paddingHorizontal: 14,
+      borderRadius: 8,
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    pageBtnDisabled: {
+      opacity: 0.35,
+    },
+    pageBtnText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    pageBtnTextDisabled: {
+      color: colors.textTertiary,
+    },
+    paginationInfo: {
+      fontSize: 12,
+      fontWeight: '500',
+      color: colors.textSecondary,
+    },
+  });

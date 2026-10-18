@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles, ThemeColors } from '@/lib/theme-context';
 import { formatINR } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
 import { DashboardKPI } from '../types';
@@ -18,6 +18,8 @@ export function ExecutiveKpiGrid({
   onNavigateTransactions,
   onNavigateDeliveries,
 }: ExecutiveKpiGridProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const data = kpi || {
     totalRevenue: 0,
     deltaRevenue: null,
@@ -51,7 +53,7 @@ export function ExecutiveKpiGrid({
               Invoiced Sales
             </Text>
             <View style={styles.iconBox}>
-              <Ionicons name="receipt-outline" size={13} color="#FFFFFF" />
+              <Ionicons name="receipt-outline" size={13} color={colors.text} />
             </View>
           </View>
           <Text
@@ -98,7 +100,7 @@ export function ExecutiveKpiGrid({
               Invoices Count
             </Text>
             <View style={styles.iconBox}>
-              <Ionicons name="trending-up-outline" size={13} color="#FFFFFF" />
+              <Ionicons name="trending-up-outline" size={13} color={colors.text} />
             </View>
           </View>
           <Text
@@ -276,115 +278,116 @@ export function ExecutiveKpiGrid({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  sectionHeader: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginBottom: 10,
-    letterSpacing: -0.2,
-  },
-  kpiRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginBottom: 10,
-  },
-  kpiCard: {
-    flex: 1,
-    backgroundColor: '#141417',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    padding: 12,
-    minHeight: 96,
-    justifyContent: 'space-between',
-  },
-  kpiCardPrimary: {
-    borderColor: 'rgba(255, 255, 255, 0.16)',
-  },
-  kpiCardEmerald: {
-    borderColor: 'rgba(16, 185, 129, 0.25)',
-    backgroundColor: 'rgba(16, 185, 129, 0.04)',
-  },
-  kpiCardAmber: {
-    borderColor: 'rgba(245, 158, 11, 0.25)',
-    backgroundColor: 'rgba(245, 158, 11, 0.04)',
-  },
-  kpiCardRose: {
-    borderColor: 'rgba(239, 68, 68, 0.25)',
-    backgroundColor: 'rgba(239, 68, 68, 0.04)',
-  },
-  kpiCardAmberLight: {
-    borderColor: 'rgba(252, 211, 77, 0.25)',
-    backgroundColor: 'rgba(252, 211, 77, 0.04)',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  label: {
-    flex: 1,
-    fontSize: 9.5,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-    marginRight: 4,
-  },
-  iconBox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
-    backgroundColor: Colors.dark.cardElevated,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  value: {
-    fontSize: 16.5,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: -0.3,
-    marginVertical: 2,
-  },
-  footerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 2,
-    gap: 4,
-  },
-  subText: {
-    flex: 1,
-    fontSize: 9.5,
-    color: Colors.dark.textTertiary,
-  },
-  deltaBadge: {
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-    borderRadius: 4,
-    flexShrink: 0,
-  },
-  deltaBadgeUp: {
-    backgroundColor: 'rgba(16, 185, 129, 0.14)',
-  },
-  deltaBadgeDown: {
-    backgroundColor: 'rgba(239, 68, 68, 0.14)',
-  },
-  deltaBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  deltaTextUp: {
-    color: '#10B981',
-  },
-  deltaTextDown: {
-    color: '#EF4444',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      marginTop: 8,
+      marginBottom: 4,
+    },
+    sectionHeader: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.text,
+      marginBottom: 10,
+      letterSpacing: -0.2,
+    },
+    kpiRow: {
+      flexDirection: 'row',
+      gap: 10,
+      marginBottom: 10,
+    },
+    kpiCard: {
+      flex: 1,
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 12,
+      minHeight: 96,
+      justifyContent: 'space-between',
+    },
+    kpiCardPrimary: {
+      borderColor: colors.borderMedium,
+    },
+    kpiCardEmerald: {
+      borderColor: 'rgba(16, 185, 129, 0.25)',
+      backgroundColor: 'rgba(16, 185, 129, 0.04)',
+    },
+    kpiCardAmber: {
+      borderColor: 'rgba(245, 158, 11, 0.25)',
+      backgroundColor: 'rgba(245, 158, 11, 0.04)',
+    },
+    kpiCardRose: {
+      borderColor: 'rgba(239, 68, 68, 0.25)',
+      backgroundColor: 'rgba(239, 68, 68, 0.04)',
+    },
+    kpiCardAmberLight: {
+      borderColor: 'rgba(252, 211, 77, 0.25)',
+      backgroundColor: 'rgba(252, 211, 77, 0.04)',
+    },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 4,
+    },
+    label: {
+      flex: 1,
+      fontSize: 9.5,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.3,
+      marginRight: 4,
+    },
+    iconBox: {
+      width: 22,
+      height: 22,
+      borderRadius: 6,
+      backgroundColor: colors.cardElevated,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+    },
+    value: {
+      fontSize: 16.5,
+      fontWeight: '900',
+      color: colors.text,
+      letterSpacing: -0.3,
+      marginVertical: 2,
+    },
+    footerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 2,
+      gap: 4,
+    },
+    subText: {
+      flex: 1,
+      fontSize: 9.5,
+      color: colors.textTertiary,
+    },
+    deltaBadge: {
+      paddingHorizontal: 4,
+      paddingVertical: 1,
+      borderRadius: 4,
+      flexShrink: 0,
+    },
+    deltaBadgeUp: {
+      backgroundColor: 'rgba(16, 185, 129, 0.14)',
+    },
+    deltaBadgeDown: {
+      backgroundColor: 'rgba(239, 68, 68, 0.14)',
+    },
+    deltaBadgeText: {
+      fontSize: 9,
+      fontWeight: '800',
+    },
+    deltaTextUp: {
+      color: '#10B981',
+    },
+    deltaTextDown: {
+      color: '#EF4444',
+    },
+  });

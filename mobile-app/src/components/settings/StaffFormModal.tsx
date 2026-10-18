@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Colors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
+import { useThemedStyles } from '@/lib/theme-context';
 import { mobileApiRequest } from '@/lib/api';
 import { StaffUser } from './types';
 
@@ -20,12 +21,12 @@ export function StaffFormModal({
   onSuccess,
   staff,
 }: StaffFormModalProps) {
+  const styles = useThemedStyles(createStyles);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'SALESMAN' | 'DRIVER' | 'ACCOUNTANT' | 'ADMIN' | 'OWNER' | 'DIRECTOR' | 'SUPERVISOR'>('SALESMAN');
   const [warehouseId, setWarehouseId] = useState<string>('');
-  const [warehouses, setWarehouses] = useState<Array<{ id: string; name: string }>>([]);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -35,12 +36,6 @@ export function StaffFormModal({
       setPassword('');
       setRole(staff?.role || 'SALESMAN');
       setWarehouseId(staff?.scope || '');
-      mobileApiRequest<any>('/warehouses')
-        .then((data) => {
-          const list = Array.isArray(data) ? data : (data as any)?.data || [];
-          setWarehouses(list);
-        })
-        .catch(() => {});
     }
   }, [visible, staff]);
 
@@ -154,62 +149,63 @@ export function StaffFormModal({
   );
 }
 
-const styles = StyleSheet.create({
-  fieldLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    marginBottom: 4,
-    marginTop: 8,
-    textTransform: 'uppercase',
-  },
-  roleToggleRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 10,
-    marginTop: 4,
-  },
-  roleSelectChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    alignItems: 'center',
-  },
-  roleSelectChipActive: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
-  },
-  roleSelectChipText: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    fontWeight: '700',
-  },
-  roleSelectChipTextActive: {
-    color: '#09090B',
-    fontWeight: '800',
-  },
-  warehouseChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
-    backgroundColor: Colors.dark.cardElevated,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  warehouseChipActive: {
-    backgroundColor: '#A855F7',
-    borderColor: '#C084FC',
-  },
-  warehouseChipText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  warehouseChipTextActive: {
-    color: '#FFFFFF',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    fieldLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      marginBottom: 4,
+      marginTop: 8,
+      textTransform: 'uppercase',
+    },
+    roleToggleRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+      marginBottom: 10,
+      marginTop: 4,
+    },
+    roleSelectChip: {
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      borderRadius: 8,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+    },
+    roleSelectChipActive: {
+      backgroundColor: colors.text,
+      borderColor: colors.text,
+    },
+    roleSelectChipText: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontWeight: '700',
+    },
+    roleSelectChipTextActive: {
+      color: colors.background,
+      fontWeight: '800',
+    },
+    warehouseChip: {
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 8,
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    warehouseChipActive: {
+      backgroundColor: '#A855F7',
+      borderColor: '#C084FC',
+    },
+    warehouseChipText: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    warehouseChipTextActive: {
+      color: '#FFFFFF',
+    },
+  });

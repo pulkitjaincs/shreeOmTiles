@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'rea
 import { Button } from '@/components/ui/Button';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Colors } from '@/constants/theme';
+import { Colors, ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { Warehouse } from './types';
 import { StockItem } from '@/components/stock/types';
 import { WarehouseCard } from './WarehouseCard';
@@ -26,6 +27,8 @@ export function WarehousesDirectoryView({
   onRefresh,
   isOwnerOrAdmin,
 }: WarehousesDirectoryViewProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [search, setSearch] = useState('');
 
   // Modal States
@@ -113,7 +116,7 @@ export function WarehousesDirectoryView({
             <Ionicons
               name="refresh-outline"
               size={18}
-              color={loading ? Colors.dark.textSecondary : '#FFFFFF'}
+              color={loading ? colors.textSecondary : colors.text}
             />
           </TouchableOpacity>
           {isOwnerOrAdmin ? (
@@ -223,110 +226,111 @@ export function WarehousesDirectoryView({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    gap: 10,
-    paddingBottom: 16,
-  },
-  summaryBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-  },
-  summaryItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  summaryLabel: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  summaryValue: {
-    fontSize: 20,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    marginTop: 3,
-    fontFamily: 'monospace',
-  },
-  summarySub: {
-    fontSize: 10,
-    color: Colors.dark.textTertiary,
-    marginTop: 2,
-  },
-  summaryDivider: {
-    width: 1,
-    height: 38,
-    backgroundColor: Colors.dark.border,
-  },
-  actionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 2,
-    marginBottom: 2,
-  },
-  refreshBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sectionTitle: {
-    fontSize: 15.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.3,
-  },
-  sectionSubtitle: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 1,
-  },
-  addLocationBtn: {
-    height: 38,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-  },
-  searchContainer: {
-    marginBottom: 2,
-  },
-  resultsInfoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 2,
-    paddingHorizontal: 2,
-  },
-  resultsCountText: {
-    fontSize: 11.5,
-    color: Colors.dark.textSecondary,
-  },
-  resetFilterText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#38BDF8',
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 32,
-    gap: 8,
-  },
-  loadingText: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      gap: 10,
+      paddingBottom: 16,
+    },
+    summaryBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: 14,
+      borderRadius: 14,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.borderMedium,
+    },
+    summaryItem: {
+      flex: 1,
+      alignItems: 'center',
+    },
+    summaryLabel: {
+      fontSize: 10.5,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    summaryValue: {
+      fontSize: 20,
+      fontWeight: '900',
+      color: colors.text,
+      marginTop: 3,
+      fontFamily: 'monospace',
+    },
+    summarySub: {
+      fontSize: 10,
+      color: colors.textTertiary,
+      marginTop: 2,
+    },
+    summaryDivider: {
+      width: 1,
+      height: 38,
+      backgroundColor: colors.border,
+    },
+    actionHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: 12,
+      marginTop: 2,
+      marginBottom: 2,
+    },
+    refreshBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 8,
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    sectionTitle: {
+      fontSize: 15.5,
+      fontWeight: '800',
+      color: colors.text,
+      letterSpacing: -0.3,
+    },
+    sectionSubtitle: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 1,
+    },
+    addLocationBtn: {
+      height: 38,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+    },
+    searchContainer: {
+      marginBottom: 2,
+    },
+    resultsInfoRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 2,
+      paddingHorizontal: 2,
+    },
+    resultsCountText: {
+      fontSize: 11.5,
+      color: colors.textSecondary,
+    },
+    resetFilterText: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      color: '#38BDF8',
+    },
+    loadingContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 32,
+      gap: 8,
+    },
+    loadingText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+  });

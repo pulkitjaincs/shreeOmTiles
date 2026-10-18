@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { FilterTab, DeliveryCounts } from './types';
 
 interface DeliveryFilterTabsProps {
@@ -17,6 +17,9 @@ export function DeliveryFilterTabs({
   counts,
   isDriver,
 }: DeliveryFilterTabsProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   return (
     <ScrollView
       horizontal
@@ -33,7 +36,7 @@ export function DeliveryFilterTabs({
         <Ionicons
           name="layers-outline"
           size={13}
-          color={activeFilter === 'ALL' ? '#09090B' : Colors.dark.textSecondary}
+          color={activeFilter === 'ALL' ? colors.background : colors.textSecondary}
         />
         <Text style={[styles.tabText, activeFilter === 'ALL' && styles.tabTextActiveAll]}>
           All
@@ -54,7 +57,7 @@ export function DeliveryFilterTabs({
         <Ionicons
           name="time-outline"
           size={13}
-          color={activeFilter === 'PENDING' ? '#F59E0B' : Colors.dark.textSecondary}
+          color={activeFilter === 'PENDING' ? '#F59E0B' : colors.textSecondary}
         />
         <Text style={[styles.tabText, activeFilter === 'PENDING' && styles.tabTextActiveAmber]}>
           {isDriver ? 'Ready for Pickup' : 'Pending Dispatch'}
@@ -75,7 +78,7 @@ export function DeliveryFilterTabs({
         <Ionicons
           name="cube-outline"
           size={13}
-          color={activeFilter === 'OUT_FOR_PICKUP' ? '#A855F7' : Colors.dark.textSecondary}
+          color={activeFilter === 'OUT_FOR_PICKUP' ? '#A855F7' : colors.textSecondary}
         />
         <Text
           style={[styles.tabText, activeFilter === 'OUT_FOR_PICKUP' && styles.tabTextActivePurple]}
@@ -108,7 +111,7 @@ export function DeliveryFilterTabs({
         <Ionicons
           name="bicycle-outline"
           size={13}
-          color={activeFilter === 'OUT_FOR_DELIVERY' ? '#38BDF8' : Colors.dark.textSecondary}
+          color={activeFilter === 'OUT_FOR_DELIVERY' ? '#38BDF8' : colors.textSecondary}
         />
         <Text
           style={[styles.tabText, activeFilter === 'OUT_FOR_DELIVERY' && styles.tabTextActiveBlue]}
@@ -141,7 +144,7 @@ export function DeliveryFilterTabs({
         <Ionicons
           name="checkmark-circle-outline"
           size={13}
-          color={activeFilter === 'DELIVERED' ? '#10B981' : Colors.dark.textSecondary}
+          color={activeFilter === 'DELIVERED' ? '#10B981' : colors.textSecondary}
         />
         <Text style={[styles.tabText, activeFilter === 'DELIVERED' && styles.tabTextActiveGreen]}>
           Delivered
@@ -173,7 +176,7 @@ export function DeliveryFilterTabs({
           <Ionicons
             name="close-circle-outline"
             size={13}
-            color={activeFilter === 'CANCELLED' ? '#EF4444' : Colors.dark.textSecondary}
+            color={activeFilter === 'CANCELLED' ? '#EF4444' : colors.textSecondary}
           />
           <Text style={[styles.tabText, activeFilter === 'CANCELLED' && styles.tabTextActiveRed]}>
             Cancelled
@@ -199,117 +202,118 @@ export function DeliveryFilterTabs({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginVertical: 6,
-  },
-  content: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  tabChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 7,
-    paddingHorizontal: 11,
-    borderRadius: 10,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  tabChipActiveAll: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
-  },
-  tabChipActiveAmber: {
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
-    borderColor: '#F59E0B',
-  },
-  tabChipActivePurple: {
-    backgroundColor: 'rgba(168, 85, 247, 0.12)',
-    borderColor: '#A855F7',
-  },
-  tabChipActiveBlue: {
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
-    borderColor: '#38BDF8',
-  },
-  tabChipActiveGreen: {
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    borderColor: '#10B981',
-  },
-  tabChipActiveRed: {
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    borderColor: '#EF4444',
-  },
-  tabText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  tabTextActiveAll: {
-    color: '#09090B',
-  },
-  tabTextActiveAmber: {
-    color: '#F59E0B',
-  },
-  tabTextActivePurple: {
-    color: '#A855F7',
-  },
-  tabTextActiveBlue: {
-    color: '#38BDF8',
-  },
-  tabTextActiveGreen: {
-    color: '#10B981',
-  },
-  tabTextActiveRed: {
-    color: '#EF4444',
-  },
-  countBadge: {
-    paddingVertical: 1,
-    paddingHorizontal: 5,
-    borderRadius: 10,
-    backgroundColor: Colors.dark.cardElevated,
-  },
-  countBadgeActiveAll: {
-    backgroundColor: 'rgba(9, 9, 11, 0.15)',
-  },
-  countBadgeActiveAmber: {
-    backgroundColor: 'rgba(245, 158, 11, 0.2)',
-  },
-  countBadgeActivePurple: {
-    backgroundColor: 'rgba(168, 85, 247, 0.2)',
-  },
-  countBadgeActiveBlue: {
-    backgroundColor: 'rgba(56, 189, 248, 0.2)',
-  },
-  countBadgeActiveGreen: {
-    backgroundColor: 'rgba(16, 185, 129, 0.2)',
-  },
-  countBadgeActiveRed: {
-    backgroundColor: 'rgba(239, 68, 68, 0.2)',
-  },
-  countText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  countTextActiveAll: {
-    color: '#09090B',
-  },
-  countTextActiveAmber: {
-    color: '#F59E0B',
-  },
-  countTextActivePurple: {
-    color: '#A855F7',
-  },
-  countTextActiveBlue: {
-    color: '#38BDF8',
-  },
-  countTextActiveGreen: {
-    color: '#10B981',
-  },
-  countTextActiveRed: {
-    color: '#EF4444',
-  },
-});
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    container: {
+      marginVertical: 6,
+    },
+    content: {
+      paddingHorizontal: 16,
+      gap: 8,
+    },
+    tabChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingVertical: 7,
+      paddingHorizontal: 11,
+      borderRadius: 10,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    tabChipActiveAll: {
+      backgroundColor: colors.text,
+      borderColor: colors.text,
+    },
+    tabChipActiveAmber: {
+      backgroundColor: 'rgba(245, 158, 11, 0.12)',
+      borderColor: '#F59E0B',
+    },
+    tabChipActivePurple: {
+      backgroundColor: 'rgba(168, 85, 247, 0.12)',
+      borderColor: '#A855F7',
+    },
+    tabChipActiveBlue: {
+      backgroundColor: 'rgba(56, 189, 248, 0.12)',
+      borderColor: '#38BDF8',
+    },
+    tabChipActiveGreen: {
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+      borderColor: '#10B981',
+    },
+    tabChipActiveRed: {
+      backgroundColor: 'rgba(239, 68, 68, 0.12)',
+      borderColor: '#EF4444',
+    },
+    tabText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    tabTextActiveAll: {
+      color: colors.background,
+    },
+    tabTextActiveAmber: {
+      color: '#F59E0B',
+    },
+    tabTextActivePurple: {
+      color: '#A855F7',
+    },
+    tabTextActiveBlue: {
+      color: '#38BDF8',
+    },
+    tabTextActiveGreen: {
+      color: '#10B981',
+    },
+    tabTextActiveRed: {
+      color: '#EF4444',
+    },
+    countBadge: {
+      paddingVertical: 1,
+      paddingHorizontal: 5,
+      borderRadius: 10,
+      backgroundColor: colors.cardElevated,
+    },
+    countBadgeActiveAll: {
+      backgroundColor: 'rgba(0, 0, 0, 0.15)',
+    },
+    countBadgeActiveAmber: {
+      backgroundColor: 'rgba(245, 158, 11, 0.2)',
+    },
+    countBadgeActivePurple: {
+      backgroundColor: 'rgba(168, 85, 247, 0.2)',
+    },
+    countBadgeActiveBlue: {
+      backgroundColor: 'rgba(56, 189, 248, 0.2)',
+    },
+    countBadgeActiveGreen: {
+      backgroundColor: 'rgba(16, 185, 129, 0.2)',
+    },
+    countBadgeActiveRed: {
+      backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    },
+    countText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    countTextActiveAll: {
+      color: colors.background,
+    },
+    countTextActiveAmber: {
+      color: '#F59E0B',
+    },
+    countTextActivePurple: {
+      color: '#A855F7',
+    },
+    countTextActiveBlue: {
+      color: '#38BDF8',
+    },
+    countTextActiveGreen: {
+      color: '#10B981',
+    },
+    countTextActiveRed: {
+      color: '#EF4444',
+    },
+  });

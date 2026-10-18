@@ -6,7 +6,7 @@ import {
   TextInput,
   TouchableOpacity,
 } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles, ThemeColors } from '@/lib/theme-context';
 import { Card } from '@/components/ui/Card';
 import { formatINR } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,6 +21,8 @@ export function SalesStaffPerformance({
   salesmen,
   onManageStaff,
 }: SalesStaffPerformanceProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [search, setSearch] = useState('');
 
   const filteredSalesmen = useMemo(() => {
@@ -57,17 +59,17 @@ export function SalesStaffPerformance({
       {/* Search Input (shows if > 2 staff) */}
       {salesmen.length > 2 && (
         <View style={styles.searchBox}>
-          <Ionicons name="search" size={15} color={Colors.dark.textTertiary} />
+          <Ionicons name="search" size={15} color={colors.textTertiary} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search staff by name or phone..."
-            placeholderTextColor={Colors.dark.textTertiary}
+            placeholderTextColor={colors.textTertiary}
             value={search}
             onChangeText={setSearch}
           />
           {search.length > 0 && (
             <TouchableOpacity onPress={() => setSearch('')}>
-              <Ionicons name="close-circle" size={15} color={Colors.dark.textTertiary} />
+              <Ionicons name="close-circle" size={15} color={colors.textTertiary} />
             </TouchableOpacity>
           )}
         </View>
@@ -138,136 +140,137 @@ export function SalesStaffPerformance({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 14,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.2,
-  },
-  sub: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  link: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#38BDF8',
-  },
-  searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.dark.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    paddingHorizontal: 12,
-    height: 38,
-    marginBottom: 10,
-    gap: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 12,
-    color: '#FFFFFF',
-  },
-  card: {
-    padding: 13,
-    marginBottom: 8,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  avatar: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  name: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    flexShrink: 1,
-  },
-  roleBadge: {
-    backgroundColor: Colors.dark.cardElevated,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 4,
-    flexShrink: 0,
-  },
-  roleText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: Colors.dark.textTertiary,
-  },
-  phone: {
-    fontSize: 10.5,
-    color: Colors.dark.textTertiary,
-    marginTop: 1,
-  },
-  subText: {
-    fontSize: 10.5,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  total: {
-    fontSize: 14.5,
-    fontWeight: '800',
-    color: '#10B981',
-    flexShrink: 0,
-  },
-  shareText: {
-    fontSize: 10,
-    color: Colors.dark.textTertiary,
-    marginTop: 2,
-  },
-  shareTrack: {
-    height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.07)',
-    borderRadius: 2,
-    marginTop: 8,
-    overflow: 'hidden',
-  },
-  shareFill: {
-    height: '100%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 2,
-  },
-  emptyCard: {
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyText: {
-    fontSize: 11.5,
-    color: Colors.dark.textSecondary,
-  },
-});
+const createStyles = (colors: ThemeColors, isDark: boolean) =>
+  StyleSheet.create({
+    container: {
+      marginTop: 14,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: 8,
+    },
+    title: {
+      fontSize: 13.5,
+      fontWeight: '800',
+      color: colors.text,
+      letterSpacing: -0.2,
+    },
+    sub: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    link: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      color: '#38BDF8',
+    },
+    searchBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 12,
+      height: 38,
+      marginBottom: 10,
+      gap: 8,
+    },
+    searchInput: {
+      flex: 1,
+      fontSize: 12,
+      color: colors.text,
+    },
+    card: {
+      padding: 13,
+      marginBottom: 8,
+    },
+    row: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    avatar: {
+      width: 34,
+      height: 34,
+      borderRadius: 10,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.borderMedium,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avatarText: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    nameRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    name: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.text,
+      flexShrink: 1,
+    },
+    roleBadge: {
+      backgroundColor: colors.cardElevated,
+      paddingHorizontal: 5,
+      paddingVertical: 1,
+      borderRadius: 4,
+      flexShrink: 0,
+    },
+    roleText: {
+      fontSize: 9,
+      fontWeight: '700',
+      color: colors.textTertiary,
+    },
+    phone: {
+      fontSize: 10.5,
+      color: colors.textTertiary,
+      marginTop: 1,
+    },
+    subText: {
+      fontSize: 10.5,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    total: {
+      fontSize: 14.5,
+      fontWeight: '800',
+      color: '#10B981',
+      flexShrink: 0,
+    },
+    shareText: {
+      fontSize: 10,
+      color: colors.textTertiary,
+      marginTop: 2,
+    },
+    shareTrack: {
+      height: 4,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.07)' : colors.border,
+      borderRadius: 2,
+      marginTop: 8,
+      overflow: 'hidden',
+    },
+    shareFill: {
+      height: '100%',
+      backgroundColor: colors.primary,
+      borderRadius: 2,
+    },
+    emptyCard: {
+      padding: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    emptyText: {
+      fontSize: 11.5,
+      color: colors.textSecondary,
+    },
+  });

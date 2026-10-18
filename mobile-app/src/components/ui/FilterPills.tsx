@@ -1,6 +1,6 @@
 import React from 'react';
 import { ScrollView, TouchableOpacity, Text, StyleSheet, View } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { useThemedStyles } from '@/lib/theme-context';
 
 interface FilterOption<T = string> {
   label: string;
@@ -19,6 +19,68 @@ export function FilterPills<T = string>({
   selected,
   onSelect,
 }: FilterPillsProps<T>) {
+  const styles = useThemedStyles((c) =>
+    StyleSheet.create({
+      wrapper: {
+        marginVertical: 10,
+      },
+      container: {
+        flexDirection: 'row',
+        paddingHorizontal: 16,
+        gap: 8,
+      },
+      pill: {
+        height: 34,
+        borderRadius: 9999,
+        paddingHorizontal: 14,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+      },
+      pillSelected: {
+        backgroundColor: c.primary,
+      },
+      pillUnselected: {
+        backgroundColor: c.card,
+        borderWidth: 1,
+        borderColor: c.border,
+      },
+      pillText: {
+        fontSize: 12.5,
+        fontWeight: '700',
+        letterSpacing: 0.1,
+      },
+      textSelected: {
+        color: c.primaryForeground,
+      },
+      textUnselected: {
+        color: c.textSecondary,
+      },
+      countBadge: {
+        paddingHorizontal: 6,
+        paddingVertical: 1.5,
+        borderRadius: 999,
+      },
+      countSelected: {
+        backgroundColor: c.secondary,
+      },
+      countUnselected: {
+        backgroundColor: c.secondary,
+      },
+      countText: {
+        fontSize: 10,
+        fontWeight: '800',
+      },
+      countTextSelected: {
+        color: c.secondaryForeground,
+      },
+      countTextUnselected: {
+        color: c.secondaryForeground,
+      },
+    })
+  );
+
   return (
     <View style={styles.wrapper}>
       <ScrollView
@@ -70,63 +132,3 @@ export function FilterPills<T = string>({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  wrapper: {
-    marginVertical: 10,
-  },
-  container: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  pill: {
-    height: 34,
-    borderRadius: 9999,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  pillSelected: {
-    backgroundColor: '#FFFFFF',
-  },
-  pillUnselected: {
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  pillText: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    letterSpacing: 0.1,
-  },
-  textSelected: {
-    color: '#09090B',
-  },
-  textUnselected: {
-    color: Colors.dark.textSecondary,
-  },
-  countBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-    borderRadius: 999,
-  },
-  countSelected: {
-    backgroundColor: '#E4E4E7',
-  },
-  countUnselected: {
-    backgroundColor: Colors.dark.secondary,
-  },
-  countText: {
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  countTextSelected: {
-    color: '#09090B',
-  },
-  countTextUnselected: {
-    color: '#FFFFFF',
-  },
-});

@@ -12,7 +12,8 @@ import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { Colors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { mobileApiRequest } from '@/lib/api';
 import { formatINR, formatDate, getWhatsAppUrl } from '@/lib/formatters';
 import { Party, StatementInvoice, StatementCreditLedger } from './types';
@@ -38,6 +39,8 @@ export function PartyStatementDrawer({
   onEdit,
   onDelete,
 }: PartyStatementDrawerProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [statementData, setStatementData] = useState<{
     invoices: StatementInvoice[];
     creditLedgers: StatementCreditLedger[];
@@ -230,7 +233,7 @@ export function PartyStatementDrawer({
         </View>
       ) : !statementData ? (
         <View style={styles.centerLoading}>
-          <Ionicons name="alert-circle-outline" size={32} color={Colors.dark.textTertiary} />
+          <Ionicons name="alert-circle-outline" size={32} color={colors.textTertiary} />
           <Text style={[styles.loadingText, { marginTop: 8 }]}>Unable to load customer history.</Text>
           <Button
             title="Retry"
@@ -355,7 +358,7 @@ export function PartyStatementDrawer({
                   <Ionicons
                     name="trash-outline"
                     size={17}
-                    color={hasPendingLiability ? Colors.dark.textTertiary : '#EF4444'}
+                    color={hasPendingLiability ? colors.textTertiary : '#EF4444'}
                   />
                 )}
               </TouchableOpacity>
@@ -428,7 +431,7 @@ export function PartyStatementDrawer({
 
                   {inv.salesman?.name ? (
                     <View style={styles.salesmanRow}>
-                      <Ionicons name="person-outline" size={11} color={Colors.dark.textTertiary} />
+                      <Ionicons name="person-outline" size={11} color={colors.textTertiary} />
                       <Text style={styles.salesmanText}>Billed by {inv.salesman.name}</Text>
                     </View>
                   ) : null}
@@ -520,236 +523,237 @@ export function PartyStatementDrawer({
   );
 }
 
-const styles = StyleSheet.create({
-  centerLoading: {
-    paddingVertical: 40,
-    alignItems: 'center',
-  },
-  loadingText: {
-    color: Colors.dark.textSecondary,
-    fontSize: 12,
-    marginTop: 8,
-  },
-  kpiRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 8,
-  },
-  kpiCard: {
-    flex: 1,
-    padding: 10,
-    borderRadius: 10,
-    backgroundColor: '#16161A',
-    marginBottom: 0,
-  },
-  kpiDueCard: {
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.35)',
-    backgroundColor: 'rgba(239, 68, 68, 0.08)',
-  },
-  kpiPayableCard: {
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.35)',
-    backgroundColor: 'rgba(245, 158, 11, 0.08)',
-  },
-  kpiClearedCard: {
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.35)',
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-  },
-  kpiLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    textTransform: 'uppercase',
-  },
-  kpiValue: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    marginVertical: 2,
-  },
-  kpiSub: {
-    fontSize: 9.5,
-    color: Colors.dark.textTertiary,
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginVertical: 12,
-  },
-  pdfStatementBtn: {
-    flex: 1.1,
-    height: 40,
-    borderRadius: 10,
-  },
-  shareStatementBtn: {
-    flex: 1,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: '#10B981',
-  },
-  shareStatementBtnText: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-    fontSize: 13,
-  },
-  drawerIconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: Colors.dark.cardElevated,
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  drawerIconBtnDisabled: {
-    opacity: 0.5,
-  },
-  tabToggle: {
-    flexDirection: 'row',
-    backgroundColor: Colors.dark.card,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    padding: 3,
-    marginBottom: 10,
-  },
-  tabBtn: {
-    flex: 1,
-    paddingVertical: 7,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  tabBtnActive: {
-    backgroundColor: '#FFFFFF',
-  },
-  tabText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  tabTextActive: {
-    color: '#09090B',
-  },
-  orderCard: {
-    padding: 12,
-    marginBottom: 8,
-  },
-  orderTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  orderNo: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  orderDate: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  orderAmount: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginBottom: 2,
-  },
-  orderItemsCount: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 6,
-  },
-  itemsContainer: {
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.06)',
-    gap: 4,
-  },
-  itemRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.02)',
-    paddingHorizontal: 6,
-    borderRadius: 6,
-  },
-  itemName: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: Colors.dark.text,
-  },
-  itemMeta: {
-    fontSize: 10,
-    color: Colors.dark.textSecondary,
-    marginTop: 1,
-  },
-  itemTotal: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: Colors.dark.text,
-    fontFamily: 'monospace',
-  },
-  salesmanRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 6,
-    paddingTop: 6,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.04)',
-  },
-  salesmanText: {
-    fontSize: 10.5,
-    color: Colors.dark.textSecondary,
-  },
-  payableBadge: {
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
-  },
-  payableBadgeText: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: '#F59E0B',
-  },
-  overdueBadge: {
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-  },
-  overdueBadgeText: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: '#EF4444',
-  },
-  ledgerMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 4,
-    flexWrap: 'wrap',
-  },
-  ledgerMetaText: {
-    fontSize: 10,
-    color: Colors.dark.textSecondary,
-  },
-  emptyText: {
-    color: Colors.dark.textSecondary,
-    fontSize: 12,
-    textAlign: 'center',
-    paddingVertical: 20,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    centerLoading: {
+      paddingVertical: 40,
+      alignItems: 'center',
+    },
+    loadingText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      marginTop: 8,
+    },
+    kpiRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 8,
+    },
+    kpiCard: {
+      flex: 1,
+      padding: 10,
+      borderRadius: 10,
+      backgroundColor: colors.cardHover,
+      marginBottom: 0,
+    },
+    kpiDueCard: {
+      borderWidth: 1,
+      borderColor: 'rgba(239, 68, 68, 0.35)',
+      backgroundColor: 'rgba(239, 68, 68, 0.08)',
+    },
+    kpiPayableCard: {
+      borderWidth: 1,
+      borderColor: 'rgba(245, 158, 11, 0.35)',
+      backgroundColor: 'rgba(245, 158, 11, 0.08)',
+    },
+    kpiClearedCard: {
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.35)',
+      backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    },
+    kpiLabel: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+    },
+    kpiValue: {
+      fontSize: 14,
+      fontWeight: '900',
+      color: colors.text,
+      marginVertical: 2,
+    },
+    kpiSub: {
+      fontSize: 9.5,
+      color: colors.textTertiary,
+    },
+    actionsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginVertical: 12,
+    },
+    pdfStatementBtn: {
+      flex: 1.1,
+      height: 40,
+      borderRadius: 10,
+    },
+    shareStatementBtn: {
+      flex: 1,
+      height: 40,
+      borderRadius: 10,
+      backgroundColor: '#10B981',
+    },
+    shareStatementBtnText: {
+      color: '#FFFFFF',
+      fontWeight: '800',
+      fontSize: 13,
+    },
+    drawerIconBtn: {
+      width: 40,
+      height: 40,
+      borderRadius: 10,
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.borderMedium,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    drawerIconBtnDisabled: {
+      opacity: 0.5,
+    },
+    tabToggle: {
+      flexDirection: 'row',
+      backgroundColor: colors.card,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 3,
+      marginBottom: 10,
+    },
+    tabBtn: {
+      flex: 1,
+      paddingVertical: 7,
+      alignItems: 'center',
+      borderRadius: 8,
+    },
+    tabBtnActive: {
+      backgroundColor: colors.primary,
+    },
+    tabText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    tabTextActive: {
+      color: colors.primaryForeground,
+    },
+    orderCard: {
+      padding: 12,
+      marginBottom: 8,
+    },
+    orderTop: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+    },
+    orderNo: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    orderDate: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    orderAmount: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.text,
+      marginBottom: 2,
+    },
+    orderItemsCount: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 6,
+    },
+    itemsContainer: {
+      marginTop: 8,
+      paddingTop: 8,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      gap: 4,
+    },
+    itemRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 3,
+      backgroundColor: colors.cardHover,
+      paddingHorizontal: 6,
+      borderRadius: 6,
+    },
+    itemName: {
+      fontSize: 11.5,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    itemMeta: {
+      fontSize: 10,
+      color: colors.textSecondary,
+      marginTop: 1,
+    },
+    itemTotal: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      color: colors.text,
+      fontFamily: 'monospace',
+    },
+    salesmanRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: 6,
+      paddingTop: 6,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    salesmanText: {
+      fontSize: 10.5,
+      color: colors.textSecondary,
+    },
+    payableBadge: {
+      backgroundColor: 'rgba(245, 158, 11, 0.12)',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 5,
+      borderWidth: 1,
+      borderColor: 'rgba(245, 158, 11, 0.3)',
+    },
+    payableBadgeText: {
+      fontSize: 9.5,
+      fontWeight: '800',
+      color: '#F59E0B',
+    },
+    overdueBadge: {
+      backgroundColor: 'rgba(239, 68, 68, 0.12)',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 5,
+      borderWidth: 1,
+      borderColor: 'rgba(239, 68, 68, 0.3)',
+    },
+    overdueBadgeText: {
+      fontSize: 9.5,
+      fontWeight: '800',
+      color: '#EF4444',
+    },
+    ledgerMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 4,
+      flexWrap: 'wrap',
+    },
+    ledgerMetaText: {
+      fontSize: 10,
+      color: colors.textSecondary,
+    },
+    emptyText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      textAlign: 'center',
+      paddingVertical: 20,
+    },
+  });

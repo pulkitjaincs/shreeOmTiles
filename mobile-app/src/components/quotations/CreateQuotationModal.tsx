@@ -12,7 +12,8 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { Colors } from '@/constants/theme';
+import { Colors, ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { formatINR } from '@/lib/formatters';
 import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
 import { Ionicons } from '@expo/vector-icons';
@@ -42,6 +43,8 @@ export function CreateQuotationModal({
   initialParties,
   initialProducts,
 }: CreateQuotationModalProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useThemedStyles(createStyles);
   // Parties & Products state
   const [parties, setParties] = useState<Party[]>(initialParties || []);
   const [products, setProducts] = useState<Product[]>(initialProducts || []);
@@ -479,7 +482,7 @@ export function CreateQuotationModal({
             <Ionicons
               name="people-outline"
               size={14}
-              color={customerMode === 'saved' ? '#09090B' : Colors.dark.textSecondary}
+              color={customerMode === 'saved' ? (isDark ? '#09090B' : '#FFFFFF') : colors.textSecondary}
             />
             <Text
               style={[styles.toggleText, customerMode === 'saved' && styles.toggleTextActive]}
@@ -496,7 +499,7 @@ export function CreateQuotationModal({
             <Ionicons
               name="person-add-outline"
               size={14}
-              color={customerMode === 'walkin' ? '#09090B' : Colors.dark.textSecondary}
+              color={customerMode === 'walkin' ? (isDark ? '#09090B' : '#FFFFFF') : colors.textSecondary}
             />
             <Text
               style={[styles.toggleText, customerMode === 'walkin' && styles.toggleTextActive]}
@@ -817,212 +820,213 @@ export function CreateQuotationModal({
   );
 }
 
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(56, 189, 248, 0.1)',
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 12,
-  },
-  loadingText: {
-    color: '#38BDF8',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  section: {
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginBottom: 8,
-    letterSpacing: 0.2,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  addItemHeaderBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  addItemHeaderText: {
-    color: '#38BDF8',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  tabToggle: {
-    flexDirection: 'row',
-    backgroundColor: Colors.dark.card,
-    borderRadius: 11,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    padding: 3,
-    marginBottom: 10,
-  },
-  toggleBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 7,
-    borderRadius: 8,
-  },
-  toggleBtnActive: {
-    backgroundColor: '#FFFFFF',
-  },
-  toggleText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.dark.textSecondary,
-  },
-  toggleTextActive: {
-    color: '#09090B',
-    fontWeight: '800',
-  },
-  itemCard: {
-    padding: 12,
-    marginBottom: 10,
-    backgroundColor: Colors.dark.card,
-    borderColor: Colors.dark.border,
-  },
-  itemCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  itemIndexTitle: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    color: '#38BDF8',
-    textTransform: 'uppercase',
-  },
-  itemRowInputs: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 2,
-  },
-  lineTotalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 8,
-    marginTop: 4,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  lineTotalLabel: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-  },
-  lineTotalValue: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    fontFamily: 'monospace',
-  },
-  subFieldLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.dark.textSecondary,
-    marginBottom: 6,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 6,
-  },
-  chip: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  chipActive: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
-  },
-  chipText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  chipTextActive: {
-    color: '#09090B',
-    fontWeight: '800',
-  },
-  summaryCard: {
-    padding: 14,
-    backgroundColor: Colors.dark.cardElevated,
-    borderColor: Colors.dark.borderMedium,
-    marginBottom: 16,
-  },
-  summaryTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginBottom: 10,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  summaryLabel: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-  },
-  summaryValue: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    fontFamily: 'monospace',
-  },
-  summaryDivider: {
-    height: 1,
-    backgroundColor: Colors.dark.borderMedium,
-    marginVertical: 10,
-  },
-  summaryGrandRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  grandTotalLabel: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  grandTotalSub: {
-    fontSize: 10,
-    color: Colors.dark.textTertiary,
-  },
-  grandTotalValue: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#10B981',
-    fontFamily: 'monospace',
-  },
-  actionButtonsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 8,
-    marginBottom: 16,
-  },
-});
+const createStyles = (colors: ThemeColors, isDark: boolean) =>
+  StyleSheet.create({
+    loadingContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: 'rgba(56, 189, 248, 0.1)',
+      borderRadius: 8,
+      padding: 10,
+      marginBottom: 12,
+    },
+    loadingText: {
+      color: '#38BDF8',
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    section: {
+      marginBottom: 16,
+    },
+    sectionTitle: {
+      fontSize: 13.5,
+      fontWeight: '800',
+      color: colors.text,
+      marginBottom: 8,
+      letterSpacing: 0.2,
+    },
+    sectionHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    addItemHeaderBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    addItemHeaderText: {
+      color: '#38BDF8',
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    tabToggle: {
+      flexDirection: 'row',
+      backgroundColor: colors.card,
+      borderRadius: 11,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 3,
+      marginBottom: 10,
+    },
+    toggleBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 7,
+      borderRadius: 8,
+    },
+    toggleBtnActive: {
+      backgroundColor: isDark ? '#FFFFFF' : '#09090B',
+    },
+    toggleText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    toggleTextActive: {
+      color: isDark ? '#09090B' : '#FFFFFF',
+      fontWeight: '800',
+    },
+    itemCard: {
+      padding: 12,
+      marginBottom: 10,
+      backgroundColor: colors.card,
+      borderColor: colors.border,
+    },
+    itemCardHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    itemIndexTitle: {
+      fontSize: 12.5,
+      fontWeight: '800',
+      color: '#38BDF8',
+      textTransform: 'uppercase',
+    },
+    itemRowInputs: {
+      flexDirection: 'row',
+      gap: 8,
+      marginTop: 2,
+    },
+    lineTotalRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingTop: 8,
+      marginTop: 4,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    lineTotalLabel: {
+      fontSize: 11,
+      color: colors.textSecondary,
+    },
+    lineTotalValue: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.text,
+      fontFamily: 'monospace',
+    },
+    subFieldLabel: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textSecondary,
+      marginBottom: 6,
+    },
+    chipRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+      marginBottom: 6,
+    },
+    chip: {
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 8,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    chipActive: {
+      backgroundColor: colors.text,
+      borderColor: colors.text,
+    },
+    chipText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    chipTextActive: {
+      color: colors.background,
+      fontWeight: '800',
+    },
+    summaryCard: {
+      padding: 14,
+      backgroundColor: colors.cardElevated,
+      borderColor: colors.borderMedium,
+      marginBottom: 16,
+    },
+    summaryTitle: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.text,
+      marginBottom: 10,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    summaryRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 6,
+    },
+    summaryLabel: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    summaryValue: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      color: colors.text,
+      fontFamily: 'monospace',
+    },
+    summaryDivider: {
+      height: 1,
+      backgroundColor: colors.borderMedium,
+      marginVertical: 10,
+    },
+    summaryGrandRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    grandTotalLabel: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    grandTotalSub: {
+      fontSize: 10,
+      color: colors.textTertiary,
+    },
+    grandTotalValue: {
+      fontSize: 18,
+      fontWeight: '900',
+      color: '#10B981',
+      fontFamily: 'monospace',
+    },
+    actionButtonsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      marginTop: 8,
+      marginBottom: 16,
+    },
+  });

@@ -12,7 +12,8 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Card } from '@/components/ui/Card';
-import { Colors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { Ionicons } from '@expo/vector-icons';
 import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
 import { formatINR } from '@/lib/formatters';
@@ -71,6 +72,8 @@ export function CreatePurchaseModal({
   warehouses: initialWarehouses,
   parties: initialParties,
 }: CreatePurchaseModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   // Dependencies state
   const [parties, setParties] = useState<Party[]>(initialParties || []);
   const [warehouses, setWarehouses] = useState<Warehouse[]>(initialWarehouses || []);
@@ -448,7 +451,7 @@ export function CreatePurchaseModal({
             <Ionicons
               name="people-outline"
               size={14}
-              color={vendorMode === 'existing' ? '#09090B' : Colors.dark.textSecondary}
+              color={vendorMode === 'existing' ? colors.primaryForeground : colors.textSecondary}
             />
             <Text style={[styles.toggleText, vendorMode === 'existing' && styles.toggleTextActive]}>
               Select Existing Vendor
@@ -462,7 +465,7 @@ export function CreatePurchaseModal({
             <Ionicons
               name="person-add-outline"
               size={14}
-              color={vendorMode === 'new' ? '#09090B' : Colors.dark.textSecondary}
+              color={vendorMode === 'new' ? colors.primaryForeground : colors.textSecondary}
             />
             <Text style={[styles.toggleText, vendorMode === 'new' && styles.toggleTextActive]}>
               + Quick Add Vendor
@@ -808,290 +811,291 @@ export function CreatePurchaseModal({
   );
 }
 
-const styles = StyleSheet.create({
-  formContent: {
-    paddingBottom: 24,
-  },
-  loadingBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#1E1E24',
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  loadingText: {
-    color: Colors.dark.textSecondary,
-    fontSize: 12,
-  },
-  sectionHeader: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginTop: 14,
-    marginBottom: 10,
-    letterSpacing: 0.2,
-  },
-  tabToggle: {
-    flexDirection: 'row',
-    backgroundColor: Colors.dark.card,
-    borderRadius: 11,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    padding: 3,
-    marginBottom: 10,
-  },
-  toggleBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 6,
-    paddingVertical: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-  },
-  toggleBtnActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  toggleText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  toggleTextActive: {
-    color: '#09090B',
-    fontWeight: '800',
-  },
-  vendorInfoCard: {
-    padding: 10,
-    marginTop: -4,
-    marginBottom: 12,
-    backgroundColor: '#16161A',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  vendorInfoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  vendorInfoName: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  vendorInfoBadge: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#10B981',
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  vendorInfoSub: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  rowTwoCols: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  lineItemsHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 6,
-  },
-  addItemBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#27272A',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  addItemBtnText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  itemCard: {
-    padding: 12,
-    marginBottom: 10,
-    backgroundColor: Colors.dark.card,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  itemCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  itemNumberTag: {
-    backgroundColor: '#27272A',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  itemNumberText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#F59E0B',
-  },
-  itemTotalTag: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    fontFamily: 'monospace',
-  },
-  deleteItemBtn: {
-    padding: 4,
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    borderRadius: 6,
-  },
-  fieldLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    marginBottom: 6,
-  },
-  taxPillRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-  },
-  taxPill: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  taxPillActive: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
-  },
-  taxPillText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  taxPillTextActive: {
-    color: '#09090B',
-    fontWeight: '800',
-  },
-  paymentModeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
-  },
-  paymentModeCard: {
-    flex: 1,
-    minWidth: '47%',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  paymentModeCardActive: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
-  },
-  paymentModeText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  paymentModeTextActive: {
-    color: '#09090B',
-    fontWeight: '800',
-  },
-  quickChipsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: -6,
-    marginBottom: 14,
-  },
-  chipBtn: {
-    backgroundColor: '#27272A',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  chipBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  summaryCard: {
-    padding: 14,
-    backgroundColor: '#141418',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    marginVertical: 12,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginVertical: 3,
-  },
-  summaryLabel: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-  },
-  summaryValue: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    fontFamily: 'monospace',
-  },
-  summaryDivider: {
-    height: 1,
-    backgroundColor: Colors.dark.border,
-    marginVertical: 8,
-  },
-  summaryGrandTotalLabel: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  summaryGrandTotalValue: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#F59E0B',
-    fontFamily: 'monospace',
-  },
-  actionRow: {
-    marginTop: 8,
-    marginBottom: 20,
-  },
-});
+const createStyles = (colors: ThemeColors, isDark: boolean) =>
+  StyleSheet.create({
+    formContent: {
+      paddingBottom: 24,
+    },
+    loadingBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: colors.cardElevated,
+      padding: 10,
+      borderRadius: 8,
+      marginBottom: 12,
+    },
+    loadingText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+    },
+    sectionHeader: {
+      fontSize: 13.5,
+      fontWeight: '800',
+      color: colors.text,
+      marginTop: 14,
+      marginBottom: 10,
+      letterSpacing: 0.2,
+    },
+    tabToggle: {
+      flexDirection: 'row',
+      backgroundColor: colors.card,
+      borderRadius: 11,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 3,
+      marginBottom: 10,
+    },
+    toggleBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      gap: 6,
+      paddingVertical: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 8,
+    },
+    toggleBtnActive: {
+      backgroundColor: isDark ? '#FFFFFF' : '#09090B',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.2,
+      shadowRadius: 2,
+      elevation: 2,
+    },
+    toggleText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    toggleTextActive: {
+      color: isDark ? '#09090B' : '#FFFFFF',
+      fontWeight: '800',
+    },
+    vendorInfoCard: {
+      padding: 10,
+      marginTop: -4,
+      marginBottom: 12,
+      backgroundColor: colors.cardElevated,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    vendorInfoRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 4,
+    },
+    vendorInfoName: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    vendorInfoBadge: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: '#10B981',
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+    },
+    vendorInfoSub: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    rowTwoCols: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    lineItemsHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 10,
+      marginBottom: 6,
+    },
+    addItemBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: colors.cardElevated,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    addItemBtnText: {
+      color: colors.text,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    itemCard: {
+      padding: 12,
+      marginBottom: 10,
+      backgroundColor: colors.card,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    itemCardHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    itemNumberTag: {
+      backgroundColor: colors.cardElevated,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+    },
+    itemNumberText: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: '#F59E0B',
+    },
+    itemTotalTag: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.text,
+      fontFamily: 'monospace',
+    },
+    deleteItemBtn: {
+      padding: 4,
+      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+      borderRadius: 6,
+    },
+    fieldLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      marginBottom: 6,
+    },
+    taxPillRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 12,
+    },
+    taxPill: {
+      flex: 1,
+      paddingVertical: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 8,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    taxPillActive: {
+      backgroundColor: colors.text,
+      borderColor: colors.text,
+    },
+    taxPillText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    taxPillTextActive: {
+      color: colors.background,
+      fontWeight: '800',
+    },
+    paymentModeGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginBottom: 12,
+    },
+    paymentModeCard: {
+      flex: 1,
+      minWidth: '47%',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingVertical: 10,
+      paddingHorizontal: 10,
+      borderRadius: 8,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    paymentModeCardActive: {
+      backgroundColor: colors.text,
+      borderColor: colors.text,
+    },
+    paymentModeText: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    paymentModeTextActive: {
+      color: colors.background,
+      fontWeight: '800',
+    },
+    quickChipsRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginTop: -6,
+      marginBottom: 14,
+    },
+    chipBtn: {
+      backgroundColor: colors.cardElevated,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    chipBtnText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    summaryCard: {
+      padding: 14,
+      backgroundColor: colors.cardElevated,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginVertical: 12,
+    },
+    summaryRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginVertical: 3,
+    },
+    summaryLabel: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    summaryValue: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      color: colors.text,
+      fontFamily: 'monospace',
+    },
+    summaryDivider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginVertical: 8,
+    },
+    summaryGrandTotalLabel: {
+      fontSize: 13.5,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    summaryGrandTotalValue: {
+      fontSize: 15,
+      fontWeight: '900',
+      color: '#F59E0B',
+      fontFamily: 'monospace',
+    },
+    actionRow: {
+      marginTop: 8,
+      marginBottom: 20,
+    },
+  });

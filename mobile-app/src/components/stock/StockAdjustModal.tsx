@@ -4,7 +4,8 @@ import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { Colors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { mobileApiRequest } from '@/lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import { Product, Warehouse, StockItem } from './types';
@@ -28,6 +29,8 @@ export function StockAdjustModal({
   stocks = [],
   initialStockItem,
 }: StockAdjustModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [selectedProductId, setSelectedProductId] = useState('');
   const [quantity, setQuantity] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -118,7 +121,7 @@ export function StockAdjustModal({
               <Text style={styles.currentStockLabel}>Original / System Count</Text>
               <Text style={styles.currentStockVal}>
                 {currentQty}{' '}
-                <Text style={{ fontSize: 13, fontWeight: '500', color: Colors.dark.textSecondary }}>
+                <Text style={{ fontSize: 13, fontWeight: '500', color: colors.textSecondary }}>
                   {selectedProduct?.unit || 'units'}
                 </Text>
               </Text>
@@ -156,47 +159,48 @@ export function StockAdjustModal({
   );
 }
 
-const styles = StyleSheet.create({
-  currentStockBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(56, 189, 248, 0.08)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.2)',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginVertical: 10,
-  },
-  currentStockLabel: {
-    fontSize: 11,
-    color: '#38BDF8',
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  currentStockVal: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    marginTop: 2,
-    fontFamily: 'monospace',
-  },
-  zeroBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  zeroBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#F59E0B',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    currentStockBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: 'rgba(56, 189, 248, 0.08)',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: 'rgba(56, 189, 248, 0.2)',
+      paddingHorizontal: 14,
+      paddingVertical: 12,
+      marginVertical: 10,
+    },
+    currentStockLabel: {
+      fontSize: 11,
+      color: '#38BDF8',
+      fontWeight: '700',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    currentStockVal: {
+      fontSize: 18,
+      fontWeight: '900',
+      color: colors.text,
+      marginTop: 2,
+      fontFamily: 'monospace',
+    },
+    zeroBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: 'rgba(245, 158, 11, 0.15)',
+      borderWidth: 1,
+      borderColor: 'rgba(245, 158, 11, 0.3)',
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 8,
+    },
+    zeroBtnText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: '#F59E0B',
+    },
+  });

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, TextInput, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { Ionicons } from '@expo/vector-icons';
 
 interface SearchBarProps {
@@ -16,19 +16,50 @@ export function SearchBar({
   placeholder = 'Search...',
   style,
 }: SearchBarProps) {
+  const { colors } = useTheme();
+
+  const styles = useThemedStyles((c) =>
+    StyleSheet.create({
+      container: {
+        height: 44,
+        backgroundColor: c.card,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: c.border,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        marginHorizontal: 16,
+        marginVertical: 8,
+      },
+      searchIcon: {
+        marginRight: 8,
+      },
+      input: {
+        flex: 1,
+        height: '100%',
+        color: c.text,
+        fontSize: 14,
+      },
+      clearBtn: {
+        padding: 2,
+      },
+    })
+  );
+
   return (
     <View style={[styles.container, style]}>
       <Ionicons
         name="search-outline"
         size={18}
-        color={Colors.dark.textSecondary}
+        color={colors.textSecondary}
         style={styles.searchIcon}
       />
       <TextInput
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={Colors.dark.textTertiary}
+        placeholderTextColor={colors.textTertiary}
         style={styles.input}
         autoCapitalize="none"
         autoCorrect={false}
@@ -39,36 +70,9 @@ export function SearchBar({
           style={styles.clearBtn}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Ionicons name="close-circle" size={16} color={Colors.dark.textSecondary} />
+          <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
         </TouchableOpacity>
       ) : null}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    height: 44,
-    backgroundColor: Colors.dark.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    marginHorizontal: 16,
-    marginVertical: 8,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  input: {
-    flex: 1,
-    height: '100%',
-    color: '#FFFFFF',
-    fontSize: 14,
-  },
-  clearBtn: {
-    padding: 2,
-  },
-});

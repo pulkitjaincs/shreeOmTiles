@@ -5,7 +5,8 @@ import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Colors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { formatINR } from '@/lib/formatters';
 import { mobileApiRequest } from '@/lib/api';
 import { Warehouse, Product, Party } from './types';
@@ -45,6 +46,8 @@ export function ReturnInvoiceModal({
   onDownloadRefundPdf,
   onDownloadPdf,
 }: ReturnInvoiceModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [activeTab, setActiveTab] = useState<'RECORDED' | 'STANDALONE'>('RECORDED');
 
   // Recorded Return State
@@ -422,7 +425,7 @@ export function ReturnInvoiceModal({
                           style={styles.qtyBtn}
                           onPress={() => updateAllocation(item.id, { qty: Math.max(0, alloc.qty - 1) })}
                         >
-                          <Ionicons name="remove" size={16} color="#FFFFFF" />
+                          <Ionicons name="remove" size={16} color={colors.text} />
                         </TouchableOpacity>
                         <Text style={styles.qtyText}>{alloc.qty}</Text>
                         <TouchableOpacity
@@ -431,7 +434,7 @@ export function ReturnInvoiceModal({
                             updateAllocation(item.id, { qty: Math.min(maxReturnable, alloc.qty + 1) })
                           }
                         >
-                          <Ionicons name="add" size={16} color="#FFFFFF" />
+                          <Ionicons name="add" size={16} color={colors.text} />
                         </TouchableOpacity>
                       </View>
                     </Card>
@@ -630,242 +633,243 @@ export function ReturnInvoiceModal({
   );
 }
 
-const styles = StyleSheet.create({
-  tabRow: {
-    flexDirection: 'row',
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    padding: 3,
-    marginBottom: 16,
-  },
-  tabBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  tabBtnActive: {
-    backgroundColor: '#FFFFFF',
-  },
-  tabBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  tabBtnTextActive: {
-    color: '#09090B',
-  },
-  lookupRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 8,
-    marginBottom: 12,
-  },
-  lookupInput: { flex: 1 },
-  findButton: { minWidth: 84 },
-  section: { marginTop: 8 },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  addItemBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-  },
-  addItemBtnText: {
-    color: '#38BDF8',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  errorText: {
-    color: '#EF4444',
-    fontSize: 12,
-    marginBottom: 8,
-  },
-  successCard: {
-    padding: 14,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    borderWidth: 1,
-    marginBottom: 12,
-  },
-  successTitle: {
-    color: '#10B981',
-    fontWeight: '700',
-    fontSize: 14,
-    marginBottom: 4,
-  },
-  successText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-  },
-  invoiceMetaCard: {
-    padding: 12,
-    marginBottom: 10,
-  },
-  invoiceNumber: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  partyText: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  totalText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#10B981',
-    marginTop: 4,
-  },
-  itemCard: {
-    padding: 12,
-    marginBottom: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  itemName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  itemMeta: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  qtyControl: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 8,
-    padding: 4,
-  },
-  qtyBtn: {
-    width: 28,
-    height: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    borderRadius: 6,
-  },
-  qtyText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    minWidth: 20,
-    textAlign: 'center',
-  },
-  summaryCard: {
-    padding: 12,
-    marginTop: 12,
-    backgroundColor: 'rgba(56, 189, 248, 0.08)',
-    borderColor: 'rgba(56, 189, 248, 0.25)',
-    borderWidth: 1,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  summaryLabel: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    fontWeight: '600',
-  },
-  summaryVal: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#38BDF8',
-  },
-  modeRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 14,
-  },
-  modeBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  modeBtnActive: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
-  },
-  modeBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  modeBtnTextActive: {
-    color: '#09090B',
-  },
-  standaloneBanner: {
-    padding: 12,
-    borderRadius: 8,
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.25)',
-    marginBottom: 12,
-  },
-  standaloneBannerText: {
-    fontSize: 11,
-    color: '#F59E0B',
-    lineHeight: 16,
-  },
-  standaloneItemCard: {
-    padding: 12,
-    marginBottom: 10,
-  },
-  standaloneItemHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  standaloneItemIdx: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  rowInputs: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  addStandaloneItemDashedBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: '#38BDF8',
-    backgroundColor: 'rgba(56, 189, 248, 0.08)',
-    marginBottom: 12,
-  },
-  addStandaloneItemDashedBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#38BDF8',
-  },
-});
+const createStyles = (colors: ThemeColors, isDark: boolean) =>
+  StyleSheet.create({
+    tabRow: {
+      flexDirection: 'row',
+      borderRadius: 10,
+      backgroundColor: colors.cardHover,
+      padding: 3,
+      marginBottom: 16,
+    },
+    tabBtn: {
+      flex: 1,
+      paddingVertical: 8,
+      alignItems: 'center',
+      borderRadius: 8,
+    },
+    tabBtnActive: {
+      backgroundColor: colors.primary,
+    },
+    tabBtnText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    tabBtnTextActive: {
+      color: colors.primaryForeground,
+    },
+    lookupRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      gap: 8,
+      marginBottom: 12,
+    },
+    lookupInput: { flex: 1 },
+    findButton: { minWidth: 84 },
+    section: { marginTop: 8 },
+    sectionTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.text,
+      marginTop: 16,
+      marginBottom: 8,
+    },
+    sectionHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    addItemBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+    },
+    addItemBtnText: {
+      color: '#38BDF8',
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    errorText: {
+      color: '#EF4444',
+      fontSize: 12,
+      marginBottom: 8,
+    },
+    successCard: {
+      padding: 14,
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+      borderWidth: 1,
+      marginBottom: 12,
+    },
+    successTitle: {
+      color: '#10B981',
+      fontWeight: '700',
+      fontSize: 14,
+      marginBottom: 4,
+    },
+    successText: {
+      color: colors.text,
+      fontSize: 12,
+    },
+    invoiceMetaCard: {
+      padding: 12,
+      marginBottom: 10,
+    },
+    invoiceNumber: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    partyText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    totalText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: '#10B981',
+      marginTop: 4,
+    },
+    itemCard: {
+      padding: 12,
+      marginBottom: 8,
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    itemName: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    itemMeta: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    qtyControl: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+      borderRadius: 8,
+      padding: 4,
+    },
+    qtyBtn: {
+      width: 28,
+      height: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.1)',
+      borderRadius: 6,
+    },
+    qtyText: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.text,
+      minWidth: 20,
+      textAlign: 'center',
+    },
+    summaryCard: {
+      padding: 12,
+      marginTop: 12,
+      backgroundColor: 'rgba(56, 189, 248, 0.08)',
+      borderColor: 'rgba(56, 189, 248, 0.25)',
+      borderWidth: 1,
+    },
+    summaryRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    summaryLabel: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    summaryVal: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: '#38BDF8',
+    },
+    modeRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 14,
+    },
+    modeBtn: {
+      flex: 1,
+      paddingVertical: 10,
+      alignItems: 'center',
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.cardHover,
+    },
+    modeBtnActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    modeBtnText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    modeBtnTextActive: {
+      color: colors.primaryForeground,
+    },
+    standaloneBanner: {
+      padding: 12,
+      borderRadius: 8,
+      backgroundColor: 'rgba(245, 158, 11, 0.1)',
+      borderWidth: 1,
+      borderColor: 'rgba(245, 158, 11, 0.25)',
+      marginBottom: 12,
+    },
+    standaloneBannerText: {
+      fontSize: 11,
+      color: '#F59E0B',
+      lineHeight: 16,
+    },
+    standaloneItemCard: {
+      padding: 12,
+      marginBottom: 10,
+    },
+    standaloneItemHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    standaloneItemIdx: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    rowInputs: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    addStandaloneItemDashedBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      borderRadius: 10,
+      borderStyle: 'dashed',
+      borderWidth: 1,
+      borderColor: '#38BDF8',
+      backgroundColor: 'rgba(56, 189, 248, 0.08)',
+      marginBottom: 12,
+    },
+    addStandaloneItemDashedBtnText: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: '#38BDF8',
+    },
+  });

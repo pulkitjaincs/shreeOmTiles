@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Linking, Alert } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { useThemedStyles, ThemeColors } from '@/lib/theme-context';
 import { Card } from '@/components/ui/Card';
 import { formatINR, cleanPhoneNumber } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +15,7 @@ export function ReceivablesHealthCard({
   receivablesHealth,
   onViewCreditLedger,
 }: ReceivablesHealthCardProps) {
+  const styles = useThemedStyles(createStyles);
   const data = receivablesHealth || {
     unpaid: { count: 0, total: 0 },
     partial: { count: 0, total: 0 },
@@ -143,126 +144,127 @@ export function ReceivablesHealthCard({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginTop: 14,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.2,
-  },
-  sub: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  link: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#38BDF8',
-  },
-  miniGrid: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 10,
-  },
-  miniCard: {
-    flex: 1,
-    backgroundColor: '#141417',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 8,
-  },
-  miniLabel: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.2,
-  },
-  miniVal: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    marginVertical: 3,
-  },
-  miniSub: {
-    fontSize: 9,
-    color: Colors.dark.textTertiary,
-  },
-  topCard: {
-    padding: 14,
-    borderRadius: 16,
-  },
-  topTitle: {
-    fontSize: 11.5,
-    fontWeight: '800',
-    color: Colors.dark.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-    marginBottom: 8,
-  },
-  debtorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 9,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
-    gap: 8,
-  },
-  debtorName: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  debtorMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 2,
-  },
-  debtorPhone: {
-    fontSize: 11,
-    color: Colors.dark.textTertiary,
-    fontFamily: 'monospace',
-  },
-  debtorInv: {
-    fontSize: 11,
-    color: '#38BDF8',
-  },
-  debtorAmount: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: '#EF4444',
-  },
-  debtorBadge: {
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  debtorBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#EF4444',
-  },
-  callBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 4,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      marginTop: 14,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: 8,
+    },
+    title: {
+      fontSize: 13.5,
+      fontWeight: '800',
+      color: colors.text,
+      letterSpacing: -0.2,
+    },
+    sub: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    link: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      color: '#38BDF8',
+    },
+    miniGrid: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 10,
+    },
+    miniCard: {
+      flex: 1,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderRadius: 12,
+      padding: 8,
+    },
+    miniLabel: {
+      fontSize: 9,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.2,
+    },
+    miniVal: {
+      fontSize: 14,
+      fontWeight: '900',
+      color: colors.text,
+      marginVertical: 3,
+    },
+    miniSub: {
+      fontSize: 9,
+      color: colors.textTertiary,
+    },
+    topCard: {
+      padding: 14,
+      borderRadius: 16,
+    },
+    topTitle: {
+      fontSize: 11.5,
+      fontWeight: '800',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.3,
+      marginBottom: 8,
+    },
+    debtorRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 9,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      gap: 8,
+    },
+    debtorName: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    debtorMeta: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: 2,
+    },
+    debtorPhone: {
+      fontSize: 11,
+      color: colors.textTertiary,
+      fontFamily: 'monospace',
+    },
+    debtorInv: {
+      fontSize: 11,
+      color: '#38BDF8',
+    },
+    debtorAmount: {
+      fontSize: 13.5,
+      fontWeight: '800',
+      color: '#EF4444',
+    },
+    debtorBadge: {
+      backgroundColor: 'rgba(239, 68, 68, 0.12)',
+      paddingHorizontal: 5,
+      paddingVertical: 1,
+      borderRadius: 4,
+    },
+    debtorBadgeText: {
+      fontSize: 9,
+      fontWeight: '800',
+      color: '#EF4444',
+    },
+    callBtn: {
+      width: 28,
+      height: 28,
+      borderRadius: 8,
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.25)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginLeft: 4,
+    },
+  });

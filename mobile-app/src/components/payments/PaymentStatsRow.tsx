@@ -2,7 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui/Card';
-import { Colors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { formatINR } from '@/lib/formatters';
 import { FinancialStats, ActiveTabType } from './types';
 
@@ -13,6 +14,8 @@ interface PaymentStatsRowProps {
 }
 
 export function PaymentStatsRow({ stats, activeTab, onTabChange }: PaymentStatsRowProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <ScrollView
       horizontal
@@ -24,7 +27,7 @@ export function PaymentStatsRow({ stats, activeTab, onTabChange }: PaymentStatsR
       <Card style={styles.statMiniCard}>
         <View style={styles.statCardHeader}>
           <Text style={styles.statMiniLabel}>Total Billed</Text>
-          <Ionicons name="receipt-outline" size={15} color={Colors.dark.textSecondary} />
+          <Ionicons name="receipt-outline" size={15} color={colors.textSecondary} />
         </View>
         <Text style={styles.statMiniVal} numberOfLines={1} adjustsFontSizeToFit>
           {formatINR(stats.totalSales || 0)}
@@ -183,86 +186,87 @@ export function PaymentStatsRow({ stats, activeTab, onTabChange }: PaymentStatsR
   );
 }
 
-const styles = StyleSheet.create({
-  statsScroll: {
-    marginVertical: 10,
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-    gap: 10,
-  },
-  statMiniCard: {
-    width: 148,
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    backgroundColor: Colors.dark.card,
-    justifyContent: 'space-between',
-    minHeight: 90,
-  },
-  statCardActiveEmerald: {
-    borderWidth: 1.5,
-    borderColor: '#10B981',
-  },
-  statCardActiveAmber: {
-    borderWidth: 1.5,
-    borderColor: '#F59E0B',
-  },
-  statCardActiveRose: {
-    borderWidth: 1.5,
-    borderColor: '#EF4444',
-  },
-  statCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  statMiniLabel: {
-    fontSize: 10,
-    color: Colors.dark.textSecondary,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  statMiniVal: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: Colors.dark.text,
-    fontFamily: 'monospace',
-    marginTop: 4,
-    marginBottom: 2,
-  },
-  statMiniSub: {
-    fontSize: 9,
-    color: Colors.dark.textSecondary,
-  },
-  splitRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 2,
-  },
-  splitLabel: {
-    fontSize: 10,
-    color: Colors.dark.textSecondary,
-  },
-  splitValCash: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#10B981',
-    fontFamily: 'monospace',
-  },
-  splitValUpi: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#38BDF8',
-    fontFamily: 'monospace',
-  },
-  splitValBank: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#818CF8',
-    fontFamily: 'monospace',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    statsScroll: {
+      marginVertical: 10,
+    },
+    scrollContent: {
+      paddingHorizontal: 16,
+      gap: 10,
+    },
+    statMiniCard: {
+      width: 148,
+      padding: 12,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      justifyContent: 'space-between',
+      minHeight: 90,
+    },
+    statCardActiveEmerald: {
+      borderWidth: 1.5,
+      borderColor: '#10B981',
+    },
+    statCardActiveAmber: {
+      borderWidth: 1.5,
+      borderColor: '#F59E0B',
+    },
+    statCardActiveRose: {
+      borderWidth: 1.5,
+      borderColor: '#EF4444',
+    },
+    statCardHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    statMiniLabel: {
+      fontSize: 10,
+      color: colors.textSecondary,
+      fontWeight: '700',
+      textTransform: 'uppercase',
+      letterSpacing: 0.4,
+    },
+    statMiniVal: {
+      fontSize: 16,
+      fontWeight: '900',
+      color: colors.text,
+      fontFamily: 'monospace',
+      marginTop: 4,
+      marginBottom: 2,
+    },
+    statMiniSub: {
+      fontSize: 9,
+      color: colors.textSecondary,
+    },
+    splitRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 2,
+    },
+    splitLabel: {
+      fontSize: 10,
+      color: colors.textSecondary,
+    },
+    splitValCash: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: '#10B981',
+      fontFamily: 'monospace',
+    },
+    splitValUpi: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: '#38BDF8',
+      fontFamily: 'monospace',
+    },
+    splitValBank: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: '#818CF8',
+      fontFamily: 'monospace',
+    },
+  });

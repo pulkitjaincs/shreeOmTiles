@@ -10,7 +10,7 @@ import {
   ViewStyle,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { Ionicons } from '@expo/vector-icons';
 
 export interface FilterDropdownOption {
@@ -43,6 +43,7 @@ export function FilterDropdown({
   showCountOnTrigger = false,
 }: FilterDropdownProps) {
   const insets = useSafeAreaInsets();
+  const { colors, isDark } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
 
   const selectedOption = useMemo(
@@ -58,7 +59,169 @@ export function FilterDropdown({
   };
 
   const activeIcon = selectedOption?.icon || icon || 'chevron-down-outline';
-  const activeColor = selectedOption?.color || (isFiltered ? '#FFFFFF' : Colors.dark.textSecondary);
+  const activeColor = selectedOption?.color || (isFiltered ? colors.text : colors.textSecondary);
+
+  const styles = useThemedStyles((c, dark) =>
+    StyleSheet.create({
+      container: {
+        flex: 1,
+      },
+      trigger: {
+        height: 38,
+        borderRadius: 10,
+        backgroundColor: c.card,
+        borderWidth: 1,
+        borderColor: c.borderMedium,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 12,
+      },
+      triggerFiltered: {
+        backgroundColor: dark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+        borderColor: c.borderFocus,
+      },
+      triggerOpen: {
+        borderColor: c.borderFocus,
+      },
+      triggerLeft: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginRight: 6,
+      },
+      triggerIcon: {
+        marginRight: 6,
+      },
+      triggerText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: c.textSecondary,
+        flexShrink: 1,
+      },
+      triggerTextFiltered: {
+        color: c.text,
+        fontWeight: '800',
+      },
+      chevron: {
+        marginLeft: 4,
+      },
+      countBadge: {
+        backgroundColor: c.secondary,
+        paddingHorizontal: 5,
+        paddingVertical: 1,
+        borderRadius: 999,
+        marginLeft: 5,
+      },
+      countBadgeText: {
+        color: c.textSecondary,
+        fontSize: 9.5,
+        fontWeight: '800',
+      },
+      modalBackdrop: {
+        flex: 1,
+        backgroundColor: dark ? 'rgba(0, 0, 0, 0.65)' : 'rgba(0, 0, 0, 0.45)',
+        justifyContent: 'flex-end',
+      },
+      modalSheet: {
+        backgroundColor: c.cardElevated,
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        borderWidth: 1,
+        borderColor: c.borderMedium,
+        paddingHorizontal: 16,
+        paddingTop: 8,
+        maxHeight: '65%',
+      },
+      handleBar: {
+        width: 36,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: dark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.18)',
+        alignSelf: 'center',
+        marginBottom: 10,
+      },
+      sheetHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingBottom: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: c.border,
+        marginBottom: 4,
+      },
+      titleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+      },
+      sheetTitle: {
+        fontSize: 14,
+        fontWeight: '800',
+        color: c.text,
+        letterSpacing: -0.2,
+      },
+      closeBtn: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: c.secondary,
+        alignItems: 'center',
+        justifyContent: 'center',
+      },
+      optionItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingVertical: 12,
+        paddingHorizontal: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: c.border,
+        borderRadius: 10,
+        marginVertical: 1,
+      },
+      optionItemSelected: {
+        backgroundColor: dark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)',
+      },
+      optionLeft: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+      },
+      optionIconBox: {
+        width: 28,
+        height: 28,
+        borderRadius: 8,
+        backgroundColor: dark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.04)',
+        alignItems: 'center',
+        justifyContent: 'center',
+      },
+      optionIconBoxSelected: {
+        backgroundColor: dark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
+      },
+      optionLabel: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: c.textSecondary,
+        flexShrink: 1,
+      },
+      optionLabelSelected: {
+        color: c.text,
+        fontWeight: '800',
+      },
+      optionCountBadge: {
+        backgroundColor: c.secondary,
+        paddingHorizontal: 6,
+        paddingVertical: 1.5,
+        borderRadius: 999,
+      },
+      optionCountText: {
+        color: c.textTertiary,
+        fontSize: 10,
+        fontWeight: '700',
+      },
+    })
+  );
 
   return (
     <View style={[styles.container, containerStyle]}>
@@ -98,7 +261,7 @@ export function FilterDropdown({
         <Ionicons
           name={isOpen ? 'chevron-up' : 'chevron-down'}
           size={14}
-          color={isFiltered ? '#FFFFFF' : Colors.dark.textTertiary}
+          color={isFiltered ? colors.text : colors.textTertiary}
           style={styles.chevron}
         />
       </TouchableOpacity>
@@ -123,7 +286,7 @@ export function FilterDropdown({
             <View style={styles.sheetHeader}>
               <View style={styles.titleRow}>
                 {icon ? (
-                  <Ionicons name={icon} size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                  <Ionicons name={icon} size={16} color={colors.text} style={{ marginRight: 6 }} />
                 ) : null}
                 <Text style={styles.sheetTitle}>Select {label}</Text>
               </View>
@@ -132,7 +295,7 @@ export function FilterDropdown({
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 style={styles.closeBtn}
               >
-                <Ionicons name="close" size={18} color={Colors.dark.textSecondary} />
+                <Ionicons name="close" size={18} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
@@ -143,7 +306,7 @@ export function FilterDropdown({
               bounces={false}
               renderItem={({ item, index }) => {
                 const isSelected = item.value === value;
-                const optColor = item.color || (isSelected ? '#FFFFFF' : Colors.dark.text);
+                const optColor = item.color || (isSelected ? colors.text : colors.textSecondary);
 
                 return (
                   <TouchableOpacity
@@ -187,7 +350,7 @@ export function FilterDropdown({
                     </View>
 
                     {isSelected ? (
-                      <Ionicons name="checkmark-circle" size={19} color="#10B981" />
+                      <Ionicons name="checkmark-circle" size={19} color={colors.statusPaid} />
                     ) : null}
                   </TouchableOpacity>
                 );
@@ -199,163 +362,3 @@ export function FilterDropdown({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  trigger: {
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: '#141417',
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-  },
-  triggerFiltered: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderColor: '#FFFFFF',
-  },
-  triggerOpen: {
-    borderColor: '#FFFFFF',
-  },
-  triggerLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 6,
-  },
-  triggerIcon: {
-    marginRight: 6,
-  },
-  triggerText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    flexShrink: 1,
-  },
-  triggerTextFiltered: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-  },
-  chevron: {
-    marginLeft: 4,
-  },
-  countBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 999,
-    marginLeft: 5,
-  },
-  countBadgeText: {
-    color: Colors.dark.textSecondary,
-    fontSize: 9.5,
-    fontWeight: '800',
-  },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    backgroundColor: '#16161A',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    maxHeight: '65%',
-  },
-  handleBar: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignSelf: 'center',
-    marginBottom: 10,
-  },
-  sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.dark.border,
-    marginBottom: 4,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  sheetTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.2,
-  },
-  closeBtn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: Colors.dark.cardElevated,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  optionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 10,
-    marginVertical: 1,
-  },
-  optionItemSelected: {
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  optionLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  optionIconBox: {
-    width: 28,
-    height: 28,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  optionIconBoxSelected: {
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-  },
-  optionLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.dark.textSecondary,
-    flexShrink: 1,
-  },
-  optionLabelSelected: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-  },
-  optionCountBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-    borderRadius: 999,
-  },
-  optionCountText: {
-    color: Colors.dark.textTertiary,
-    fontSize: 10,
-    fontWeight: '700',
-  },
-});

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { Party } from './types';
 
 interface CustomerSelectorProps {
@@ -47,6 +47,9 @@ export function CustomerSelector({
   saveNewParty,
   onSaveNewPartyChange,
 }: CustomerSelectorProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   return (
     <View style={styles.container}>
       <Text style={styles.modalSectionTitle}>1. Customer Information</Text>
@@ -60,7 +63,7 @@ export function CustomerSelector({
           <Ionicons
             name="people-outline"
             size={13}
-            color={customerMode === 'existing' ? '#09090B' : Colors.dark.textSecondary}
+            color={customerMode === 'existing' ? colors.background : colors.textSecondary}
           />
           <Text style={[styles.toggleText, customerMode === 'existing' && styles.toggleTextActive]}>
             Existing
@@ -75,7 +78,7 @@ export function CustomerSelector({
           <Ionicons
             name="person-add-outline"
             size={13}
-            color={customerMode === 'new' ? '#09090B' : Colors.dark.textSecondary}
+            color={customerMode === 'new' ? colors.background : colors.textSecondary}
           />
           <Text style={[styles.toggleText, customerMode === 'new' && styles.toggleTextActive]}>
             + Quick Add
@@ -90,7 +93,7 @@ export function CustomerSelector({
           <Ionicons
             name="wallet-outline"
             size={13}
-            color={customerMode === 'cash_sale' ? '#09090B' : Colors.dark.textSecondary}
+            color={customerMode === 'cash_sale' ? colors.background : colors.textSecondary}
           />
           <Text style={[styles.toggleText, customerMode === 'cash_sale' && styles.toggleTextActive]}>
             Cash Sale
@@ -204,7 +207,7 @@ export function CustomerSelector({
             <Ionicons
               name={saveNewParty ? 'checkbox' : 'square-outline'}
               size={20}
-              color={saveNewParty ? '#10B981' : Colors.dark.textSecondary}
+              color={saveNewParty ? '#10B981' : colors.textSecondary}
             />
             <Text style={styles.savePartyText}>Save this customer to the party directory</Text>
           </TouchableOpacity>
@@ -251,114 +254,115 @@ export function CustomerSelector({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginBottom: 8,
-  },
-  modalSectionTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginTop: 14,
-    marginBottom: 8,
-  },
-  tabToggle: {
-    flexDirection: 'row',
-    backgroundColor: Colors.dark.card,
-    borderRadius: 11,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    padding: 3,
-    marginBottom: 10,
-  },
-  toggleBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 4,
-    paddingVertical: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 8,
-  },
-  toggleBtnActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  toggleText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  toggleTextActive: {
-    color: '#09090B',
-    fontWeight: '800',
-  },
-  savePartyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-  },
-  savePartyText: {
-    color: Colors.dark.textSecondary,
-    fontSize: 12,
-  },
-  balanceCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 9,
-    borderWidth: 1,
-    marginTop: 6,
-    marginBottom: 8,
-  },
-  balanceCardDue: {
-    borderColor: 'rgba(245, 158, 11, 0.3)',
-    backgroundColor: 'rgba(245, 158, 11, 0.08)',
-  },
-  balanceCardAdvance: {
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-  },
-  balanceCardSettled: {
-    borderColor: 'rgba(16, 185, 129, 0.2)',
-    backgroundColor: 'rgba(16, 185, 129, 0.04)',
-  },
-  balanceCardTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  balanceCardDesc: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 1,
-  },
-  cashSaleBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-    marginBottom: 10,
-  },
-  cashSaleBannerTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#10B981',
-  },
-  cashSaleBannerSub: {
-    fontSize: 10,
-    color: Colors.dark.textSecondary,
-    marginTop: 1,
-  },
-});
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    container: {
+      marginBottom: 8,
+    },
+    modalSectionTitle: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.text,
+      marginTop: 14,
+      marginBottom: 8,
+    },
+    tabToggle: {
+      flexDirection: 'row',
+      backgroundColor: colors.card,
+      borderRadius: 11,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 3,
+      marginBottom: 10,
+    },
+    toggleBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      gap: 4,
+      paddingVertical: 8,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 8,
+    },
+    toggleBtnActive: {
+      backgroundColor: colors.text,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.2,
+      shadowRadius: 2,
+      elevation: 2,
+    },
+    toggleText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    toggleTextActive: {
+      color: colors.background,
+      fontWeight: '800',
+    },
+    savePartyRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 12,
+    },
+    savePartyText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+    },
+    balanceCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 9,
+      borderWidth: 1,
+      marginTop: 6,
+      marginBottom: 8,
+    },
+    balanceCardDue: {
+      borderColor: 'rgba(245, 158, 11, 0.3)',
+      backgroundColor: 'rgba(245, 158, 11, 0.08)',
+    },
+    balanceCardAdvance: {
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+      backgroundColor: 'rgba(16, 185, 129, 0.08)',
+    },
+    balanceCardSettled: {
+      borderColor: 'rgba(16, 185, 129, 0.2)',
+      backgroundColor: 'rgba(16, 185, 129, 0.04)',
+    },
+    balanceCardTitle: {
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    balanceCardDesc: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 1,
+    },
+    cashSaleBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderRadius: 9,
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+      backgroundColor: 'rgba(16, 185, 129, 0.08)',
+      marginBottom: 10,
+    },
+    cashSaleBannerTitle: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: '#10B981',
+    },
+    cashSaleBannerSub: {
+      fontSize: 10,
+      color: colors.textSecondary,
+      marginTop: 1,
+    },
+  });

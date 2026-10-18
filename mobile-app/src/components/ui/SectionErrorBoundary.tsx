@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/theme';
+import { useThemedStyles } from '@/lib/theme-context';
 import { Button } from './Button';
 
 interface SectionErrorBoundaryProps {
@@ -12,6 +12,55 @@ interface SectionErrorBoundaryProps {
 
 interface SectionErrorBoundaryState {
   error: Error | null;
+}
+
+function SectionErrorFallback({ onReset }: { onReset?: () => void }) {
+  const styles = useThemedStyles((c) =>
+    StyleSheet.create({
+      container: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 32,
+      },
+      title: {
+        fontSize: 16,
+        fontWeight: '800',
+        color: c.text,
+        marginTop: 14,
+        textAlign: 'center',
+      },
+      description: {
+        fontSize: 13,
+        color: c.textSecondary,
+        marginTop: 6,
+        textAlign: 'center',
+        lineHeight: 18,
+      },
+      button: {
+        marginTop: 18,
+        minWidth: 160,
+      },
+    })
+  );
+
+  return (
+    <View style={styles.container}>
+      <Ionicons name="warning-outline" size={36} color="#F59E0B" />
+      <Text style={styles.title}>This section hit a problem</Text>
+      <Text style={styles.description}>
+        Something went wrong while displaying this screen. Your data is safe.
+      </Text>
+      <Button
+        title="Back to Menu"
+        icon="arrow-back-outline"
+        variant="secondary"
+        size="md"
+        onPress={onReset || (() => {})}
+        style={styles.button}
+      />
+    </View>
+  );
 }
 
 /**
@@ -40,50 +89,6 @@ export class SectionErrorBoundary extends React.Component<
 
   render() {
     if (!this.state.error) return this.props.children;
-
-    return (
-      <View style={styles.container}>
-        <Ionicons name="warning-outline" size={36} color="#F59E0B" />
-        <Text style={styles.title}>This section hit a problem</Text>
-        <Text style={styles.description}>
-          Something went wrong while displaying this screen. Your data is safe.
-        </Text>
-        <Button
-          title="Back to Menu"
-          icon="arrow-back-outline"
-          variant="secondary"
-          size="md"
-          onPress={this.handleReset}
-          style={styles.button}
-        />
-      </View>
-    );
+    return <SectionErrorFallback onReset={this.handleReset} />;
   }
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-  },
-  title: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginTop: 14,
-    textAlign: 'center',
-  },
-  description: {
-    fontSize: 13,
-    color: Colors.dark.textSecondary,
-    marginTop: 6,
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  button: {
-    marginTop: 18,
-    minWidth: 160,
-  },
-});

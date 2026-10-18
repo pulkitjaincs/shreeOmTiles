@@ -9,7 +9,8 @@ import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Colors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { formatINR } from '@/lib/formatters';
 import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
 import { Product, Warehouse, Party, StockLedger, InvoiceLineItem, UpiAccount, PaymentSplitItem, Invoice } from './types';
@@ -41,6 +42,8 @@ export function CreateInvoiceModal({
   onRefreshStock,
   invoiceToEdit,
 }: CreateInvoiceModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const wasVisible = useRef(false);
   const [customerMode, setCustomerMode] = useState<'existing' | 'new' | 'cash_sale'>('existing');
   const [selectedPartyId, setSelectedPartyId] = useState('');
@@ -669,7 +672,7 @@ export function CreateInvoiceModal({
           </View>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Amount Paid Upfront</Text>
-            <Text style={[styles.summaryVal, { color: Colors.dark.statusPaid }]}>
+            <Text style={[styles.summaryVal, { color: colors.statusPaid }]}>
               {formatINR(effectivePaidNow)}
             </Text>
           </View>
@@ -750,80 +753,81 @@ export function EditInvoiceModal(
   return <CreateInvoiceModal {...props} invoiceToEdit={props.invoice} />;
 }
 
-const styles = StyleSheet.create({
-  modalSectionTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginTop: 14,
-    marginBottom: 8,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 10,
-    marginBottom: 4,
-  },
-  summaryBox: {
-    padding: 12,
-    marginTop: 10,
-    backgroundColor: Colors.dark.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 3,
-  },
-  summaryLabel: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    fontWeight: '500',
-  },
-  summaryVal: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    fontWeight: '700',
-  },
-  grandTotalRow: {
-    borderTopWidth: 1,
-    borderTopColor: Colors.dark.border,
-    paddingTop: 8,
-    marginTop: 6,
-    marginBottom: 4,
-  },
-  grandTotalLabel: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  grandTotalVal: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#10B981',
-  },
-  balanceDueRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
-    marginTop: 4,
-    paddingTop: 6,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(251,191,36,0.2)',
-  },
-  balanceDueLabel: {
-    fontSize: 12,
-    color: '#FBBF24',
-    fontWeight: '700',
-  },
-  balanceDueValue: {
-    fontSize: 13,
-    color: '#FBBF24',
-    fontWeight: '800',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    modalSectionTitle: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.text,
+      marginTop: 14,
+      marginBottom: 8,
+    },
+    sectionHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 10,
+      marginBottom: 4,
+    },
+    summaryBox: {
+      padding: 12,
+      marginTop: 10,
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    summaryRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 3,
+    },
+    summaryLabel: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: '500',
+    },
+    summaryVal: {
+      fontSize: 12,
+      color: colors.text,
+      fontWeight: '700',
+    },
+    grandTotalRow: {
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingTop: 8,
+      marginTop: 6,
+      marginBottom: 4,
+    },
+    grandTotalLabel: {
+      fontSize: 14,
+      fontWeight: '900',
+      color: colors.text,
+    },
+    grandTotalVal: {
+      fontSize: 16,
+      fontWeight: '900',
+      color: '#10B981',
+    },
+    balanceDueRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 4,
+      marginTop: 4,
+      paddingTop: 6,
+      borderTopWidth: 1,
+      borderTopColor: 'rgba(251,191,36,0.2)',
+    },
+    balanceDueLabel: {
+      fontSize: 12,
+      color: '#FBBF24',
+      fontWeight: '700',
+    },
+    balanceDueValue: {
+      fontSize: 13,
+      color: '#FBBF24',
+      fontWeight: '800',
+    },
+  });

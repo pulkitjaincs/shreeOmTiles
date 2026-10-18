@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Colors } from '@/constants/theme';
+import { Colors, ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { mobileApiRequest } from '@/lib/api';
 import { Warehouse } from './types';
 
@@ -20,6 +21,8 @@ export function WarehouseFormModal({
   onSuccess,
   warehouse,
 }: WarehouseFormModalProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [name, setName] = useState('');
   const [type, setType] = useState<'WAREHOUSE' | 'SHOWROOM'>('WAREHOUSE');
   const [address, setAddress] = useState('');
@@ -139,41 +142,42 @@ export function WarehouseFormModal({
   );
 }
 
-const styles = StyleSheet.create({
-  fieldLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    marginBottom: 4,
-    marginTop: 8,
-    textTransform: 'uppercase',
-  },
-  roleToggleRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 10,
-    marginTop: 4,
-  },
-  roleSelectChip: {
-    flex: 1,
-    paddingVertical: 9,
-    borderRadius: 8,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    alignItems: 'center',
-  },
-  roleSelectChipActive: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
-  },
-  roleSelectChipText: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    fontWeight: '700',
-  },
-  roleSelectChipTextActive: {
-    color: '#09090B',
-    fontWeight: '800',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    fieldLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      marginBottom: 4,
+      marginTop: 8,
+      textTransform: 'uppercase',
+    },
+    roleToggleRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 10,
+      marginTop: 4,
+    },
+    roleSelectChip: {
+      flex: 1,
+      paddingVertical: 9,
+      borderRadius: 8,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+    },
+    roleSelectChipActive: {
+      backgroundColor: colors.text,
+      borderColor: colors.text,
+    },
+    roleSelectChipText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: '700',
+    },
+    roleSelectChipTextActive: {
+      color: colors.background,
+      fontWeight: '800',
+    },
+  });

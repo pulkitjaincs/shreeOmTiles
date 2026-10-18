@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { useTheme } from '@/lib/theme-context';
 
 interface StatusBadgeProps {
   status: string;
@@ -8,10 +8,11 @@ interface StatusBadgeProps {
 }
 
 export function StatusBadge({ status, size = 'md' }: StatusBadgeProps) {
+  const { colors, isDark } = useTheme();
   const norm = (status || '').toUpperCase().replace(/\s+/g, '_');
 
-  let bg: string = 'rgba(255, 255, 255, 0.08)';
-  let text: string = Colors.dark.textSecondary;
+  let bg: string = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
+  let text: string = colors.textSecondary;
   let label: string = status;
 
   switch (norm) {
@@ -19,39 +20,39 @@ export function StatusBadge({ status, size = 'md' }: StatusBadgeProps) {
     case 'DELIVERED':
     case 'CONFIRMED':
     case 'SETTLED':
-      bg = Colors.dark.statusPaidBg;
-      text = Colors.dark.statusPaid;
+      bg = colors.statusPaidBg;
+      text = colors.statusPaid;
       break;
     case 'PENDING':
     case 'PARTIAL':
     case 'DRAFT':
     case 'UNPAID':
-      bg = Colors.dark.statusPendingBg;
-      text = Colors.dark.statusPending;
+      bg = colors.statusPendingBg;
+      text = colors.statusPending;
       break;
     case 'ASSIGNED':
-      bg = Colors.dark.statusAssignedBg;
-      text = Colors.dark.statusAssigned;
+      bg = colors.statusAssignedBg;
+      text = colors.statusAssigned;
       break;
     case 'OUT_FOR_PICKUP':
     case 'PICKED_UP':
     case 'OUT_FOR_DELIVERY':
-      bg = Colors.dark.statusDeliveryBg;
-      text = Colors.dark.statusDelivery;
+      bg = colors.statusDeliveryBg;
+      text = colors.statusDelivery;
       break;
     case 'CANCELLED':
     case 'FAILED':
     case 'OVERDUE':
-      bg = Colors.dark.statusCancelledBg;
-      text = Colors.dark.statusCancelled;
+      bg = colors.statusCancelledBg;
+      text = colors.statusCancelled;
       break;
     case 'CREATED':
-      bg = 'rgba(255, 255, 255, 0.1)';
-      text = '#FFFFFF';
+      bg = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.08)';
+      text = colors.text;
       break;
     default:
-      bg = 'rgba(255, 255, 255, 0.08)';
-      text = Colors.dark.textSecondary;
+      bg = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
+      text = colors.textSecondary;
   }
 
   const isSmall = size === 'sm';

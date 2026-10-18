@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { MultiSelect } from '@/components/ui/MultiSelect';
-import { useTheme, useThemedStyles } from '@/lib/theme-context';
+import { useThemedStyles } from '@/lib/theme-context';
 import { mobileApiRequest } from '@/lib/api';
 import { buildFullDeliveryManifestShareUrl } from '@/lib/whatsapp';
 import { Delivery, DriverUser, SupervisorUser, DispatchSelectionItem, PushSuccessDialogData } from './types';
@@ -33,7 +33,6 @@ export function PushDeliveryModal({
   onSuccess,
   drivers,
 }: PushDeliveryModalProps) {
-  const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const [selectedDriverId, setSelectedDriverId] = useState('');
   const [supervisors, setSupervisors] = useState<SupervisorUser[]>([]);

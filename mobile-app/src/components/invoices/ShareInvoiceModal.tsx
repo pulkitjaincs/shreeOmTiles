@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Button } from '@/components/ui/Button';
-import { Colors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { formatINR, formatDate } from '@/lib/formatters';
 import { downloadAndSharePdf } from '@/lib/pdf';
 import { Invoice } from './types';
@@ -23,6 +24,8 @@ export function ShareInvoiceModal({
   onShareWhatsApp,
   onViewDetails,
 }: ShareInvoiceModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [downloading, setDownloading] = useState(false);
 
   if (!invoice) return null;
@@ -62,7 +65,7 @@ export function ShareInvoiceModal({
 
           <View style={styles.metaRow}>
             <View style={styles.metaItem}>
-              <Ionicons name="person-outline" size={13} color={Colors.dark.textSecondary} />
+              <Ionicons name="person-outline" size={13} color={colors.textSecondary} />
               <Text style={styles.metaText} numberOfLines={1}>
                 {customerName}
               </Text>
@@ -70,7 +73,7 @@ export function ShareInvoiceModal({
 
             {customerPhone ? (
               <View style={styles.metaItem}>
-                <Ionicons name="call-outline" size={13} color={Colors.dark.textSecondary} />
+                <Ionicons name="call-outline" size={13} color={colors.textSecondary} />
                 <Text style={styles.metaText}>{customerPhone}</Text>
               </View>
             ) : null}
@@ -134,113 +137,114 @@ export function ShareInvoiceModal({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    paddingVertical: 10,
-    alignItems: 'center',
-    gap: 16,
-  },
-  iconCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    borderWidth: 2,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  summaryCard: {
-    width: '100%',
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: Colors.dark.cardElevated,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    alignItems: 'center',
-    gap: 6,
-  },
-  invoiceNoText: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#818CF8',
-    fontFamily: 'monospace',
-    letterSpacing: -0.3,
-  },
-  totalText: {
-    fontSize: 26,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    fontFamily: 'monospace',
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 14,
-    marginTop: 4,
-    flexWrap: 'wrap',
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  metaText: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    fontWeight: '500',
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 6,
-  },
-  modeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    backgroundColor: Colors.dark.secondary,
-  },
-  modeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    backgroundColor: 'rgba(16, 185, 129, 0.14)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#10B981',
-  },
-  dateText: {
-    fontSize: 11,
-    color: Colors.dark.textTertiary,
-  },
-  actionsContainer: {
-    width: '100%',
-    gap: 10,
-    marginTop: 4,
-  },
-  whatsAppButton: {
-    backgroundColor: '#16A34A',
-  },
-  doneBtn: {
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  doneBtnText: {
-    fontSize: 13,
-    color: Colors.dark.textSecondary,
-    fontWeight: '600',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      paddingVertical: 10,
+      alignItems: 'center',
+      gap: 16,
+    },
+    iconCircle: {
+      width: 72,
+      height: 72,
+      borderRadius: 36,
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+      borderWidth: 2,
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    summaryCard: {
+      width: '100%',
+      padding: 16,
+      borderRadius: 16,
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      gap: 6,
+    },
+    invoiceNoText: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: '#818CF8',
+      fontFamily: 'monospace',
+      letterSpacing: -0.3,
+    },
+    totalText: {
+      fontSize: 26,
+      fontWeight: '900',
+      color: colors.text,
+      fontFamily: 'monospace',
+    },
+    metaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 14,
+      marginTop: 4,
+      flexWrap: 'wrap',
+    },
+    metaItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    metaText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: '500',
+    },
+    badgeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 6,
+    },
+    modeBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      backgroundColor: colors.secondary,
+    },
+    modeText: {
+      fontSize: 10,
+      fontWeight: '800',
+      color: colors.secondaryForeground,
+    },
+    statusBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      backgroundColor: 'rgba(16, 185, 129, 0.14)',
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+    },
+    statusText: {
+      fontSize: 10,
+      fontWeight: '800',
+      color: '#10B981',
+    },
+    dateText: {
+      fontSize: 11,
+      color: colors.textTertiary,
+    },
+    actionsContainer: {
+      width: '100%',
+      gap: 10,
+      marginTop: 4,
+    },
+    whatsAppButton: {
+      backgroundColor: '#16A34A',
+    },
+    doneBtn: {
+      paddingVertical: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    doneBtnText: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+  });

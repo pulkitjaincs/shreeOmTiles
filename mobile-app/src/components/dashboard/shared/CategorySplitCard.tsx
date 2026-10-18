@@ -1,12 +1,12 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles, ThemeColors } from '@/lib/theme-context';
 import { Card } from '@/components/ui/Card';
 import { formatINR } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
 
 interface CategorySplitCardProps {
-  categories: Array<{ name: string; value: number }>;
+  categories: { name: string; value: number }[];
   title?: string;
   onManageCatalog?: () => void;
 }
@@ -16,6 +16,8 @@ export function CategorySplitCard({
   title = 'Sales by Category',
   onManageCatalog,
 }: CategorySplitCardProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const totalVolume = useMemo(() => {
     return categories.reduce((sum, c) => sum + Number(c.value || 0), 0) || 1;
   }, [categories]);
@@ -34,7 +36,7 @@ export function CategorySplitCard({
     );
   }
 
-  const colors = ['#FFFFFF', '#10B981', '#38BDF8', '#F59E0B', '#A855F7', '#EC4899'];
+  const palette = [colors.primary, '#10B981', '#38BDF8', '#F59E0B', '#A855F7', '#EC4899'];
 
   return (
     <Card style={styles.card}>
@@ -52,7 +54,7 @@ export function CategorySplitCard({
 
       {categories.slice(0, 6).map((cat, idx) => {
         const pct = Math.round((Number(cat.value || 0) / totalVolume) * 100);
-        const barColor = colors[idx % colors.length];
+        const barColor = palette[idx % palette.length];
 
         return (
           <View key={idx} style={styles.row}>
@@ -84,89 +86,90 @@ export function CategorySplitCard({
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    padding: 15,
-    borderRadius: 16,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.dark.border,
-    paddingBottom: 8,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  headerTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  headerLink: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#38BDF8',
-  },
-  row: {
-    marginBottom: 10,
-  },
-  rowMeta: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 5,
-    gap: 8,
-  },
-  name: {
-    flex: 1,
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.dark.text,
-  },
-  amount: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    flexShrink: 0,
-  },
-  progressTrack: {
-    height: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 3,
-  },
-  footerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderTopWidth: 1,
-    borderTopColor: Colors.dark.border,
-    paddingTop: 8,
-    marginTop: 4,
-  },
-  footerLabel: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-  },
-  footerValue: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  emptyText: {
-    fontSize: 11.5,
-    color: Colors.dark.textSecondary,
-    textAlign: 'center',
-    paddingVertical: 12,
-  },
-});
+const createStyles = (colors: ThemeColors, isDark: boolean) =>
+  StyleSheet.create({
+    card: {
+      padding: 15,
+      borderRadius: 16,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      paddingBottom: 8,
+    },
+    headerLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    headerTitle: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    headerLink: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: '#38BDF8',
+    },
+    row: {
+      marginBottom: 10,
+    },
+    rowMeta: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 5,
+      gap: 8,
+    },
+    name: {
+      flex: 1,
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    amount: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      flexShrink: 0,
+    },
+    progressTrack: {
+      height: 6,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : colors.cardElevated,
+      borderRadius: 3,
+      overflow: 'hidden',
+    },
+    progressFill: {
+      height: '100%',
+      borderRadius: 3,
+    },
+    footerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      paddingTop: 8,
+      marginTop: 4,
+    },
+    footerLabel: {
+      fontSize: 11,
+      color: colors.textSecondary,
+    },
+    footerValue: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    emptyText: {
+      fontSize: 11.5,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      paddingVertical: 12,
+    },
+  });

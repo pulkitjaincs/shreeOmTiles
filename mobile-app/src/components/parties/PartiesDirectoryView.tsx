@@ -14,7 +14,8 @@ import { SearchBar } from '@/components/ui/SearchBar';
 import { FilterDropdown, FilterDropdownOption } from '@/components/ui/FilterDropdown';
 import { FilterPills } from '@/components/ui/FilterPills';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { Colors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { Party } from './types';
 import { CreditAgeingRow } from './CreditAgeingRow';
 import { PartyCard } from './PartyCard';
@@ -50,6 +51,8 @@ export function PartiesDirectoryView({
   error,
   onRetry,
 }: PartiesDirectoryViewProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState<PartyDueFilter>('ALL');
   const [regFilter, setRegFilter] = useState<PartyRegFilter>('ALL');
@@ -83,7 +86,7 @@ export function PartiesDirectoryView({
         value: 'ALL',
         count: counts.total,
         icon: 'people-outline',
-        color: '#FFFFFF',
+        color: colors.text,
       },
       {
         label: 'Customer Dues',
@@ -107,7 +110,7 @@ export function PartiesDirectoryView({
         color: '#10B981',
       },
     ],
-    [counts],
+    [counts, colors.text],
   );
 
   const filteredRows = useMemo(
@@ -157,7 +160,7 @@ export function PartiesDirectoryView({
         <CreditAgeingRow parties={parties || []} />
       </View>
     );
-  }, [parties, error, rows.length]);
+  }, [parties, error, rows.length, styles.agingWrapper, styles.staleText]);
 
   const renderEmpty = useMemo(() => {
     if (error && rows.length === 0) {
@@ -224,7 +227,7 @@ export function PartiesDirectoryView({
             <Ionicons
               name="refresh-outline"
               size={18}
-              color={loading ? Colors.dark.textSecondary : '#FFFFFF'}
+              color={loading ? colors.textSecondary : colors.text}
             />
           </TouchableOpacity>
         </View>
@@ -373,109 +376,110 @@ export function PartiesDirectoryView({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  topControls: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    backgroundColor: Colors.dark.background,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-    paddingHorizontal: 2,
-  },
-  refreshBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: Colors.dark.text,
-    letterSpacing: -0.3,
-  },
-  sectionSubtitle: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  searchBarOverride: {
-    marginHorizontal: 0,
-    marginTop: 6,
-    marginBottom: 8,
-  },
-  filterPillsWrapper: {
-    marginHorizontal: -16,
-    marginVertical: -2,
-    marginBottom: 6,
-  },
-  dropdownActionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 8,
-  },
-  addPartyBtn: {
-    flex: 0.9,
-    height: 38,
-    borderRadius: 10,
-  },
-  resultsInfoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-    paddingHorizontal: 2,
-  },
-  resultsCountText: {
-    fontSize: 11.5,
-    color: Colors.dark.textSecondary,
-  },
-  resultsCountHighlight: {
-    color: '#FFFFFF',
-    fontWeight: '800',
-  },
-  resetFilterText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#38BDF8',
-  },
-  agingWrapper: {
-    marginBottom: 8,
-  },
-  staleText: {
-    fontSize: 11,
-    color: '#F59E0B',
-    marginBottom: 6,
-    paddingHorizontal: 2,
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 95,
-  },
-  centerLoading: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 60,
-  },
-  loadingText: {
-    fontSize: 12.5,
-    color: Colors.dark.textSecondary,
-    marginTop: 12,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    topControls: {
+      paddingHorizontal: 16,
+      paddingTop: 8,
+      backgroundColor: colors.background,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 4,
+      paddingHorizontal: 2,
+    },
+    refreshBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 8,
+      backgroundColor: colors.cardHover,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    sectionTitle: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: colors.text,
+      letterSpacing: -0.3,
+    },
+    sectionSubtitle: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    searchBarOverride: {
+      marginHorizontal: 0,
+      marginTop: 6,
+      marginBottom: 8,
+    },
+    filterPillsWrapper: {
+      marginHorizontal: -16,
+      marginVertical: -2,
+      marginBottom: 6,
+    },
+    dropdownActionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      marginBottom: 8,
+    },
+    addPartyBtn: {
+      flex: 0.9,
+      height: 38,
+      borderRadius: 10,
+    },
+    resultsInfoRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+      paddingHorizontal: 2,
+    },
+    resultsCountText: {
+      fontSize: 11.5,
+      color: colors.textSecondary,
+    },
+    resultsCountHighlight: {
+      color: colors.text,
+      fontWeight: '800',
+    },
+    resetFilterText: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      color: '#38BDF8',
+    },
+    agingWrapper: {
+      marginBottom: 8,
+    },
+    staleText: {
+      fontSize: 11,
+      color: '#F59E0B',
+      marginBottom: 6,
+      paddingHorizontal: 2,
+    },
+    listContent: {
+      paddingHorizontal: 16,
+      paddingTop: 4,
+      paddingBottom: 95,
+    },
+    centerLoading: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 60,
+    },
+    loadingText: {
+      fontSize: 12.5,
+      color: colors.textSecondary,
+      marginTop: 12,
+    },
+  });

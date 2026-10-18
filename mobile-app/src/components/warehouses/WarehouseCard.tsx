@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Colors } from '@/constants/theme';
+import { Colors, ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { Warehouse } from './types';
 import { StockItem } from '@/components/stock/types';
 
@@ -24,6 +25,8 @@ export function WarehouseCard({
   onDelete,
   isOwnerOrAdmin = true,
 }: WarehouseCardProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [expanded, setExpanded] = useState(false);
 
   // Compute live stock metrics for this location
@@ -66,7 +69,7 @@ export function WarehouseCard({
           </View>
 
           <View style={styles.addressRow}>
-            <Ionicons name="location-outline" size={13} color={Colors.dark.textTertiary} />
+            <Ionicons name="location-outline" size={13} color={colors.textTertiary} />
             <Text style={styles.addressText} numberOfLines={1}>
               {warehouse.address || 'Address not registered'}
             </Text>
@@ -124,7 +127,7 @@ export function WarehouseCard({
           <Ionicons
             name={expanded ? 'chevron-up' : 'list-outline'}
             size={14}
-            color={Colors.dark.textSecondary}
+            color={colors.textSecondary}
           />
           <Text style={styles.expandToggleText}>
             {expanded
@@ -206,232 +209,233 @@ export function WarehouseCard({
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    padding: 14,
-    marginBottom: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-    backgroundColor: Colors.dark.card,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  iconContainer: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconContainerShowroom: {
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.25)',
-  },
-  iconContainerWarehouse: {
-    backgroundColor: 'rgba(129, 140, 248, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(129, 140, 248, 0.25)',
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  nameText: {
-    fontSize: 15.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.2,
-    flex: 1,
-  },
-  showroomBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    backgroundColor: 'rgba(56, 189, 248, 0.14)',
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.3)',
-  },
-  showroomBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#38BDF8',
-    letterSpacing: 0.5,
-  },
-  warehouseBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    backgroundColor: 'rgba(129, 140, 248, 0.14)',
-    borderWidth: 1,
-    borderColor: 'rgba(129, 140, 248, 0.3)',
-  },
-  warehouseBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#818CF8',
-    letterSpacing: 0.5,
-  },
-  addressRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
-  },
-  addressText: {
-    fontSize: 11.5,
-    color: Colors.dark.textSecondary,
-    flex: 1,
-  },
-  metricsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: Colors.dark.cardElevated,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  metricItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  metricLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: Colors.dark.textTertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  },
-  metricValue: {
-    fontSize: 14.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginTop: 2,
-    fontFamily: 'monospace',
-  },
-  metricValueActive: {
-    color: '#10B981',
-  },
-  metricValueEmpty: {
-    color: Colors.dark.textSecondary,
-  },
-  metricUnit: {
-    fontSize: 10.5,
-    fontWeight: '500',
-    color: Colors.dark.textSecondary,
-    fontFamily: 'System',
-  },
-  metricDivider: {
-    width: 1,
-    height: 24,
-    backgroundColor: Colors.dark.border,
-  },
-  statusPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginTop: 3,
-  },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  statusDotActive: {
-    backgroundColor: '#10B981',
-  },
-  statusDotEmpty: {
-    backgroundColor: '#71717A',
-  },
-  statusText: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: Colors.dark.textSecondary,
-  },
-  expandToggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: 8,
-    paddingVertical: 4,
-  },
-  expandToggleText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.dark.textSecondary,
-  },
-  breakdownBox: {
-    marginTop: 6,
-    padding: 10,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.02)',
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    gap: 6,
-  },
-  stockItemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-    paddingVertical: 3,
-  },
-  stockProdName: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  stockBatchText: {
-    fontSize: 10,
-    color: Colors.dark.textTertiary,
-    marginTop: 1,
-  },
-  stockQtyText: {
-    fontSize: 12,
-    fontWeight: '800',
-    fontFamily: 'monospace',
-  },
-  stockQtyNormal: {
-    color: '#10B981',
-  },
-  stockQtyLow: {
-    color: '#F59E0B',
-  },
-  moreItemsText: {
-    fontSize: 10.5,
-    color: Colors.dark.textTertiary,
-    textAlign: 'center',
-    marginTop: 2,
-    fontStyle: 'italic',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  cardBtn: {
-    flex: 1,
-    height: 36,
-    borderRadius: 8,
-  },
-  zeroOutBtn: {
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    card: {
+      padding: 14,
+      marginBottom: 10,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.borderMedium,
+      backgroundColor: colors.card,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    iconContainer: {
+      width: 42,
+      height: 42,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    iconContainerShowroom: {
+      backgroundColor: 'rgba(56, 189, 248, 0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(56, 189, 248, 0.25)',
+    },
+    iconContainerWarehouse: {
+      backgroundColor: 'rgba(129, 140, 248, 0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(129, 140, 248, 0.25)',
+    },
+    titleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+    },
+    nameText: {
+      fontSize: 15.5,
+      fontWeight: '800',
+      color: colors.text,
+      letterSpacing: -0.2,
+      flex: 1,
+    },
+    showroomBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      backgroundColor: 'rgba(56, 189, 248, 0.14)',
+      borderWidth: 1,
+      borderColor: 'rgba(56, 189, 248, 0.3)',
+    },
+    showroomBadgeText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: '#38BDF8',
+      letterSpacing: 0.5,
+    },
+    warehouseBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      backgroundColor: 'rgba(129, 140, 248, 0.14)',
+      borderWidth: 1,
+      borderColor: 'rgba(129, 140, 248, 0.3)',
+    },
+    warehouseBadgeText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: '#818CF8',
+      letterSpacing: 0.5,
+    },
+    addressRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: 4,
+    },
+    addressText: {
+      fontSize: 11.5,
+      color: colors.textSecondary,
+      flex: 1,
+    },
+    metricsContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: 12,
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: 10,
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    metricItem: {
+      flex: 1,
+      alignItems: 'center',
+    },
+    metricLabel: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.textTertiary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.3,
+    },
+    metricValue: {
+      fontSize: 14.5,
+      fontWeight: '800',
+      color: colors.text,
+      marginTop: 2,
+      fontFamily: 'monospace',
+    },
+    metricValueActive: {
+      color: '#10B981',
+    },
+    metricValueEmpty: {
+      color: colors.textSecondary,
+    },
+    metricUnit: {
+      fontSize: 10.5,
+      fontWeight: '500',
+      color: colors.textSecondary,
+      fontFamily: 'System',
+    },
+    metricDivider: {
+      width: 1,
+      height: 24,
+      backgroundColor: colors.border,
+    },
+    statusPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      marginTop: 3,
+    },
+    statusDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+    },
+    statusDotActive: {
+      backgroundColor: '#10B981',
+    },
+    statusDotEmpty: {
+      backgroundColor: '#71717A',
+    },
+    statusText: {
+      fontSize: 11.5,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    expandToggle: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      marginTop: 8,
+      paddingVertical: 4,
+    },
+    expandToggleText: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    breakdownBox: {
+      marginTop: 6,
+      padding: 10,
+      borderRadius: 10,
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: 6,
+    },
+    stockItemRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 8,
+      paddingVertical: 3,
+    },
+    stockProdName: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    stockBatchText: {
+      fontSize: 10,
+      color: colors.textTertiary,
+      marginTop: 1,
+    },
+    stockQtyText: {
+      fontSize: 12,
+      fontWeight: '800',
+      fontFamily: 'monospace',
+    },
+    stockQtyNormal: {
+      color: '#10B981',
+    },
+    stockQtyLow: {
+      color: '#F59E0B',
+    },
+    moreItemsText: {
+      fontSize: 10.5,
+      color: colors.textTertiary,
+      textAlign: 'center',
+      marginTop: 2,
+      fontStyle: 'italic',
+    },
+    actionsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 12,
+      paddingTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    cardBtn: {
+      flex: 1,
+      height: 36,
+      borderRadius: 8,
+    },
+    zeroOutBtn: {
+      backgroundColor: 'rgba(245, 158, 11, 0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(245, 158, 11, 0.3)',
+    },
+  });

@@ -97,6 +97,8 @@ export class PartiesService {
           type: true,
           status: true,
           dueDate: true,
+          invoiceId: true,
+          purchaseId: true,
         },
       },
       _count: {

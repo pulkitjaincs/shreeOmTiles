@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { Colors } from '@/constants/theme';
+import { useThemedStyles } from '@/lib/theme-context';
 import { formatINR } from '@/lib/formatters';
 import { Product, InvoiceLineItem, StockLedger } from './types';
 
@@ -33,6 +33,7 @@ export function InvoiceLineItemCard({
   onDiscountChange,
   onRemove,
 }: InvoiceLineItemCardProps) {
+  const styles = useThemedStyles(createStyles);
   const selectedProduct = products.find((p) => p.id === item.productId);
   const availableStock = selectedProduct
     ? (stockList && stockList.length > 0
@@ -153,78 +154,79 @@ export function InvoiceLineItemCard({
   );
 }
 
-const styles = StyleSheet.create({
-  itemCard: {
-    padding: 12,
-    marginBottom: 10,
-    backgroundColor: Colors.dark.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  itemHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  itemIndexTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: Colors.dark.primary,
-  },
-  stockBadgeBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 8,
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    marginVertical: 6,
-    gap: 6,
-  },
-  stockBadgeBoxPositive: {
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    borderColor: 'rgba(16, 185, 129, 0.25)',
-  },
-  stockBadgeBoxZero: {
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    borderColor: 'rgba(245, 158, 11, 0.25)',
-  },
-  stockBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    flex: 1,
-  },
-  stockBadgeTextPositive: {
-    color: '#10B981',
-  },
-  stockBadgeTextZero: {
-    color: '#F59E0B',
-  },
-  allocatedRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 6,
-    marginTop: 2,
-  },
-  stockNoticeText: {
-    fontSize: 11,
-    color: Colors.dark.textTertiary,
-  },
-  lineTotalText: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    fontWeight: '600',
-  },
-  lineTotalValue: {
-    color: '#34D399',
-    fontWeight: '800',
-  },
-  numFieldsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 4,
-  },
-});
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    itemCard: {
+      padding: 12,
+      marginBottom: 10,
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    itemHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 6,
+    },
+    itemIndexTitle: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: colors.primary,
+    },
+    stockBadgeBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      borderRadius: 8,
+      borderWidth: 1,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      marginVertical: 6,
+      gap: 6,
+    },
+    stockBadgeBoxPositive: {
+      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+      borderColor: 'rgba(16, 185, 129, 0.25)',
+    },
+    stockBadgeBoxZero: {
+      backgroundColor: 'rgba(245, 158, 11, 0.1)',
+      borderColor: 'rgba(245, 158, 11, 0.25)',
+    },
+    stockBadgeText: {
+      fontSize: 12,
+      fontWeight: '600',
+      flex: 1,
+    },
+    stockBadgeTextPositive: {
+      color: '#10B981',
+    },
+    stockBadgeTextZero: {
+      color: '#F59E0B',
+    },
+    allocatedRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingTop: 6,
+      marginTop: 2,
+    },
+    stockNoticeText: {
+      fontSize: 11,
+      color: colors.textTertiary,
+    },
+    lineTotalText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    lineTotalValue: {
+      color: '#34D399',
+      fontWeight: '800',
+    },
+    numFieldsRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginTop: 4,
+    },
+  });

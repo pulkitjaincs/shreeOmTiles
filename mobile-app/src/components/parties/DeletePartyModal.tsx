@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Button } from '@/components/ui/Button';
-import { Colors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { mobileApiRequest } from '@/lib/api';
 import { formatINR } from '@/lib/formatters';
 import { Party } from './types';
@@ -21,6 +22,8 @@ export function DeletePartyModal({
   onClose,
   onSuccess,
 }: DeletePartyModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [submitting, setSubmitting] = useState(false);
 
   if (!visible || !party) return null;
@@ -93,7 +96,7 @@ export function DeletePartyModal({
 
           <Text style={styles.confirmText}>
             Are you sure you want to permanently remove party{' '}
-            <Text style={{ fontWeight: '700', color: Colors.dark.text }}>{party.name}</Text>? This will remove them from the active directory.
+            <Text style={{ fontWeight: '700', color: colors.text }}>{party.name}</Text>? This will remove them from the active directory.
           </Text>
 
           <View style={styles.btnRow}>
@@ -119,58 +122,59 @@ export function DeletePartyModal({
   );
 }
 
-const styles = StyleSheet.create({
-  content: {
-    paddingVertical: 4,
-    gap: 12,
-  },
-  prohibitedBanner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.25)',
-    padding: 14,
-  },
-  prohibitedTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#EF4444',
-    fontFamily: 'monospace',
-    marginBottom: 4,
-  },
-  prohibitedDesc: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    lineHeight: 18,
-  },
-  verifiedBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.25)',
-    padding: 12,
-  },
-  verifiedText: {
-    fontSize: 12,
-    color: '#10B981',
-    fontWeight: '600',
-    flex: 1,
-  },
-  confirmText: {
-    fontSize: 13,
-    color: Colors.dark.textSecondary,
-    lineHeight: 20,
-    marginTop: 4,
-  },
-  btnRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 8,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    content: {
+      paddingVertical: 4,
+      gap: 12,
+    },
+    prohibitedBanner: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: 'rgba(239, 68, 68, 0.25)',
+      padding: 14,
+    },
+    prohibitedTitle: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: '#EF4444',
+      fontFamily: 'monospace',
+      marginBottom: 4,
+    },
+    prohibitedDesc: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      lineHeight: 18,
+    },
+    verifiedBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.25)',
+      padding: 12,
+    },
+    verifiedText: {
+      fontSize: 12,
+      color: '#10B981',
+      fontWeight: '600',
+      flex: 1,
+    },
+    confirmText: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      lineHeight: 20,
+      marginTop: 4,
+    },
+    btnRow: {
+      flexDirection: 'row',
+      gap: 10,
+      marginTop: 8,
+    },
+  });

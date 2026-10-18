@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Image, ActivityIndicator, TouchableOpacity } fr
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { formatINR } from '@/lib/formatters';
 import { UpiAccount } from './types';
 
@@ -40,6 +40,9 @@ export function CounterUpiModal({
   onConfirmUpi,
   onPayCashInstead,
 }: CounterUpiModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   if (!visible) return null;
 
   return (
@@ -88,7 +91,7 @@ export function CounterUpiModal({
         <View style={styles.upiQrBox}>
           {loadingQr ? (
             <View style={styles.qrLoadingBox}>
-              <ActivityIndicator size="large" color={Colors.dark.primary} />
+              <ActivityIndicator size="large" color={colors.primary} />
               <Text style={styles.qrLoadingText}>Generating dynamic UPI QR...</Text>
             </View>
           ) : upiPreviewData?.qrDataUrl ? (
@@ -99,7 +102,7 @@ export function CounterUpiModal({
             />
           ) : (
             <View style={styles.qrLoadingBox}>
-              <ActivityIndicator size="large" color="#FFFFFF" />
+              <ActivityIndicator size="large" color={colors.text} />
             </View>
           )}
         </View>
@@ -141,85 +144,86 @@ export function CounterUpiModal({
   );
 }
 
-const styles = StyleSheet.create({
-  upiModalContainer: {
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  upiAmountHeader: {
-    fontSize: 26,
-    fontWeight: '900',
-    color: Colors.dark.text,
-    fontFamily: 'monospace',
-    marginBottom: 2,
-  },
-  upiVpaSub: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    marginBottom: 8,
-  },
-  balanceDueBanner: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 8,
-    backgroundColor: 'rgba(251, 191, 36, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(251, 191, 36, 0.25)',
-    marginBottom: 10,
-  },
-  balanceDueText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#FBBF24',
-  },
-  upiQrBox: {
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  qrImage: {
-    width: 200,
-    height: 200,
-  },
-  qrLoadingBox: {
-    width: 200,
-    height: 200,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  qrLoadingText: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-  },
-  upiNotice: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    textAlign: 'center',
-    paddingHorizontal: 16,
-    marginBottom: 6,
-  },
-  confirmButton: {
-    width: '100%',
-    marginTop: 12,
-    backgroundColor: '#10B981',
-  },
-  cashFallbackButton: {
-    width: '100%',
-    marginTop: 8,
-  },
-  backButton: {
-    paddingVertical: 10,
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  backButtonText: {
-    fontSize: 13,
-    color: Colors.dark.textSecondary,
-  },
-});
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    upiModalContainer: {
+      alignItems: 'center',
+      paddingVertical: 10,
+    },
+    upiAmountHeader: {
+      fontSize: 26,
+      fontWeight: '900',
+      color: colors.text,
+      fontFamily: 'monospace',
+      marginBottom: 2,
+    },
+    upiVpaSub: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginBottom: 8,
+    },
+    balanceDueBanner: {
+      paddingHorizontal: 12,
+      paddingVertical: 5,
+      borderRadius: 8,
+      backgroundColor: 'rgba(251, 191, 36, 0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(251, 191, 36, 0.25)',
+      marginBottom: 10,
+    },
+    balanceDueText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: '#FBBF24',
+    },
+    upiQrBox: {
+      padding: 16,
+      backgroundColor: '#FFFFFF',
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: 'rgba(255, 255, 255, 0.1)',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 12,
+    },
+    qrImage: {
+      width: 200,
+      height: 200,
+    },
+    qrLoadingBox: {
+      width: 200,
+      height: 200,
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+    },
+    qrLoadingText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    upiNotice: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      paddingHorizontal: 16,
+      marginBottom: 6,
+    },
+    confirmButton: {
+      width: '100%',
+      marginTop: 12,
+      backgroundColor: '#10B981',
+    },
+    cashFallbackButton: {
+      width: '100%',
+      marginTop: 8,
+    },
+    backButton: {
+      paddingVertical: 10,
+      alignItems: 'center',
+      marginTop: 4,
+    },
+    backButtonText: {
+      fontSize: 13,
+      color: colors.textSecondary,
+    },
+  });

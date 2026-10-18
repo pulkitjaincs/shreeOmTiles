@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { formatINR, formatDate } from '@/lib/formatters';
 import { mobileApiRequest, invalidateMobileApiCache } from '@/lib/api';
 
@@ -21,6 +21,8 @@ export function DeleteInvoiceModal({
   onClose,
   onSuccess,
 }: DeleteInvoiceModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [forceDelivered, setForceDelivered] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -123,7 +125,7 @@ export function DeleteInvoiceModal({
             <Ionicons
               name={forceDelivered ? 'checkbox' : 'square-outline'}
               size={20}
-              color={forceDelivered ? Colors.dark.primary : '#F59E0B'}
+              color={forceDelivered ? colors.primary : '#F59E0B'}
             />
             <View style={{ flex: 1 }}>
               <Text style={styles.checkboxTitle}>Goods Have Already Been Delivered</Text>
@@ -168,124 +170,127 @@ export function DeleteInvoiceModal({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    gap: 12,
-  },
-  summaryCard: {
-    padding: 12,
-    gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  summaryLabel: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-  },
-  summaryValue: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.dark.text,
-  },
-  amountHighlight: {
-    color: '#10B981',
-    fontWeight: '800',
-    fontFamily: 'monospace',
-  },
-  warningBanner: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    gap: 4,
-  },
-  warningHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 2,
-  },
-  warningTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#EF4444',
-  },
-  warningBullet: {
-    fontSize: 11,
-    color: '#FCA5A5',
-    lineHeight: 16,
-  },
-  refundBlocker: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    borderColor: 'rgba(245, 158, 11, 0.3)',
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 10,
-  },
-  refundBlockerText: {
-    flex: 1,
-    fontSize: 11,
-    color: '#FCD34D',
-    lineHeight: 15,
-  },
-  checkboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    backgroundColor: 'rgba(245, 158, 11, 0.08)',
-    borderColor: 'rgba(245, 158, 11, 0.3)',
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-  },
-  checkboxActive: {
-    borderColor: Colors.dark.primary,
-    backgroundColor: 'rgba(56, 189, 248, 0.08)',
-  },
-  checkboxTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FCD34D',
-  },
-  checkboxSub: {
-    fontSize: 10,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-    lineHeight: 14,
-  },
-  errorBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    borderRadius: 8,
-    padding: 8,
-  },
-  errorText: {
-    fontSize: 11,
-    color: '#EF4444',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 8,
-  },
-  cancelBtn: {
-    flex: 1,
-  },
-  deleteBtn: {
-    flex: 1.4,
-    backgroundColor: '#DC2626',
-  },
-  disabledBtn: {
-    opacity: 0.5,
-  },
-});
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    container: {
+      gap: 12,
+    },
+    summaryCard: {
+      padding: 12,
+      gap: 6,
+      backgroundColor: colors.cardElevated,
+      borderColor: colors.border,
+      borderWidth: 1,
+    },
+    summaryRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    summaryLabel: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    summaryValue: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    amountHighlight: {
+      color: '#10B981',
+      fontWeight: '800',
+      fontFamily: 'monospace',
+    },
+    warningBanner: {
+      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+      borderColor: 'rgba(239, 68, 68, 0.3)',
+      borderWidth: 1,
+      borderRadius: 12,
+      padding: 12,
+      gap: 4,
+    },
+    warningHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginBottom: 2,
+    },
+    warningTitle: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: '#EF4444',
+    },
+    warningBullet: {
+      fontSize: 11,
+      color: '#FCA5A5',
+      lineHeight: 16,
+    },
+    refundBlocker: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: 'rgba(245, 158, 11, 0.1)',
+      borderColor: 'rgba(245, 158, 11, 0.3)',
+      borderWidth: 1,
+      borderRadius: 10,
+      padding: 10,
+    },
+    refundBlockerText: {
+      flex: 1,
+      fontSize: 11,
+      color: '#FCD34D',
+      lineHeight: 15,
+    },
+    checkboxContainer: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+      backgroundColor: 'rgba(245, 158, 11, 0.08)',
+      borderColor: 'rgba(245, 158, 11, 0.3)',
+      borderWidth: 1,
+      borderRadius: 12,
+      padding: 12,
+    },
+    checkboxActive: {
+      borderColor: colors.primary,
+      backgroundColor: 'rgba(56, 189, 248, 0.08)',
+    },
+    checkboxTitle: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: '#FCD34D',
+    },
+    checkboxSub: {
+      fontSize: 10,
+      color: colors.textSecondary,
+      marginTop: 2,
+      lineHeight: 14,
+    },
+    errorBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+      borderRadius: 8,
+      padding: 8,
+    },
+    errorText: {
+      fontSize: 11,
+      color: '#EF4444',
+    },
+    actionsRow: {
+      flexDirection: 'row',
+      gap: 10,
+      marginTop: 8,
+    },
+    cancelBtn: {
+      flex: 1,
+    },
+    deleteBtn: {
+      flex: 1.4,
+      backgroundColor: '#DC2626',
+    },
+    disabledBtn: {
+      opacity: 0.5,
+    },
+  });

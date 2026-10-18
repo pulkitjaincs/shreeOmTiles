@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, Linking, Alert } from 'react-
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Button } from '@/components/ui/Button';
-import { Colors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { formatINR } from '@/lib/formatters';
 import { buildPaymentReceiptShareUrl } from '@/lib/whatsapp';
 
@@ -30,6 +31,8 @@ export function SettlementSuccessModal({
   data,
   onClose,
 }: SettlementSuccessModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   if (!data) return null;
 
   const isCollect = data.direction === 'COLLECT';
@@ -143,7 +146,7 @@ export function SettlementSuccessModal({
                     : 'business-outline'
                 }
                 size={12}
-                color={Colors.dark.text}
+                color={colors.text}
               />
               <Text style={styles.modeBadgeText}>
                 {data.mode === 'CASH'
@@ -216,136 +219,137 @@ export function SettlementSuccessModal({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 4,
-  },
-  iconWrapper: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  iconInner: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  amountContainer: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  amountText: {
-    fontSize: 28,
-    fontWeight: '900',
-    fontFamily: 'monospace',
-    letterSpacing: -0.5,
-  },
-  directionBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginTop: 6,
-  },
-  directionBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  detailsCard: {
-    width: '100%',
-    backgroundColor: Colors.dark.card,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    marginBottom: 16,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 7,
-  },
-  detailLabel: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    fontWeight: '600',
-  },
-  detailValue: {
-    fontSize: 13,
-    color: Colors.dark.text,
-    fontWeight: '700',
-    maxWidth: '65%',
-    textAlign: 'right',
-  },
-  detailValueMono: {
-    fontSize: 12,
-    color: Colors.dark.text,
-    fontFamily: 'monospace',
-    fontWeight: '700',
-  },
-  partyInfoCol: {
-    alignItems: 'flex-end',
-    maxWidth: '65%',
-  },
-  partyPhone: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    fontFamily: 'monospace',
-    marginTop: 1,
-  },
-  modeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: Colors.dark.cardElevated,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  modeBadgeText: {
-    fontSize: 11,
-    color: Colors.dark.text,
-    fontWeight: '700',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  actionButtons: {
-    width: '100%',
-    gap: 10,
-  },
-  waButton: {
-    backgroundColor: '#10B981',
-  },
-  doneButton: {
-    width: '100%',
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 12,
-    backgroundColor: Colors.dark.cardElevated,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  doneButtonText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.dark.text,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      alignItems: 'center',
+      paddingVertical: 10,
+      paddingHorizontal: 4,
+    },
+    iconWrapper: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 12,
+    },
+    iconInner: {
+      width: 62,
+      height: 62,
+      borderRadius: 31,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    amountContainer: {
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    amountText: {
+      fontSize: 28,
+      fontWeight: '900',
+      fontFamily: 'monospace',
+      letterSpacing: -0.5,
+    },
+    directionBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 8,
+      borderWidth: 1,
+      marginTop: 6,
+    },
+    directionBadgeText: {
+      fontSize: 11,
+      fontWeight: '800',
+      letterSpacing: 0.5,
+    },
+    detailsCard: {
+      width: '100%',
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      marginBottom: 16,
+    },
+    detailRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 7,
+    },
+    detailLabel: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    detailValue: {
+      fontSize: 13,
+      color: colors.text,
+      fontWeight: '700',
+      maxWidth: '65%',
+      textAlign: 'right',
+    },
+    detailValueMono: {
+      fontSize: 12,
+      color: colors.text,
+      fontFamily: 'monospace',
+      fontWeight: '700',
+    },
+    partyInfoCol: {
+      alignItems: 'flex-end',
+      maxWidth: '65%',
+    },
+    partyPhone: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontFamily: 'monospace',
+      marginTop: 1,
+    },
+    modeBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      backgroundColor: colors.cardElevated,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    modeBadgeText: {
+      fontSize: 11,
+      color: colors.text,
+      fontWeight: '700',
+    },
+    divider: {
+      height: 1,
+      backgroundColor: colors.border,
+    },
+    actionButtons: {
+      width: '100%',
+      gap: 10,
+    },
+    waButton: {
+      backgroundColor: '#10B981',
+    },
+    doneButton: {
+      width: '100%',
+      paddingVertical: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 12,
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    doneButtonText: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.text,
+    },
+  });

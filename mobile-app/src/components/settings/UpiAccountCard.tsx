@@ -3,7 +3,8 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Colors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { UpiAccount } from './types';
 
 interface UpiAccountCardProps {
@@ -17,6 +18,9 @@ export function UpiAccountCard({
   onSetPrimary,
   onDelete,
 }: UpiAccountCardProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   return (
     <Card
       elevated
@@ -27,7 +31,7 @@ export function UpiAccountCard({
     >
       <View style={styles.topRow}>
         <View style={styles.iconCircle}>
-          <Ionicons name="qr-code-outline" size={20} color={account.isPrimary ? '#10B981' : Colors.dark.primary} />
+          <Ionicons name="qr-code-outline" size={20} color={account.isPrimary ? '#10B981' : colors.primary} />
         </View>
 
         <View style={{ flex: 1, minWidth: 0 }}>
@@ -43,7 +47,7 @@ export function UpiAccountCard({
             ) : null}
           </View>
           <Text style={styles.merchantText} numberOfLines={1}>
-            Label: <Text style={{ color: Colors.dark.text }}>{account.merchantName || 'Shree Om Tiles'}</Text>
+            Label: <Text style={{ color: colors.text }}>{account.merchantName || 'Shree Om Tiles'}</Text>
           </Text>
         </View>
       </View>
@@ -80,85 +84,86 @@ export function UpiAccountCard({
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    padding: 14,
-    marginBottom: 10,
-    borderRadius: 14,
-    backgroundColor: Colors.dark.cardElevated,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  primaryCard: {
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    backgroundColor: 'rgba(16, 185, 129, 0.05)',
-  },
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  iconCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: Colors.dark.secondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  vpaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  vpaText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    fontFamily: 'monospace',
-    letterSpacing: -0.2,
-  },
-  primaryBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-  },
-  primaryBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#34D399',
-  },
-  merchantText: {
-    fontSize: 11.5,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: Colors.dark.border,
-    marginVertical: 10,
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  activeNotice: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  activeNoticeText: {
-    fontSize: 11,
-    color: '#34D399',
-    fontWeight: '600',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    card: {
+      padding: 14,
+      marginBottom: 10,
+      borderRadius: 14,
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    primaryCard: {
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+      backgroundColor: 'rgba(16, 185, 129, 0.05)',
+    },
+    topRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    iconCircle: {
+      width: 42,
+      height: 42,
+      borderRadius: 12,
+      backgroundColor: colors.secondary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    vpaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      flexWrap: 'wrap',
+    },
+    vpaText: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.text,
+      fontFamily: 'monospace',
+      letterSpacing: -0.2,
+    },
+    primaryBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 6,
+      backgroundColor: 'rgba(16, 185, 129, 0.15)',
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+    },
+    primaryBadgeText: {
+      fontSize: 9,
+      fontWeight: '800',
+      color: '#34D399',
+    },
+    merchantText: {
+      fontSize: 11.5,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    divider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginVertical: 10,
+    },
+    actionsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    activeNotice: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    activeNoticeText: {
+      fontSize: 11,
+      color: '#34D399',
+      fontWeight: '600',
+    },
+  });

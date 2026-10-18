@@ -4,7 +4,7 @@ import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { Colors, ThemeColors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { formatINR, formatDate } from '@/lib/formatters';
 import { downloadAndSharePdf } from '@/lib/pdf';

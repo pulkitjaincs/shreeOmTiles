@@ -8,7 +8,7 @@ import {
   ViewStyle,
   TouchableOpacity,
 } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { Ionicons } from '@expo/vector-icons';
 
 interface InputProps extends TextInputProps {
@@ -28,8 +28,58 @@ export function Input({
   style,
   ...props
 }: InputProps) {
+  const { colors, isDark } = useTheme();
   const [isFocused, setIsFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  const styles = useThemedStyles((c, dark) =>
+    StyleSheet.create({
+      container: {
+        marginBottom: 14,
+      },
+      label: {
+        fontSize: 12.5,
+        fontWeight: '600',
+        color: c.textSecondary,
+        marginBottom: 6,
+        letterSpacing: 0.2,
+      },
+      inputWrapper: {
+        height: 48,
+        backgroundColor: c.inputBackground || c.card,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: c.border,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 14,
+      },
+      inputWrapperFocused: {
+        borderColor: c.borderFocus,
+        backgroundColor: dark ? '#16161A' : '#F9F9FB',
+      },
+      inputWrapperError: {
+        borderColor: c.statusCancelled,
+      },
+      input: {
+        flex: 1,
+        height: '100%',
+        color: c.text,
+        fontSize: 14.5,
+      },
+      icon: {
+        marginRight: 10,
+      },
+      eyeBtn: {
+        padding: 4,
+      },
+      errorText: {
+        fontSize: 11.5,
+        color: c.statusCancelled,
+        marginTop: 4,
+      },
+    })
+  );
 
   return (
     <View style={[styles.container, containerStyle]}>
@@ -45,12 +95,12 @@ export function Input({
           <Ionicons
             name={icon}
             size={18}
-            color={isFocused ? '#FFFFFF' : Colors.dark.textSecondary}
+            color={isFocused ? colors.text : colors.textSecondary}
             style={styles.icon}
           />
         ) : null}
         <TextInput
-          placeholderTextColor={Colors.dark.textTertiary}
+          placeholderTextColor={colors.textTertiary}
           style={[styles.input, style]}
           onFocus={() => setIsFocused(true)}
           onBlur={() => setIsFocused(false)}
@@ -66,7 +116,7 @@ export function Input({
             <Ionicons
               name={showPassword ? 'eye-off-outline' : 'eye-outline'}
               size={18}
-              color={Colors.dark.textSecondary}
+              color={colors.textSecondary}
             />
           </TouchableOpacity>
         ) : null}
@@ -75,50 +125,3 @@ export function Input({
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    marginBottom: 14,
-  },
-  label: {
-    fontSize: 12.5,
-    fontWeight: '600',
-    color: Colors.dark.textSecondary,
-    marginBottom: 6,
-    letterSpacing: 0.2,
-  },
-  inputWrapper: {
-    height: 48,
-    backgroundColor: Colors.dark.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-  },
-  inputWrapperFocused: {
-    borderColor: '#FFFFFF',
-    backgroundColor: '#16161A',
-  },
-  inputWrapperError: {
-    borderColor: Colors.dark.statusCancelled,
-  },
-  input: {
-    flex: 1,
-    height: '100%',
-    color: Colors.dark.text,
-    fontSize: 14.5,
-  },
-  icon: {
-    marginRight: 10,
-  },
-  eyeBtn: {
-    padding: 4,
-  },
-  errorText: {
-    fontSize: 11.5,
-    color: Colors.dark.statusCancelled,
-    marginTop: 4,
-  },
-});

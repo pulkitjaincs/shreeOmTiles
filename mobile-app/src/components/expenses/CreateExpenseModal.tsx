@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Button } from '@/components/ui/Button';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { mobileApiRequest } from '@/lib/api';
 import { formatINR } from '@/lib/formatters';
 import { MultiPaymentSplitSelector, PaymentSplitItem } from '@/components/ui/MultiPaymentSplitSelector';
@@ -41,6 +41,8 @@ export function CreateExpenseModal({
   onClose,
   onSuccess,
 }: CreateExpenseModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('MISC');
@@ -148,7 +150,7 @@ export function CreateExpenseModal({
         <TextInput
           style={styles.input}
           placeholder="e.g. Warehouse electricity bill, Tea & snacks..."
-          placeholderTextColor={Colors.dark.textTertiary}
+          placeholderTextColor={colors.textTertiary}
           value={title}
           onChangeText={setTitle}
         />
@@ -158,7 +160,7 @@ export function CreateExpenseModal({
         <TextInput
           style={[styles.input, styles.amountInput]}
           placeholder="0.00"
-          placeholderTextColor={Colors.dark.textTertiary}
+          placeholderTextColor={colors.textTertiary}
           keyboardType="numeric"
           value={amount}
           onChangeText={setAmount}
@@ -240,7 +242,7 @@ export function CreateExpenseModal({
         <TextInput
           style={styles.input}
           placeholder="e.g. Electric Board, Ramu Chaiwala..."
-          placeholderTextColor={Colors.dark.textTertiary}
+          placeholderTextColor={colors.textTertiary}
           value={paidTo}
           onChangeText={setPaidTo}
         />
@@ -250,7 +252,7 @@ export function CreateExpenseModal({
         <TextInput
           style={[styles.input, styles.notesInput]}
           placeholder="Optional remarks..."
-          placeholderTextColor={Colors.dark.textTertiary}
+          placeholderTextColor={colors.textTertiary}
           multiline
           numberOfLines={2}
           value={notes}
@@ -270,62 +272,63 @@ export function CreateExpenseModal({
   );
 }
 
-const styles = StyleSheet.create({
-  formContainer: {
-    paddingBottom: 24,
-  },
-  inputLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    marginBottom: 5,
-    marginTop: 10,
-    textTransform: 'uppercase',
-  },
-  input: {
-    height: 42,
-    backgroundColor: Colors.dark.cardElevated,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    paddingHorizontal: 12,
-    color: '#FFFFFF',
-    fontSize: 13,
-  },
-  amountInput: {
-    fontSize: 16,
-    fontWeight: '800',
-    fontFamily: 'monospace',
-    color: '#EF4444',
-  },
-  notesInput: {
-    height: 60,
-    paddingTop: 8,
-  },
-  chipRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginBottom: 4,
-  },
-  chip: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: Colors.dark.cardElevated,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  chipActive: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
-  },
-  chipText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  chipTextActive: {
-    color: '#09090B',
-  },
-});
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    formContainer: {
+      paddingBottom: 24,
+    },
+    inputLabel: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      marginBottom: 5,
+      marginTop: 10,
+      textTransform: 'uppercase',
+    },
+    input: {
+      height: 42,
+      backgroundColor: colors.cardElevated,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 12,
+      color: colors.text,
+      fontSize: 13,
+    },
+    amountInput: {
+      fontSize: 16,
+      fontWeight: '800',
+      fontFamily: 'monospace',
+      color: '#EF4444',
+    },
+    notesInput: {
+      height: 60,
+      paddingTop: 8,
+    },
+    chipRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 6,
+      marginBottom: 4,
+    },
+    chip: {
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      borderRadius: 8,
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    chipActive: {
+      backgroundColor: colors.text,
+      borderColor: colors.text,
+    },
+    chipText: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    chipTextActive: {
+      color: colors.background,
+    },
+  });

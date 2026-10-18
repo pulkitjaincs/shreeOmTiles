@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { useAuth } from '@/lib/auth-context';
 import { mobileApiRequest, cachedMobileApiRequest, subscribeToAppSync } from '@/lib/api';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { Header } from '@/components/ui/Header';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { FilterDropdown } from '@/components/ui/FilterDropdown';
@@ -33,7 +33,61 @@ import {
 
 export default function DeliveriesScreen() {
   const { user } = useAuth();
+  const { colors } = useTheme();
   const role = user?.role || 'DRIVER';
+
+  const styles = useThemedStyles((c) =>
+    StyleSheet.create({
+      screen: {
+        flex: 1,
+        backgroundColor: c.background,
+      },
+      topControlContainer: {
+        paddingBottom: 4,
+      },
+      filterDropdownRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        paddingHorizontal: 16,
+        marginTop: 4,
+        marginBottom: 2,
+      },
+      resultsRow: {
+        minHeight: 24,
+        paddingHorizontal: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginTop: 4,
+        marginBottom: 2,
+      },
+      resultsText: {
+        color: c.textTertiary,
+        fontSize: 11,
+      },
+      clearFiltersText: {
+        color: '#38BDF8',
+        fontSize: 11,
+        fontWeight: '700',
+      },
+      listContent: {
+        paddingVertical: 6,
+        paddingBottom: 90,
+      },
+      center: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+      },
+      loadingText: {
+        color: c.textSecondary,
+        fontSize: 12,
+        marginTop: 10,
+      },
+    })
+  );
 
   const isDriver = role === 'DRIVER';
   const isSupervisor = role === 'SUPERVISOR';
@@ -330,7 +384,7 @@ export default function DeliveriesScreen() {
 
       {loading && !refreshing ? (
         <View style={styles.center}>
-          <ActivityIndicator size="small" color="#FFFFFF" />
+          <ActivityIndicator size="small" color={colors.text} />
           <Text style={styles.loadingText}>Loading delivery orders...</Text>
         </View>
       ) : (
@@ -343,7 +397,7 @@ export default function DeliveriesScreen() {
           windowSize={7}
           removeClippedSubviews={true}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />
           }
           ListEmptyComponent={
             <EmptyState
@@ -408,54 +462,3 @@ export default function DeliveriesScreen() {
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: Colors.dark.background,
-  },
-  topControlContainer: {
-    paddingBottom: 4,
-  },
-  filterDropdownRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    marginTop: 4,
-    marginBottom: 2,
-  },
-  resultsRow: {
-    minHeight: 24,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 4,
-    marginBottom: 2,
-  },
-  resultsText: {
-    color: Colors.dark.textTertiary,
-    fontSize: 11,
-  },
-  clearFiltersText: {
-    color: '#38BDF8',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  listContent: {
-    paddingVertical: 6,
-    paddingBottom: 90,
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  loadingText: {
-    color: Colors.dark.textSecondary,
-    fontSize: 12,
-    marginTop: 10,
-  },
-});

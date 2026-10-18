@@ -14,7 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/lib/auth-context';
 import { mobileApiRequest, cachedMobileApiRequest, subscribeToAppSync } from '@/lib/api';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles, ThemeColors } from '@/lib/theme-context';
 import { Header } from '@/components/ui/Header';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Button } from '@/components/ui/Button';
@@ -33,6 +33,8 @@ import {
 } from '@/components/stock';
 
 export default function StockScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { user } = useAuth();
   const isDirectorOrAdmin = user?.role === 'OWNER' || (user?.role as any) === 'DIRECTOR' || user?.role === 'ADMIN';
   const isOwnerOrAdmin = isDirectorOrAdmin;
@@ -331,7 +333,7 @@ export default function StockScreen() {
 
       {loading && !refreshing ? (
         <View style={styles.center}>
-          <ActivityIndicator size="small" color="#FFFFFF" />
+          <ActivityIndicator size="small" color={colors.primary} />
           <Text style={styles.loadingText}>Fetching inventory data...</Text>
         </View>
       ) : activeTab === 'STOCK' ? (
@@ -344,7 +346,7 @@ export default function StockScreen() {
           windowSize={7}
           removeClippedSubviews={true}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
           }
           ListEmptyComponent={
             <EmptyState
@@ -382,7 +384,7 @@ export default function StockScreen() {
           windowSize={5}
           removeClippedSubviews={Platform.OS !== 'web'}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
           }
           ListEmptyComponent={
             <EmptyState
@@ -458,87 +460,88 @@ export default function StockScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: Colors.dark.background,
-  },
-  topControlContainer: {
-    paddingBottom: 2,
-  },
-  dropdownActionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingHorizontal: 16,
-    marginTop: 4,
-    marginBottom: 6,
-  },
-  actionBtn: {
-    flex: 0.85,
-    height: 38,
-    borderRadius: 10,
-  },
-  secondaryActionsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 16,
-    marginBottom: 6,
-  },
-  utilityBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: Colors.dark.cardElevated,
-    borderRadius: 8,
-    paddingVertical: 7,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  utilityBtnTextTransfer: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#38BDF8',
-  },
-  utilityBtnTextAdjust: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#A855F7',
-  },
-  resultsRow: {
-    minHeight: 24,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 2,
-    marginBottom: 4,
-  },
-  resultsText: {
-    color: Colors.dark.textTertiary,
-    fontSize: 11,
-  },
-  clearFiltersText: {
-    color: '#38BDF8',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  listContent: {
-    paddingHorizontal: 16,
-    paddingTop: 4,
-    paddingBottom: 90,
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  loadingText: {
-    color: Colors.dark.textSecondary,
-    fontSize: 12,
-    marginTop: 10,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    topControlContainer: {
+      paddingBottom: 2,
+    },
+    dropdownActionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      paddingHorizontal: 16,
+      marginTop: 4,
+      marginBottom: 6,
+    },
+    actionBtn: {
+      flex: 0.85,
+      height: 38,
+      borderRadius: 10,
+    },
+    secondaryActionsRow: {
+      flexDirection: 'row',
+      gap: 8,
+      paddingHorizontal: 16,
+      marginBottom: 6,
+    },
+    utilityBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      backgroundColor: colors.cardElevated,
+      borderRadius: 8,
+      paddingVertical: 7,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    utilityBtnTextTransfer: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: '#38BDF8',
+    },
+    utilityBtnTextAdjust: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: '#A855F7',
+    },
+    resultsRow: {
+      minHeight: 24,
+      paddingHorizontal: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: 2,
+      marginBottom: 4,
+    },
+    resultsText: {
+      color: colors.textTertiary,
+      fontSize: 11,
+    },
+    clearFiltersText: {
+      color: '#38BDF8',
+      fontSize: 11,
+      fontWeight: '700',
+    },
+    listContent: {
+      paddingHorizontal: 16,
+      paddingTop: 4,
+      paddingBottom: 90,
+    },
+    center: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 24,
+    },
+    loadingText: {
+      color: colors.textSecondary,
+      fontSize: 12,
+      marginTop: 10,
+    },
+  });

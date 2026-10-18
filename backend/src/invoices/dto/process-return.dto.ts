@@ -77,6 +77,14 @@ export class ProcessStandaloneReturnDto {
 
   @IsString()
   @IsOptional()
+  customerName?: string;
+
+  @IsString()
+  @IsOptional()
+  customerPhone?: string;
+
+  @IsString()
+  @IsOptional()
   originalInvoiceNumber?: string;
 
   @IsString()

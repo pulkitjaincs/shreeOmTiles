@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { Colors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { StaffUser } from './types';
 import { StaffCard } from './StaffCard';
 
@@ -29,6 +30,8 @@ export function StaffDirectoryView({
   onToggleStatus,
   onDeleteStaff,
 }: StaffDirectoryViewProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [search, setSearch] = useState('');
 
   // Stats matching Web's UserStatsGrid
@@ -94,7 +97,7 @@ export function StaffDirectoryView({
             onPress={onRefresh}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Ionicons name="refresh-outline" size={18} color={Colors.dark.textSecondary} />
+            <Ionicons name="refresh-outline" size={18} color={colors.textSecondary} />
           </TouchableOpacity>
           <Button
             title="+ Add Staff"
@@ -119,7 +122,7 @@ export function StaffDirectoryView({
       {search.trim().length > 0 ? (
         <View style={styles.resultsInfoRow}>
           <Text style={styles.resultsCountText}>
-            Showing <Text style={{ color: '#FFFFFF', fontWeight: '800' }}>{filteredStaff.length}</Text> of {staffList.length} staff members
+            Showing <Text style={{ color: colors.text, fontWeight: '800' }}>{filteredStaff.length}</Text> of {staffList.length} staff members
           </Text>
           <TouchableOpacity
             onPress={() => setSearch('')}
@@ -133,12 +136,12 @@ export function StaffDirectoryView({
       {/* 4. Staff Cards List */}
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="small" color="#FFFFFF" />
+          <ActivityIndicator size="small" color={colors.text} />
           <Text style={styles.loadingText}>Fetching staff directory...</Text>
         </View>
       ) : filteredStaff.length === 0 ? (
         <View style={styles.emptyCard}>
-          <Ionicons name="people-outline" size={40} color={Colors.dark.textTertiary} />
+          <Ionicons name="people-outline" size={40} color={colors.textTertiary} />
           <Text style={styles.emptyTitle}>No Staff Members Found</Text>
           <Text style={styles.emptySub}>
             {search.trim().length > 0
@@ -171,129 +174,130 @@ export function StaffDirectoryView({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    gap: 10,
-    paddingBottom: 24,
-  },
-  metricsGrid: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 2,
-  },
-  metricCard: {
-    flex: 1,
-    paddingVertical: 9,
-    paddingHorizontal: 4,
-    borderRadius: 12,
-    backgroundColor: Colors.dark.card,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-  },
-  metricLabel: {
-    fontSize: 9.5,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  },
-  metricValue: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    marginTop: 2,
-    fontFamily: 'monospace',
-  },
-  actionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 2,
-    marginBottom: 2,
-  },
-  sectionTitle: {
-    fontSize: 15.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.3,
-  },
-  sectionSubtitle: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 1,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  refreshIconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addStaffBtn: {
-    height: 38,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-  },
-  searchContainer: {
-    marginBottom: 2,
-  },
-  resultsInfoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 2,
-    paddingHorizontal: 2,
-  },
-  resultsCountText: {
-    fontSize: 11.5,
-    color: Colors.dark.textSecondary,
-  },
-  resetFilterText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#38BDF8',
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 32,
-    gap: 8,
-  },
-  loadingText: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-  },
-  emptyCard: {
-    padding: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-    backgroundColor: Colors.dark.card,
-    marginTop: 4,
-  },
-  emptyTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginTop: 12,
-  },
-  emptySub: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    textAlign: 'center',
-    marginTop: 4,
-    maxWidth: 260,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      gap: 10,
+      paddingBottom: 24,
+    },
+    metricsGrid: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 2,
+    },
+    metricCard: {
+      flex: 1,
+      paddingVertical: 9,
+      paddingHorizontal: 4,
+      borderRadius: 12,
+      backgroundColor: colors.card,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: colors.borderMedium,
+    },
+    metricLabel: {
+      fontSize: 9.5,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.3,
+    },
+    metricValue: {
+      fontSize: 17,
+      fontWeight: '900',
+      color: colors.text,
+      marginTop: 2,
+      fontFamily: 'monospace',
+    },
+    actionHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      gap: 12,
+      marginTop: 2,
+      marginBottom: 2,
+    },
+    sectionTitle: {
+      fontSize: 15.5,
+      fontWeight: '800',
+      color: colors.text,
+      letterSpacing: -0.3,
+    },
+    sectionSubtitle: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 1,
+    },
+    headerRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    refreshIconBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: 10,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.borderMedium,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    addStaffBtn: {
+      height: 38,
+      borderRadius: 10,
+      paddingHorizontal: 12,
+    },
+    searchContainer: {
+      marginBottom: 2,
+    },
+    resultsInfoRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 2,
+      paddingHorizontal: 2,
+    },
+    resultsCountText: {
+      fontSize: 11.5,
+      color: colors.textSecondary,
+    },
+    resetFilterText: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      color: '#38BDF8',
+    },
+    loadingContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 32,
+      gap: 8,
+    },
+    loadingText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    emptyCard: {
+      padding: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.borderMedium,
+      backgroundColor: colors.card,
+      marginTop: 4,
+    },
+    emptyTitle: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: colors.text,
+      marginTop: 12,
+    },
+    emptySub: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginTop: 4,
+      maxWidth: 260,
+    },
+  });

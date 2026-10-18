@@ -1291,6 +1291,34 @@ export class InvoicesService {
         });
         resolvedPartyId = createdParty.id;
         partyName = createdParty.name;
+      } else if (data.customerName?.trim() || data.customerPhone?.trim()) {
+        const cPhone = data.customerPhone?.trim() || '';
+        const cName = data.customerName?.trim() || 'Walk-in Customer';
+        let existingParty = null;
+        if (cPhone) {
+          existingParty = await tx.party.findFirst({
+            where: { phone: cPhone },
+          });
+        }
+        if (!existingParty && cName && cName !== 'Walk-in Customer') {
+          existingParty = await tx.party.findFirst({
+            where: { name: { equals: cName, mode: 'insensitive' } },
+          });
+        }
+        if (existingParty) {
+          resolvedPartyId = existingParty.id;
+          partyName = existingParty.name;
+        } else {
+          const createdParty = await tx.party.create({
+            data: {
+              name: cName,
+              phone: cPhone,
+              category: 'RETAIL',
+            },
+          });
+          resolvedPartyId = createdParty.id;
+          partyName = createdParty.name;
+        }
       }
 
       if (!resolvedPartyId) {
@@ -1589,9 +1617,20 @@ export class InvoicesService {
         if (!item.productId) continue;
 
         let stock = await tx.stockLedger.findFirst({
-          where: { productId: item.productId },
+          where: {
+            productId: item.productId,
+            warehouseId: item.warehouseId || null,
+            batchNo: item.batchNo || null,
+          },
           orderBy: { updatedAt: 'desc' },
         });
+
+        if (!stock) {
+          stock = await tx.stockLedger.findFirst({
+            where: { productId: item.productId },
+            orderBy: { updatedAt: 'desc' },
+          });
+        }
 
         const itemQty = Number(item.qty);
 
@@ -1631,8 +1670,8 @@ export class InvoicesService {
           stock = await tx.stockLedger.create({
             data: {
               productId: item.productId,
-              warehouseId: null,
-              batchNo: null,
+              warehouseId: item.warehouseId || null,
+              batchNo: item.batchNo || null,
               quantity: new Prisma.Decimal(itemQty.toFixed(2)),
             },
           });
@@ -1865,10 +1904,22 @@ export class InvoicesService {
       for (const oldItem of existing.items) {
         if (!oldItem.productId) continue;
         const oldQty = Number(oldItem.qty);
-        const stock = await tx.stockLedger.findFirst({
-          where: { productId: oldItem.productId },
+        let stock = await tx.stockLedger.findFirst({
+          where: {
+            productId: oldItem.productId,
+            warehouseId: oldItem.warehouseId || null,
+            batchNo: oldItem.batchNo || null,
+          },
           orderBy: { updatedAt: 'desc' },
         });
+
+        if (!stock) {
+          stock = await tx.stockLedger.findFirst({
+            where: { productId: oldItem.productId },
+            orderBy: { updatedAt: 'desc' },
+          });
+        }
+
         if (stock) {
           await tx.stockLedger.update({
             where: { id: stock.id },
@@ -1876,6 +1927,15 @@ export class InvoicesService {
               quantity: {
                 increment: new Prisma.Decimal(oldQty.toFixed(2)),
               },
+            },
+          });
+        } else {
+          await tx.stockLedger.create({
+            data: {
+              productId: oldItem.productId,
+              warehouseId: oldItem.warehouseId || null,
+              batchNo: oldItem.batchNo || null,
+              quantity: new Prisma.Decimal(oldQty.toFixed(2)),
             },
           });
         }
@@ -2009,8 +2069,19 @@ export class InvoicesService {
         });
       }
 
-      // 4. Upfront Payment and Credit Balance Calculation
-      let paymentSplits: Array<{
+      // 4. Payment Reconciliation & Preservation
+      const existingConfirmedPayments = (existing.payments || []).filter(
+        (p) => p.status === PaymentStatus.CONFIRMED,
+      );
+      const confirmedHistoricalPaid = existingConfirmedPayments.reduce(
+        (sum, p) =>
+          p.type === PaymentType.OUTFLOW
+            ? sum - Number(p.amount)
+            : sum + Number(p.amount),
+        0,
+      );
+
+      let submittedSplits: Array<{
         mode: PaymentMode;
         amount: number;
         upiTxnRef?: string;
@@ -2019,7 +2090,7 @@ export class InvoicesService {
       }> = [];
 
       if (data.payments && data.payments.length > 0) {
-        paymentSplits = data.payments
+        submittedSplits = data.payments
           .filter((p) => Number(p.amount) > 0)
           .map((p) => ({
             mode: p.mode,
@@ -2034,7 +2105,7 @@ export class InvoicesService {
         Number(data.amountPaidNow) > 0 &&
         data.paymentMode !== PaymentMode.CREDIT
       ) {
-        paymentSplits = [
+        submittedSplits = [
           {
             mode: data.paymentMode || PaymentMode.CASH,
             amount: Number(data.amountPaidNow),
@@ -2042,33 +2113,76 @@ export class InvoicesService {
         ];
       }
 
-      const rawUpfrontAmount = paymentSplits.reduce(
+      const submittedTotal = submittedSplits.reduce(
         (sum, p) => sum + Number(p.amount),
         0,
       );
-      let upfrontAmount = Math.max(0, Math.min(rawUpfrontAmount, totalAmount));
-      upfrontAmount = Math.round(upfrontAmount * 100) / 100;
-      const balanceCredit = Math.max(
-        0,
-        Math.round((totalAmount - upfrontAmount) * 100) / 100,
-      );
 
-      let effectiveInvoicePaymentMode: PaymentMode;
-      if (paymentSplits.length === 0) {
-        effectiveInvoicePaymentMode = PaymentMode.CREDIT;
-      } else if (paymentSplits.length === 1) {
-        effectiveInvoicePaymentMode = paymentSplits[0].mode;
-      } else {
-        effectiveInvoicePaymentMode = PaymentMode.SPLIT;
+      // Determine new additional payment made during this edit
+      let newPaidNow = 0;
+      if (existingConfirmedPayments.length === 0) {
+        newPaidNow = submittedTotal;
+      } else if (submittedTotal > confirmedHistoricalPaid + 0.01) {
+        newPaidNow = Math.round((submittedTotal - confirmedHistoricalPaid) * 100) / 100;
       }
 
-      let newStatus: InvoiceStatus;
-      if (balanceCredit === 0 && upfrontAmount > 0) {
-        newStatus = InvoiceStatus.PAID;
-      } else if (upfrontAmount > 0) {
-        newStatus = InvoiceStatus.PARTIAL;
-      } else {
-        newStatus = InvoiceStatus.CREATED;
+      // Preserve historical confirmed payments and update their partyId if party changed
+      if (party.id !== existing.partyId && existingConfirmedPayments.length > 0) {
+        await tx.payment.updateMany({
+          where: { invoiceId: id, status: PaymentStatus.CONFIRMED },
+          data: { partyId: party.id },
+        });
+      }
+
+      // Only delete non-confirmed payments (preserving confirmed receipts)
+      await tx.payment.deleteMany({
+        where: {
+          invoiceId: id,
+          status: { not: PaymentStatus.CONFIRMED },
+        },
+      });
+
+      // If there were no prior confirmed payments, create records for all submitted splits
+      if (existingConfirmedPayments.length === 0) {
+        for (const split of submittedSplits) {
+          if (split.amount <= 0) continue;
+          await tx.payment.create({
+            data: {
+              invoiceId: id,
+              partyId: party.id,
+              mode: split.mode,
+              amount: new Prisma.Decimal(split.amount.toFixed(2)),
+              status: PaymentStatus.CONFIRMED,
+              paidAt: new Date(),
+              confirmedById: actorId,
+              upiTxnRef: split.upiTxnRef,
+              upiUtr: split.upiUtr,
+              notes:
+                split.notes ||
+                `Updated ${split.mode} payment of ₹${split.amount.toFixed(2)} for ${existing.invoiceNo}`,
+            },
+          });
+        }
+      } else if (newPaidNow > 0) {
+        // Record the new additional payment made during invoice edit
+        const lastSplit = submittedSplits[submittedSplits.length - 1];
+        const newMode = lastSplit?.mode || PaymentMode.CASH;
+        await tx.payment.create({
+          data: {
+            invoiceId: id,
+            partyId: party.id,
+            mode: newMode,
+            amount: new Prisma.Decimal(newPaidNow.toFixed(2)),
+            status: PaymentStatus.CONFIRMED,
+            paidAt: new Date(),
+            confirmedById: actorId,
+            upiTxnRef: lastSplit?.upiTxnRef,
+            upiUtr: lastSplit?.upiUtr,
+            notes:
+              lastSplit?.notes ||
+              `Additional ${newMode} payment of ₹${newPaidNow.toFixed(2)} on invoice edit for ${existing.invoiceNo}`,
+          },
+        });
       }
 
       // 5. Replace Line Items
@@ -2076,81 +2190,128 @@ export class InvoicesService {
         where: { invoiceId: id },
       });
 
-      // 6. Replace Payments
-      await tx.payment.deleteMany({
-        where: { invoiceId: id },
-      });
-      for (const split of paymentSplits) {
-        if (split.amount <= 0) continue;
-        await tx.payment.create({
+      // 6. Credit Ledger Reconciliation
+      const existingCredit =
+        (existing.creditLedgers && existing.creditLedgers[0]) ||
+        (await tx.creditLedger.findFirst({ where: { invoiceId: id } }));
+
+      // Calculate how much was already settled or paid prior to this edit:
+      // Prior debt remaining was existingCredit.amountDue (or 0 if no credit ledger).
+      // So prior total settled/paid = oldInvoiceTotal - currentCreditDue.
+      const oldInvoiceTotal = Number(existing.total);
+      const currentCreditDue = existingCredit ? Number(existingCredit.amountDue || 0) : 0;
+      const priorSettledOrPaid = existingCredit
+        ? Math.max(0, oldInvoiceTotal - currentCreditDue)
+        : Math.max(0, confirmedHistoricalPaid);
+
+      const totalSettledOrPaid = priorSettledOrPaid + (newPaidNow > 0 ? newPaidNow : 0);
+      const netRemainingBalance = Math.max(
+        0,
+        Math.round((totalAmount - totalSettledOrPaid) * 100) / 100,
+      );
+      const balanceCredit = netRemainingBalance;
+
+      if (existingCredit) {
+        // Retain existing credit ledger history and set amountDue to net remaining balance
+        await tx.creditLedger.update({
+          where: { id: existingCredit.id },
           data: {
-            invoiceId: id,
             partyId: party.id,
-            mode: split.mode,
-            amount: new Prisma.Decimal(split.amount.toFixed(2)),
-            status: PaymentStatus.CONFIRMED,
-            paidAt: new Date(),
-            confirmedById: actorId,
-            upiTxnRef: split.upiTxnRef,
-            upiUtr: split.upiUtr,
-            notes:
-              split.notes ||
-              `Updated ${split.mode} payment of ₹${split.amount.toFixed(2)} for ${existing.invoiceNo}`,
+            amountDue: new Prisma.Decimal(netRemainingBalance.toFixed(2)),
+            status:
+              netRemainingBalance <= 0
+                ? CreditStatus.SETTLED
+                : totalSettledOrPaid > 0
+                ? CreditStatus.PARTIAL
+                : existingCredit.status === CreditStatus.OVERDUE
+                ? CreditStatus.OVERDUE
+                : CreditStatus.UNPAID,
+            notes: `Balance receivable for Invoice #${existing.invoiceNo} (Updated)`,
           },
         });
-      }
 
-      // 7. Update Credit Ledger
-      await tx.creditLedger.deleteMany({
-        where: { invoiceId: id },
-      });
-      if (balanceCredit > 0) {
+        // Clean up any stray duplicate credit ledgers if any exist
+        await tx.creditLedger.deleteMany({
+          where: {
+            invoiceId: id,
+            id: { not: existingCredit.id },
+          },
+        });
+      } else if (balanceCredit > 0) {
         await tx.creditLedger.create({
           data: {
             partyId: party.id,
             invoiceId: id,
             amountDue: new Prisma.Decimal(balanceCredit.toFixed(2)),
             type: CreditType.RECEIVABLE,
+            status: totalSettledOrPaid > 0 ? CreditStatus.PARTIAL : CreditStatus.UNPAID,
             dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
             notes: `Balance receivable for Invoice #${existing.invoiceNo} (Updated)`,
           },
         });
       }
 
-      // 8. Reconcile Deliveries
+      // Determine effective invoice payment mode and status
+      let effectiveInvoicePaymentMode: PaymentMode;
+      if (totalSettledOrPaid <= 0 && balanceCredit > 0) {
+        effectiveInvoicePaymentMode = PaymentMode.CREDIT;
+      } else if (submittedSplits.length === 1) {
+        effectiveInvoicePaymentMode = submittedSplits[0].mode;
+      } else if (submittedSplits.length > 1) {
+        effectiveInvoicePaymentMode = PaymentMode.SPLIT;
+      } else if (existingConfirmedPayments.length === 1) {
+        effectiveInvoicePaymentMode = existingConfirmedPayments[0].mode;
+      } else if (existingConfirmedPayments.length > 1) {
+        effectiveInvoicePaymentMode = PaymentMode.SPLIT;
+      } else {
+        effectiveInvoicePaymentMode = existing.paymentMode || PaymentMode.CREDIT;
+      }
+
+      let newStatus: InvoiceStatus;
+      if (balanceCredit <= 0) {
+        newStatus = InvoiceStatus.PAID;
+      } else if (totalSettledOrPaid > 0) {
+        newStatus = InvoiceStatus.PARTIAL;
+      } else {
+        newStatus = InvoiceStatus.CREATED;
+      }
+
+      // 7. Reconcile Deliveries
       const existingExtended = existing as unknown as ExtendedInvoice;
       const isCashSale =
         data.isCashSale !== undefined
           ? Boolean(data.isCashSale)
           : Boolean(existingExtended.isCashSale);
 
-      if (isCashSale) {
-        // Cash sales are customer pickup; remove any pending deliveries
-        await tx.delivery.deleteMany({
-          where: { invoiceId: id, status: DeliveryStatus.PENDING },
-        });
-      } else {
-        const pendingDelivery = await tx.delivery.findFirst({
-          where: { invoiceId: id, status: DeliveryStatus.PENDING },
-        });
-        if (pendingDelivery) {
+      const existingDelivery = await tx.delivery.findFirst({
+        where: { invoiceId: id },
+      });
+
+      if (existingDelivery) {
+        if (isCashSale) {
+          if (existingDelivery.status === DeliveryStatus.PENDING) {
+            await tx.delivery.delete({
+              where: { id: existingDelivery.id },
+            });
+          }
+        } else if (existingDelivery.status !== DeliveryStatus.DELIVERED) {
           await tx.delivery.update({
-            where: { id: pendingDelivery.id },
+            where: { id: existingDelivery.id },
             data: {
               amountToCollect: new Prisma.Decimal(balanceCredit.toFixed(2)),
-              notes: data.notes || null,
-            },
-          });
-        } else {
-          await tx.delivery.create({
-            data: {
-              invoiceId: id,
-              status: DeliveryStatus.PENDING,
-              amountToCollect: new Prisma.Decimal(balanceCredit.toFixed(2)),
-              notes: data.notes || null,
+              notes: data.notes !== undefined ? data.notes : existingDelivery.notes,
             },
           });
         }
+      } else if (!isCashSale) {
+        await tx.delivery.create({
+          data: {
+            invoiceId: id,
+            status: DeliveryStatus.PENDING,
+            amountToCollect: new Prisma.Decimal(balanceCredit.toFixed(2)),
+            notes: data.notes || null,
+          },
+        });
       }
 
       if (pendingAuditLogs.length > 0) {

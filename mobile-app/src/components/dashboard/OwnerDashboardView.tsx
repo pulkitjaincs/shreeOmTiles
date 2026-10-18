@@ -7,7 +7,7 @@ import {
   RefreshControl,
   TouchableOpacity,
 } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles, ThemeColors } from '@/lib/theme-context';
 import { Header } from '@/components/ui/Header';
 import { Ionicons } from '@expo/vector-icons';
 import { DashboardData, DatePreset } from './types';
@@ -55,6 +55,8 @@ export function OwnerDashboardView({
   handleVerifyHandover,
   router,
 }: OwnerDashboardViewProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const kpi = analyticsData?.kpi;
   const pendingDeliveries = analyticsData?.pendingDriverDeliveries || [];
   const salesmen = analyticsData?.salesmenPerformance || [];
@@ -78,7 +80,7 @@ export function OwnerDashboardView({
         style={styles.content}
         contentContainerStyle={styles.scrollContainer}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
         }
       >
         {/* Top Executive Live Intel Bar with + New Invoice action */}
@@ -98,7 +100,7 @@ export function OwnerDashboardView({
             onPress={() => router.push('/(tabs)/invoices')}
             activeOpacity={0.8}
           >
-            <Ionicons name="add" size={16} color="#09090B" />
+            <Ionicons name="add" size={16} color={colors.primaryForeground} />
             <Text style={styles.newInvoiceBtnText}>New Invoice</Text>
           </TouchableOpacity>
         </View>
@@ -169,81 +171,82 @@ export function OwnerDashboardView({
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: Colors.dark.background,
-  },
-  content: {
-    flex: 1,
-  },
-  scrollContainer: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  topExecutiveBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderRadius: 18,
-    backgroundColor: '#16161A',
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-    marginBottom: 8,
-    gap: 12,
-  },
-  liveIntelBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 4,
-  },
-  liveDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#10B981',
-  },
-  liveIntelText: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: '#10B981',
-    letterSpacing: 0.6,
-  },
-  topBarTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: -0.3,
-  },
-  topBarSub: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-    lineHeight: 15,
-  },
-  newInvoiceBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  newInvoiceBtnText: {
-    color: '#09090B',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      flex: 1,
+    },
+    scrollContainer: {
+      padding: 16,
+      paddingBottom: 40,
+    },
+    topExecutiveBar: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 14,
+      paddingHorizontal: 16,
+      borderRadius: 18,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.borderMedium,
+      marginBottom: 8,
+      gap: 12,
+    },
+    liveIntelBadgeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginBottom: 4,
+    },
+    liveDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: '#10B981',
+    },
+    liveIntelText: {
+      fontSize: 9.5,
+      fontWeight: '800',
+      color: '#10B981',
+      letterSpacing: 0.6,
+    },
+    topBarTitle: {
+      fontSize: 16,
+      fontWeight: '900',
+      color: colors.text,
+      letterSpacing: -0.3,
+    },
+    topBarSub: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 2,
+      lineHeight: 15,
+    },
+    newInvoiceBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      backgroundColor: colors.primary,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 12,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.2,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    newInvoiceBtnText: {
+      color: colors.primaryForeground,
+      fontSize: 12,
+      fontWeight: '800',
+    },
+  });
 
 export const DirectorDashboardView = OwnerDashboardView;
 export type DirectorDashboardViewProps = OwnerDashboardViewProps;

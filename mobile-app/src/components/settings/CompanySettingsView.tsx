@@ -11,7 +11,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Colors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { mobileApiRequest } from '@/lib/api';
 import { UpiAccount } from './types';
 import { UpiAccountCard } from './UpiAccountCard';
@@ -37,6 +38,8 @@ export function CompanySettingsView({
   onSetPrimaryUpi,
   onDeleteUpi,
 }: CompanySettingsViewProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [activeTab, setActiveTab] = useState<'profile' | 'upi' | 'password'>('profile');
 
   // Director Profile State
@@ -136,7 +139,7 @@ export function CompanySettingsView({
           <Ionicons
             name="person-outline"
             size={14}
-            color={activeTab === 'profile' ? '#FFFFFF' : Colors.dark.textSecondary}
+            color={activeTab === 'profile' ? (isDark ? '#09090B' : '#FFFFFF') : colors.textSecondary}
           />
           <Text style={[styles.toggleText, activeTab === 'profile' && styles.toggleTextActive]}>
             Director Profile
@@ -150,7 +153,7 @@ export function CompanySettingsView({
           <Ionicons
             name="qr-code-outline"
             size={14}
-            color={activeTab === 'upi' ? '#FFFFFF' : Colors.dark.textSecondary}
+            color={activeTab === 'upi' ? (isDark ? '#09090B' : '#FFFFFF') : colors.textSecondary}
           />
           <Text style={[styles.toggleText, activeTab === 'upi' && styles.toggleTextActive]}>
             UPI IDs ({upiAccounts.length})
@@ -164,7 +167,7 @@ export function CompanySettingsView({
           <Ionicons
             name="key-outline"
             size={14}
-            color={activeTab === 'password' ? '#FFFFFF' : Colors.dark.textSecondary}
+            color={activeTab === 'password' ? (isDark ? '#09090B' : '#FFFFFF') : colors.textSecondary}
           />
           <Text style={[styles.toggleText, activeTab === 'password' && styles.toggleTextActive]}>
             Security
@@ -178,7 +181,7 @@ export function CompanySettingsView({
       {activeTab === 'profile' ? (
         <View style={styles.tabContent}>
           <View style={styles.banner}>
-            <Ionicons name="shield-checkmark-outline" size={18} color={Colors.dark.primary} />
+            <Ionicons name="shield-checkmark-outline" size={18} color={colors.primary} />
             <View style={{ flex: 1 }}>
               <Text style={styles.bannerTitle}>Business Director Account</Text>
               <Text style={styles.bannerSub}>
@@ -259,12 +262,12 @@ export function CompanySettingsView({
 
           {loading ? (
             <View style={styles.centerBox}>
-              <ActivityIndicator size="small" color="#FFFFFF" />
+              <ActivityIndicator size="small" color={colors.text} />
               <Text style={styles.loadingText}>Fetching UPI accounts...</Text>
             </View>
           ) : upiAccounts.length === 0 ? (
             <View style={styles.emptyCard}>
-              <Ionicons name="qr-code-outline" size={40} color={Colors.dark.textTertiary} />
+              <Ionicons name="qr-code-outline" size={40} color={colors.textTertiary} />
               <Text style={styles.emptyTitle}>No UPI Accounts Configured</Text>
               <Text style={styles.emptySub}>
                 Link your bank UPI ID so dynamic QR codes can be displayed on counter billing screens.
@@ -358,179 +361,180 @@ export function CompanySettingsView({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    paddingBottom: 24,
-  },
-  tabToggle: {
-    flexDirection: 'row',
-    backgroundColor: Colors.dark.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    padding: 3,
-    marginBottom: 14,
-  },
-  toggleBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 6,
-    paddingVertical: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 9,
-  },
-  toggleBtnActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  toggleText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  toggleTextActive: {
-    color: '#09090B',
-    fontWeight: '800',
-  },
-  tabContent: {
-    gap: 10,
-  },
-  banner: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: 'rgba(56, 189, 248, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.2)',
-    marginBottom: 6,
-  },
-  bannerTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: Colors.dark.primary,
-  },
-  bannerSub: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-    lineHeight: 16,
-  },
-  formCard: {
-    padding: 16,
-    borderRadius: 14,
-    backgroundColor: Colors.dark.cardElevated,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  infoCard: {
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    marginTop: 6,
-  },
-  infoTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginBottom: 8,
-  },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 4,
-  },
-  infoLabel: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-  },
-  infoVal: {
-    fontSize: 12,
-    color: Colors.dark.text,
-    fontWeight: '600',
-  },
-  infoValHighlight: {
-    fontSize: 12,
-    color: Colors.dark.primary,
-    fontWeight: '700',
-    fontFamily: 'monospace',
-  },
-  actionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginVertical: 4,
-    paddingHorizontal: 2,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  centerBox: {
-    paddingVertical: 36,
-    alignItems: 'center',
-    gap: 8,
-  },
-  loadingText: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-  },
-  emptyCard: {
-    padding: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    backgroundColor: Colors.dark.card,
-    marginTop: 8,
-  },
-  emptyTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginTop: 10,
-  },
-  emptySub: {
-    fontSize: 11.5,
-    color: Colors.dark.textSecondary,
-    textAlign: 'center',
-    marginTop: 4,
-    maxWidth: 260,
-  },
-  matchWarningRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: -4,
-    marginBottom: 8,
-    paddingHorizontal: 2,
-  },
-  matchWarningText: {
-    fontSize: 11,
-    color: '#EF4444',
-    fontWeight: '600',
-  },
-  matchSuccessRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: -4,
-    marginBottom: 8,
-    paddingHorizontal: 2,
-  },
-  matchSuccessText: {
-    fontSize: 11,
-    color: '#10B981',
-    fontWeight: '600',
-  },
-});
+const createStyles = (colors: ThemeColors, isDark: boolean) =>
+  StyleSheet.create({
+    container: {
+      paddingBottom: 24,
+    },
+    tabToggle: {
+      flexDirection: 'row',
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 3,
+      marginBottom: 14,
+    },
+    toggleBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      gap: 6,
+      paddingVertical: 9,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 9,
+    },
+    toggleBtnActive: {
+      backgroundColor: isDark ? '#FFFFFF' : '#09090B',
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.2,
+      shadowRadius: 2,
+      elevation: 2,
+    },
+    toggleText: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    toggleTextActive: {
+      color: isDark ? '#09090B' : '#FFFFFF',
+      fontWeight: '800',
+    },
+    tabContent: {
+      gap: 10,
+    },
+    banner: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+      padding: 12,
+      borderRadius: 12,
+      backgroundColor: 'rgba(56, 189, 248, 0.08)',
+      borderWidth: 1,
+      borderColor: 'rgba(56, 189, 248, 0.2)',
+      marginBottom: 6,
+    },
+    bannerTitle: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.primary,
+    },
+    bannerSub: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 2,
+      lineHeight: 16,
+    },
+    formCard: {
+      padding: 16,
+      borderRadius: 14,
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    infoCard: {
+      padding: 14,
+      borderRadius: 14,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginTop: 6,
+    },
+    infoTitle: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.text,
+      marginBottom: 8,
+    },
+    infoRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingVertical: 4,
+    },
+    infoLabel: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    infoVal: {
+      fontSize: 12,
+      color: colors.text,
+      fontWeight: '600',
+    },
+    infoValHighlight: {
+      fontSize: 12,
+      color: colors.primary,
+      fontWeight: '700',
+      fontFamily: 'monospace',
+    },
+    actionHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginVertical: 4,
+      paddingHorizontal: 2,
+    },
+    sectionTitle: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    centerBox: {
+      paddingVertical: 36,
+      alignItems: 'center',
+      gap: 8,
+    },
+    loadingText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    emptyCard: {
+      padding: 28,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      marginTop: 8,
+    },
+    emptyTitle: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.text,
+      marginTop: 10,
+    },
+    emptySub: {
+      fontSize: 11.5,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginTop: 4,
+      maxWidth: 260,
+    },
+    matchWarningRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: -4,
+      marginBottom: 8,
+      paddingHorizontal: 2,
+    },
+    matchWarningText: {
+      fontSize: 11,
+      color: '#EF4444',
+      fontWeight: '600',
+    },
+    matchSuccessRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: -4,
+      marginBottom: 8,
+      paddingHorizontal: 2,
+    },
+    matchSuccessText: {
+      fontSize: 11,
+      color: '#10B981',
+      fontWeight: '600',
+    },
+  });

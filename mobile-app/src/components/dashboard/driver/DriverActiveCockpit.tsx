@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { useThemedStyles, ThemeColors } from '@/lib/theme-context';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { formatINR } from '@/lib/formatters';
@@ -31,6 +31,7 @@ export function DriverActiveCockpit({
   onWhatsApp,
   onMap,
 }: DriverActiveCockpitProps) {
+  const styles = useThemedStyles(createStyles);
   if (!activeDelivery) return null;
 
   return (
@@ -243,161 +244,162 @@ export function DriverActiveCockpit({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    gap: 10,
-  },
-  missionCard: {
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: '#16161A',
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  missionBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  badgePurple: {
-    backgroundColor: 'rgba(168, 85, 247, 0.14)',
-    borderWidth: 1,
-    borderColor: 'rgba(168, 85, 247, 0.25)',
-  },
-  badgeGreen: {
-    backgroundColor: 'rgba(16, 185, 129, 0.14)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.25)',
-  },
-  badgeWhite: {
-    backgroundColor: '#FFFFFF',
-  },
-  badgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  invoiceTag: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: Colors.dark.textSecondary,
-    fontFamily: 'monospace',
-  },
-  lockedNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    padding: 10,
-    borderRadius: 10,
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.25)',
-  },
-  lockedText: {
-    fontSize: 11,
-    color: '#FCD34D',
-    fontWeight: '600',
-    flex: 1,
-  },
-  deliveredNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    padding: 10,
-    borderRadius: 10,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.25)',
-  },
-  deliveredText: {
-    fontSize: 11.5,
-    color: '#10B981',
-    fontWeight: '700',
-  },
-  customerCard: {
-    padding: 15,
-    borderRadius: 16,
-  },
-  customerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 8,
-  },
-  customerHeaderTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#38BDF8',
-    textTransform: 'uppercase',
-  },
-  customerName: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  customerAddress: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  customerPhone: {
-    fontSize: 11.5,
-    color: Colors.dark.textTertiary,
-    marginTop: 3,
-    fontFamily: 'monospace',
-  },
-  actionRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 12,
-  },
-  actionBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    paddingVertical: 7,
-    borderRadius: 10,
-    backgroundColor: Colors.dark.cardElevated,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  actionBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  cashBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  bannerAmber: {
-    backgroundColor: 'rgba(245, 158, 11, 0.08)',
-    borderColor: 'rgba(245, 158, 11, 0.3)',
-  },
-  bannerGreen: {
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-  },
-  cashBannerTitle: {
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  cashBannerSub: {
-    fontSize: 10.5,
-    color: Colors.dark.textSecondary,
-    marginTop: 1,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    container: {
+      gap: 10,
+    },
+    missionCard: {
+      padding: 16,
+      borderRadius: 16,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.borderMedium,
+    },
+    titleRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    missionBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+    },
+    badgePurple: {
+      backgroundColor: 'rgba(168, 85, 247, 0.14)',
+      borderWidth: 1,
+      borderColor: 'rgba(168, 85, 247, 0.25)',
+    },
+    badgeGreen: {
+      backgroundColor: 'rgba(16, 185, 129, 0.14)',
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.25)',
+    },
+    badgeWhite: {
+      backgroundColor: colors.primary,
+    },
+    badgeText: {
+      fontSize: 10,
+      fontWeight: '800',
+    },
+    invoiceTag: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.textSecondary,
+      fontFamily: 'monospace',
+    },
+    lockedNotice: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      padding: 10,
+      borderRadius: 10,
+      backgroundColor: 'rgba(245, 158, 11, 0.1)',
+      borderWidth: 1,
+      borderColor: 'rgba(245, 158, 11, 0.25)',
+    },
+    lockedText: {
+      fontSize: 11,
+      color: '#FCD34D',
+      fontWeight: '600',
+      flex: 1,
+    },
+    deliveredNotice: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      padding: 10,
+      borderRadius: 10,
+      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.25)',
+    },
+    deliveredText: {
+      fontSize: 11.5,
+      color: '#10B981',
+      fontWeight: '700',
+    },
+    customerCard: {
+      padding: 15,
+      borderRadius: 16,
+    },
+    customerHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginBottom: 8,
+    },
+    customerHeaderTitle: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: '#38BDF8',
+      textTransform: 'uppercase',
+    },
+    customerName: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    customerAddress: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    customerPhone: {
+      fontSize: 11.5,
+      color: colors.textTertiary,
+      marginTop: 3,
+      fontFamily: 'monospace',
+    },
+    actionRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginTop: 12,
+    },
+    actionBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 5,
+      paddingVertical: 7,
+      borderRadius: 10,
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    actionBtnText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    cashBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      padding: 12,
+      borderRadius: 14,
+      borderWidth: 1,
+    },
+    bannerAmber: {
+      backgroundColor: 'rgba(245, 158, 11, 0.08)',
+      borderColor: 'rgba(245, 158, 11, 0.3)',
+    },
+    bannerGreen: {
+      backgroundColor: 'rgba(16, 185, 129, 0.08)',
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+    },
+    cashBannerTitle: {
+      fontSize: 13,
+      fontWeight: '800',
+    },
+    cashBannerSub: {
+      fontSize: 10.5,
+      color: colors.textSecondary,
+      marginTop: 1,
+    },
+  });

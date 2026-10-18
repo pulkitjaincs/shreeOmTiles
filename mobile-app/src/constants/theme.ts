@@ -75,6 +75,7 @@ export const Colors = {
   },
 } as const;
 
+export type ThemeColors = typeof Colors.dark;
 export type ThemeColor = keyof typeof Colors.dark;
 
 export const Theme = Colors.dark;

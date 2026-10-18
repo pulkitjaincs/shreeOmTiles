@@ -3,7 +3,8 @@ import { View, Text, StyleSheet, TouchableOpacity, Linking, Alert } from 'react-
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Colors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { formatINR, getInitials, getWhatsAppUrl } from '@/lib/formatters';
 import { Party } from './types';
 
@@ -30,6 +31,8 @@ export const PartyCard = React.memo(function PartyCard({
   canDelete,
   canEditOrDelete = true,
 }: PartyCardProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const allowEdit = canEdit !== undefined ? canEdit : canEditOrDelete;
   const allowDelete = canDelete !== undefined ? canDelete : canEditOrDelete;
 
@@ -134,18 +137,18 @@ export const PartyCard = React.memo(function PartyCard({
                 <Text style={styles.duesBadgeEmeraldText}>Cleared</Text>
               </View>
             )}
-            <Ionicons name="chevron-forward" size={15} color={Colors.dark.textTertiary} />
+            <Ionicons name="chevron-forward" size={15} color={colors.textTertiary} />
           </View>
 
           {/* Phone & Orders */}
           <View style={styles.metaRow}>
             <TouchableOpacity onPress={handleCall} style={styles.phoneTouch} activeOpacity={0.7}>
-              <Ionicons name="call-outline" size={11} color={Colors.dark.textSecondary} />
+              <Ionicons name="call-outline" size={11} color={colors.textSecondary} />
               <Text style={styles.phoneText}>{party.phone || 'No Phone'}</Text>
             </TouchableOpacity>
 
             <View style={styles.orderPill}>
-              <Ionicons name="bag-handle-outline" size={10} color={Colors.dark.textSecondary} />
+              <Ionicons name="bag-handle-outline" size={10} color={colors.textSecondary} />
               <Text style={styles.orderPillText}>
                 {orderCount > 0 ? `${orderCount} orders` : 'Directory profile'}
               </Text>
@@ -168,7 +171,7 @@ export const PartyCard = React.memo(function PartyCard({
           {/* Address */}
           {party.address ? (
             <View style={styles.addressRow}>
-              <Ionicons name="location-outline" size={11} color={Colors.dark.textTertiary} />
+              <Ionicons name="location-outline" size={11} color={colors.textTertiary} />
               <Text style={styles.addressText} numberOfLines={1}>
                 {party.address}
               </Text>
@@ -218,7 +221,7 @@ export const PartyCard = React.memo(function PartyCard({
             <Ionicons
               name="trash-outline"
               size={16}
-              color={hasPendingLiability ? Colors.dark.textTertiary : '#EF4444'}
+              color={hasPendingLiability ? colors.textTertiary : '#EF4444'}
             />
           </TouchableOpacity>
         ) : null}
@@ -227,217 +230,218 @@ export const PartyCard = React.memo(function PartyCard({
   );
 });
 
-const styles = StyleSheet.create({
-  card: {
-    marginBottom: 10,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-    backgroundColor: Colors.dark.card,
-  },
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  infoCol: {
-    flex: 1,
-  },
-  avatarCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  nameHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  partyName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: Colors.dark.text,
-    flex: 1,
-  },
-  duesBadgeRose: {
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 2.5,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-    flexShrink: 0,
-  },
-  duesBadgeRoseText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#EF4444',
-    fontFamily: 'monospace',
-  },
-  duesBadgeEmerald: {
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 2.5,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    flexShrink: 0,
-  },
-  duesBadgeEmeraldText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  duesBadgeAmber: {
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 2.5,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
-    flexShrink: 0,
-  },
-  duesBadgeAmberText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#F59E0B',
-    fontFamily: 'monospace',
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 6,
-  },
-  phoneTouch: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.dark.cardElevated,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  phoneText: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    fontFamily: 'monospace',
-  },
-  orderPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.dark.cardElevated,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  orderPillText: {
-    fontSize: 10.5,
-    color: Colors.dark.textSecondary,
-    fontWeight: '600',
-  },
-  gstinPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: Colors.dark.cardElevated,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  gstinLabel: {
-    fontSize: 9.5,
-    color: Colors.dark.textTertiary,
-    fontWeight: '600',
-  },
-  gstinVal: {
-    fontSize: 10,
-    fontFamily: 'monospace',
-    color: Colors.dark.textSecondary,
-  },
-  addressRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 6,
-  },
-  addressText: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    flex: 1,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    marginVertical: 10,
-  },
-  bottomActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  actionBtn: {
-    flex: 1,
-  },
-  iconBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 8,
-    backgroundColor: Colors.dark.cardElevated,
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconBtnDisabled: {
-    opacity: 0.5,
-  },
-  walkInBadge: {
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
-    flexShrink: 0,
-  },
-  walkInBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#F59E0B',
-    textTransform: 'uppercase',
-  },
-  categoryPill: {
-    backgroundColor: 'rgba(59, 130, 246, 0.12)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(59, 130, 246, 0.25)',
-  },
-  categoryText: {
-    fontSize: 9.5,
-    fontWeight: '700',
-    color: '#3B82F6',
-    textTransform: 'uppercase',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    card: {
+      marginBottom: 10,
+      padding: 14,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.borderMedium,
+      backgroundColor: colors.card,
+    },
+    topRow: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 12,
+    },
+    infoCol: {
+      flex: 1,
+    },
+    avatarCircle: {
+      width: 42,
+      height: 42,
+      borderRadius: 12,
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avatarText: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    nameHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    partyName: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: colors.text,
+      flex: 1,
+    },
+    duesBadgeRose: {
+      backgroundColor: 'rgba(239, 68, 68, 0.12)',
+      paddingHorizontal: 8,
+      paddingVertical: 2.5,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: 'rgba(239, 68, 68, 0.3)',
+      flexShrink: 0,
+    },
+    duesBadgeRoseText: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: '#EF4444',
+      fontFamily: 'monospace',
+    },
+    duesBadgeEmerald: {
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+      paddingHorizontal: 8,
+      paddingVertical: 2.5,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+      flexShrink: 0,
+    },
+    duesBadgeEmeraldText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: '#10B981',
+    },
+    duesBadgeAmber: {
+      backgroundColor: 'rgba(245, 158, 11, 0.12)',
+      paddingHorizontal: 8,
+      paddingVertical: 2.5,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: 'rgba(245, 158, 11, 0.3)',
+      flexShrink: 0,
+    },
+    duesBadgeAmberText: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: '#F59E0B',
+      fontFamily: 'monospace',
+    },
+    metaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginTop: 6,
+    },
+    phoneTouch: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: colors.cardElevated,
+      paddingHorizontal: 7,
+      paddingVertical: 2,
+      borderRadius: 5,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    phoneText: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontFamily: 'monospace',
+    },
+    orderPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: colors.cardElevated,
+      paddingHorizontal: 7,
+      paddingVertical: 2,
+      borderRadius: 5,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    orderPillText: {
+      fontSize: 10.5,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    gstinPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      backgroundColor: colors.cardElevated,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 5,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    gstinLabel: {
+      fontSize: 9.5,
+      color: colors.textTertiary,
+      fontWeight: '600',
+    },
+    gstinVal: {
+      fontSize: 10,
+      fontFamily: 'monospace',
+      color: colors.textSecondary,
+    },
+    addressRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: 6,
+    },
+    addressText: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      flex: 1,
+    },
+    divider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginVertical: 10,
+    },
+    bottomActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    actionBtn: {
+      flex: 1,
+    },
+    iconBtn: {
+      width: 38,
+      height: 38,
+      borderRadius: 8,
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.borderMedium,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    iconBtnDisabled: {
+      opacity: 0.5,
+    },
+    walkInBadge: {
+      backgroundColor: 'rgba(245, 158, 11, 0.12)',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: 'rgba(245, 158, 11, 0.3)',
+      flexShrink: 0,
+    },
+    walkInBadgeText: {
+      fontSize: 9,
+      fontWeight: '800',
+      color: '#F59E0B',
+      textTransform: 'uppercase',
+    },
+    categoryPill: {
+      backgroundColor: 'rgba(59, 130, 246, 0.12)',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+      borderWidth: 1,
+      borderColor: 'rgba(59, 130, 246, 0.25)',
+    },
+    categoryText: {
+      fontSize: 9.5,
+      fontWeight: '700',
+      color: '#3B82F6',
+      textTransform: 'uppercase',
+    },
+  });

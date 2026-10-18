@@ -5,7 +5,7 @@ import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { formatINR, formatDate, cleanPhoneNumber } from '@/lib/formatters';
 import { downloadAndSharePdf } from '@/lib/pdf';
 import { useAuth } from '@/lib/auth-context';
@@ -25,6 +25,8 @@ export function DeliveryRunModal({
   visible,
   onClose,
 }: DeliveryRunModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const { user } = useAuth();
   const isSupervisor = user?.role === 'SUPERVISOR';
   if (!delivery) return null;
@@ -127,7 +129,7 @@ export function DeliveryRunModal({
 
           {/* Delivered Timestamp */}
           <View style={styles.dateMetaRow}>
-            <Ionicons name="calendar-outline" size={12} color={Colors.dark.textTertiary} />
+            <Ionicons name="calendar-outline" size={12} color={colors.textTertiary} />
             <Text style={styles.dateMetaText}>
               Delivered on {formatDate(delivery.cashCollectedAt || delivery.createdAt)}
             </Text>
@@ -239,201 +241,202 @@ export function DeliveryRunModal({
   );
 }
 
-const styles = StyleSheet.create({
-  modalContent: {
-    paddingBottom: 16,
-  },
-  summaryCard: {
-    padding: 12,
-    backgroundColor: Colors.dark.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    marginBottom: 10,
-  },
-  summaryTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  summaryLabel: {
-    fontSize: 10.5,
-    color: Colors.dark.textTertiary,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  summaryDriverName: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginTop: 2,
-  },
-  contactRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 10,
-    flexWrap: 'wrap',
-  },
-  actionChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: Colors.dark.cardElevated,
-    borderRadius: 6,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  actionChipText: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    fontWeight: '600',
-  },
-  dateMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginTop: 8,
-  },
-  dateMetaText: {
-    fontSize: 11,
-    color: Colors.dark.textTertiary,
-  },
-  paymentCard: {
-    padding: 12,
-    backgroundColor: Colors.dark.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    marginBottom: 14,
-  },
-  paymentRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  paymentLabel: {
-    fontSize: 10.5,
-    color: Colors.dark.textTertiary,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  paymentValue: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    fontFamily: 'monospace',
-    marginTop: 2,
-  },
-  settledBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-  },
-  settledBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  custodyBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.3)',
-  },
-  custodyBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#F59E0B',
-  },
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: Colors.dark.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  itemCard: {
-    padding: 10,
-    marginBottom: 6,
-    backgroundColor: Colors.dark.card,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  itemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  checkCircle: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.4)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  itemName: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  itemSub: {
-    fontSize: 10.5,
-    color: Colors.dark.textTertiary,
-    marginTop: 1,
-  },
-  itemQty: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  deliveredPill: {
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    borderRadius: 4,
-    paddingVertical: 1,
-    paddingHorizontal: 5,
-    marginTop: 2,
-  },
-  deliveredPillText: {
-    fontSize: 9.5,
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  notesBox: {
-    padding: 10,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    marginTop: 8,
-  },
-  notesLabel: {
-    fontSize: 10,
-    color: Colors.dark.textTertiary,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  notesText: {
-    fontSize: 11.5,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-});
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    modalContent: {
+      paddingBottom: 16,
+    },
+    summaryCard: {
+      padding: 12,
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginBottom: 10,
+    },
+    summaryTopRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      gap: 8,
+    },
+    summaryLabel: {
+      fontSize: 10.5,
+      color: colors.textTertiary,
+      fontWeight: '700',
+      textTransform: 'uppercase',
+    },
+    summaryDriverName: {
+      fontSize: 13.5,
+      fontWeight: '800',
+      color: colors.text,
+      marginTop: 2,
+    },
+    contactRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginTop: 10,
+      flexWrap: 'wrap',
+    },
+    actionChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      backgroundColor: colors.cardElevated,
+      borderRadius: 6,
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    actionChipText: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    dateMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      marginTop: 8,
+    },
+    dateMetaText: {
+      fontSize: 11,
+      color: colors.textTertiary,
+    },
+    paymentCard: {
+      padding: 12,
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginBottom: 14,
+    },
+    paymentRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    paymentLabel: {
+      fontSize: 10.5,
+      color: colors.textTertiary,
+      fontWeight: '700',
+      textTransform: 'uppercase',
+    },
+    paymentValue: {
+      fontSize: 16,
+      fontWeight: '900',
+      color: colors.text,
+      fontFamily: 'monospace',
+      marginTop: 2,
+    },
+    settledBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+    },
+    settledBadgeText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: '#10B981',
+    },
+    custodyBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: 'rgba(245, 158, 11, 0.12)',
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: 'rgba(245, 158, 11, 0.3)',
+    },
+    custodyBadgeText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: '#F59E0B',
+    },
+    sectionTitle: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      marginBottom: 8,
+    },
+    itemCard: {
+      padding: 10,
+      marginBottom: 6,
+      backgroundColor: colors.card,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    itemRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    checkCircle: {
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      backgroundColor: 'rgba(16, 185, 129, 0.15)',
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.4)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    itemName: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    itemSub: {
+      fontSize: 10.5,
+      color: colors.textTertiary,
+      marginTop: 1,
+    },
+    itemQty: {
+      fontSize: 12.5,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    deliveredPill: {
+      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+      borderRadius: 4,
+      paddingVertical: 1,
+      paddingHorizontal: 5,
+      marginTop: 2,
+    },
+    deliveredPillText: {
+      fontSize: 9.5,
+      fontWeight: '700',
+      color: '#10B981',
+    },
+    notesBox: {
+      padding: 10,
+      backgroundColor: colors.cardElevated,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginTop: 8,
+    },
+    notesLabel: {
+      fontSize: 10,
+      color: colors.textTertiary,
+      fontWeight: '700',
+      textTransform: 'uppercase',
+    },
+    notesText: {
+      fontSize: 11.5,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+  });

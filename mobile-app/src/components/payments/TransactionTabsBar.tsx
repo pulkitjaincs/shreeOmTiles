@@ -1,7 +1,8 @@
 import React from 'react';
 import { StyleSheet, ScrollView, TouchableOpacity, Text } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { ActiveTabType } from './types';
 
 interface TransactionTabsBarProps {
@@ -23,6 +24,9 @@ export function TransactionTabsBar({
   inflowsCount,
   creditsCount,
 }: TransactionTabsBarProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   return (
     <ScrollView
       horizontal
@@ -39,7 +43,7 @@ export function TransactionTabsBar({
         <Ionicons
           name="time-outline"
           size={14}
-          color={activeTab === 'dues' ? '#EF4444' : Colors.dark.textSecondary}
+          color={activeTab === 'dues' ? '#EF4444' : colors.textSecondary}
         />
         <Text
           style={[styles.tabChipText, activeTab === 'dues' && styles.tabChipTextActiveRose]}
@@ -57,7 +61,7 @@ export function TransactionTabsBar({
         <Ionicons
           name="arrow-up-circle-outline"
           size={14}
-          color={activeTab === 'payables' ? '#F59E0B' : Colors.dark.textSecondary}
+          color={activeTab === 'payables' ? '#F59E0B' : colors.textSecondary}
         />
         <Text
           style={[
@@ -78,7 +82,7 @@ export function TransactionTabsBar({
         <Ionicons
           name="swap-horizontal"
           size={14}
-          color={activeTab === 'all' ? '#09090B' : Colors.dark.textSecondary}
+          color={activeTab === 'all' ? colors.primaryForeground : colors.textSecondary}
         />
         <Text
           style={[styles.tabChipText, activeTab === 'all' && styles.tabChipTextActivePrimary]}
@@ -96,7 +100,7 @@ export function TransactionTabsBar({
         <Ionicons
           name="checkmark-circle-outline"
           size={14}
-          color={activeTab === 'inflows' ? '#10B981' : Colors.dark.textSecondary}
+          color={activeTab === 'inflows' ? '#10B981' : colors.textSecondary}
         />
         <Text
           style={[
@@ -117,7 +121,7 @@ export function TransactionTabsBar({
         <Ionicons
           name="book-outline"
           size={14}
-          color={activeTab === 'credits' ? '#F59E0B' : Colors.dark.textSecondary}
+          color={activeTab === 'credits' ? '#F59E0B' : colors.textSecondary}
         />
         <Text
           style={[
@@ -132,60 +136,61 @@ export function TransactionTabsBar({
   );
 }
 
-const styles = StyleSheet.create({
-  tabsScroll: {
-    marginVertical: 6,
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  tabChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    gap: 6,
-  },
-  tabChipActiveRose: {
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    borderColor: 'rgba(239, 68, 68, 0.4)',
-  },
-  tabChipActiveAmber: {
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
-    borderColor: 'rgba(245, 158, 11, 0.4)',
-  },
-  tabChipActivePrimary: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
-  },
-  tabChipActiveEmerald: {
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    borderColor: 'rgba(16, 185, 129, 0.4)',
-  },
-  tabChipText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.dark.textSecondary,
-  },
-  tabChipTextActiveRose: {
-    color: '#EF4444',
-    fontWeight: '800',
-  },
-  tabChipTextActiveAmber: {
-    color: '#F59E0B',
-    fontWeight: '800',
-  },
-  tabChipTextActivePrimary: {
-    color: '#09090B',
-    fontWeight: '800',
-  },
-  tabChipTextActiveEmerald: {
-    color: '#10B981',
-    fontWeight: '800',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    tabsScroll: {
+      marginVertical: 6,
+    },
+    scrollContent: {
+      paddingHorizontal: 16,
+      gap: 8,
+    },
+    tabChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 10,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: 6,
+    },
+    tabChipActiveRose: {
+      backgroundColor: 'rgba(239, 68, 68, 0.12)',
+      borderColor: 'rgba(239, 68, 68, 0.4)',
+    },
+    tabChipActiveAmber: {
+      backgroundColor: 'rgba(245, 158, 11, 0.12)',
+      borderColor: 'rgba(245, 158, 11, 0.4)',
+    },
+    tabChipActivePrimary: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    tabChipActiveEmerald: {
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+      borderColor: 'rgba(16, 185, 129, 0.4)',
+    },
+    tabChipText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    tabChipTextActiveRose: {
+      color: '#EF4444',
+      fontWeight: '800',
+    },
+    tabChipTextActiveAmber: {
+      color: '#F59E0B',
+      fontWeight: '800',
+    },
+    tabChipTextActivePrimary: {
+      color: colors.primaryForeground,
+      fontWeight: '800',
+    },
+    tabChipTextActiveEmerald: {
+      color: '#10B981',
+      fontWeight: '800',
+    },
+  });

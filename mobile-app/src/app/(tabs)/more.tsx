@@ -12,7 +12,7 @@ import {
 import { useAuth } from '@/lib/auth-context';
 import { mobileApiRequest, cachedMobileApiRequest, subscribeToAppSync } from '@/lib/api';
 import { getCacheStats, clearMobileAppCache, CacheStats } from '@/lib/cache-manager';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles, ThemeColors } from '@/lib/theme-context';
 import { Header } from '@/components/ui/Header';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -37,12 +37,11 @@ import { DayBookView } from '@/components/day-book/DayBookView';
 import { QuotationsView } from '@/components/quotations/QuotationsView';
 import { PurchasesView } from '@/components/purchases/PurchasesView';
 import { ExpensesView } from '@/components/expenses/ExpensesView';
-import { useTheme } from '@/lib/theme-context';
-
 export default function MoreScreen() {
   const { user, logout, updateUser } = useAuth();
   const router = useRouter();
-  const { themeMode, setThemeMode } = useTheme();
+  const { themeMode, setThemeMode, colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const isDirector = user?.role === 'OWNER' || (user?.role as any) === 'DIRECTOR';
   const isAdmin = user?.role === 'ADMIN';
   const isAccountant = user?.role === 'ACCOUNTANT';
@@ -526,7 +525,7 @@ export default function MoreScreen() {
               activeOpacity={0.7}
             >
               <View style={styles.menuIconCircle}>
-                <Ionicons name="people-outline" size={20} color="#FFFFFF" />
+                <Ionicons name="people-outline" size={20} color={colors.text} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.menuItemTitle}>Customer & Supplier Parties</Text>
@@ -534,7 +533,7 @@ export default function MoreScreen() {
                   Customer directory, 360° statements & WhatsApp reminders
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={Colors.dark.textTertiary} />
+              <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
             </TouchableOpacity>
 
             {/* 2. Quotations / Estimates (Salesmen, Accountants, Admins, Directors) */}
@@ -552,7 +551,7 @@ export default function MoreScreen() {
                   Browse quotations, download PDFs & 1-click invoice conversion
                 </Text>
               </View>
-              <Ionicons name="chevron-forward" size={18} color={Colors.dark.textTertiary} />
+              <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
             </TouchableOpacity>
 
 
@@ -576,7 +575,7 @@ export default function MoreScreen() {
                       : 'Vendor purchase orders, inventory increment & debit notes'}
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={Colors.dark.textTertiary} />
+                <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
               </TouchableOpacity>
             ) : null}
 
@@ -596,7 +595,7 @@ export default function MoreScreen() {
                     Daily overheads, rent, utilities & cash outflows
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={Colors.dark.textTertiary} />
+                <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
               </TouchableOpacity>
             ) : null}
 
@@ -609,7 +608,7 @@ export default function MoreScreen() {
                 activeOpacity={0.7}
               >
                 <View style={styles.menuIconCircle}>
-                  <Ionicons name="shield-checkmark-outline" size={20} color="#FFFFFF" />
+                  <Ionicons name="shield-checkmark-outline" size={20} color={colors.text} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.menuItemTitle}>Staff Roster & Permissions</Text>
@@ -617,7 +616,7 @@ export default function MoreScreen() {
                     Manage salesmen, drivers & password resets
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={Colors.dark.textTertiary} />
+                <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
               </TouchableOpacity>
             ) : null}
 
@@ -629,7 +628,7 @@ export default function MoreScreen() {
                 activeOpacity={0.7}
               >
                 <View style={styles.menuIconCircle}>
-                  <Ionicons name="qr-code-outline" size={20} color="#FFFFFF" />
+                  <Ionicons name="qr-code-outline" size={20} color={colors.text} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.menuItemTitle}>UPI & Billing Settings</Text>
@@ -637,7 +636,7 @@ export default function MoreScreen() {
                     Configure dynamic QR bank accounts & company profile
                   </Text>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={Colors.dark.textTertiary} />
+                <Ionicons name="chevron-forward" size={18} color={colors.textTertiary} />
               </TouchableOpacity>
             ) : null}
 
@@ -671,7 +670,7 @@ export default function MoreScreen() {
                       <Ionicons
                         name={iconName as any}
                         size={14}
-                        color={isActive ? '#09090B' : Colors.dark.textSecondary}
+                        color={isActive ? colors.primaryForeground : colors.textSecondary}
                       />
                       <Text style={[styles.themeOptionText, isActive && styles.themeOptionTextActive]}>
                         {label}
@@ -889,300 +888,303 @@ export default function MoreScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: Colors.dark.background,
-  },
-  partiesContainer: {
-    flex: 1,
-  },
-  scrollContainer: {
-    padding: 16,
-    paddingBottom: 95,
-  },
-  profileCard: {
-    padding: 18,
-    borderRadius: 16,
-    backgroundColor: '#16161A',
-    marginBottom: 20,
-  },
-  profileRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  avatarCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    color: '#09090B',
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  userName: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  userPhone: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  roleTag: {
-    backgroundColor: Colors.dark.secondary,
-    paddingHorizontal: 8,
-    paddingVertical: 2.5,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-    marginTop: 6,
-  },
-  roleTagText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  menuSectionHeader: {
-    fontSize: 11.5,
-    fontWeight: '800',
-    color: Colors.dark.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 10,
-    marginLeft: 4,
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-    backgroundColor: Colors.dark.card,
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    marginBottom: 10,
-  },
-  menuIconCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
-    backgroundColor: Colors.dark.secondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  menuItemTitle: {
-    fontSize: 14.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  menuItemSub: {
-    fontSize: 11.5,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  notificationCard: {
-    backgroundColor: '#18181B',
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#27272A',
-    marginTop: 4,
-    marginBottom: 4,
-  },
-  notificationHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  notificationIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: 'rgba(217, 119, 6, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  notificationTitle: {
-    fontSize: 13.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  notificationSub: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  notificationActionRow: {
-    marginTop: 12,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  testAlertBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(217, 119, 6, 0.12)',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(217, 119, 6, 0.3)',
-  },
-  testAlertBtnText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#D97706',
-  },
-  cacheCard: {
-    backgroundColor: '#18181B',
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#27272A',
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  cacheHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  cacheIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cacheTitle: {
-    fontSize: 13.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  cacheSub: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  cacheInfoRow: {
-    flexDirection: 'row',
-    marginTop: 12,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.06)',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  cacheInfoCol: {
-    flex: 1,
-  },
-  cacheInfoLabel: {
-    fontSize: 10,
-    color: Colors.dark.textTertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  cacheInfoValue: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.dark.text,
-    marginTop: 2,
-  },
-  cacheActionRow: {
-    marginTop: 12,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-  },
-  clearCacheBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-  },
-  clearCacheBtnText: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  themeCard: {
-    backgroundColor: '#18181B',
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#27272A',
-    marginTop: 14,
-    marginBottom: 4,
-  },
-  themeHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  themeIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: 'rgba(168, 85, 247, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  themeTitle: {
-    fontSize: 13.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  themeSub: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  themeSegmentRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 14,
-    backgroundColor: 'rgba(0, 0, 0, 0.35)',
-    padding: 4,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  themeOptionBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    paddingVertical: 8,
-    borderRadius: 7,
-  },
-  themeOptionBtnActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  themeOptionText: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: Colors.dark.textSecondary,
-  },
-  themeOptionTextActive: {
-    color: '#09090B',
-    fontWeight: '800',
-  },
-});
+const createStyles = (colors: ThemeColors, isDark: boolean) =>
+  StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    partiesContainer: {
+      flex: 1,
+    },
+    scrollContainer: {
+      padding: 16,
+      paddingBottom: 95,
+    },
+    profileCard: {
+      padding: 18,
+      borderRadius: 16,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginBottom: 20,
+    },
+    profileRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+    },
+    avatarCircle: {
+      width: 52,
+      height: 52,
+      borderRadius: 16,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    avatarText: {
+      color: colors.primaryForeground,
+      fontSize: 18,
+      fontWeight: '900',
+    },
+    userName: {
+      fontSize: 16,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    userPhone: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    roleTag: {
+      backgroundColor: colors.secondary,
+      paddingHorizontal: 8,
+      paddingVertical: 2.5,
+      borderRadius: 6,
+      alignSelf: 'flex-start',
+      marginTop: 6,
+    },
+    roleTagText: {
+      fontSize: 10,
+      fontWeight: '800',
+      color: colors.secondaryForeground,
+    },
+    menuSectionHeader: {
+      fontSize: 11.5,
+      fontWeight: '800',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+      marginBottom: 10,
+      marginLeft: 4,
+    },
+    menuItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 14,
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginBottom: 10,
+    },
+    menuIconCircle: {
+      width: 42,
+      height: 42,
+      borderRadius: 12,
+      backgroundColor: colors.secondary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    menuItemTitle: {
+      fontSize: 14.5,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    menuItemSub: {
+      fontSize: 11.5,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    notificationCard: {
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginTop: 4,
+      marginBottom: 4,
+    },
+    notificationHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    notificationIconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: 'rgba(217, 119, 6, 0.15)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    notificationTitle: {
+      fontSize: 13.5,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    notificationSub: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    notificationActionRow: {
+      marginTop: 12,
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+    },
+    testAlertBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: 'rgba(217, 119, 6, 0.12)',
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: 'rgba(217, 119, 6, 0.3)',
+    },
+    testAlertBtnText: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      color: '#D97706',
+    },
+    cacheCard: {
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginTop: 8,
+      marginBottom: 4,
+    },
+    cacheHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    cacheIconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: 'rgba(16, 185, 129, 0.15)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    cacheTitle: {
+      fontSize: 13.5,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    cacheSub: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    cacheInfoRow: {
+      flexDirection: 'row',
+      marginTop: 12,
+      paddingTop: 10,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      justifyContent: 'space-between',
+      gap: 8,
+    },
+    cacheInfoCol: {
+      flex: 1,
+    },
+    cacheInfoLabel: {
+      fontSize: 10,
+      color: colors.textTertiary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    cacheInfoValue: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.text,
+      marginTop: 2,
+    },
+    cacheActionRow: {
+      marginTop: 12,
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+    },
+    clearCacheBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+    },
+    clearCacheBtnText: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      color: '#10B981',
+    },
+    themeCard: {
+      backgroundColor: colors.card,
+      borderRadius: 14,
+      padding: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginTop: 14,
+      marginBottom: 4,
+    },
+    themeHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    themeIconWrap: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: 'rgba(168, 85, 247, 0.15)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    themeTitle: {
+      fontSize: 13.5,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    themeSub: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    themeSegmentRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 14,
+      backgroundColor: isDark ? 'rgba(0, 0, 0, 0.35)' : colors.cardElevated,
+      padding: 4,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    themeOptionBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 5,
+      paddingVertical: 8,
+      borderRadius: 7,
+    },
+    themeOptionBtnActive: {
+      backgroundColor: colors.primary,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.15,
+      shadowRadius: 2,
+      elevation: 2,
+    },
+    themeOptionText: {
+      fontSize: 11.5,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    themeOptionTextActive: {
+      color: colors.primaryForeground,
+      fontWeight: '800',
+    },
+  });

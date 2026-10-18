@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
   Linking,
 } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles, ThemeColors } from '@/lib/theme-context';
 import { Header } from '@/components/ui/Header';
 import { Card } from '@/components/ui/Card';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -32,6 +32,8 @@ export function SupervisorDashboardView({
   onRefresh,
   router,
 }: SupervisorDashboardViewProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [deliveries, setDeliveries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatingItemId, setUpdatingItemId] = useState<string | null>(null);
@@ -157,7 +159,8 @@ export function SupervisorDashboardView({
               loadData(true);
               onRefresh();
             }}
-            tintColor="#FFFFFF"
+            tintColor={colors.primary}
+            colors={[colors.primary]}
           />
         }
       >
@@ -402,316 +405,317 @@ export function SupervisorDashboardView({
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: Colors.dark.background,
-  },
-  content: {
-    flex: 1,
-  },
-  scrollContainer: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  warehouseBanner: {
-    padding: 14,
-    borderRadius: 14,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(168, 85, 247, 0.3)',
-    backgroundColor: 'rgba(168, 85, 247, 0.06)',
-  },
-  bannerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  warehouseIconCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    backgroundColor: 'rgba(168, 85, 247, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  warehouseTitle: {
-    fontSize: 14.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  warehouseSub: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 1,
-  },
-  rolePill: {
-    backgroundColor: 'rgba(168, 85, 247, 0.2)',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(168, 85, 247, 0.4)',
-  },
-  rolePillText: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: '#C084FC',
-    letterSpacing: 0.5,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-  statCard: {
-    flex: 1,
-    padding: 10,
-    borderRadius: 12,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  statIconRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: '900',
-    fontFamily: 'monospace',
-  },
-  statLabel: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginTop: 4,
-  },
-  statSub: {
-    fontSize: 9,
-    color: Colors.dark.textTertiary,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 4,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  badgePurple: {
-    backgroundColor: 'rgba(168, 85, 247, 0.15)',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  badgePurpleText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#C084FC',
-  },
-  sectionSub: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-    marginBottom: 10,
-  },
-  emptyRunsCard: {
-    padding: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 14,
-    marginBottom: 14,
-  },
-  emptyRunsTitle: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginTop: 8,
-  },
-  emptyRunsSub: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    textAlign: 'center',
-    marginTop: 3,
-  },
-  runCard: {
-    padding: 14,
-    borderRadius: 14,
-    marginBottom: 12,
-  },
-  runHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-  },
-  invoiceNo: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  customerName: {
-    fontSize: 11.5,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  dateMeta: {
-    fontSize: 10,
-    color: Colors.dark.textTertiary,
-    marginTop: 1,
-  },
-  driverTag: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.25)',
-  },
-  driverTagName: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#10B981',
-    maxWidth: 90,
-  },
-  unassignedDriverTag: {
-    backgroundColor: Colors.dark.secondary,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  unassignedDriverText: {
-    fontSize: 10,
-    color: Colors.dark.textTertiary,
-    fontWeight: '600',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: Colors.dark.border,
-    marginVertical: 10,
-  },
-  itemsList: {
-    gap: 8,
-  },
-  itemRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 10,
-    borderRadius: 10,
-    backgroundColor: Colors.dark.cardElevated,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    gap: 10,
-  },
-  itemRowPicked: {
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    backgroundColor: 'rgba(16, 185, 129, 0.05)',
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  itemName: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  qtyBadge: {
-    backgroundColor: Colors.dark.secondary,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  qtyText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  batchText: {
-    fontSize: 10,
-    color: Colors.dark.textTertiary,
-    marginTop: 2,
-    fontFamily: 'monospace',
-  },
-  pickedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.25)',
-  },
-  pickedText: {
-    color: '#10B981',
-    fontSize: 10.5,
-    fontWeight: '800',
-  },
-  confirmPickBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  confirmPickBtnText: {
-    color: '#09090B',
-    fontSize: 11,
-    fontWeight: '800',
-  },
-  hubSection: {
-    marginTop: 14,
-  },
-  hubTitle: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginBottom: 8,
-  },
-  hubGrid: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  hubCard: {
-    flex: 1,
-    padding: 12,
-    borderRadius: 12,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    alignItems: 'center',
-  },
-  hubIconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 6,
-  },
-  hubCardTitle: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    textAlign: 'center',
-  },
-  hubCardSub: {
-    fontSize: 9,
-    color: Colors.dark.textTertiary,
-    textAlign: 'center',
-    marginTop: 2,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      flex: 1,
+    },
+    scrollContainer: {
+      padding: 16,
+      paddingBottom: 40,
+    },
+    warehouseBanner: {
+      padding: 14,
+      borderRadius: 14,
+      marginBottom: 12,
+      borderWidth: 1,
+      borderColor: 'rgba(168, 85, 247, 0.3)',
+      backgroundColor: 'rgba(168, 85, 247, 0.06)',
+    },
+    bannerTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    warehouseIconCircle: {
+      width: 38,
+      height: 38,
+      borderRadius: 10,
+      backgroundColor: 'rgba(168, 85, 247, 0.15)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    warehouseTitle: {
+      fontSize: 14.5,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    warehouseSub: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 1,
+    },
+    rolePill: {
+      backgroundColor: 'rgba(168, 85, 247, 0.2)',
+      paddingHorizontal: 8,
+      paddingVertical: 3,
+      borderRadius: 6,
+      borderWidth: 1,
+      borderColor: 'rgba(168, 85, 247, 0.4)',
+    },
+    rolePillText: {
+      fontSize: 9.5,
+      fontWeight: '800',
+      color: '#C084FC',
+      letterSpacing: 0.5,
+    },
+    statsGrid: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 16,
+    },
+    statCard: {
+      flex: 1,
+      padding: 10,
+      borderRadius: 12,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    statIconRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    statValue: {
+      fontSize: 16,
+      fontWeight: '900',
+      fontFamily: 'monospace',
+    },
+    statLabel: {
+      fontSize: 10.5,
+      fontWeight: '700',
+      color: colors.text,
+      marginTop: 4,
+    },
+    statSub: {
+      fontSize: 9,
+      color: colors.textTertiary,
+    },
+    sectionHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: 4,
+    },
+    sectionTitle: {
+      fontSize: 14,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    badgePurple: {
+      backgroundColor: 'rgba(168, 85, 247, 0.15)',
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      borderRadius: 6,
+    },
+    badgePurpleText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: '#C084FC',
+    },
+    sectionSub: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 2,
+      marginBottom: 10,
+    },
+    emptyRunsCard: {
+      padding: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 14,
+      marginBottom: 14,
+    },
+    emptyRunsTitle: {
+      fontSize: 13.5,
+      fontWeight: '800',
+      color: colors.text,
+      marginTop: 8,
+    },
+    emptyRunsSub: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginTop: 3,
+    },
+    runCard: {
+      padding: 14,
+      borderRadius: 14,
+      marginBottom: 12,
+    },
+    runHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      justifyContent: 'space-between',
+    },
+    invoiceNo: {
+      fontSize: 13,
+      fontWeight: '800',
+      color: colors.text,
+    },
+    customerName: {
+      fontSize: 11.5,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    dateMeta: {
+      fontSize: 10,
+      color: colors.textTertiary,
+      marginTop: 1,
+    },
+    driverTag: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.25)',
+    },
+    driverTagName: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: '#10B981',
+      maxWidth: 90,
+    },
+    unassignedDriverTag: {
+      backgroundColor: colors.secondary,
+      paddingHorizontal: 6,
+      paddingVertical: 3,
+      borderRadius: 6,
+    },
+    unassignedDriverText: {
+      fontSize: 10,
+      color: colors.textTertiary,
+      fontWeight: '600',
+    },
+    divider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginVertical: 10,
+    },
+    itemsList: {
+      gap: 8,
+    },
+    itemRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: 10,
+      borderRadius: 10,
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+      gap: 10,
+    },
+    itemRowPicked: {
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+      backgroundColor: 'rgba(16, 185, 129, 0.05)',
+    },
+    nameRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    itemName: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    qtyBadge: {
+      backgroundColor: colors.secondary,
+      paddingHorizontal: 6,
+      paddingVertical: 1,
+      borderRadius: 4,
+    },
+    qtyText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.secondaryForeground,
+    },
+    batchText: {
+      fontSize: 10,
+      color: colors.textTertiary,
+      marginTop: 2,
+      fontFamily: 'monospace',
+    },
+    pickedBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+      paddingHorizontal: 8,
+      paddingVertical: 5,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.25)',
+    },
+    pickedText: {
+      color: '#10B981',
+      fontSize: 10.5,
+      fontWeight: '800',
+    },
+    confirmPickBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: colors.primary,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 8,
+    },
+    confirmPickBtnText: {
+      color: colors.primaryForeground,
+      fontSize: 11,
+      fontWeight: '800',
+    },
+    hubSection: {
+      marginTop: 14,
+    },
+    hubTitle: {
+      fontSize: 13.5,
+      fontWeight: '800',
+      color: colors.text,
+      marginBottom: 8,
+    },
+    hubGrid: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    hubCard: {
+      flex: 1,
+      padding: 12,
+      borderRadius: 12,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      alignItems: 'center',
+    },
+    hubIconCircle: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 6,
+    },
+    hubCardTitle: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: colors.text,
+      textAlign: 'center',
+    },
+    hubCardSub: {
+      fontSize: 9,
+      color: colors.textTertiary,
+      textAlign: 'center',
+      marginTop: 2,
+    },
+  });

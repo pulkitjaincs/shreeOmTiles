@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Colors } from '@/constants/theme';
+import { Colors, ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { mobileApiRequest } from '@/lib/api';
 
 interface AddUpiModalProps {
@@ -18,6 +19,8 @@ export function AddUpiModal({
   onClose,
   onSuccess,
 }: AddUpiModalProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [upiId, setUpiId] = useState('');
   const [merchantName, setMerchantName] = useState('');
   const [isPrimary, setIsPrimary] = useState(false);
@@ -88,7 +91,7 @@ export function AddUpiModal({
           <Ionicons
             name={isPrimary ? 'checkbox' : 'square-outline'}
             size={20}
-            color={isPrimary ? '#10B981' : Colors.dark.textSecondary}
+            color={isPrimary ? '#10B981' : colors.textSecondary}
           />
           <Text style={styles.checkboxLabel}>Make this the default primary UPI ID</Text>
         </TouchableOpacity>
@@ -106,18 +109,19 @@ export function AddUpiModal({
   );
 }
 
-const styles = StyleSheet.create({
-  checkboxRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginVertical: 10,
-    paddingHorizontal: 2,
-  },
-  checkboxLabel: {
-    fontSize: 13,
-    color: Colors.dark.text,
-    fontWeight: '600',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    checkboxRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginVertical: 10,
+      paddingHorizontal: 2,
+    },
+    checkboxLabel: {
+      fontSize: 13,
+      color: colors.text,
+      fontWeight: '600',
+    },
+  });
 

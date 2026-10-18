@@ -10,7 +10,8 @@ import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { Colors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { mobileApiRequest } from '@/lib/api';
 import { formatINR } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
@@ -33,6 +34,8 @@ export function RecordCreditModal({
   defaultPartyId,
   onPartyCreated,
 }: RecordCreditModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [partyId, setPartyId] = useState('');
   const [amount, setAmount] = useState('');
   const [type, setType] = useState<'RECEIVABLE' | 'PAYABLE'>('RECEIVABLE');
@@ -158,7 +161,7 @@ export function RecordCreditModal({
             <Ionicons
               name="arrow-down-circle"
               size={15}
-              color={type === 'RECEIVABLE' ? '#EF4444' : Colors.dark.textSecondary}
+              color={type === 'RECEIVABLE' ? '#EF4444' : colors.textSecondary}
             />
             <View>
               <Text
@@ -181,7 +184,7 @@ export function RecordCreditModal({
             <Ionicons
               name="arrow-up-circle"
               size={15}
-              color={type === 'PAYABLE' ? '#F59E0B' : Colors.dark.textSecondary}
+              color={type === 'PAYABLE' ? '#F59E0B' : colors.textSecondary}
             />
             <View>
               <Text
@@ -350,129 +353,130 @@ export function RecordCreditModal({
   );
 }
 
-const styles = StyleSheet.create({
-  sectionLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    marginBottom: 6,
-    textTransform: 'uppercase',
-  },
-  directionToggle: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-  },
-  dirBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  dirBtnActiveReceivable: {
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    borderColor: '#EF4444',
-  },
-  dirBtnActivePayable: {
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
-    borderColor: '#F59E0B',
-  },
-  dirTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  dirSub: {
-    fontSize: 10,
-    color: Colors.dark.textTertiary,
-    marginTop: 1,
-  },
-  partySelectHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  partySelectLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    textTransform: 'uppercase',
-  },
-  createPartyBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-  },
-  createPartyBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  spotPartyCard: {
-    backgroundColor: 'rgba(16, 185, 129, 0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 10,
-    gap: 6,
-  },
-  spotHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  spotTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  spotCancelBtn: {
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  spotCancelText: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    fontWeight: '600',
-  },
-  presetsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 6,
-    marginBottom: 4,
-  },
-  presetsLabel: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    fontWeight: '600',
-  },
-  presetChip: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  presetChipText: {
-    fontSize: 11,
-    color: Colors.dark.text,
-    fontWeight: '600',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    sectionLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      marginBottom: 6,
+      textTransform: 'uppercase',
+    },
+    directionToggle: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 12,
+    },
+    dirBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 10,
+      paddingHorizontal: 10,
+      borderRadius: 10,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    dirBtnActiveReceivable: {
+      backgroundColor: 'rgba(239, 68, 68, 0.12)',
+      borderColor: '#EF4444',
+    },
+    dirBtnActivePayable: {
+      backgroundColor: 'rgba(245, 158, 11, 0.12)',
+      borderColor: '#F59E0B',
+    },
+    dirTitle: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    dirSub: {
+      fontSize: 10,
+      color: colors.textTertiary,
+      marginTop: 1,
+    },
+    partySelectHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 4,
+    },
+    partySelectLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+    },
+    createPartyBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingVertical: 2,
+      paddingHorizontal: 6,
+    },
+    createPartyBtnText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: '#10B981',
+    },
+    spotPartyCard: {
+      backgroundColor: 'rgba(16, 185, 129, 0.05)',
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+      borderRadius: 12,
+      padding: 12,
+      marginBottom: 10,
+      gap: 6,
+    },
+    spotHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 6,
+    },
+    spotTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: '#10B981',
+    },
+    spotCancelBtn: {
+      paddingVertical: 3,
+      paddingHorizontal: 8,
+      borderRadius: 6,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    spotCancelText: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    presetsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginTop: 6,
+      marginBottom: 4,
+    },
+    presetsLabel: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    presetChip: {
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+      borderRadius: 6,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    presetChipText: {
+      fontSize: 11,
+      color: colors.text,
+      fontWeight: '600',
+    },
+  });

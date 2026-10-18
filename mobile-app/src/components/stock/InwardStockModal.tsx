@@ -4,7 +4,8 @@ import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { Colors } from '@/constants/theme';
+import { Colors, ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { mobileApiRequest } from '@/lib/api';
 import { Ionicons } from '@expo/vector-icons';
 import { Product, Warehouse, StockItem } from './types';
@@ -32,6 +33,8 @@ export function InwardStockModal({
   initialWarehouseId,
   initialBatchNo,
 }: InwardStockModalProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [selectedProductId, setSelectedProductId] = useState('');
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
   const [batchNo, setBatchNo] = useState('');
@@ -125,7 +128,7 @@ export function InwardStockModal({
                 <Text style={styles.projLabel}>Current Stock</Text>
                 <Text style={styles.projVal}>{currentQty} {selectedProduct?.unit || 'units'}</Text>
               </View>
-              <Ionicons name="arrow-forward" size={16} color={Colors.dark.textSecondary} />
+              <Ionicons name="arrow-forward" size={16} color={colors.textSecondary} />
               <View>
                 <Text style={styles.projLabel}>Projected After Inward</Text>
                 <Text style={[styles.projVal, { color: '#10B981' }]}>
@@ -166,32 +169,33 @@ export function InwardStockModal({
   );
 }
 
-const styles = StyleSheet.create({
-  stockProjectionBox: {
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginVertical: 8,
-  },
-  stockProjRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  projLabel: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-  },
-  projVal: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    fontFamily: 'monospace',
-    marginTop: 2,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    stockProjectionBox: {
+      backgroundColor: colors.cardElevated,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      marginVertical: 8,
+    },
+    stockProjRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    projLabel: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontWeight: '600',
+      textTransform: 'uppercase',
+    },
+    projVal: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: colors.text,
+      fontFamily: 'monospace',
+      marginTop: 2,
+    },
+  });

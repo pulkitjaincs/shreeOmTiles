@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { useThemedStyles, ThemeColors } from '@/lib/theme-context';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { formatINR } from '@/lib/formatters';
@@ -22,6 +22,7 @@ export function DriverCashHandoverQueue({
   onVerifyHandover,
   onNavigateDeliveries,
 }: DriverCashHandoverQueueProps) {
+  const styles = useThemedStyles(createStyles);
   if (deliveries.length === 0 && Number(cashTotal) <= 0) return null;
 
   return (
@@ -87,81 +88,82 @@ export function DriverCashHandoverQueue({
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    marginTop: 12,
-    marginBottom: 6,
-    padding: 16,
-    backgroundColor: '#18181D',
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.35)',
-    borderRadius: 16,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  title: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: '#FCD34D',
-  },
-  subtitle: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-    lineHeight: 15,
-  },
-  total: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    flexShrink: 0,
-  },
-  panelLink: {
-    alignSelf: 'flex-start',
-    marginBottom: 8,
-  },
-  panelLinkText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#38BDF8',
-  },
-  item: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.07)',
-    gap: 10,
-  },
-  driverRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  driverName: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  invoiceMeta: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  amount: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#10B981',
-    marginTop: 2,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    card: {
+      marginTop: 12,
+      marginBottom: 6,
+      padding: 16,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: 'rgba(245, 158, 11, 0.35)',
+      borderRadius: 16,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: 8,
+    },
+    titleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    title: {
+      fontSize: 13.5,
+      fontWeight: '800',
+      color: '#FCD34D',
+    },
+    subtitle: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 2,
+      lineHeight: 15,
+    },
+    total: {
+      fontSize: 18,
+      fontWeight: '900',
+      color: colors.text,
+      flexShrink: 0,
+    },
+    panelLink: {
+      alignSelf: 'flex-start',
+      marginBottom: 8,
+    },
+    panelLinkText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: '#38BDF8',
+    },
+    item: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingVertical: 10,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+      gap: 10,
+    },
+    driverRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    driverName: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    invoiceMeta: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    amount: {
+      fontSize: 12,
+      fontWeight: '800',
+      color: '#10B981',
+      marginTop: 2,
+    },
+  });

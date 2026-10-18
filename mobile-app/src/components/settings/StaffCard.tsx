@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { Colors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { getInitials } from '@/lib/formatters';
 import { StaffUser } from './types';
 
@@ -23,6 +24,8 @@ export function StaffCard({
   onToggleStatus,
   onDelete,
 }: StaffCardProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const isDirector = staff.role === 'OWNER' || (staff.role as any) === 'DIRECTOR';
   const isOwner = isDirector;
 
@@ -67,9 +70,9 @@ export function StaffCard({
         };
       default:
         return {
-          bg: Colors.dark.secondary,
-          border: Colors.dark.border,
-          text: '#FFFFFF',
+          bg: colors.secondary,
+          border: colors.border,
+          text: colors.text,
         };
     }
   };
@@ -88,7 +91,7 @@ export function StaffCard({
             {staff.name}
           </Text>
           <View style={styles.phoneRow}>
-            <Ionicons name="call-outline" size={12} color={Colors.dark.textSecondary} />
+            <Ionicons name="call-outline" size={12} color={colors.textSecondary} />
             <Text style={styles.staffPhone}>{staff.phone}</Text>
           </View>
           <View style={styles.badgeRow}>
@@ -153,94 +156,95 @@ export function StaffCard({
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    padding: 14,
-    marginBottom: 10,
-    borderRadius: 14,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-  },
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  avatarCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    backgroundColor: Colors.dark.secondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-  },
-  avatarText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  staffName: {
-    fontSize: 15.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.2,
-  },
-  phoneRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 2,
-  },
-  staffPhone: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    fontFamily: 'monospace',
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: 6,
-  },
-  roleBadge: {
-    paddingHorizontal: 7,
-    paddingVertical: 2.5,
-    borderRadius: 6,
-    borderWidth: 1,
-  },
-  roleBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 0.3,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    marginVertical: 10,
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  cardBtn: {
-    flex: 1,
-    height: 36,
-    borderRadius: 8,
-    paddingHorizontal: 6,
-  },
-  btnText: {
-    fontSize: 11.5,
-  },
-  deleteBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    paddingHorizontal: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    card: {
+      padding: 14,
+      marginBottom: 10,
+      borderRadius: 14,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.borderMedium,
+    },
+    topRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+    },
+    avatarCircle: {
+      width: 44,
+      height: 44,
+      borderRadius: 12,
+      backgroundColor: colors.secondary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.borderMedium,
+    },
+    avatarText: {
+      color: colors.text,
+      fontSize: 16,
+      fontWeight: '800',
+    },
+    staffName: {
+      fontSize: 15.5,
+      fontWeight: '800',
+      color: colors.text,
+      letterSpacing: -0.2,
+    },
+    phoneRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: 2,
+    },
+    staffPhone: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontFamily: 'monospace',
+    },
+    badgeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginTop: 6,
+    },
+    roleBadge: {
+      paddingHorizontal: 7,
+      paddingVertical: 2.5,
+      borderRadius: 6,
+      borderWidth: 1,
+    },
+    roleBadgeText: {
+      fontSize: 10,
+      fontWeight: '800',
+      letterSpacing: 0.3,
+    },
+    divider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginVertical: 10,
+    },
+    actionsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    cardBtn: {
+      flex: 1,
+      height: 36,
+      borderRadius: 8,
+      paddingHorizontal: 6,
+    },
+    btnText: {
+      fontSize: 11.5,
+    },
+    deleteBtn: {
+      width: 36,
+      height: 36,
+      borderRadius: 8,
+      paddingHorizontal: 0,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+  });

@@ -1,15 +1,18 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Colors } from '@/constants/theme';
+import { useMemo } from 'react';
+import { StyleSheet } from 'react-native';
+import { Colors, ThemeColors } from '@/constants/theme';
 
+export type { ThemeColors };
 export type ThemeMode = 'system' | 'dark' | 'light';
 
 interface ThemeContextType {
   themeMode: ThemeMode;
   setThemeMode: (mode: ThemeMode) => Promise<void>;
   isDark: boolean;
-  colors: typeof Colors.dark;
+  colors: ThemeColors;
 }
 
 const THEME_STORAGE_KEY = '@dhra_theme_preference';
@@ -63,3 +66,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 export function useTheme() {
   return useContext(ThemeContext);
 }
+
+export function useThemedStyles<T extends StyleSheet.NamedStyles<T> | StyleSheet.NamedStyles<any>>(
+  factory: (colors: ThemeColors, isDark: boolean) => T
+): T {
+  const { colors, isDark } = useTheme();
+  return useMemo(() => factory(colors, isDark), [colors, isDark]);
+}
+

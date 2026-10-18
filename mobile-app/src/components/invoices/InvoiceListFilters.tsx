@@ -3,8 +3,7 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { FilterPills } from '@/components/ui/FilterPills';
 import { Input } from '@/components/ui/Input';
-import { Colors } from '@/constants/theme';
-
+import { useThemedStyles } from '@/lib/theme-context';
 import { FilterDropdown } from '@/components/ui/FilterDropdown';
 
 interface InvoiceListFiltersProps {
@@ -42,6 +41,7 @@ export function InvoiceListFilters({
   resultCount,
   onClear,
 }: InvoiceListFiltersProps) {
+  const styles = useThemedStyles(createStyles);
   const hasActiveFilters = Boolean(search.trim()) || status !== 'ALL' || paymentMode !== 'ALL' || datePreset !== 'ALL' || Boolean(dateFrom || dateTo);
 
   return (
@@ -123,33 +123,34 @@ export function InvoiceListFilters({
   );
 }
 
-const styles = StyleSheet.create({
-  dropdownsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    paddingHorizontal: 16,
-    marginTop: 4,
-    marginBottom: 2,
-  },
-  datePillsContainer: {
-    marginTop: -4,
-    marginBottom: -4,
-  },
-  customDateRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    gap: 8,
-    marginTop: 6,
-    marginBottom: 6,
-  },
-  resultsRow: {
-    minHeight: 30,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 2,
-  },
-  resultsText: { color: Colors.dark.textTertiary, fontSize: 11 },
-  clearFilters: { color: '#38BDF8', fontSize: 11, fontWeight: '700' },
-});
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    dropdownsRow: {
+      flexDirection: 'row',
+      gap: 10,
+      paddingHorizontal: 16,
+      marginTop: 4,
+      marginBottom: 2,
+    },
+    datePillsContainer: {
+      marginTop: -4,
+      marginBottom: -4,
+    },
+    customDateRow: {
+      flexDirection: 'row',
+      paddingHorizontal: 16,
+      gap: 8,
+      marginTop: 6,
+      marginBottom: 6,
+    },
+    resultsRow: {
+      minHeight: 30,
+      paddingHorizontal: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: 2,
+    },
+    resultsText: { color: colors.textTertiary, fontSize: 11 },
+    clearFilters: { color: '#38BDF8', fontSize: 11, fontWeight: '700' },
+  });

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { FilterPills } from '@/components/ui/FilterPills';
@@ -27,6 +27,9 @@ export function DateFilterBar({
   setDateTo,
   onApplyDateRange,
 }: DateFilterBarProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   return (
     <View style={styles.container}>
       <View style={styles.pillsWrapper}>
@@ -47,7 +50,7 @@ export function DateFilterBar({
       {preset === 'custom' && (
         <Card style={styles.customDateCard}>
           <View style={styles.customDateHeader}>
-            <Ionicons name="calendar-outline" size={15} color={Colors.dark.textSecondary} />
+            <Ionicons name="calendar-outline" size={15} color={colors.textSecondary} />
             <Text style={styles.customDateTitle}>Select Custom Date Range</Text>
           </View>
           <View style={styles.customDateInputsRow}>
@@ -81,33 +84,34 @@ export function DateFilterBar({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    marginBottom: 6,
-  },
-  pillsWrapper: {
-    marginHorizontal: -16,
-  },
-  customDateCard: {
-    padding: 14,
-    backgroundColor: '#16161A',
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-    marginBottom: 8,
-  },
-  customDateHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 10,
-  },
-  customDateTitle: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  customDateInputsRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-});
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    container: {
+      marginBottom: 6,
+    },
+    pillsWrapper: {
+      marginHorizontal: -16,
+    },
+    customDateCard: {
+      padding: 14,
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.borderMedium,
+      marginBottom: 8,
+    },
+    customDateHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginBottom: 10,
+    },
+    customDateTitle: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    customDateInputsRow: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+  });

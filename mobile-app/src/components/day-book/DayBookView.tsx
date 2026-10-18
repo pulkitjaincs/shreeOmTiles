@@ -8,12 +8,14 @@ import {
 } from 'react-native';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { cachedMobileApiRequest } from '@/lib/api';
 import { formatINR, formatDate } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
 
 export function DayBookView() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
   const [filter, setFilter] = useState<'ALL' | 'PAYMENTS' | 'EXPENSES' | 'PURCHASES'>('ALL');
@@ -58,7 +60,7 @@ export function DayBookView() {
       {/* Top Header Row with Refresh */}
       <View style={styles.headerRow}>
         <View style={styles.dateBadge}>
-          <Ionicons name="calendar-outline" size={13} color="#FFFFFF" />
+          <Ionicons name="calendar-outline" size={13} color={colors.text} />
           <Text style={styles.dateBadgeText}>
             {data?.date ? formatDate(data.date) : 'Today'}
           </Text>
@@ -154,7 +156,7 @@ export function DayBookView() {
 
       {/* Transaction List */}
       {loading && !data ? (
-        <ActivityIndicator size="small" color="#FFFFFF" style={{ marginTop: 24 }} />
+        <ActivityIndicator size="small" color={colors.text} style={{ marginTop: 24 }} />
       ) : (
         <View style={{ paddingBottom: 24 }}>
           {/* Payments / Inflows */}
@@ -238,179 +240,180 @@ export function DayBookView() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  dateBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: Colors.dark.cardElevated,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  dateBadgeText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  kpiGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 10,
-  },
-  kpiCard: {
-    width: '48.5%',
-    padding: 10,
-    backgroundColor: Colors.dark.card,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  kpiLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    textTransform: 'uppercase',
-  },
-  kpiValue: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    marginVertical: 2,
-    fontFamily: 'monospace',
-  },
-  kpiSub: {
-    fontSize: 9.5,
-    color: Colors.dark.textTertiary,
-  },
-  digitalCard: {
-    padding: 12,
-    marginBottom: 12,
-    backgroundColor: 'rgba(168, 85, 247, 0.08)',
-    borderColor: 'rgba(168, 85, 247, 0.25)',
-    borderWidth: 1,
-    borderRadius: 10,
-  },
-  digitalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  digitalTitle: {
-    fontSize: 12.5,
-    fontWeight: '800',
-    color: '#E9D5FF',
-  },
-  digitalValue: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    fontFamily: 'monospace',
-  },
-  digitalSub: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 4,
-  },
-  tabToggle: {
-    flexDirection: 'row',
-    backgroundColor: Colors.dark.card,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    padding: 3,
-    marginBottom: 10,
-  },
-  tabBtn: {
-    flex: 1,
-    paddingVertical: 7,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  tabBtnActive: {
-    backgroundColor: '#FFFFFF',
-  },
-  tabText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  tabTextActive: {
-    color: '#09090B',
-  },
-  txCard: {
-    padding: 11,
-    marginBottom: 7,
-    backgroundColor: Colors.dark.card,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  txRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 9,
-  },
-  txIconWrapIn: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(16, 185, 129, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  txIconWrapOut: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  txIconWrapPur: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: 'rgba(245, 158, 11, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  txParty: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  txSub: {
-    fontSize: 10.5,
-    color: Colors.dark.textTertiary,
-    marginTop: 1,
-  },
-  txAmount: {
-    fontSize: 13,
-    fontWeight: '800',
-    fontFamily: 'monospace',
-  },
-  txTime: {
-    fontSize: 10,
-    color: Colors.dark.textTertiary,
-    marginTop: 1,
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: Colors.dark.textSecondary,
-    fontSize: 12,
-    marginTop: 20,
-  },
-});
+const createStyles = (colors: any, isDark: boolean) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    headerRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 10,
+    },
+    dateBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: colors.cardElevated,
+      paddingVertical: 5,
+      paddingHorizontal: 10,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    dateBadgeText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    kpiGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginBottom: 10,
+    },
+    kpiCard: {
+      width: '48.5%',
+      padding: 10,
+      backgroundColor: colors.card,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    kpiLabel: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+    },
+    kpiValue: {
+      fontSize: 15,
+      fontWeight: '900',
+      color: colors.text,
+      marginVertical: 2,
+      fontFamily: 'monospace',
+    },
+    kpiSub: {
+      fontSize: 9.5,
+      color: colors.textTertiary,
+    },
+    digitalCard: {
+      padding: 12,
+      marginBottom: 12,
+      backgroundColor: isDark ? 'rgba(168, 85, 247, 0.08)' : 'rgba(168, 85, 247, 0.12)',
+      borderColor: 'rgba(168, 85, 247, 0.25)',
+      borderWidth: 1,
+      borderRadius: 10,
+    },
+    digitalRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    digitalTitle: {
+      fontSize: 12.5,
+      fontWeight: '800',
+      color: isDark ? '#E9D5FF' : '#7E22CE',
+    },
+    digitalValue: {
+      fontSize: 15,
+      fontWeight: '900',
+      color: colors.text,
+      fontFamily: 'monospace',
+    },
+    digitalSub: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 4,
+    },
+    tabToggle: {
+      flexDirection: 'row',
+      backgroundColor: colors.cardElevated,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 3,
+      marginBottom: 10,
+    },
+    tabBtn: {
+      flex: 1,
+      paddingVertical: 7,
+      alignItems: 'center',
+      borderRadius: 8,
+    },
+    tabBtnActive: {
+      backgroundColor: colors.text,
+    },
+    tabText: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    tabTextActive: {
+      color: colors.background,
+    },
+    txCard: {
+      padding: 11,
+      marginBottom: 7,
+      backgroundColor: colors.card,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    txRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 9,
+    },
+    txIconWrapIn: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: 'rgba(16, 185, 129, 0.15)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    txIconWrapOut: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: 'rgba(239, 68, 68, 0.15)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    txIconWrapPur: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: 'rgba(245, 158, 11, 0.15)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    txParty: {
+      fontSize: 12.5,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    txSub: {
+      fontSize: 10.5,
+      color: colors.textTertiary,
+      marginTop: 1,
+    },
+    txAmount: {
+      fontSize: 13,
+      fontWeight: '800',
+      fontFamily: 'monospace',
+    },
+    txTime: {
+      fontSize: 10,
+      color: colors.textTertiary,
+      marginTop: 1,
+    },
+    emptyText: {
+      textAlign: 'center',
+      color: colors.textSecondary,
+      fontSize: 12,
+      marginTop: 20,
+    },
+  });

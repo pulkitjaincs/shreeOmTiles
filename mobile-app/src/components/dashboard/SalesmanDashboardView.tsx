@@ -9,7 +9,7 @@ import {
   Linking,
   Alert,
 } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles, ThemeColors } from '@/lib/theme-context';
 import { Header } from '@/components/ui/Header';
 import { Card } from '@/components/ui/Card';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -51,6 +51,8 @@ export function SalesmanDashboardView({
   onRefresh,
   router,
 }: SalesmanDashboardViewProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const kpi = analyticsData?.kpi;
   const recentInvoices = analyticsData?.salesmanRecentInvoices || [];
   const trend = analyticsData?.revenueTrend || [];
@@ -85,7 +87,7 @@ export function SalesmanDashboardView({
         style={styles.content}
         contentContainerStyle={styles.scrollContainer}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
         }
       >
         {/* Top Personal Greeting & Quick Invoice CTA */}
@@ -105,7 +107,7 @@ export function SalesmanDashboardView({
             onPress={() => router.push('/(tabs)/invoices')}
             activeOpacity={0.8}
           >
-            <Ionicons name="add" size={16} color="#09090B" />
+            <Ionicons name="add" size={16} color={colors.primaryForeground} />
             <Text style={styles.createInvoiceBtnText}>+ Invoice</Text>
           </TouchableOpacity>
         </View>
@@ -266,7 +268,7 @@ export function SalesmanDashboardView({
                 case 'SPLIT':
                   return { label: 'SPLIT', bg: 'rgba(168, 85, 247, 0.12)', border: 'rgba(168, 85, 247, 0.3)', text: '#A855F7' };
                 default:
-                  return { label: mode || 'PAID', bg: 'rgba(255, 255, 255, 0.05)', border: Colors.dark.border, text: Colors.dark.textSecondary };
+                  return { label: mode || 'PAID', bg: isDark ? 'rgba(255, 255, 255, 0.05)' : colors.cardElevated, border: colors.border, text: colors.textSecondary };
               }
             };
             const badge = getBadgeDetails(inv.paymentMode);
@@ -349,320 +351,321 @@ export function SalesmanDashboardView({
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: Colors.dark.background,
-  },
-  content: {
-    flex: 1,
-  },
-  scrollContainer: {
-    padding: 16,
-    paddingBottom: 40,
-  },
-  topGreetingCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 15,
-    borderRadius: 18,
-    backgroundColor: '#16161A',
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-    marginBottom: 8,
-    gap: 12,
-  },
-  personalBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    marginBottom: 4,
-  },
-  personalDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#10B981',
-  },
-  personalBadgeText: {
-    fontSize: 9.5,
-    fontWeight: '800',
-    color: '#10B981',
-    letterSpacing: 0.5,
-  },
-  greetingTitle: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: -0.3,
-  },
-  greetingSub: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-    maxWidth: 240,
-  },
-  createInvoiceBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  createInvoiceBtnText: {
-    color: '#09090B',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  sectionTitle: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginTop: 12,
-    marginBottom: 10,
-    letterSpacing: -0.2,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginTop: 16,
-    marginBottom: 10,
-  },
-  sectionSub: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  sectionLink: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#38BDF8',
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  kpiCardsCol: {
-    gap: 10,
-  },
-  personalKpiCard: {
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: '#16161A',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.14)',
-  },
-  personalKpiRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  personalKpiLabel: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
-  },
-  personalKpiValue: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    marginVertical: 4,
-    letterSpacing: -0.5,
-  },
-  personalKpiSub: {
-    fontSize: 11,
-    color: Colors.dark.textTertiary,
-  },
-  personalKpiNote: {
-    fontSize: 10.5,
-    color: Colors.dark.textTertiary,
-    marginTop: 10,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.07)',
-  },
-  kpiIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
-  },
-  deltaBadge: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 6,
-    alignSelf: 'flex-start',
-    marginTop: 2,
-  },
-  deltaBadgeUp: {
-    backgroundColor: 'rgba(16, 185, 129, 0.14)',
-  },
-  deltaBadgeDown: {
-    backgroundColor: 'rgba(239, 68, 68, 0.14)',
-  },
-  deltaBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  deltaTextUp: {
-    color: '#10B981',
-  },
-  deltaTextDown: {
-    color: '#EF4444',
-  },
-  secondaryKpiRow: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  secondaryKpiCard: {
-    flex: 1,
-    padding: 13,
-    borderRadius: 14,
-  },
-  kpiHeaderSmall: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  secondaryKpiVal: {
-    fontSize: 19,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    marginVertical: 4,
-  },
-  todayInvoicesBadge: {
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 5,
-    alignSelf: 'flex-start',
-    marginBottom: 4,
-  },
-  todayInvoicesBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  kpiFootnote: {
-    fontSize: 10,
-    color: Colors.dark.textTertiary,
-  },
-  recentInvoiceCard: {
-    padding: 13,
-    marginBottom: 8,
-  },
-  recentRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  invNumberRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  recentInvoiceNo: {
-    fontSize: 13.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    fontFamily: 'monospace',
-  },
-  modeBadge: {
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    borderRadius: 4,
-  },
-  modeBadgeUpi: {
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
-  },
-  modeBadgeCash: {
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-  },
-  modeBadgeDefault: {
-    backgroundColor: Colors.dark.secondary,
-  },
-  modeBadgeText: {
-    fontSize: 9,
-    fontWeight: '800',
-  },
-  recentParty: {
-    fontSize: 12.5,
-    fontWeight: '600',
-    color: Colors.dark.text,
-    marginTop: 2,
-  },
-  invMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 3,
-  },
-  recentDate: {
-    fontSize: 10.5,
-    color: Colors.dark.textTertiary,
-  },
-  invPhoneBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  invPhoneText: {
-    fontSize: 10.5,
-    color: '#10B981',
-    fontFamily: 'monospace',
-  },
-  recentAmount: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  policyCard: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 10,
-    padding: 14,
-    borderRadius: 14,
-    backgroundColor: '#16161A',
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-    marginTop: 14,
-  },
-  policyTitle: {
-    fontSize: 11.5,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    marginBottom: 3,
-  },
-  policyText: {
-    fontSize: 10.5,
-    color: Colors.dark.textSecondary,
-    lineHeight: 15,
-  },
-  emptyCard: {
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  emptySub: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    textAlign: 'center',
-  },
-});
+const createStyles = (colors: ThemeColors, isDark: boolean) =>
+  StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    content: {
+      flex: 1,
+    },
+    scrollContainer: {
+      padding: 16,
+      paddingBottom: 40,
+    },
+    topGreetingCard: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 15,
+      borderRadius: 18,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.borderMedium,
+      marginBottom: 8,
+      gap: 12,
+    },
+    personalBadgeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      marginBottom: 4,
+    },
+    personalDot: {
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: '#10B981',
+    },
+    personalBadgeText: {
+      fontSize: 9.5,
+      fontWeight: '800',
+      color: '#10B981',
+      letterSpacing: 0.5,
+    },
+    greetingTitle: {
+      fontSize: 16,
+      fontWeight: '900',
+      color: colors.text,
+      letterSpacing: -0.3,
+    },
+    greetingSub: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 2,
+      maxWidth: 240,
+    },
+    createInvoiceBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: colors.primary,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 12,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.2,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    createInvoiceBtnText: {
+      color: colors.primaryForeground,
+      fontSize: 12,
+      fontWeight: '800',
+    },
+    sectionTitle: {
+      fontSize: 13.5,
+      fontWeight: '800',
+      color: colors.text,
+      marginTop: 12,
+      marginBottom: 10,
+      letterSpacing: -0.2,
+    },
+    sectionHeaderRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginTop: 16,
+      marginBottom: 10,
+    },
+    sectionSub: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    sectionLink: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      color: '#38BDF8',
+    },
+    titleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    kpiCardsCol: {
+      gap: 10,
+    },
+    personalKpiCard: {
+      padding: 16,
+      borderRadius: 16,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.borderMedium,
+    },
+    personalKpiRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+    },
+    personalKpiLabel: {
+      fontSize: 10.5,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.3,
+    },
+    personalKpiValue: {
+      fontSize: 24,
+      fontWeight: '900',
+      color: colors.text,
+      marginVertical: 4,
+      letterSpacing: -0.5,
+    },
+    personalKpiSub: {
+      fontSize: 11,
+      color: colors.textTertiary,
+    },
+    personalKpiNote: {
+      fontSize: 10.5,
+      color: colors.textTertiary,
+      marginTop: 10,
+      paddingTop: 8,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    kpiIconCircle: {
+      width: 44,
+      height: 44,
+      borderRadius: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: colors.borderMedium,
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : colors.cardElevated,
+    },
+    deltaBadge: {
+      paddingHorizontal: 7,
+      paddingVertical: 2,
+      borderRadius: 6,
+      alignSelf: 'flex-start',
+      marginTop: 2,
+    },
+    deltaBadgeUp: {
+      backgroundColor: 'rgba(16, 185, 129, 0.14)',
+    },
+    deltaBadgeDown: {
+      backgroundColor: 'rgba(239, 68, 68, 0.14)',
+    },
+    deltaBadgeText: {
+      fontSize: 10,
+      fontWeight: '800',
+    },
+    deltaTextUp: {
+      color: '#10B981',
+    },
+    deltaTextDown: {
+      color: '#EF4444',
+    },
+    secondaryKpiRow: {
+      flexDirection: 'row',
+      gap: 10,
+    },
+    secondaryKpiCard: {
+      flex: 1,
+      padding: 13,
+      borderRadius: 14,
+    },
+    kpiHeaderSmall: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    secondaryKpiVal: {
+      fontSize: 19,
+      fontWeight: '900',
+      color: colors.text,
+      marginVertical: 4,
+    },
+    todayInvoicesBadge: {
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 5,
+      alignSelf: 'flex-start',
+      marginBottom: 4,
+    },
+    todayInvoicesBadgeText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: '#10B981',
+    },
+    kpiFootnote: {
+      fontSize: 10,
+      color: colors.textTertiary,
+    },
+    recentInvoiceCard: {
+      padding: 13,
+      marginBottom: 8,
+    },
+    recentRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    invNumberRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    recentInvoiceNo: {
+      fontSize: 13.5,
+      fontWeight: '800',
+      color: colors.text,
+      fontFamily: 'monospace',
+    },
+    modeBadge: {
+      paddingHorizontal: 5,
+      paddingVertical: 1,
+      borderRadius: 4,
+    },
+    modeBadgeUpi: {
+      backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    },
+    modeBadgeCash: {
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    },
+    modeBadgeDefault: {
+      backgroundColor: colors.secondary,
+    },
+    modeBadgeText: {
+      fontSize: 9,
+      fontWeight: '800',
+    },
+    recentParty: {
+      fontSize: 12.5,
+      fontWeight: '600',
+      color: colors.text,
+      marginTop: 2,
+    },
+    invMetaRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 3,
+    },
+    recentDate: {
+      fontSize: 10.5,
+      color: colors.textTertiary,
+    },
+    invPhoneBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+    },
+    invPhoneText: {
+      fontSize: 10.5,
+      color: '#10B981',
+      fontFamily: 'monospace',
+    },
+    recentAmount: {
+      fontSize: 15,
+      fontWeight: '900',
+      color: colors.text,
+    },
+    policyCard: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 10,
+      padding: 14,
+      borderRadius: 14,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.borderMedium,
+      marginTop: 14,
+    },
+    policyTitle: {
+      fontSize: 11.5,
+      fontWeight: '800',
+      color: colors.text,
+      marginBottom: 3,
+    },
+    policyText: {
+      fontSize: 10.5,
+      color: colors.textSecondary,
+      lineHeight: 15,
+    },
+    emptyCard: {
+      padding: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: 8,
+    },
+    emptySub: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      textAlign: 'center',
+    },
+  });

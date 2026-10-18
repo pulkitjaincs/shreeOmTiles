@@ -27,5 +27,9 @@ export class PaymentSplitDto {
 
   @IsString()
   @IsOptional()
+  referenceNo?: string;
+
+  @IsString()
+  @IsOptional()
   notes?: string;
 }

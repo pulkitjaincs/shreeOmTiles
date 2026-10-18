@@ -2,7 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui/Card';
-import { Colors } from '@/constants/theme';
+import { Colors, ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { StockItem } from './types';
 
 interface WarehouseStockCardProps {
@@ -22,6 +23,9 @@ export const WarehouseStockCard = React.memo(function WarehouseStockCard({
   onInward,
   onAdjust,
 }: WarehouseStockCardProps) {
+  const { colors, isDark } = useTheme();
+  const styles = useThemedStyles(createStyles);
+
   const isZeroStock = Number(item.quantity || 0) <= 0;
   const isLowStock = Number(item.quantity || 0) < 10;
 
@@ -83,7 +87,7 @@ export const WarehouseStockCard = React.memo(function WarehouseStockCard({
               onPress={() => onAdjust(item)}
               activeOpacity={0.7}
             >
-              <Ionicons name="create-outline" size={13} color={Colors.dark.textSecondary} />
+              <Ionicons name="create-outline" size={13} color={colors.textSecondary} />
               <Text style={styles.actionTextAudit}>Audit</Text>
             </TouchableOpacity>
           ) : null}
@@ -93,147 +97,148 @@ export const WarehouseStockCard = React.memo(function WarehouseStockCard({
   );
 });
 
-const styles = StyleSheet.create({
-  stockCard: {
-    padding: 14,
-    marginBottom: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    backgroundColor: Colors.dark.card,
-  },
-  stockTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 10,
-  },
-  productTitle: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: -0.2,
-  },
-  categoryPill: {
-    alignSelf: 'flex-start',
-    marginTop: 4,
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 6,
-    backgroundColor: Colors.dark.cardElevated,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  categoryBadge: {
-    fontSize: 10.5,
-    color: Colors.dark.textSecondary,
-    fontWeight: '600',
-  },
-  qtyBox: {
-    alignItems: 'flex-end',
-  },
-  qtyNumber: {
-    fontSize: 22,
-    fontWeight: '900',
-    fontFamily: 'monospace',
-  },
-  qtyNormal: {
-    color: '#10B981',
-  },
-  qtyLow: {
-    color: '#F59E0B',
-  },
-  qtyZero: {
-    color: '#EF4444',
-  },
-  unitText: {
-    fontSize: 10.5,
-    color: Colors.dark.textTertiary,
-    marginTop: 1,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: Colors.dark.border,
-    marginVertical: 10,
-  },
-  stockMeta: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-  },
-  metaText: {
-    fontSize: 11.5,
-    color: Colors.dark.textSecondary,
-    fontWeight: '500',
-  },
-  metaBatchVal: {
-    color: '#FFFFFF',
-    fontFamily: 'monospace',
-    fontWeight: '600',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 10,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  actionBtnInward: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    height: 34,
-    borderRadius: 8,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.25)',
-  },
-  actionTextInward: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  actionBtnTransfer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    height: 34,
-    borderRadius: 8,
-    backgroundColor: 'rgba(56, 189, 248, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.25)',
-  },
-  actionTextTransfer: {
-    fontSize: 11.5,
-    fontWeight: '700',
-    color: '#38BDF8',
-  },
-  actionBtnAudit: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    height: 34,
-    borderRadius: 8,
-    backgroundColor: Colors.dark.cardElevated,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  actionTextAudit: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: Colors.dark.textSecondary,
-  },
-});
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    stockCard: {
+      padding: 14,
+      marginBottom: 10,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+    },
+    stockTop: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      gap: 10,
+    },
+    productTitle: {
+      fontSize: 15,
+      fontWeight: '800',
+      color: colors.text,
+      letterSpacing: -0.2,
+    },
+    categoryPill: {
+      alignSelf: 'flex-start',
+      marginTop: 4,
+      paddingHorizontal: 7,
+      paddingVertical: 2,
+      borderRadius: 6,
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    categoryBadge: {
+      fontSize: 10.5,
+      color: colors.textSecondary,
+      fontWeight: '600',
+    },
+    qtyBox: {
+      alignItems: 'flex-end',
+    },
+    qtyNumber: {
+      fontSize: 22,
+      fontWeight: '900',
+      fontFamily: 'monospace',
+    },
+    qtyNormal: {
+      color: '#10B981',
+    },
+    qtyLow: {
+      color: '#F59E0B',
+    },
+    qtyZero: {
+      color: '#EF4444',
+    },
+    unitText: {
+      fontSize: 10.5,
+      color: colors.textTertiary,
+      marginTop: 1,
+    },
+    divider: {
+      height: 1,
+      backgroundColor: colors.border,
+      marginVertical: 10,
+    },
+    stockMeta: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    metaItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+    },
+    metaText: {
+      fontSize: 11.5,
+      color: colors.textSecondary,
+      fontWeight: '500',
+    },
+    metaBatchVal: {
+      color: colors.text,
+      fontFamily: 'monospace',
+      fontWeight: '600',
+    },
+    actionsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 10,
+      paddingTop: 8,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    actionBtnInward: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 5,
+      height: 34,
+      borderRadius: 8,
+      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.25)',
+    },
+    actionTextInward: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      color: '#10B981',
+    },
+    actionBtnTransfer: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 5,
+      height: 34,
+      borderRadius: 8,
+      backgroundColor: 'rgba(56, 189, 248, 0.1)',
+      borderWidth: 1,
+      borderColor: 'rgba(56, 189, 248, 0.25)',
+    },
+    actionTextTransfer: {
+      fontSize: 11.5,
+      fontWeight: '700',
+      color: '#38BDF8',
+    },
+    actionBtnAudit: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 5,
+      height: 34,
+      borderRadius: 8,
+      backgroundColor: colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    actionTextAudit: {
+      fontSize: 11.5,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+  });

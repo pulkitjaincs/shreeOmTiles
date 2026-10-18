@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { formatINR } from '@/lib/formatters';
 import { PushSuccessDialogData } from './types';
 
@@ -15,6 +15,8 @@ interface PushSuccessModalProps {
 }
 
 export function PushSuccessModal({ data, visible, onClose }: PushSuccessModalProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   if (!data) return null;
 
   const handleShareWhatsApp = () => {
@@ -79,7 +81,7 @@ export function PushSuccessModal({ data, visible, onClose }: PushSuccessModalPro
 
         <Text style={styles.infoNote}>
           The run is now queued in the driver&apos;s mobile dashboard. When the driver accepts the assignment, the status will automatically update to{' '}
-          <Text style={{ fontWeight: '700', color: Colors.dark.text }}>Out for Pickup</Text>.
+          <Text style={{ fontWeight: '700', color: colors.text }}>Out for Pickup</Text>.
         </Text>
 
         <View style={styles.actionRow}>
@@ -105,106 +107,107 @@ export function PushSuccessModal({ data, visible, onClose }: PushSuccessModalPro
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    paddingBottom: 8,
-  },
-  successIconBox: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginVertical: 6,
-  },
-  summaryCard: {
-    backgroundColor: Colors.dark.card,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    padding: 12,
-    gap: 8,
-    marginVertical: 8,
-  },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  label: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-  },
-  val: {
-    fontSize: 12,
-    color: Colors.dark.text,
-    fontWeight: '600',
-  },
-  valBold: {
-    fontSize: 12,
-    color: Colors.dark.text,
-    fontWeight: '700',
-  },
-  valAmount: {
-    fontSize: 13,
-    color: '#F59E0B',
-    fontWeight: '800',
-    fontFamily: 'monospace',
-  },
-  valMono: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    fontFamily: 'monospace',
-  },
-  badgeCyan: {
-    backgroundColor: 'rgba(6, 182, 212, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(6, 182, 212, 0.25)',
-    borderRadius: 6,
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-  },
-  badgeCyanText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#06B6D4',
-  },
-  remainingBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    borderRadius: 8,
-    padding: 8,
-    marginTop: 4,
-  },
-  remainingText: {
-    fontSize: 11,
-    color: '#F59E0B',
-    flex: 1,
-  },
-  infoNote: {
-    fontSize: 11,
-    color: Colors.dark.textTertiary,
-    lineHeight: 16,
-    marginVertical: 8,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginTop: 8,
-  },
-  shareBtn: {
-    flex: 1.5,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: '#10B981',
-    borderRadius: 10,
-    paddingVertical: 12,
-  },
-  shareBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-});
+const createStyles = (colors: any) =>
+  StyleSheet.create({
+    container: {
+      paddingBottom: 8,
+    },
+    successIconBox: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginVertical: 6,
+    },
+    summaryCard: {
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 12,
+      gap: 8,
+      marginVertical: 8,
+    },
+    row: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    label: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    val: {
+      fontSize: 12,
+      color: colors.text,
+      fontWeight: '600',
+    },
+    valBold: {
+      fontSize: 12,
+      color: colors.text,
+      fontWeight: '700',
+    },
+    valAmount: {
+      fontSize: 13,
+      color: '#F59E0B',
+      fontWeight: '800',
+      fontFamily: 'monospace',
+    },
+    valMono: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      fontFamily: 'monospace',
+    },
+    badgeCyan: {
+      backgroundColor: 'rgba(6, 182, 212, 0.1)',
+      borderWidth: 1,
+      borderColor: 'rgba(6, 182, 212, 0.25)',
+      borderRadius: 6,
+      paddingVertical: 2,
+      paddingHorizontal: 6,
+    },
+    badgeCyanText: {
+      fontSize: 10,
+      fontWeight: '700',
+      color: '#06B6D4',
+    },
+    remainingBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: 'rgba(245, 158, 11, 0.1)',
+      borderRadius: 8,
+      padding: 8,
+      marginTop: 4,
+    },
+    remainingText: {
+      fontSize: 11,
+      color: '#F59E0B',
+      flex: 1,
+    },
+    infoNote: {
+      fontSize: 11,
+      color: colors.textTertiary,
+      lineHeight: 16,
+      marginVertical: 8,
+    },
+    actionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      marginTop: 8,
+    },
+    shareBtn: {
+      flex: 1.5,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      backgroundColor: '#10B981',
+      borderRadius: 10,
+      paddingVertical: 12,
+    },
+    shareBtnText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: '#FFFFFF',
+    },
+  });

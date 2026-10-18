@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useAuth } from '@/lib/auth-context';
 import { cachedMobileApiRequest, mobileApiRequest, subscribeToAppSync } from '@/lib/api';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { Header } from '@/components/ui/Header';
 import { cleanPhoneNumber } from '@/lib/formatters';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -22,7 +22,28 @@ import { SupervisorDashboardView } from '@/components/dashboard/SupervisorDashbo
 export default function DashboardScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const { colors } = useTheme();
   const role = user?.role || 'SALESMAN';
+
+  const styles = useThemedStyles((c) =>
+    StyleSheet.create({
+      screen: {
+        flex: 1,
+        backgroundColor: c.background,
+      },
+      center: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+      },
+      loadingText: {
+        color: c.textSecondary,
+        fontSize: 12,
+        marginTop: 10,
+      },
+    })
+  );
 
   const isDriver = role === 'DRIVER';
   const isSalesman = role === 'SALESMAN';
@@ -152,7 +173,7 @@ export default function DashboardScreen() {
       <View style={styles.screen}>
         <Header title="Shree Om Tiles" />
         <View style={styles.center}>
-          <ActivityIndicator size="small" color="#FFFFFF" />
+          <ActivityIndicator size="small" color={colors.text} />
           <Text style={styles.loadingText}>Loading dashboard metrics...</Text>
         </View>
       </View>
@@ -221,21 +242,3 @@ export default function DashboardScreen() {
     />
   );
 }
-
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: Colors.dark.background,
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  loadingText: {
-    color: Colors.dark.textSecondary,
-    fontSize: 12,
-    marginTop: 10,
-  },
-});

@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
-import { Colors } from '@/constants/theme';
+import type { ThemeColors } from '@/constants/theme';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { formatINR, formatDate, cleanPhoneNumber } from '@/lib/formatters';
 import { buildCustomerDuesReminderUrl, buildStorePayableInquiryUrl } from '@/lib/whatsapp';
 import { CreditLedgerRecord, PendingItem } from './types';
@@ -15,6 +16,8 @@ interface CreditLedgerCardProps {
 }
 
 export function CreditLedgerCard({ credit, onSettle }: CreditLedgerCardProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const isPayable = credit.type === 'PAYABLE';
   const partyPhone = credit.party?.phone;
   const cleanPhone = cleanPhoneNumber(partyPhone);
@@ -137,7 +140,7 @@ export function CreditLedgerCard({ credit, onSettle }: CreditLedgerCardProps) {
                 <Ionicons
                   name="calendar-outline"
                   size={10}
-                  color={isOverdue ? '#EF4444' : Colors.dark.textSecondary}
+                  color={isOverdue ? '#EF4444' : colors.textSecondary}
                 />
                 <Text
                   style={[
@@ -215,140 +218,141 @@ export function CreditLedgerCard({ credit, onSettle }: CreditLedgerCardProps) {
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    marginHorizontal: 16,
-    marginBottom: 10,
-    padding: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    backgroundColor: Colors.dark.card,
-  },
-  cardTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  typeBadgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 6,
-  },
-  typeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 7,
-    paddingVertical: 2.5,
-    borderRadius: 4,
-  },
-  typeReceivable: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-  },
-  typePayable: {
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-  },
-  typeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-  },
-  overdueBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.3)',
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-  },
-  overdueText: {
-    fontSize: 9,
-    fontWeight: '800',
-    color: '#EF4444',
-    letterSpacing: 0.4,
-  },
-  partyTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.dark.text,
-  },
-  phoneActionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 3,
-  },
-  phoneTouch: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  phoneText: {
-    fontSize: 11,
-    color: '#38BDF8',
-    fontFamily: 'monospace',
-    fontWeight: '600',
-  },
-  invoiceRef: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    fontFamily: 'monospace',
-    marginTop: 2,
-  },
-  dateRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 4,
-  },
-  timestamp: {
-    fontSize: 10,
-    color: Colors.dark.textTertiary,
-  },
-  dueBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.dark.cardElevated,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  dueBadgeOverdue: {
-    backgroundColor: 'rgba(239, 68, 68, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.25)',
-  },
-  dueText: {
-    fontSize: 10,
-    color: Colors.dark.textSecondary,
-  },
-  amountCol: {
-    alignItems: 'flex-end',
-    gap: 4,
-  },
-  amountLabel: {
-    fontSize: 10,
-    color: Colors.dark.textSecondary,
-    textTransform: 'uppercase',
-    fontWeight: '600',
-  },
-  paymentAmount: {
-    fontSize: 16,
-    fontWeight: '900',
-    fontFamily: 'monospace',
-  },
-  notesText: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    fontStyle: 'italic',
-    marginTop: 6,
-  },
+const createStyles = (colors: ThemeColors) =>
+  StyleSheet.create({
+    card: {
+      marginHorizontal: 16,
+      marginBottom: 10,
+      padding: 14,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+    },
+    cardTop: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+    },
+    typeBadgeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      marginBottom: 6,
+    },
+    typeBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 7,
+      paddingVertical: 2.5,
+      borderRadius: 4,
+    },
+    typeReceivable: {
+      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    },
+    typePayable: {
+      backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    },
+    typeText: {
+      fontSize: 10,
+      fontWeight: '700',
+      letterSpacing: 0.3,
+    },
+    overdueBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      backgroundColor: 'rgba(239, 68, 68, 0.15)',
+      borderWidth: 1,
+      borderColor: 'rgba(239, 68, 68, 0.3)',
+      borderRadius: 4,
+      paddingHorizontal: 5,
+      paddingVertical: 2,
+    },
+    overdueText: {
+      fontSize: 9,
+      fontWeight: '800',
+      color: '#EF4444',
+      letterSpacing: 0.4,
+    },
+    partyTitle: {
+      fontSize: 14,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    phoneActionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 3,
+    },
+    phoneTouch: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    phoneText: {
+      fontSize: 11,
+      color: '#38BDF8',
+      fontFamily: 'monospace',
+      fontWeight: '600',
+    },
+    invoiceRef: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontFamily: 'monospace',
+      marginTop: 2,
+    },
+    dateRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 4,
+    },
+    timestamp: {
+      fontSize: 10,
+      color: colors.textTertiary,
+    },
+    dueBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: colors.cardElevated,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+    },
+    dueBadgeOverdue: {
+      backgroundColor: 'rgba(239, 68, 68, 0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(239, 68, 68, 0.25)',
+    },
+    dueText: {
+      fontSize: 10,
+      color: colors.textSecondary,
+    },
+    amountCol: {
+      alignItems: 'flex-end',
+      gap: 4,
+    },
+    amountLabel: {
+      fontSize: 10,
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      fontWeight: '600',
+    },
+    paymentAmount: {
+      fontSize: 16,
+      fontWeight: '900',
+      fontFamily: 'monospace',
+    },
+    notesText: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontStyle: 'italic',
+      marginTop: 6,
+    },
   actionContainer: {
     flexDirection: 'row',
     justifyContent: 'flex-end',

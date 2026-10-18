@@ -1,3 +1,4 @@
+import { Type } from 'class-transformer';
 import {
   IsArray,
   IsEnum,
@@ -6,6 +7,7 @@ import {
   IsOptional,
   IsString,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import { DeliveryStatus } from '@prisma/client';
 
@@ -125,6 +127,9 @@ export class PushDeliveryDto {
   @Min(0)
   amountToCollect?: number;
 
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DispatchedItemDto)
   @IsOptional()
   items?: DispatchedItemDto[];
 }

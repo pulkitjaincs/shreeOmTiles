@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles, ThemeColors } from '@/lib/theme-context';
 import { Card } from '@/components/ui/Card';
 import { formatINR } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,13 +20,15 @@ export function DriverTopStatusCards({
   allPickedUp,
   totalCashInCustody,
 }: DriverTopStatusCardsProps) {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   return (
     <View style={styles.container}>
       {/* Card 1: Pickup in Current Delivery */}
       <Card elevated style={styles.card}>
         <View style={styles.header}>
           <View style={styles.labelRow}>
-            <Ionicons name="cube-outline" size={15} color="#FFFFFF" />
+            <Ionicons name="cube-outline" size={15} color={colors.text} />
             <Text style={styles.label}>Pickup in Current Delivery</Text>
           </View>
           {activeDelivery && (
@@ -130,93 +132,94 @@ export function DriverTopStatusCards({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    gap: 10,
-    marginBottom: 12,
-  },
-  card: {
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: '#16161A',
-    borderWidth: 1,
-    borderColor: Colors.dark.borderMedium,
-  },
-  cashCard: {
-    borderColor: 'rgba(16, 185, 129, 0.25)',
-    backgroundColor: 'rgba(16, 185, 129, 0.04)',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  labelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  label: {
-    fontSize: 10.5,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  title: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: -0.3,
-  },
-  sub: {
-    fontSize: 11.5,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 10,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: Colors.dark.border,
-  },
-  footerLabel: {
-    fontSize: 11,
-    color: Colors.dark.textTertiary,
-  },
-  footerVal: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  badge: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 5,
-  },
-  badgeGreen: {
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-  },
-  badgeAmber: {
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
-  },
-  badgeWhite: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  badgeText: {
-    fontSize: 9.5,
-    fontWeight: '800',
-  },
-  badgeTextGreen: {
-    color: '#10B981',
-  },
-  badgeTextAmber: {
-    color: '#F59E0B',
-  },
-  badgeTextWhite: {
-    color: '#FFFFFF',
-  },
-});
+const createStyles = (colors: ThemeColors, isDark: boolean) =>
+  StyleSheet.create({
+    container: {
+      gap: 10,
+      marginBottom: 12,
+    },
+    card: {
+      padding: 16,
+      borderRadius: 16,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.borderMedium,
+    },
+    cashCard: {
+      borderColor: 'rgba(16, 185, 129, 0.25)',
+      backgroundColor: 'rgba(16, 185, 129, 0.04)',
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 6,
+    },
+    labelRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    label: {
+      fontSize: 10.5,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      textTransform: 'uppercase',
+      letterSpacing: 0.4,
+    },
+    title: {
+      fontSize: 17,
+      fontWeight: '900',
+      color: colors.text,
+      letterSpacing: -0.3,
+    },
+    sub: {
+      fontSize: 11.5,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    footer: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginTop: 10,
+      paddingTop: 8,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    footerLabel: {
+      fontSize: 11,
+      color: colors.textTertiary,
+    },
+    footerVal: {
+      fontSize: 12,
+      fontWeight: '800',
+    },
+    badge: {
+      paddingHorizontal: 7,
+      paddingVertical: 2,
+      borderRadius: 5,
+    },
+    badgeGreen: {
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    },
+    badgeAmber: {
+      backgroundColor: 'rgba(245, 158, 11, 0.12)',
+    },
+    badgeWhite: {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.1)' : colors.cardElevated,
+    },
+    badgeText: {
+      fontSize: 9.5,
+      fontWeight: '800',
+    },
+    badgeTextGreen: {
+      color: '#10B981',
+    },
+    badgeTextAmber: {
+      color: '#F59E0B',
+    },
+    badgeTextWhite: {
+      color: colors.text,
+    },
+  });
