@@ -2,8 +2,6 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   IsEnum,
-  IsInt,
-  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
@@ -14,8 +12,12 @@ import { PaymentMode } from '@prisma/client';
 
 export class ReturnItemDto {
   @IsString()
-  @IsNotEmpty()
-  productId: string;
+  @IsOptional()
+  productId?: string;
+
+  @IsString()
+  @IsOptional()
+  customItemName?: string;
 
   @IsString()
   @IsOptional()
@@ -32,6 +34,10 @@ export class ReturnItemDto {
   @IsNumber()
   @Min(0)
   unitPrice: number;
+
+  @IsNumber()
+  @IsOptional()
+  taxRate?: number;
 }
 
 export class ProcessReturnDto {
@@ -46,4 +52,38 @@ export class ProcessReturnDto {
   @IsString()
   @IsOptional()
   reason?: string;
+}
+
+export class ProcessStandaloneReturnDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ReturnItemDto)
+  items: ReturnItemDto[];
+
+  @IsEnum(PaymentMode)
+  refundMode: PaymentMode;
+
+  @IsString()
+  @IsOptional()
+  partyId?: string;
+
+  @IsOptional()
+  newParty?: {
+    name: string;
+    phone?: string;
+    address?: string;
+    gstin?: string;
+  };
+
+  @IsString()
+  @IsOptional()
+  originalInvoiceNumber?: string;
+
+  @IsString()
+  @IsOptional()
+  reason?: string;
+
+  @IsString()
+  @IsOptional()
+  notes?: string;
 }

@@ -103,7 +103,7 @@ export interface PartyCreditLedger {
 export interface PartyDetail {
   id: string;
   name: string;
-  phone: string;
+  phone?: string;
   address?: string;
   gstin?: string;
   category?: 'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER';
@@ -117,7 +117,7 @@ export interface PartyDetail {
 export interface Party {
   id: string;
   name: string;
-  phone: string;
+  phone?: string;
   address?: string;
   gstin?: string;
   category?: 'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER';

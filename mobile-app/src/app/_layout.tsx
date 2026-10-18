@@ -7,8 +7,8 @@ import * as Updates from 'expo-updates';
 import { AuthProvider } from '@/lib/auth-context';
 import { setupNotificationListeners } from '@/lib/notifications';
 import { notifyAppSync } from '@/lib/api';
-import { Colors } from '@/constants/theme';
 import { checkAndRunAutoCacheCleanup } from '@/lib/cache-manager';
+import { ThemeProvider, useTheme } from '@/lib/theme-context';
 
 function AppStateSyncListenerWrapper() {
   const appState = React.useRef(AppState.currentState);
@@ -98,30 +98,42 @@ function OtaUpdateListenerWrapper() {
   return null;
 }
 
-export default function RootLayout() {
+function RootStack() {
+  const { isDark, colors } = useTheme();
+
   if (Platform.OS === 'android') {
-    RNStatusBar.setBackgroundColor(Colors.dark.background, true);
-    RNStatusBar.setBarStyle('light-content', true);
+    RNStatusBar.setBackgroundColor(colors.background, true);
+    RNStatusBar.setBarStyle(isDark ? 'light-content' : 'dark-content', true);
   }
 
   return (
+    <>
+      <StatusBar style={isDark ? 'light' : 'dark'} />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: colors.background },
+        }}
+      >
+        <Stack.Screen name="index" />
+        <Stack.Screen name="login" />
+        <Stack.Screen name="(tabs)" />
+      </Stack>
+    </>
+  );
+}
+
+export default function RootLayout() {
+  return (
     <SafeAreaProvider>
-      <AuthProvider>
-        <AppStateSyncListenerWrapper />
-        <NotificationListenerWrapper />
-        <OtaUpdateListenerWrapper />
-        <StatusBar style="light" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: Colors.dark.background },
-          }}
-        >
-          <Stack.Screen name="index" />
-          <Stack.Screen name="login" />
-          <Stack.Screen name="(tabs)" />
-        </Stack>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <AppStateSyncListenerWrapper />
+          <NotificationListenerWrapper />
+          <OtaUpdateListenerWrapper />
+          <RootStack />
+        </AuthProvider>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }

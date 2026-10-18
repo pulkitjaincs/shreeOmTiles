@@ -317,10 +317,14 @@ export async function generateRefundInvoicePdf(
 
   for (const item of refund.items) {
     const idxStr = String(idx).padStart(2, '0');
-    const prodName = (item.product?.name || 'Item').slice(0, 32);
+    const prodName = (
+      item.product?.name ||
+      item.customItemName ||
+      'Item'
+    ).slice(0, 32);
     const whName = (item.warehouse?.name || 'Showroom').slice(0, 22);
     const batch = item.batchNo || 'Standard';
-    const qtyStr = `${item.qty} ${item.product?.unit || 'unit'}`;
+    const qtyStr = `${Number(item.qty)} ${item.product?.unit || 'unit'}`;
     const rateStr = Number(item.unitPrice).toFixed(2);
     const lineTotalStr = Number(item.total).toFixed(2);
 

@@ -2,88 +2,118 @@
 
 import { useState, useEffect } from 'react';
 import { apiRequest } from '@/lib/api';
-import { Button } from '@/components/ui/button';
 import { 
   X, 
   Send, 
   CircleDollarSign, 
-  Package, 
   CheckSquare, 
   Square, 
-  ArrowRight, 
-  Phone, 
-  MapPin,
   ShieldCheck,
-  Users
+  User,
+  Truck,
+  ShoppingBag,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
-import { Delivery, DispatchSelectionItem, DispatchedItem, PushSuccessDialogData, SupervisorUser } from './types';
+import { Delivery, DispatchSelectionItem, DispatchedItem, DriverUser, PushSuccessDialogData, SupervisorUser } from './types';
 import { cleanPhoneNumber } from '@/lib/formatters';
 
 interface PushDeliveryModalProps {
   delivery: Delivery | null;
+  drivers?: DriverUser[];
   onClose: () => void;
-  onSuccess: (data: PushSuccessDialogData) => void;
+  onSuccess: (data?: PushSuccessDialogData) => void;
 }
 
-export function PushDeliveryModal({ delivery, onClose, onSuccess }: PushDeliveryModalProps) {
-  const [selectedItems, setSelectedItems] = useState<DispatchSelectionItem[]>([]);
-  const [amountToCollect, setAmountToCollect] = useState<number | ''>(0);
-  const [vehicle, setVehicle] = useState('');
-  const [notes, setNotes] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+export function PushDeliveryModal({ delivery, drivers = [], onClose, onSuccess }: PushDeliveryModalProps) {
+  const isEditing = delivery?.status === 'ASSIGNED';
+  const [activeTab, setActiveTab] = useState<'DELIVERY' | 'PICKUP'>('DELIVERY');
+
+  const [fetchedDrivers, setFetchedDrivers] = useState<DriverUser[]>([]);
+  const availableDrivers = drivers.length > 0 ? drivers : fetchedDrivers;
+  const [selectedDriverId, setSelectedDriverId] = useState<string>('');
   const [availableSupervisors, setAvailableSupervisors] = useState<SupervisorUser[]>([]);
   const [selectedSupervisorIds, setSelectedSupervisorIds] = useState<string[]>([]);
   const [loadingSupervisors, setLoadingSupervisors] = useState(false);
 
+  const [amountToCollect, setAmountToCollect] = useState<number | ''>(0);
+  const [vehicle, setVehicle] = useState('');
+  const [notes, setNotes] = useState('');
+  const [selectedItems, setSelectedItems] = useState<DispatchSelectionItem[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Fetch drivers if none provided
   useEffect(() => {
-    async function fetchSupervisors() {
-      setLoadingSupervisors(true);
-      try {
-        const users = await apiRequest<SupervisorUser[]>('/users?role=SUPERVISOR&isActive=true');
-        setAvailableSupervisors(Array.isArray(users) ? users : []);
-      } catch (err) {
-        console.error('Failed to load supervisors:', err);
-      } finally {
-        setLoadingSupervisors(false);
-      }
+    let active = true;
+    if (drivers.length === 0) {
+      apiRequest<DriverUser[]>('/users?role=DRIVER&isActive=true')
+        .then((data) => {
+          if (active) setFetchedDrivers(Array.isArray(data) ? data : []);
+        })
+        .catch((err) => console.error('Failed to load drivers:', err));
     }
-    fetchSupervisors();
+    return () => {
+      active = false;
+    };
+  }, [drivers.length]);
+
+  // Fetch supervisors
+  useEffect(() => {
+    let active = true;
+    apiRequest<SupervisorUser[]>('/users?role=SUPERVISOR&isActive=true')
+      .then((users) => {
+        if (active) setAvailableSupervisors(Array.isArray(users) ? users : []);
+      })
+      .catch((err) => console.error('Failed to load supervisors:', err))
+      .finally(() => {
+        if (active) setLoadingSupervisors(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
+  // Pre-populate fields when delivery changes
   useEffect(() => {
     if (!delivery) return;
 
-    setAmountToCollect(delivery.amountToCollect ?? 0);
-    setVehicle('');
-    setNotes('');
+    const timer = setTimeout(() => {
+      setActiveTab('DELIVERY');
+      setSelectedDriverId(delivery.driverId || delivery.driver?.id || '');
+      setAmountToCollect(delivery.amountToCollect ?? 0);
+      setVehicle(delivery.trips?.[0]?.vehicle || '');
+      setNotes(delivery.notes || '');
 
-    // Pre-populate already assigned supervisors if any
-    const existingSupIds = (delivery.supervisors || []).map((s) => s.supervisorId);
-    setSelectedSupervisorIds(existingSupIds);
+      // Pre-populate already assigned supervisors if any
+      const existingSupIds = (delivery.supervisors || []).map((s) => s.supervisorId);
+      setSelectedSupervisorIds(existingSupIds);
 
-    const sourceItems: DispatchedItem[] =
-      delivery.items && delivery.items.length > 0
-        ? delivery.items
-        : delivery.invoice.items.map((it) => ({
-            invoiceItemId: it.id,
-            productId: it.productId,
-            productName: it.product?.name || 'Product',
-            unit: it.product?.unit || 'unit',
-            warehouseId: it.warehouseId,
-            warehouseName: it.warehouse?.name || 'Warehouse',
-            warehouseAddress: it.warehouse?.address || '',
-            batchNo: it.batchNo,
-            qty: it.qty,
-          }));
+      const sourceItems: DispatchedItem[] =
+        delivery.items && delivery.items.length > 0
+          ? delivery.items
+          : delivery.invoice?.items?.map((it) => ({
+              invoiceItemId: it.id,
+              productId: it.productId,
+              productName: it.product?.name || 'Product',
+              unit: it.product?.unit || 'unit',
+              warehouseId: it.warehouseId,
+              warehouseName: it.warehouse?.name || 'Warehouse',
+              warehouseAddress: it.warehouse?.address || '',
+              batchNo: it.batchNo,
+              qty: Number(it.qty),
+            })) || [];
 
-    setSelectedItems(
-      sourceItems.map((it) => ({
-        ...it,
-        maxQty: it.qty,
-        dispatchQty: it.qty,
-        selected: true,
-      })),
-    );
+      setSelectedItems(
+        sourceItems.map((it) => ({
+          ...it,
+          maxQty: it.qty,
+          dispatchQty: it.qty,
+          selected: true,
+        })),
+      );
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [delivery]);
 
   if (!delivery) return null;
@@ -100,7 +130,7 @@ export function PushDeliveryModal({ delivery, onClose, onSuccess }: PushDelivery
         if (i !== index) return item;
         const clamped = Math.max(1, Math.min(item.maxQty, val || 1));
         return { ...item, dispatchQty: clamped };
-      })
+      }),
     );
   };
 
@@ -116,13 +146,18 @@ export function PushDeliveryModal({ delivery, onClose, onSuccess }: PushDelivery
     setSelectedItems((prev) => prev.map((item) => ({ ...item, selected: select })));
   };
 
+  const selectedCount = selectedItems.filter((it) => it.selected && it.dispatchQty > 0).length;
+  const isPartialDispatch =
+    selectedCount < selectedItems.length ||
+    selectedItems.some((it) => it.selected && it.dispatchQty < it.maxQty);
+
   const buildDriverDispatchMessage = (
     targetDelivery: Delivery,
     customItems: DispatchedItem[],
     collectAmount: number,
   ) => {
     const inv = targetDelivery.invoice;
-    const party = inv.party;
+    const party = inv?.party;
     const dateStr = new Date(targetDelivery.createdAt || Date.now()).toLocaleDateString('en-IN', {
       day: 'numeric',
       month: 'short',
@@ -151,15 +186,15 @@ export function PushDeliveryModal({ delivery, onClose, onSuccess }: PushDelivery
         : `💵 *PAYMENT:* Already Settled / Collect ₹0`;
 
     return `📦 *DELIVERY ASSIGNMENT — OUT FOR PICKUP*
-*Invoice:* #${inv.invoiceNo}
+*Invoice:* #${inv?.invoiceNo}
 *Date:* ${dateStr}
 
 ${paymentLine}
 
 👤 *RECEIVER DETAILS:*
-• *Customer Name:* ${party.name}
-• *Phone:* ${party.phone}
-• *Delivery Address:* ${party.address || 'Counter Pickup / Direct Delivery'}
+• *Customer Name:* ${party?.name}
+• *Phone:* ${party?.phone}
+• *Delivery Address:* ${party?.address || 'Counter Pickup / Direct Delivery'}
 
 📦 *ITEMS TO PICK UP:*
 ${itemsList}${supervisorSection}
@@ -170,7 +205,7 @@ ${itemsList}${supervisorSection}
 3. Deliver to customer and collect specified payment.`;
   };
 
-  const handleConfirmPush = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const itemsToDispatch: DispatchedItem[] = selectedItems
@@ -188,334 +223,359 @@ ${itemsList}${supervisorSection}
       }));
 
     if (itemsToDispatch.length === 0) {
-      alert('Please select at least one product with quantity > 0 to assign to this driver.');
+      alert('Please select at least one product with quantity > 0 to process.');
       return;
     }
 
-    const amountCollectNum = Number(amountToCollect) || 0;
+    if (activeTab === 'DELIVERY' && !selectedDriverId) {
+      alert('Please select an assigned driver for this delivery.');
+      return;
+    }
+
+    const amountCollectNum = activeTab === 'DELIVERY' ? Number(amountToCollect) || 0 : 0;
+    const isPickup = activeTab === 'PICKUP';
 
     setSubmitting(true);
     try {
       await apiRequest(`/delivery/${delivery.id}/push`, {
         method: 'POST',
         body: JSON.stringify({
+          driverId: isPickup ? null : selectedDriverId,
+          isCustomerPickup: isPickup,
           amountToCollect: amountCollectNum,
-          supervisorIds: selectedSupervisorIds,
-          vehicle: vehicle || undefined,
-          notes: notes || undefined,
+          supervisorIds: isPickup ? [] : selectedSupervisorIds,
+          vehicle: isPickup ? undefined : vehicle || undefined,
+          notes: notes || (isPickup ? 'Customer self-pickup completed from showroom/counter' : undefined),
           items: itemsToDispatch,
         }),
       });
 
+      if (isPickup) {
+        onSuccess();
+        onClose();
+        return;
+      }
+
+      // If driver delivery, construct WhatsApp message and prompt share
+      const driverObj = availableDrivers.find((d) => d.id === selectedDriverId) || delivery.driver;
       const msg = buildDriverDispatchMessage(delivery, itemsToDispatch, amountCollectNum);
-      const cleanPhone = cleanPhoneNumber(delivery.driver?.phone);
+      const cleanPhone = cleanPhoneNumber(driverObj?.phone);
       const waUrl = cleanPhone
         ? `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(msg)}`
         : `https://wa.me/?text=${encodeURIComponent(msg)}`;
 
-      const hasRemaining =
-        itemsToDispatch.length < selectedItems.length ||
-        selectedItems.some((it) => it.selected && it.dispatchQty < it.maxQty);
-
       onSuccess({
         invoiceNo: delivery.invoice?.invoiceNo || 'N/A',
-        driverName: delivery.driver?.name || 'Driver',
-        driverPhone: delivery.driver?.phone || '',
+        driverName: driverObj?.name || 'Driver',
+        driverPhone: driverObj?.phone || '',
         itemsCount: itemsToDispatch.length,
         amountToCollect: amountCollectNum,
         transportCost: 0,
-        hasRemaining,
+        hasRemaining: isPartialDispatch,
         waUrl,
       });
+      onClose();
     } catch (err: unknown) {
-      alert((err as Error).message || 'Failed to push delivery');
+      alert((err as Error).message || 'Failed to process delivery');
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="w-full max-w-2xl rounded-[1.25rem] border border-border/70 bg-card/95 backdrop-blur-xl p-6 shadow-2xl space-y-5 my-8 max-h-[88dvh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-200">
+      <div className="w-full max-w-2xl rounded-2xl border border-border/80 bg-card/95 backdrop-blur-xl p-6 shadow-2xl space-y-5 my-8 max-h-[90dvh] flex flex-col">
         {/* Modal Header */}
-        <div className="flex items-center justify-between border-b border-border/60 pb-3">
+        <div className="flex items-center justify-between border-b border-border/60 pb-3 shrink-0">
           <div>
             <h2 className="text-base font-bold text-foreground flex items-center gap-2">
-              <Send className="h-4 w-4 text-primary" />
-              Push Delivery to Driver (Out for Pickup)
+              <Truck className="h-5 w-5 text-primary" />
+              {isEditing ? 'Edit Delivery Run' : 'Process Delivery Order'}
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Invoice #{delivery.invoice?.invoiceNo} • Driver:{' '}
-              <strong className="text-foreground">{delivery.driver?.name}</strong> (
-              {delivery.driver?.phone})
+              Invoice #{delivery.invoice?.invoiceNo} • {delivery.invoice?.party?.name}
             </p>
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition cursor-pointer"
+            aria-label="Close modal"
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
 
-        <form onSubmit={handleConfirmPush} className="space-y-4">
-
-          {/* Cash/Payment Collection from Customer */}
-          <div className="p-3.5 rounded-[0.875rem] bg-primary/5 border border-primary/20 space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-primary flex items-center gap-1.5 uppercase tracking-wider">
-                <CircleDollarSign className="h-4 w-4 text-primary" />
-                Cash / Money to Collect from Customer
-              </label>
-              <span className="text-[0.6875rem] text-muted-foreground font-medium">Visible to Driver</span>
-            </div>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">
-                ₹
-              </span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00 (Enter amount if driver needs to collect from customer)"
-                value={amountToCollect}
-                onChange={(e) =>
-                  setAmountToCollect(e.target.value === '' ? '' : Number(e.target.value))
-                }
-                className="w-full rounded-[0.75rem] border border-input bg-background pl-7 pr-3 py-2 text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
-            <p className="text-[0.6875rem] text-muted-foreground">
-              Leave 0 if order is already paid. If set, this exact amount will be prominently
-              displayed on the driver&apos;s app to collect upon delivery.
-            </p>
+        {/* Process Mode Tabs */}
+        {!isEditing && (
+          <div className="grid grid-cols-2 gap-2 p-1 bg-muted/60 rounded-xl border border-border/60 shrink-0">
+            <button
+              type="button"
+              onClick={() => setActiveTab('DELIVERY')}
+              className={`py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
+                activeTab === 'DELIVERY'
+                  ? 'bg-card text-foreground shadow-xs border border-border/60'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <Truck className="h-4 w-4 text-primary" />
+              Delivery (Driver Dispatch)
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('PICKUP')}
+              className={`py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer ${
+                activeTab === 'PICKUP'
+                  ? 'bg-card text-emerald-600 dark:text-emerald-400 shadow-xs border border-border/60'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <ShoppingBag className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              Picked up by Customer (Counter Pickup)
+            </button>
           </div>
+        )}
 
-          {/* Assigned Supervisor(s) Selection */}
-          <div className="p-3.5 rounded-[0.875rem] bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-200 dark:border-indigo-800 space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-indigo-700 dark:text-indigo-400 flex items-center gap-1.5 uppercase tracking-wider">
-                <ShieldCheck className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                Assign Dispatch Supervisor(s)
-              </label>
-              <span className="text-[0.6875rem] text-muted-foreground font-medium">
-                {selectedSupervisorIds.length} Selected
-              </span>
-            </div>
-            <p className="text-[0.6875rem] text-muted-foreground">
-              Select one or multiple supervisors to oversee item pickup and inspection for this delivery.
-            </p>
-            {loadingSupervisors ? (
-              <div className="text-xs text-muted-foreground py-1">Loading supervisors...</div>
-            ) : availableSupervisors.length === 0 ? (
-              <div className="text-xs text-muted-foreground italic py-1">
-                No active supervisors found. You can add supervisors under Users & Staff.
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto space-y-4 pr-1">
+          {/* Tab 1: Driver Dispatch Configuration */}
+          {activeTab === 'DELIVERY' ? (
+            <div className="space-y-3.5 p-4 rounded-xl border border-border/60 bg-muted/15">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Driver Select */}
+                <div>
+                  <label className="block text-xs font-semibold text-foreground mb-1 flex items-center gap-1.5">
+                    <User className="h-3.5 w-3.5 text-primary" />
+                    Assign Driver <span className="text-destructive">*</span>
+                  </label>
+                  <select
+                    value={selectedDriverId}
+                    onChange={(e) => setSelectedDriverId(e.target.value)}
+                    required
+                    className="w-full text-xs rounded-xl border border-input bg-background text-foreground py-2 px-3 focus:outline-none focus:ring-1 focus:ring-ring"
+                  >
+                    <option value="">-- Choose Driver --</option>
+                    {availableDrivers.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name} ({d.phone})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Amount to Collect */}
+                <div>
+                  <label className="block text-xs font-semibold text-foreground mb-1 flex items-center gap-1.5">
+                    <CircleDollarSign className="h-3.5 w-3.5 text-primary" />
+                    Amount to Collect (₹)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={amountToCollect}
+                    onChange={(e) => setAmountToCollect(e.target.value === '' ? '' : Number(e.target.value))}
+                    placeholder="0"
+                    className="w-full text-xs rounded-xl border border-input bg-background text-foreground py-2 px-3 focus:outline-none focus:ring-1 focus:ring-ring font-mono font-bold"
+                  />
+                </div>
               </div>
-            ) : (
-              <div className="flex flex-wrap gap-2 pt-1">
-                {availableSupervisors.map((sup) => {
-                  const isSelected = selectedSupervisorIds.includes(sup.id);
-                  return (
+
+              {/* Vehicle & Supervisors */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-foreground mb-1 flex items-center gap-1.5">
+                    <Truck className="h-3.5 w-3.5 text-muted-foreground" />
+                    Vehicle Plate / Mode (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={vehicle}
+                    onChange={(e) => setVehicle(e.target.value)}
+                    placeholder="e.g. DL 1A AB 1234, Tempo, E-Rickshaw"
+                    className="w-full text-xs rounded-xl border border-input bg-background text-foreground py-2 px-3 focus:outline-none focus:ring-1 focus:ring-ring"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-foreground mb-1 flex items-center gap-1.5">
+                    <ShieldCheck className="h-3.5 w-3.5 text-primary" />
+                    Warehouse Supervisors (Optional)
+                  </label>
+                  {loadingSupervisors ? (
+                    <div className="text-xs text-muted-foreground italic py-2">Loading supervisors...</div>
+                  ) : availableSupervisors.length === 0 ? (
+                    <div className="text-xs text-muted-foreground italic py-2">No supervisors registered</div>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {availableSupervisors.map((s) => {
+                        const isSelected = selectedSupervisorIds.includes(s.id);
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => handleToggleSupervisor(s.id)}
+                            className={`px-2 py-1 rounded-lg text-xs font-medium border transition cursor-pointer flex items-center gap-1 ${
+                              isSelected
+                                ? 'bg-primary/10 border-primary text-primary font-bold'
+                                : 'bg-background border-border text-muted-foreground hover:text-foreground'
+                            }`}
+                          >
+                            <span>{s.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* Tab 2: Customer Pickup Notice */
+            <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 space-y-2">
+              <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-bold text-xs">
+                <CheckCircle className="h-4 w-4" />
+                Customer Direct Counter Pickup
+              </div>
+              <p className="text-xs text-emerald-900/80 dark:text-emerald-200/80 leading-relaxed">
+                The chosen items will be immediately marked as <strong>Delivered</strong> at the showroom/counter. No driver will be dispatched.
+              </p>
+            </div>
+          )}
+
+          {/* Shared Interactive Item Picker */}
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <label className="text-xs font-bold text-foreground uppercase tracking-wider block">
+                  Select Items for this {activeTab === 'PICKUP' ? 'Pickup' : 'Delivery'}
+                </label>
+                <span className="text-[11px] text-muted-foreground">
+                  Unselected items will remain pending for future dispatch.
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => handleSelectAllItems(true)}
+                  className="text-primary hover:underline font-semibold cursor-pointer"
+                >
+                  Select All
+                </button>
+                <span className="text-muted-foreground">•</span>
+                <button
+                  type="button"
+                  onClick={() => handleSelectAllItems(false)}
+                  className="text-muted-foreground hover:underline cursor-pointer"
+                >
+                  Deselect All
+                </button>
+              </div>
+            </div>
+
+            {/* Items Table */}
+            <div className="rounded-xl border border-border/70 overflow-hidden divide-y divide-border/50">
+              {selectedItems.map((item, idx) => (
+                <div
+                  key={item.invoiceItemId || idx}
+                  className={`p-3 flex items-center justify-between gap-3 transition-colors ${
+                    item.selected ? 'bg-card' : 'bg-muted/30 opacity-60'
+                  }`}
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
                     <button
-                      key={sup.id}
                       type="button"
-                      onClick={() => handleToggleSupervisor(sup.id)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                        isSelected
-                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                          : 'bg-background hover:bg-muted text-foreground border-border'
-                      }`}
+                      onClick={() => handleToggleItemSelection(idx)}
+                      className="cursor-pointer text-primary shrink-0"
                     >
-                      <Users className="h-3 w-3" />
-                      <span>{sup.name}</span>
-                      <span className={`text-[0.6875rem] ${isSelected ? 'text-indigo-200' : 'text-muted-foreground'}`}>
-                        ({sup.phone})
-                      </span>
+                      {item.selected ? (
+                        <CheckSquare className="h-4 w-4 text-primary" />
+                      ) : (
+                        <Square className="h-4 w-4 text-muted-foreground" />
+                      )}
                     </button>
-                  );
-                })}
+                    <div className="truncate">
+                      <div className="text-xs font-semibold text-foreground truncate">
+                        {item.productName || 'Product'}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground flex items-center gap-2">
+                        <span>Showroom / Warehouse: {item.warehouseName || 'Main'}</span>
+                        {item.batchNo && (
+                          <span className="font-mono text-[10px] px-1.5 py-0.2 bg-muted rounded">
+                            Lot: {item.batchNo}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quantity Dispatch Field */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs text-muted-foreground">Qty:</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max={item.maxQty}
+                      value={item.dispatchQty}
+                      disabled={!item.selected}
+                      onChange={(e) => handleItemQtyChange(idx, Number(e.target.value))}
+                      className="w-16 text-center text-xs font-bold rounded-lg border border-input bg-background py-1 px-1 text-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      / {item.maxQty} {item.unit || 'units'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Partial Dispatch Reminder Alert */}
+            {isPartialDispatch && (
+              <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 flex items-start gap-2.5">
+                <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-amber-800 dark:text-amber-300">
+                  <strong>Partial Dispatch:</strong> Only selected quantities will be processed now. The remaining items will stay queued in an active pending delivery run for this bill.
+                </p>
               </div>
             )}
           </div>
 
-          {/* Product Selection & Quantity Specification */}
-          <div className="rounded-[0.875rem] border border-border/70 bg-muted/20 p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Package className="h-4 w-4 text-primary" />
-                  Select Products & Quantities for This Driver
-                </span>
-                <p className="text-[0.6875rem] text-muted-foreground mt-0.5">
-                  Unselected or partial quantities will remain in pending dispatch for another driver.
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleSelectAllItems(true)}
-                  className="text-[0.6875rem] text-primary hover:underline font-semibold"
-                >
-                  Select All
-                </button>
-                <span className="text-border">|</span>
-                <button
-                  type="button"
-                  onClick={() => handleSelectAllItems(false)}
-                  className="text-[0.6875rem] text-muted-foreground hover:text-foreground font-semibold"
-                >
-                  Clear
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-              {selectedItems.map((item, idx) => {
-                const isPartial = item.selected && item.dispatchQty < item.maxQty;
-                const remainder = item.maxQty - item.dispatchQty;
-
-                return (
-                  <div
-                    key={idx}
-                    className={`p-3 rounded-[0.75rem] border transition-colors ${
-                      item.selected
-                        ? 'bg-card border-primary/40 shadow-xs'
-                        : 'bg-muted/40 border-border/50 opacity-60'
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      {/* Checkbox & Item details */}
-                      <div className="flex items-start gap-2.5 flex-1">
-                        <button
-                          type="button"
-                          onClick={() => handleToggleItemSelection(idx)}
-                          className="mt-0.5 text-primary hover:opacity-80 transition"
-                        >
-                          {item.selected ? (
-                            <CheckSquare className="h-4 w-4 text-primary" />
-                          ) : (
-                            <Square className="h-4 w-4 text-muted-foreground" />
-                          )}
-                        </button>
-
-                        <div className="space-y-0.5 flex-1">
-                          <div className="text-xs font-semibold text-foreground flex items-center gap-2">
-                            <span>{item.productName}</span>
-                            <span className="text-[0.6875rem] font-normal text-muted-foreground">
-                              (Total: {item.maxQty} {item.unit})
-                            </span>
-                          </div>
-                          {item.batchNo && (
-                            <div className="text-[0.6875rem] text-muted-foreground font-mono">
-                              Lot/Batch: {item.batchNo}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Quantity Input for this driver */}
-                      {item.selected && (
-                        <div className="flex flex-col items-end gap-1">
-                          <div className="flex items-center gap-1.5">
-                            <label className="text-[0.6875rem] text-muted-foreground">Dispatch:</label>
-                            <input
-                              type="number"
-                              min="1"
-                              max={item.maxQty}
-                              value={item.dispatchQty}
-                              onChange={(e) =>
-                                handleItemQtyChange(idx, Number(e.target.value))
-                              }
-                              className="w-16 rounded-[0.5rem] border border-input bg-background px-2 py-1 text-center font-bold text-foreground text-xs focus:ring-1 focus:ring-ring focus:outline-none"
-                            />
-                            <span className="text-xs text-muted-foreground">{item.unit}</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Remainder status indicator */}
-                    {item.selected && isPartial && (
-                      <div className="mt-2 pt-2 border-t border-border/60 text-[0.6875rem] text-amber-700 dark:text-amber-400 flex items-center gap-1">
-                        <ArrowRight className="h-3 w-3 text-amber-600 dark:text-amber-400 shrink-0" />
-                        <span>
-                          <strong>{remainder} {item.unit}</strong> will remain for another driver.
-                        </span>
-                      </div>
-                    )}
-                    {!item.selected && (
-                      <div className="mt-1 text-[0.6875rem] text-muted-foreground">
-                        Skipped for this driver • Will remain in pending dispatch
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+          {/* Notes */}
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1">
+              Dispatch Notes (Optional)
+            </label>
+            <input
+              type="text"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="e.g. Call customer 30 mins before arrival, delicate handling"
+              className="w-full text-xs rounded-xl border border-input bg-background text-foreground py-2 px-3 focus:outline-none focus:ring-1 focus:ring-ring"
+            />
           </div>
 
-          {/* Vehicle & Trip Notes */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-foreground mb-1">
-                Vehicle / Truck Info (Optional)
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. DL-1AA-1234 (Tata Ace)"
-                value={vehicle}
-                onChange={(e) => setVehicle(e.target.value)}
-                className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-foreground mb-1">
-                Internal Trip Notes (Optional)
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. Driver allowance + toll charges"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
-          </div>
-
-          {/* Destination Preview */}
-          <div className="bg-muted/30 rounded-[0.875rem] p-3 text-xs space-y-1 border border-border/60">
-            <div className="text-muted-foreground text-[0.6875rem] font-semibold uppercase">
-              Delivery Destination:
-            </div>
-            <div className="text-foreground font-semibold">
-              {delivery.invoice?.party?.name}
-            </div>
-            <div className="text-muted-foreground flex items-center gap-1 text-[0.6875rem]">
-              <Phone className="h-3 w-3 text-muted-foreground" />
-              <span>{delivery.invoice?.party?.phone}</span>
-            </div>
-            <div className="text-muted-foreground flex items-start gap-1 text-[0.6875rem]">
-              <MapPin className="h-3 w-3 text-muted-foreground shrink-0 mt-0.5" />
-              <span>{delivery.invoice?.party?.address || 'Counter Pickup'}</span>
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex justify-end gap-3 pt-2">
-            <Button
+          {/* Footer Submit */}
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-border/60 shrink-0">
+            <button
               type="button"
-              variant="outline"
               onClick={onClose}
-              className="text-muted-foreground"
+              disabled={submitting}
+              className="text-xs font-semibold text-foreground px-4 py-2 rounded-xl bg-secondary hover:bg-secondary/80 border border-border transition-all cursor-pointer"
             >
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
               type="submit"
-              disabled={submitting}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium inline-flex items-center gap-1.5 active:scale-98"
+              disabled={submitting || selectedCount === 0}
+              className="text-xs font-bold text-primary-foreground px-5 py-2 rounded-xl bg-primary hover:bg-primary/90 transition-all inline-flex items-center gap-1.5 shadow-sm active:scale-98 cursor-pointer disabled:opacity-50"
             >
-              <Send className="h-4 w-4" />
-              {submitting ? 'Pushing Delivery...' : 'Push Delivery to Driver'}
-            </Button>
+              <Send className="h-3.5 w-3.5" />
+              {submitting
+                ? 'Processing...'
+                : isEditing
+                ? 'Update Delivery'
+                : activeTab === 'PICKUP'
+                ? 'Confirm Customer Pickup'
+                : 'Confirm & Dispatch Driver'}
+            </button>
           </div>
         </form>
       </div>

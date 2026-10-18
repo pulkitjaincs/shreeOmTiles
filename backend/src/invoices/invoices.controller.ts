@@ -2,6 +2,8 @@ import {
   Controller,
   Get,
   Post,
+  Put,
+  Patch,
   Delete,
   Body,
   Param,
@@ -13,7 +15,11 @@ import {
 } from '@nestjs/common';
 import { InvoicesService } from './invoices.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
-import { ProcessReturnDto } from './dto/process-return.dto';
+import { UpdateInvoiceDto } from './dto/update-invoice.dto';
+import {
+  ProcessReturnDto,
+  ProcessStandaloneReturnDto,
+} from './dto/process-return.dto';
 import { PreviewUpiQrDto } from './dto/preview-upi-qr.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -34,6 +40,36 @@ export class InvoicesController {
     @Body() createInvoiceDto: CreateInvoiceDto,
   ) {
     return this.invoicesService.create(createInvoiceDto, req.user.id);
+  }
+
+  @Put(':id')
+  @Roles(Role.SALESMAN, Role.ADMIN, Role.OWNER, Role.ACCOUNTANT)
+  update(
+    @Param('id') id: string,
+    @Body() updateInvoiceDto: UpdateInvoiceDto,
+    @Request() req: RequestWithUser,
+  ) {
+    return this.invoicesService.update(
+      id,
+      updateInvoiceDto,
+      req.user.id,
+      req.user.role,
+    );
+  }
+
+  @Patch(':id')
+  @Roles(Role.SALESMAN, Role.ADMIN, Role.OWNER, Role.ACCOUNTANT)
+  patch(
+    @Param('id') id: string,
+    @Body() updateInvoiceDto: UpdateInvoiceDto,
+    @Request() req: RequestWithUser,
+  ) {
+    return this.invoicesService.update(
+      id,
+      updateInvoiceDto,
+      req.user.id,
+      req.user.role,
+    );
   }
 
   @Get()
@@ -62,6 +98,18 @@ export class InvoicesController {
   @Get('lookup/:query')
   lookupInvoice(@Param('query') query: string) {
     return this.invoicesService.lookupInvoice(query);
+  }
+
+  @Post('returns/standalone')
+  @Roles(Role.SALESMAN, Role.ADMIN, Role.OWNER, Role.ACCOUNTANT)
+  processStandaloneReturn(
+    @Body() returnData: ProcessStandaloneReturnDto,
+    @Request() req: RequestWithUser,
+  ) {
+    return this.invoicesService.processStandaloneReturn(
+      returnData,
+      req.user.id,
+    );
   }
 
   @Post(':id/return')

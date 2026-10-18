@@ -14,7 +14,7 @@ export interface PendingCreditLedger {
 export interface Party {
   id: string;
   name: string;
-  phone: string;
+  phone?: string;
   address?: string;
   gstin?: string;
   type?: string;

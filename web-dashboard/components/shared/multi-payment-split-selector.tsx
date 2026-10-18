@@ -1,9 +1,9 @@
 'use client';
 
 import React from 'react';
-import { Banknote, QrCode, Building2, Plus, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Banknote, QrCode, Building2, CreditCard, Plus, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
 
-export type PaymentMethodType = 'CASH' | 'UPI' | 'BANK_TRANSFER';
+export type PaymentMethodType = 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'CARD';
 
 export interface SplitRow {
   mode: PaymentMethodType;
@@ -38,6 +38,7 @@ export function MultiPaymentSplitSelector({
     CASH: { label: 'Cash in Hand', icon: Banknote, color: 'text-emerald-500 bg-emerald-500/10 border-emerald-500/20' },
     UPI: { label: 'UPI / Live QR', icon: QrCode, color: 'text-indigo-500 bg-indigo-500/10 border-indigo-500/20' },
     BANK_TRANSFER: { label: 'Bank Transfer / NEFT', icon: Building2, color: 'text-sky-500 bg-sky-500/10 border-sky-500/20' },
+    CARD: { label: 'Credit / Debit Card (POS)', icon: CreditCard, color: 'text-amber-500 bg-amber-500/10 border-amber-500/20' },
   };
 
   const totalPaidNow = splits.reduce((sum, s) => {

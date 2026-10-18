@@ -25,6 +25,7 @@ export interface Party {
   gstin?: string;
   isSaved?: boolean;
   category?: 'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER';
+  creditLedgers?: any[];
 }
 
 export interface StockLedger {
@@ -144,6 +145,9 @@ export interface Invoice {
   party?: Party | null;
   salesman?: { id?: string; name: string; phone?: string } | null;
   notes?: string;
+  address?: string;
+  previousBalance?: number | string;
+  isCashSale?: boolean;
   items?: InvoiceItemDetail[];
   refundInvoices?: RefundInvoiceDetail[];
   payments?: any[];
@@ -177,7 +181,7 @@ export interface PreviewUpiData {
   qrDataUrl: string;
 }
 
-export type PaymentMethodType = 'CASH' | 'UPI' | 'BANK_TRANSFER';
+export type PaymentMethodType = 'CASH' | 'UPI' | 'BANK_TRANSFER' | 'CARD';
 
 export interface PaymentSplitItem {
   id?: string;
@@ -198,7 +202,7 @@ export interface PaymentReceipt {
   createdAt: string;
 }
 
-export type CustomerMode = 'EXISTING' | 'NEW_SAVED' | 'UNREGISTERED';
+export type CustomerMode = 'EXISTING' | 'NEW_SAVED' | 'UNREGISTERED' | 'existing' | 'new' | 'cash_sale';
 export type DatePreset = 'ALL' | 'TODAY' | 'YESTERDAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'CUSTOM';
 export type InvoiceStatusFilter = 'ALL' | 'PAID' | 'PARTIAL' | 'CREATED' | 'REFUNDED';
 export type PaymentModeFilter = 'ALL' | 'UPI' | 'CASH' | 'CREDIT' | 'SPLIT';

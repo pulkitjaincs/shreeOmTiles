@@ -12,3 +12,4 @@ export * from './CustomerSelector';
 export * from './InvoiceLineItemCard';
 export * from './filterInvoiceList';
 export * from './DeleteInvoiceModal';
+export * from './InvoiceQrScannerModal';

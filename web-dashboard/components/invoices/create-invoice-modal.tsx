@@ -10,11 +10,11 @@ import {
   Layers, 
   UserCheck, 
   UserPlus, 
-  UserX, 
   Loader2, 
   QrCode, 
   Check,
-  Banknote
+  Banknote,
+  Plus,
 } from 'lucide-react';
 import { ThemedSelect } from '@/components/ui/themed-select';
 import {
@@ -27,7 +27,7 @@ import {
   UpiAccount,
   CustomerMode
 } from './types';
-import { MultiPaymentSplitSelector, SplitRow } from '@/components/shared/multi-payment-split-selector';
+import { MultiPaymentSplitSelector, SplitRow, PaymentMethodType } from '@/components/shared/multi-payment-split-selector';
 
 interface CreateInvoiceModalProps {
   isOpen: boolean;
@@ -37,6 +37,7 @@ interface CreateInvoiceModalProps {
   parties: Party[];
   allStock: StockLedgerRecord[];
   onRefreshStock: () => Promise<StockLedgerRecord[]>;
+  invoiceToEdit?: Invoice | null;
 }
 
 export function CreateInvoiceModal({
@@ -47,11 +48,13 @@ export function CreateInvoiceModal({
   parties,
   allStock,
   onRefreshStock,
+  invoiceToEdit,
 }: CreateInvoiceModalProps) {
   const [customerMode, setCustomerMode] = useState<CustomerMode>('EXISTING');
   const [customerSearch, setCustomerSearch] = useState('');
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
   const [partyId, setPartyId] = useState('');
+  const [billAddress, setBillAddress] = useState('');
   const [newParty, setNewParty] = useState({ name: '', phone: '', address: '' });
   const [paymentMode, setPaymentMode] = useState('UPI');
   const [paymentSplits, setPaymentSplits] = useState<SplitRow[]>([
@@ -66,6 +69,18 @@ export function CreateInvoiceModal({
   const [productSearchTerms, setProductSearchTerms] = useState<Record<number, string>>({});
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Selected party for balance context
+  const selectedParty = useMemo(() => parties.find((p) => p.id === partyId), [parties, partyId]);
+
+  const partyBalance = useMemo(() => {
+    if (!selectedParty || !selectedParty.creditLedgers) return 0;
+    return selectedParty.creditLedgers.reduce((sum, cl) => {
+      if (cl.status === 'SETTLED') return sum;
+      const amt = Number(cl.amountDue || 0);
+      return cl.type === 'RECEIVABLE' ? sum + amt : sum - amt;
+    }, 0);
+  }, [selectedParty]);
 
   // Live UPI Checkout Modal (Counter Screen)
   const [showUpiCheckoutModal, setShowUpiCheckoutModal] = useState(false);
@@ -113,26 +128,80 @@ export function CreateInvoiceModal({
     const initItems = async () => {
       await onRefreshStock().catch(() => allStock);
 
-      setItems([
-        {
-          productId: '',
-          qty: 1,
-          unitPrice: 0,
-          discount: 0,
-        },
-      ]);
-      setFormError('');
-      setPartyId('');
-      setPaymentSplits([{ mode: 'CASH', amount: '' }]);
-      setCustomerMode('EXISTING');
-      setCustomerSearch('');
-      setIsCustomerDropdownOpen(false);
-      setOpenProductDropdownIdx(null);
-      setNewParty({ name: '', phone: '', address: '' });
-      setNotes('');
-      setProductSearchTerms({});
-      setShowUpiCheckoutModal(false);
-      setPreviewUpiData(null);
+      if (invoiceToEdit) {
+        setItems(
+          invoiceToEdit.items && invoiceToEdit.items.length > 0
+            ? invoiceToEdit.items.map((it) => ({
+                productId: it.productId,
+                qty: Number(it.qty || 1),
+                unitPrice: Number(it.unitPrice || 0),
+                discount: Number(it.discount || 0),
+              }))
+            : [{ productId: '', qty: 1, unitPrice: 0, discount: 0 }],
+        );
+        const pId = invoiceToEdit.partyId || invoiceToEdit.party?.id || '';
+        setPartyId(pId);
+        setCustomerSearch(
+          invoiceToEdit.party?.name
+            ? `${invoiceToEdit.party.name} (${invoiceToEdit.party.phone || ''})`
+            : '',
+        );
+        setCustomerMode(invoiceToEdit.isCashSale ? 'UNREGISTERED' : 'EXISTING');
+        setBillAddress(invoiceToEdit.address || invoiceToEdit.party?.address || '');
+        setTaxRate(
+          invoiceToEdit.taxRate !== undefined && invoiceToEdit.taxRate !== null
+            ? Number(invoiceToEdit.taxRate)
+            : invoiceToEdit.taxBreakup?.rate ?? 18,
+        );
+        setTransportCost(
+          invoiceToEdit.transportCost !== undefined && invoiceToEdit.transportCost !== null
+            ? Number(invoiceToEdit.transportCost)
+            : '',
+        );
+        setTransportGstRate(Number(invoiceToEdit.transportGstRate || 0));
+        setNotes(invoiceToEdit.notes || '');
+        if (invoiceToEdit.payments && invoiceToEdit.payments.length > 0) {
+          const nonCreditPayments = invoiceToEdit.payments.filter((p) => p.mode !== 'CREDIT' && Number(p.amount) > 0);
+          if (nonCreditPayments.length > 0) {
+            setPaymentSplits(
+              nonCreditPayments.map((p) => ({
+                mode: (['CASH', 'UPI', 'BANK_TRANSFER', 'CARD'].includes(p.mode)
+                  ? p.mode
+                  : 'CASH') as PaymentMethodType,
+                amount: String(p.amount),
+                upiUtr: p.upiUtr,
+                notes: p.notes,
+              })),
+            );
+          } else {
+            setPaymentSplits([{ mode: 'CASH', amount: '' }]);
+          }
+        } else {
+          setPaymentSplits([{ mode: 'CASH', amount: '' }]);
+        }
+      } else {
+        setItems([
+          {
+            productId: '',
+            qty: 1,
+            unitPrice: 0,
+            discount: 0,
+          },
+        ]);
+        setFormError('');
+        setPartyId('');
+        setBillAddress('');
+        setPaymentSplits([{ mode: 'CASH', amount: '' }]);
+        setCustomerMode('EXISTING');
+        setCustomerSearch('');
+        setIsCustomerDropdownOpen(false);
+        setOpenProductDropdownIdx(null);
+        setNewParty({ name: '', phone: '', address: '' });
+        setNotes('');
+        setProductSearchTerms({});
+        setShowUpiCheckoutModal(false);
+        setPreviewUpiData(null);
+      }
     };
 
     const fetchUpiAccounts = async () => {
@@ -150,7 +219,7 @@ export function CreateInvoiceModal({
     void initItems();
     void fetchUpiAccounts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [isOpen, invoiceToEdit]);
 
   const handleAddItem = () => {
     setFormError('');
@@ -283,13 +352,20 @@ export function CreateInvoiceModal({
       throw new Error('Please select a customer from the list');
     }
     let cleanPhone = '';
-    if (customerMode !== 'EXISTING') {
+    if (customerMode === 'NEW_SAVED') {
       if (!newParty.name.trim() || !newParty.phone.trim()) {
         throw new Error('Please provide both Customer Name and Mobile Number');
       }
       cleanPhone = newParty.phone.replace(/\D/g, '');
       if (cleanPhone.length !== 10) {
         throw new Error('Customer mobile number must be strictly 10 digits');
+      }
+    } else if (customerMode === 'UNREGISTERED') {
+      if (newParty.phone.trim()) {
+        cleanPhone = newParty.phone.replace(/\D/g, '');
+        if (cleanPhone.length > 0 && cleanPhone.length !== 10) {
+          throw new Error('Customer mobile number must be strictly 10 digits if provided');
+        }
       }
     }
 
@@ -345,12 +421,15 @@ export function CreateInvoiceModal({
       newParty:
         customerMode !== 'EXISTING'
           ? {
-              name: newParty.name.trim(),
-              phone: cleanPhone,
-              address: newParty.address.trim() || undefined,
+              name: newParty.name.trim() || (customerMode === 'UNREGISTERED' ? 'Cash Sale' : 'Walk-in Customer'),
+              phone: cleanPhone || undefined,
+              address: (billAddress.trim() || newParty.address.trim()) || undefined,
               isSaved: customerMode === 'NEW_SAVED',
             }
           : undefined,
+      address: billAddress.trim() || (customerMode !== 'EXISTING' ? newParty.address.trim() : undefined) || undefined,
+      isCashSale: customerMode === 'UNREGISTERED',
+      previousBalance: partyBalance,
       paymentMode: primaryMode,
       amountPaidNow: effectivePaidNow,
       payments: validPayments,
@@ -369,14 +448,18 @@ export function CreateInvoiceModal({
       const payload = validateAndBuildPayload();
       if (modeOverride) payload.paymentMode = modeOverride;
 
-      const createdInvoice = await apiRequest<Invoice>('/invoices', {
-        method: 'POST',
+      const isEditing = Boolean(invoiceToEdit);
+      const url = isEditing ? `/invoices/${invoiceToEdit!.id}` : '/invoices';
+      const method = isEditing ? 'PUT' : 'POST';
+
+      const createdInvoice = await apiRequest<Invoice>(url, {
+        method,
         body: JSON.stringify(payload),
       });
 
       onSuccess(createdInvoice);
     } catch (err: unknown) {
-      setFormError((err as Error).message || 'Failed to create invoice');
+      setFormError((err as Error).message || 'Failed to process invoice');
       setShowUpiCheckoutModal(false);
     } finally {
       setSubmitting(false);
@@ -437,9 +520,13 @@ export function CreateInvoiceModal({
         <div className="w-full max-w-4xl rounded-[1.5rem] border border-border bg-background shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-foreground">
           <div className="shrink-0 flex items-center justify-between border-b border-border p-6">
             <div>
-              <h2 className="text-[1.25rem] font-bold text-foreground">Create Tax Invoice</h2>
+              <h2 className="text-[1.25rem] font-bold text-foreground">
+                {invoiceToEdit ? `Edit Invoice #${invoiceToEdit.invoiceNo}` : 'Create Tax Invoice'}
+              </h2>
               <p className="text-[0.75rem] text-muted-foreground mt-0.5">
-                Add products with unified live stock availability for instant billing
+                {invoiceToEdit
+                  ? 'Update line items, quantities, delivery address, notes, or payment settlements'
+                  : 'Add products with unified live stock availability for instant billing'}
               </p>
             </div>
             <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
@@ -503,18 +590,18 @@ export function CreateInvoiceModal({
                     }}
                     className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-[0.75rem] border text-[0.75rem] font-medium transition ${
                       customerMode === 'UNREGISTERED'
-                        ? 'border-amber-500 bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold shadow-2xs'
+                        ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-semibold shadow-2xs'
                         : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted'
                     }`}
                   >
-                    <UserX className="h-4 w-4" />
-                    <span>Walk-in (Do NOT Save)</span>
+                    <Banknote className="h-4 w-4" />
+                    <span>Cash Sale (Counter Pickup)</span>
                   </button>
                 </div>
               </div>
 
               {customerMode === 'EXISTING' && (
-                <div className="relative pt-1">
+                <div className="relative pt-1 space-y-3">
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-[0.75rem] font-medium text-foreground">
                       Search & Select Customer *
@@ -543,6 +630,7 @@ export function CreateInvoiceModal({
                         type="button"
                         onClick={() => {
                           setPartyId('');
+                          setBillAddress('');
                           setCustomerSearch('');
                           setIsCustomerDropdownOpen(true);
                         }}
@@ -567,7 +655,7 @@ export function CreateInvoiceModal({
                         const q = customerSearch.toLowerCase();
                         return (
                           p.name.toLowerCase().includes(q) ||
-                          p.phone.includes(q) ||
+                          (p.phone && p.phone.includes(q)) ||
                           (p.address && p.address.toLowerCase().includes(q))
                         );
                       }).length === 0 ? (
@@ -581,7 +669,7 @@ export function CreateInvoiceModal({
                             const q = customerSearch.toLowerCase();
                             return (
                               p.name.toLowerCase().includes(q) ||
-                              p.phone.includes(q) ||
+                              (p.phone && p.phone.includes(q)) ||
                               (p.address && p.address.toLowerCase().includes(q))
                             );
                           })
@@ -593,7 +681,8 @@ export function CreateInvoiceModal({
                                 type="button"
                                 onClick={() => {
                                   setPartyId(p.id);
-                                  setCustomerSearch(`${p.name} (${p.phone})`);
+                                  setBillAddress(p.address || '');
+                                  setCustomerSearch(`${p.name} (${p.phone || 'No phone'})`);
                                   setIsCustomerDropdownOpen(false);
                                   setItems((current) =>
                                     current.map((item) => {
@@ -610,7 +699,7 @@ export function CreateInvoiceModal({
                                 <div className="min-w-0 pr-2">
                                   <div className="flex items-center gap-2">
                                     <span className="font-semibold">{p.name}</span>
-                                    <span className="font-mono text-[11px] text-muted-foreground">({p.phone})</span>
+                                    {p.phone && <span className="font-mono text-[11px] text-muted-foreground">({p.phone})</span>}
                                   </div>
                                   {p.address && (
                                     <p className="text-[10px] text-muted-foreground truncate mt-0.5">{p.address}</p>
@@ -626,6 +715,44 @@ export function CreateInvoiceModal({
                     </div>
                     </>
                   )}
+
+                  {/* Informational Previous Balance Context */}
+                  {partyId && (
+                    <div className="p-2.5 rounded-[0.75rem] border border-border bg-card flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground font-medium">Previous Balance Context:</span>
+                        {partyBalance > 0 ? (
+                          <span className="font-bold text-amber-600 dark:text-amber-400">
+                            ₹{partyBalance.toLocaleString('en-IN')} (Outstanding dues from customer)
+                          </span>
+                        ) : partyBalance < 0 ? (
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                            ₹{Math.abs(partyBalance).toLocaleString('en-IN')} (Advance balance available)
+                          </span>
+                        ) : (
+                          <span className="font-medium text-muted-foreground">
+                            ₹0.00 (All dues settled)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Per-Bill Custom Address Input */}
+                  {partyId && (
+                    <div>
+                      <label className="block text-[0.75rem] font-medium text-foreground mb-1">
+                        Invoice / Site Address (Per Bill)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Delivery site address, project location or shop"
+                        value={billAddress}
+                        onChange={(e) => setBillAddress(e.target.value)}
+                        className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-[0.75rem] text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      />
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -633,12 +760,12 @@ export function CreateInvoiceModal({
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                   <div>
                     <label className="block text-[0.75rem] font-medium text-foreground mb-1">
-                      Customer Name *
+                      Customer Name {customerMode === 'NEW_SAVED' ? '*' : '(Optional)'}
                     </label>
                     <input
                       type="text"
-                      required
-                      placeholder="e.g. Ramesh Kumar"
+                      required={customerMode === 'NEW_SAVED'}
+                      placeholder={customerMode === 'UNREGISTERED' ? 'Cash Sale (or enter name)' : 'e.g. Ramesh Kumar'}
                       value={newParty.name}
                       onChange={(e) => setNewParty({ ...newParty, name: e.target.value })}
                       className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-[0.75rem] text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -646,11 +773,11 @@ export function CreateInvoiceModal({
                   </div>
                   <div>
                     <label className="block text-[0.75rem] font-medium text-foreground mb-1">
-                      Mobile Number (10 digits) *
+                      Mobile Number {customerMode === 'NEW_SAVED' ? '(10 digits) *' : '(Optional)'}
                     </label>
                     <input
                       type="tel"
-                      required
+                      required={customerMode === 'NEW_SAVED'}
                       maxLength={10}
                       placeholder="e.g. 9876543210"
                       value={newParty.phone}
@@ -665,7 +792,7 @@ export function CreateInvoiceModal({
                   </div>
                   <div>
                     <label className="block text-[0.75rem] font-medium text-foreground mb-1">
-                      Address / Site Location
+                      Address / Site Location (Optional)
                     </label>
                     <input
                       type="text"
@@ -679,78 +806,6 @@ export function CreateInvoiceModal({
               )}
             </div>
 
-            {/* Multi-Payment Split Selector */}
-            <MultiPaymentSplitSelector
-              totalAmount={calculatedGrandTotal}
-              splits={paymentSplits}
-              onChange={setPaymentSplits}
-              allowCredit={true}
-              onPreviewUpi={() => {
-                setShowUpiCheckoutModal(true);
-                void fetchPreviewQr(selectedUpiAccount);
-              }}
-              previewUpiLoading={previewUpiLoading}
-            />
-
-            {/* Tax & Transport Controls */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-muted/30 p-4 rounded-[1rem] border border-border">
-
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[0.75rem] font-medium text-foreground">Items GST (%)</label>
-                  <span className="text-[0.625rem] text-muted-foreground">{activeTaxRate}%</span>
-                </div>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  placeholder="18"
-                  value={taxRate === '' ? '' : taxRate}
-                  onChange={(e) => setTaxRate(e.target.value === '' ? '' : (parseFloat(e.target.value) || 0))}
-                  className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-[0.8125rem] text-foreground font-mono focus:border-primary focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[0.75rem] font-medium text-foreground mb-1">Cartage / Transport (₹)</label>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  placeholder="0"
-                  value={transportCost === '' ? '' : transportCost}
-                  onChange={(e) => setTransportCost(e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value) || 0))}
-                  className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-[0.8125rem] text-foreground font-mono focus:border-primary focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[0.75rem] font-medium text-foreground mb-1">Transport GST (%)</label>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  placeholder="0"
-                  value={transportGstRate === 0 ? '' : transportGstRate}
-                  onChange={(e) => setTransportGstRate(e.target.value === '' ? 0 : (parseFloat(e.target.value) || 0))}
-                  className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-[0.8125rem] text-foreground font-mono focus:border-primary focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[0.75rem] font-medium text-foreground mb-1">Invoice Notes</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Counter delivery"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-[0.8125rem] text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
-                />
-              </div>
-            </div>
-
             {/* Items & Stock Allocation */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -760,13 +815,6 @@ export function CreateInvoiceModal({
                     Product Items & Stock Allocation
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleAddItem}
-                  className="text-[0.75rem] text-primary hover:text-primary/80 font-medium transition"
-                >
-                  + Add Another Product
-                </button>
               </div>
 
               <div className="space-y-4">
@@ -991,6 +1039,74 @@ export function CreateInvoiceModal({
                     </div>
                   );
                 })}
+
+                {/* Add Product Button Relocated Directly Below Last Product Card */}
+                <button
+                  type="button"
+                  onClick={handleAddItem}
+                  className="w-full py-3 px-4 rounded-[1rem] border border-dashed border-primary/40 bg-primary/5 hover:bg-primary/10 text-primary font-semibold text-xs transition flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                >
+                  <Plus className="h-4 w-4" />
+                  + Add Another Product
+                </button>
+              </div>
+            </div>
+
+            {/* Tax & Transport Controls Directly Above Totals */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-muted/30 p-4 rounded-[1rem] border border-border">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[0.75rem] font-medium text-foreground">Items GST (%)</label>
+                  <span className="text-[0.625rem] text-muted-foreground">{activeTaxRate}%</span>
+                </div>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  placeholder="18"
+                  value={taxRate === '' ? '' : taxRate}
+                  onChange={(e) => setTaxRate(e.target.value === '' ? '' : (parseFloat(e.target.value) || 0))}
+                  className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-[0.8125rem] text-foreground font-mono focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[0.75rem] font-medium text-foreground mb-1">Cartage / Transport (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  placeholder="0"
+                  value={transportCost === '' ? '' : transportCost}
+                  onChange={(e) => setTransportCost(e.target.value === '' ? '' : Math.max(0, parseFloat(e.target.value) || 0))}
+                  className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-[0.8125rem] text-foreground font-mono focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[0.75rem] font-medium text-foreground mb-1">Transport GST (%)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  placeholder="0"
+                  value={transportGstRate === 0 ? '' : transportGstRate}
+                  onChange={(e) => setTransportGstRate(e.target.value === '' ? 0 : (parseFloat(e.target.value) || 0))}
+                  className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-[0.8125rem] text-foreground font-mono focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[0.75rem] font-medium text-foreground mb-1">Invoice Notes</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Counter delivery"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-[0.8125rem] text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+                />
               </div>
             </div>
 
@@ -1038,6 +1154,19 @@ export function CreateInvoiceModal({
               )}
             </div>
 
+            {/* Multi-Payment Split Selector (Relocated to the very end below Totals) */}
+            <MultiPaymentSplitSelector
+              totalAmount={calculatedGrandTotal}
+              splits={paymentSplits}
+              onChange={setPaymentSplits}
+              allowCredit={true}
+              onPreviewUpi={() => {
+                setShowUpiCheckoutModal(true);
+                void fetchPreviewQr(selectedUpiAccount);
+              }}
+              previewUpiLoading={previewUpiLoading}
+            />
+
             {formError && (
               <div className="rounded-[0.75rem] bg-rose-500/10 border border-rose-500/30 p-3 text-[0.75rem] text-rose-600 dark:text-rose-400">
                 {formError}
@@ -1057,7 +1186,9 @@ export function CreateInvoiceModal({
                 disabled={submitting}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium text-[0.75rem] shadow-xs active:scale-98"
               >
-                {upiSplitAmount > 0 ? (
+                {invoiceToEdit ? (
+                  'Save Changes'
+                ) : upiSplitAmount > 0 ? (
                   <>
                     <QrCode className="h-4 w-4 mr-2" />
                     Collect ₹{upiSplitAmount.toFixed(2)} via UPI QR
@@ -1218,5 +1349,11 @@ export function CreateInvoiceModal({
       )}
     </>
   );
+}
+
+export function EditInvoiceModal(
+  props: Omit<CreateInvoiceModalProps, 'invoiceToEdit'> & { invoice: Invoice | null },
+) {
+  return <CreateInvoiceModal {...props} invoiceToEdit={props.invoice} />;
 }
 

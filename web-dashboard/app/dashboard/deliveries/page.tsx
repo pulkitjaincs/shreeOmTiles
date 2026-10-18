@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, Fragment } from 'react';
 import { apiRequest, cachedApiRequest } from '@/lib/api';
 import { 
   Share2, 
@@ -20,6 +20,8 @@ import {
   Wallet, 
   Clock,
   FileText,
+  Eye,
+  Edit2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/components/auth-provider';
@@ -31,7 +33,7 @@ import {
   FilterTab, 
   PushSuccessDialogData 
 } from '@/components/deliveries/types';
-import { DeliveryItemsCell } from '@/components/deliveries/delivery-items-cell';
+import { DeliveryDetailsModal } from '@/components/deliveries/delivery-details-modal';
 import { PushDeliveryModal } from '@/components/deliveries/push-delivery-modal';
 import { PushSuccessModal } from '@/components/deliveries/push-success-modal';
 import { AddTripModal } from '@/components/deliveries/add-trip-modal';
@@ -57,6 +59,7 @@ export default function DeliveriesPage() {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Modals
+  const [detailsModalDelivery, setDetailsModalDelivery] = useState<Delivery | null>(null);
   const [pushModalDelivery, setPushModalDelivery] = useState<Delivery | null>(null);
   const [pushSuccessDialog, setPushSuccessDialog] = useState<PushSuccessDialogData | null>(null);
   const [activeDeliveryId, setActiveDeliveryId] = useState<string | null>(null);
@@ -195,41 +198,6 @@ export default function DeliveriesPage() {
     }
   };
 
-  const handleAssignDriver = async (deliveryId: string, driverId: string) => {
-    const target = deliveries.find((d) => d.id === deliveryId);
-    if (
-      target &&
-      ((target.status === 'DELIVERED' && !target.driverId) ||
-        (target.notes && /customer\s*picked\s*up|self-pickup|counter\s*pickup/i.test(target.notes)))
-    ) {
-      alert('This order was already picked up by the customer. Driver assignment is strictly blocked.');
-      return;
-    }
-    try {
-      await apiRequest(`/delivery/${deliveryId}/assign`, {
-        method: 'PATCH',
-        body: JSON.stringify({ driverId }),
-      });
-      loadDeliveries();
-    } catch (err: unknown) {
-      alert((err as Error).message || 'Failed to assign driver');
-    }
-  };
-
-  const handleCustomerPickedUp = async (id: string) => {
-    try {
-      await apiRequest(`/delivery/${id}/status`, {
-        method: 'PATCH',
-        body: JSON.stringify({
-          status: 'DELIVERED',
-          notes: 'Customer Picked Up (Self-Pickup from Counter)',
-        }),
-      });
-      loadDeliveries();
-    } catch (err: unknown) {
-      alert((err as Error).message || 'Failed to mark as customer picked up');
-    }
-  };
 
   const handleCollectCashFromDriver = async (deliveryId: string) => {
     if (!confirm('Confirm receipt of physical cash from the driver into company office?')) {
@@ -308,16 +276,6 @@ ${itemsList}
     window.open(url, '_blank');
   };
 
-  const openPushModal = (delivery: Delivery) => {
-    if (
-      (delivery.status === 'DELIVERED' && !delivery.driverId) ||
-      (delivery.notes && /customer\s*picked\s*up|self-pickup|counter\s*pickup/i.test(delivery.notes))
-    ) {
-      alert('This order was already picked up by the customer. Driver dispatch is strictly blocked.');
-      return;
-    }
-    setPushModalDelivery(delivery);
-  };
 
   return (
     <div className="space-y-6">
@@ -499,8 +457,7 @@ ${itemsList}
               <tr>
                 <th className="py-3 px-4">Invoice #</th>
                 <th className="py-3 px-4">Receiver & Destination</th>
-                {!isDriver && <th className="py-3 px-4">Warehouse Items & Pickup Status</th>}
-                {!isDriver && <th className="py-3 px-4">Assigned Driver</th>}
+                {!isDriver && <th className="py-3 px-4">Items</th>}
                 {!isDriver && !isSupervisor && <th className="py-3 px-4">Collect from Customer</th>}
                 <th className="py-3 px-4">{isDriver || isSupervisor ? 'Status' : 'Status & Logistics Cost'}</th>
                 <th className="py-3 px-4 text-right">Actions</th>
@@ -509,13 +466,13 @@ ${itemsList}
             <tbody className="divide-y divide-border/50">
               {loading ? (
                 <tr>
-                  <td colSpan={isDriver ? 5 : isSupervisor ? 6 : 7} className="text-center py-12 text-muted-foreground">
+                  <td colSpan={isDriver ? 4 : isSupervisor ? 5 : 6} className="text-center py-12 text-muted-foreground">
                     Loading deliveries...
                   </td>
                 </tr>
               ) : filteredDeliveries.length === 0 ? (
                 <tr>
-                  <td colSpan={isDriver ? 5 : isSupervisor ? 6 : 7} className="text-center py-12 text-muted-foreground">
+                  <td colSpan={isDriver ? 4 : isSupervisor ? 5 : 6} className="text-center py-12 text-muted-foreground">
                     {searchQuery
                       ? 'No deliveries matched your search filter.'
                       : activeFilter === 'PENDING'
@@ -576,60 +533,36 @@ ${itemsList}
                         </div>
                       </td>
 
-                      {/* Warehouse Items with Picked-Up Checklist Status */}
+                      {/* Items Count Badge */}
                       {!isDriver && (
-                        <td className="py-3.5 px-4 text-xs align-top max-w-xs">
-                          <DeliveryItemsCell delivery={delivery} isOutForPickup={isOutForPickup} />
-                        </td>
-                      )}
-
-                      {/* Driver Assignment Dropdown */}
-                      {!isDriver && (
-                        <td className="py-3.5 px-4 align-top">
-                          {isCustomerPickup ? (
-                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[0.5rem] bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-xs font-semibold" title="Customer self-pickup completed. Driver assignment is blocked.">
-                              <CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                              <span>Customer Picked Up</span>
-                            </div>
-                          ) : !isOwnerOrAdmin ? (
-                            delivery.driver ? (
-                              <div className="flex items-center gap-1.5 text-xs text-foreground font-medium">
-                                <UserCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                                <span>{delivery.driver.name}</span>
-                              </div>
-                            ) : (
-                              <span className="text-xs text-muted-foreground italic">Unassigned</span>
-                            )
-                          ) : drivers.length > 0 ? (
-                            <div className="space-y-1">
-                              <select
-                                value={delivery.driverId || ''}
-                                onChange={(e) => handleAssignDriver(delivery.id, e.target.value)}
-                                disabled={isDelivered || isCancelled || isCustomerPickup}
-                                className="text-xs rounded-[0.5rem] border border-input bg-background text-foreground py-1.5 px-2 focus:outline-none focus:ring-1 focus:ring-ring w-full max-w-[170px] disabled:opacity-50 disabled:cursor-not-allowed"
+                        <td className="py-3.5 px-4 text-xs align-top">
+                          {(() => {
+                            const items = delivery.items || [];
+                            const picked = items.filter((it) => it.pickedUp).length;
+                            const total = items.length;
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => setDetailsModalDelivery(delivery)}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-muted/60 hover:bg-muted border border-border/60 text-foreground font-medium text-xs transition cursor-pointer"
+                                title="Click to view full item list & pickup checklist"
                               >
-                                <option value="">
-                                  {delivery.driver ? 'Change driver...' : 'Assign driver...'}
-                                </option>
-                                {drivers.map((d) => (
-                                  <option key={d.id} value={d.id}>
-                                    {d.name} ({d.phone})
-                                  </option>
-                                ))}
-                              </select>
-
-                              {delivery.driver && (
-                                <div className="flex items-center gap-1 text-[0.6875rem] text-emerald-600 dark:text-emerald-400 font-medium">
-                                  <UserCheck className="h-3 w-3" />
-                                  <span>{delivery.driver.name}</span>
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="text-xs text-amber-800 dark:text-amber-300 bg-amber-500/10 px-2 py-1 rounded-[0.5rem] border border-amber-500/20">
-                              No drivers registered. Add a user with role &quot;DRIVER&quot;.
-                            </div>
-                          )}
+                                <Boxes className="h-3.5 w-3.5 text-primary" />
+                                <span>{total} item{total !== 1 ? 's' : ''}</span>
+                                {total > 0 && (
+                                  <span
+                                    className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                                      picked === total
+                                        ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
+                                        : 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
+                                    }`}
+                                  >
+                                    {picked}/{total}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })()}
                         </td>
                       )}
 
@@ -721,6 +654,13 @@ ${itemsList}
                             : 'Unassigned'}
                         </span>
 
+                        {delivery.driver && (
+                          <div className="flex items-center gap-1 text-[0.6875rem] text-foreground/80 font-medium mt-1">
+                            <UserCheck className="h-3 w-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                            <span className="truncate">{delivery.driver.name}</span>
+                          </div>
+                        )}
+
                         {!isDriver && !isSupervisor && (
                           <>
                             <div className="text-[0.6875rem] text-muted-foreground font-medium flex items-center gap-1 mt-1.5" title="Internal transport cost (hidden from driver)">
@@ -731,7 +671,7 @@ ${itemsList}
                             {isOwnerOrAdmin && (
                               <button
                                 onClick={() => setActiveDeliveryId(delivery.id)}
-                                className="text-[0.625rem] text-primary hover:underline inline-flex items-center gap-0.5 mt-0.5"
+                                className="text-[0.625rem] text-primary hover:underline inline-flex items-center gap-0.5 mt-0.5 cursor-pointer"
                               >
                                 + Log Trip Cost
                               </button>
@@ -773,64 +713,61 @@ ${itemsList}
                             {isDelivered && (
                               <div className="flex items-center gap-1.5">
                                 <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400 inline-flex items-center gap-1 px-2.5 py-1 rounded-[0.5rem] bg-emerald-500/10 border border-emerald-500/20">
-                                <Check className="h-3.5 w-3.5" /> Delivered
+                                  <Check className="h-3.5 w-3.5" /> Delivered
                                 </span>
                               </div>
                             )}
                           </div>
                         ) : (
                           <div className="space-x-1.5 inline-flex items-center justify-end">
+                            {/* View Details */}
+                            <button
+                              onClick={() => setDetailsModalDelivery(delivery)}
+                              className="p-1.5 text-xs font-semibold text-foreground rounded-lg bg-muted hover:bg-muted/80 border border-border transition-all inline-flex items-center gap-1 shadow-2xs active:scale-98 cursor-pointer"
+                              title="View delivery details and items checklist"
+                            >
+                              <Eye className="h-3.5 w-3.5 text-foreground/80" />
+                            </button>
+
                             {/* Challan PDF Download */}
                             <button
                               onClick={() => handleDownloadChallan(delivery.id, delivery.invoice?.invoiceNo)}
                               disabled={downloadingChallanId === delivery.id}
-                              className="text-xs font-semibold text-foreground px-2.5 py-1.5 rounded-[0.5rem] bg-muted hover:bg-muted/80 border border-border transition-all inline-flex items-center gap-1.5 shadow-2xs active:scale-98 cursor-pointer"
+                              className="p-1.5 text-xs font-semibold text-foreground rounded-lg bg-muted hover:bg-muted/80 border border-border transition-all inline-flex items-center gap-1 shadow-2xs active:scale-98 cursor-pointer"
                               title="Download rate-masked Delivery Challan / Gate Pass"
                             >
                               <FileText className="h-3.5 w-3.5 text-primary" />
-                              {downloadingChallanId === delivery.id ? 'Downloading...' : 'Challan PDF'}
                             </button>
 
                             {/* Dispatch & Cash Actions restricted to OWNER and ADMIN */}
-                            {isOwnerOrAdmin && (
-                              <>
-                                {/* 1. CUSTOMER PICKED UP: Visible ONLY IF NO DRIVER IS ASSIGNED & NOT DELIVERED */}
-                                {!isDriverAssigned && !isDelivered && !isCancelled && !isCustomerPickup && (
+                            {isOwnerOrAdmin ? (
+                              <Fragment>
+                                {/* Pending: Single Process Button */}
+                                {isPendingPush && (
                                   <button
-                                    onClick={() => handleCustomerPickedUp(delivery.id)}
-                                    className="text-xs font-semibold text-emerald-800 dark:text-emerald-300 hover:opacity-90 px-2.5 py-1.5 rounded-[0.5rem] bg-emerald-500/15 border border-emerald-500/30 transition-all inline-flex items-center gap-1 shadow-2xs active:scale-98 cursor-pointer"
-                                    title="Customer picked up order directly from showroom/counter"
-                                  >
-                                    <CheckCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-                                    Customer Picked Up
-                                  </button>
-                                )}
-
-                                {/* 2. PUSH DELIVERY: Shown when driver is assigned and delivery is pending push */}
-                                {isDriverAssigned && isPendingPush && !isCustomerPickup && (
-                                  <button
-                                    onClick={() => openPushModal(delivery)}
-                                    className="text-xs font-semibold text-primary-foreground px-3 py-1.5 rounded-[0.5rem] bg-primary hover:bg-primary/90 transition-all inline-flex items-center gap-1.5 shadow-sm active:scale-98 cursor-pointer"
-                                    title="Select products, enter collection amount & push to driver"
+                                    onClick={() => setPushModalDelivery(delivery)}
+                                    className="text-xs font-bold text-primary-foreground px-3 py-1.5 rounded-lg bg-primary hover:bg-primary/90 transition-all inline-flex items-center gap-1.5 shadow-sm active:scale-98 cursor-pointer"
+                                    title="Process Delivery or Counter Pickup"
                                   >
                                     <Send className="h-3.5 w-3.5" />
-                                    Push Delivery
+                                    Process
                                   </button>
                                 )}
 
-                                {/* 3. PUSHED STATE: Delivery has been pushed to driver */}
+                                {/* Assigned: Edit & Share */}
                                 {isAssignedToDriver && (
-                                  <div className="inline-flex items-center gap-1.5">
-                                    <span
-                                      className="text-xs font-medium text-cyan-800 dark:text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1.5 rounded-[0.5rem] inline-flex items-center gap-1.5"
-                                      title="Delivery pushed to driver. Waiting for driver to click 'Out for Pickup' in their dashboard."
+                                  <div className="inline-flex items-center gap-1">
+                                    <button
+                                      onClick={() => setPushModalDelivery(delivery)}
+                                      className="text-xs font-semibold text-foreground px-2.5 py-1.5 rounded-lg bg-muted hover:bg-muted/80 border border-border transition-all inline-flex items-center gap-1 cursor-pointer"
+                                      title="Edit Delivery Run details & assigned items"
                                     >
-                                      <Clock className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-400 animate-pulse" />
-                                      With {delivery.driver?.name || 'Driver'}
-                                    </span>
+                                      <Edit2 className="h-3.5 w-3.5 text-primary" />
+                                      Edit
+                                    </button>
                                     <button
                                       onClick={() => handleShareWithDriver(delivery)}
-                                      className="p-1.5 rounded-[0.5rem] text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/30 transition-all inline-flex items-center active:scale-95 cursor-pointer"
+                                      className="p-1.5 rounded-lg text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/30 transition-all inline-flex items-center active:scale-95 cursor-pointer"
                                       title="Resend Delivery Assignment to Driver on WhatsApp"
                                     >
                                       <Share2 className="h-3.5 w-3.5" />
@@ -838,33 +775,31 @@ ${itemsList}
                                   </div>
                                 )}
 
-                                {/* 4. RESHARE ON WHATSAPP & ACTIONS */}
+                                {/* Out for Pickup or Delivery: Reshare on WhatsApp */}
                                 {(isOutForPickup || isOutForDelivery) && (
                                   <button
                                     onClick={() => handleShareWithDriver(delivery)}
-                                    className="p-1.5 rounded-[0.5rem] text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/30 transition-all inline-flex items-center active:scale-95 cursor-pointer"
+                                    className="p-1.5 rounded-lg text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 border border-emerald-500/30 transition-all inline-flex items-center active:scale-95 cursor-pointer"
                                     title="Resend Delivery Assignment to Driver on WhatsApp"
                                   >
                                     <Share2 className="h-3.5 w-3.5" />
                                   </button>
                                 )}
 
-                                {/* 5. COLLECT CASH FROM DRIVER */}
-                                {isDelivered && Number(delivery.cashCollected || 0) > 0 && !delivery.cashHandedOver && (
+                                {/* Collect Cash Handover from Driver */}
+                                {Boolean(isDelivered && !delivery.cashHandedOver && Number(delivery.cashCollected || 0) > 0) ? (
                                   <button
                                     onClick={() => handleCollectCashFromDriver(delivery.id)}
                                     disabled={submittingHandover === delivery.id}
-                                    className="text-xs font-semibold text-white px-3 py-1.5 rounded-[0.5rem] bg-emerald-600 hover:bg-emerald-500 transition-all inline-flex items-center gap-1.5 shadow-sm active:scale-98 cursor-pointer"
+                                    className="text-xs font-semibold text-white px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 transition-all inline-flex items-center gap-1 shadow-sm active:scale-98 cursor-pointer"
                                     title="Collect cash from driver and deposit to office"
                                   >
                                     <CircleDollarSign className="h-3.5 w-3.5" />
-                                    {submittingHandover === delivery.id
-                                      ? 'Collecting...'
-                                      : `Collect Cash (${formatINR(delivery.cashCollected)})`}
+                                    {submittingHandover === delivery.id ? 'Collecting...' : 'Receive Cash'}
                                   </button>
-                                )}
-                              </>
-                            )}
+                                ) : null}
+                              </Fragment>
+                            ) : null}
                           </div>
                         )}
                       </td>
@@ -884,22 +819,36 @@ ${itemsList}
         />
       </div>
 
-      {/* Push Delivery Modal */}
+      {/* Delivery Details Modal */}
+      <DeliveryDetailsModal
+        delivery={detailsModalDelivery}
+        onClose={() => setDetailsModalDelivery(null)}
+        onDownloadChallan={handleDownloadChallan}
+        canEdit={isOwnerOrAdmin && detailsModalDelivery?.status === 'ASSIGNED'}
+        onEdit={(d) => {
+          setDetailsModalDelivery(null);
+          setPushModalDelivery(d);
+        }}
+      />
+
+      {/* Push / Process / Edit Delivery Modal */}
       <PushDeliveryModal
         delivery={pushModalDelivery}
+        drivers={drivers}
         onClose={() => setPushModalDelivery(null)}
-        onSuccess={(dialogData) => {
-          // Optimistically update delivery so Push Delivery button vanishes immediately
-          setDeliveries((prev) =>
-            prev.map((d) =>
-              d.id === pushModalDelivery?.id
-                ? { ...d, status: 'ASSIGNED', amountToCollect: dialogData.amountToCollect }
-                : d,
-            ),
-          );
+        onSuccess={(dialogData?: PushSuccessDialogData) => {
+          if (dialogData) {
+            setDeliveries((prev) =>
+              prev.map((d) =>
+                d.id === pushModalDelivery?.id
+                  ? { ...d, status: 'ASSIGNED', amountToCollect: dialogData.amountToCollect }
+                  : d,
+              ),
+            );
+            setPushSuccessDialog(dialogData);
+          }
           setPushModalDelivery(null);
-          setPushSuccessDialog(dialogData);
-          loadDeliveries();
+          loadDeliveries(true);
         }}
       />
 

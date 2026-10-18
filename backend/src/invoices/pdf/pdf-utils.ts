@@ -25,16 +25,21 @@ export interface GeneratedPdfResult {
   invoiceNo: string;
 }
 
-export type InvoicePdfPayload = Prisma.InvoiceGetPayload<{
-  include: {
-    party: true;
-    salesman: { select: { id: true; name: true; phone: true } };
-    items: { include: { product: true; warehouse: true } };
-    payments: true;
-    refundInvoices: { include: { items: true } };
-  };
-}> & {
-  previousBalance?: number;
+export type InvoicePdfPayload = Omit<
+  Prisma.InvoiceGetPayload<{
+    include: {
+      party: true;
+      salesman: { select: { id: true; name: true; phone: true } };
+      items: { include: { product: true; warehouse: true } };
+      payments: true;
+      refundInvoices: { include: { items: true } };
+    };
+  }>,
+  'previousBalance'
+> & {
+  previousBalance?: number | Prisma.Decimal;
+  isCashSale?: boolean;
+  address?: string | null;
 };
 
 export type RefundInvoicePdfPayload = Prisma.RefundInvoiceGetPayload<{
@@ -45,7 +50,13 @@ export type RefundInvoicePdfPayload = Prisma.RefundInvoiceGetPayload<{
     items: { include: { product: true; warehouse: true } };
     payments: true;
   };
-}>;
+}> & {
+  items: Array<
+    Prisma.RefundInvoiceItemGetPayload<{
+      include: { product: true; warehouse: true };
+    }> & { customItemName?: string | null }
+  >;
+};
 
 export function safePdfText(str: unknown): string {
   if (str === null || str === undefined) return '';

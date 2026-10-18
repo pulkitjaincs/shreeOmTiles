@@ -91,6 +91,9 @@ export class DispatchedItemDto {
 }
 
 export class PushDeliveryDto {
+  @IsOptional()
+  isCustomerPickup?: boolean;
+
   @IsString()
   @IsOptional()
   driverId?: string;

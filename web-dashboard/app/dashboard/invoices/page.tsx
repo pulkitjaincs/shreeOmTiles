@@ -36,6 +36,8 @@ import { ReturnInvoiceModal } from '@/components/invoices/return-invoice-modal';
 import { InvoiceDetailsDrawer } from '@/components/invoices/invoice-details-drawer';
 import { ShareInvoiceModal } from '@/components/invoices/share-invoice-modal';
 import { DeleteInvoiceModal } from '@/components/invoices/delete-invoice-modal';
+import { PartyStatementDrawer } from '@/components/parties/party-statement-drawer';
+import type { Party as DrawerParty } from '@/components/parties/types';
 import { formatINR, formatDate, cleanPhoneNumber } from '@/lib/formatters';
 
 export default function InvoicesPage() {
@@ -62,8 +64,10 @@ export default function InvoicesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [deletingInvoice, setDeletingInvoice] = useState<Invoice | null>(null);
   const [createdInvoiceSuccess, setCreatedInvoiceSuccess] = useState<Invoice | null>(null);
+  const [statementParty, setStatementParty] = useState<Party | null>(null);
 
   // Loading & Feedback
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
@@ -549,8 +553,20 @@ export default function InvoicesPage() {
                       </span>
                     </td>
                     <td className="py-3 px-3.5 font-medium text-foreground">
-                      {inv.party?.name || 'Walk-in Customer'}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span>{inv.party?.name || (inv.isCashSale ? 'Cash Sale' : 'Walk-in Customer')}</span>
+                        {inv.isCashSale && (
+                          <span className="text-[0.625rem] font-bold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            Cash Sale
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[0.6875rem] text-muted-foreground">{inv.party?.phone}</div>
+                      {inv.address && (
+                        <div className="text-[0.6875rem] text-muted-foreground/80 truncate max-w-[200px]" title={inv.address}>
+                          📍 {inv.address}
+                        </div>
+                      )}
                     </td>
                     <td className="py-3 px-3.5 text-muted-foreground">
                       {formatDate(inv.createdAt)}
@@ -615,60 +631,58 @@ export default function InvoicesPage() {
                       </div>
                     </td>
                     <td
-                      className="py-3 px-3.5 text-right space-x-2 whitespace-nowrap"
+                      className="py-3 px-3.5 text-right whitespace-nowrap"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <button
-                        onClick={() => handleOpenInvoiceView(inv)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-[0.5rem] text-[0.75rem] font-medium text-primary bg-primary/10 hover:bg-primary/20 border border-primary/25 shadow-2xs transition"
-                        title="View Full Order Details"
-                      >
-                        <Eye className="h-3.5 w-3.5" />
-                        <span>View</span>
-                      </button>
+                      <div className="inline-flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => handleOpenInvoiceView(inv)}
+                          className="h-8 w-8 inline-flex items-center justify-center rounded-[0.5rem] text-primary bg-primary/10 hover:bg-primary/20 border border-primary/25 shadow-2xs transition active:scale-95"
+                          title="View Full Order Details & Edit Bill"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
 
-                      {!isSupervisor && (
-                        <>
-                          <button
-                            onClick={() => handleShareOnWhatsAppWithPdf(inv)}
-                            disabled={sharingId === inv.id}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[0.5rem] text-[0.75rem] font-semibold bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-xs disabled:opacity-50 transition active:scale-95"
-                            title="Generate PDF and Share via WhatsApp"
-                          >
-                            {sharingId === inv.id ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <MessageCircle className="h-3.5 w-3.5" />
-                            )}
-                            <span>{sharingId === inv.id ? 'Generating...' : 'WhatsApp'}</span>
-                          </button>
-
-                          <button
-                            onClick={() => handleDownloadPdf(inv.id, inv.invoiceNo)}
-                            disabled={downloadingId === inv.id}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-[0.5rem] text-[0.75rem] font-medium text-foreground bg-card hover:bg-muted border border-border disabled:opacity-50 transition active:scale-95 shadow-2xs"
-                            title="Download PDF Invoice"
-                          >
-                            {downloadingId === inv.id ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                            ) : (
-                              <Download className="h-3.5 w-3.5 text-primary" />
-                            )}
-                            <span>PDF</span>
-                          </button>
-
-                          {canDeleteInvoice && (
+                        {!isSupervisor && (
+                          <>
                             <button
-                              onClick={() => setDeletingInvoice(inv)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-[0.5rem] text-[0.75rem] font-medium text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 shadow-2xs transition active:scale-95"
-                              title="Delete Invoice and Restore Stock"
+                              onClick={() => handleShareOnWhatsAppWithPdf(inv)}
+                              disabled={sharingId === inv.id}
+                              className="h-8 w-8 inline-flex items-center justify-center rounded-[0.5rem] bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-2xs disabled:opacity-50 transition active:scale-95"
+                              title="Generate PDF and Share via WhatsApp"
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
-                              <span>Delete</span>
+                              {sharingId === inv.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <MessageCircle className="h-4 w-4" />
+                              )}
                             </button>
-                          )}
-                        </>
-                      )}
+
+                            <button
+                              onClick={() => handleDownloadPdf(inv.id, inv.invoiceNo)}
+                              disabled={downloadingId === inv.id}
+                              className="h-8 w-8 inline-flex items-center justify-center rounded-[0.5rem] text-foreground bg-card hover:bg-muted border border-border disabled:opacity-50 transition active:scale-95 shadow-2xs"
+                              title="Download PDF Invoice"
+                            >
+                              {downloadingId === inv.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                              ) : (
+                                <Download className="h-4 w-4 text-primary" />
+                              )}
+                            </button>
+
+                            {canDeleteInvoice && (
+                              <button
+                                onClick={() => setDeletingInvoice(inv)}
+                                className="h-8 w-8 inline-flex items-center justify-center rounded-[0.5rem] text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 shadow-2xs transition active:scale-95"
+                                title="Delete Invoice and Restore Stock"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -691,8 +705,24 @@ export default function InvoicesPage() {
         onClose={() => setShowCreateModal(false)}
         onSuccess={async (createdInvoice) => {
           setShowCreateModal(false);
-          await loadInitialData();
+          await loadInitialData(true);
           setCreatedInvoiceSuccess(createdInvoice);
+        }}
+        products={products}
+        parties={parties}
+        allStock={allStock}
+        onRefreshStock={refreshStock}
+      />
+
+      {/* Edit Invoice Modal */}
+      <CreateInvoiceModal
+        isOpen={Boolean(editingInvoice)}
+        invoiceToEdit={editingInvoice}
+        onClose={() => setEditingInvoice(null)}
+        onSuccess={async (updatedInvoice) => {
+          setEditingInvoice(null);
+          setToastMsg(`Invoice #${updatedInvoice.invoiceNo} updated successfully.`);
+          await loadInitialData(true);
         }}
         products={products}
         parties={parties}
@@ -704,6 +734,8 @@ export default function InvoicesPage() {
         isOpen={showReturnModal}
         onClose={() => setShowReturnModal(false)}
         onSuccess={loadInitialData}
+        products={products}
+        parties={parties}
         onDownloadPdf={handleDownloadPdf}
         downloadingId={downloadingId}
         onDownloadRefundPdf={handleDownloadRefundPdf}
@@ -721,9 +753,21 @@ export default function InvoicesPage() {
           setViewingInvoice(null);
           setDeletingInvoice(inv);
         }}
+        onEdit={(inv) => {
+          setViewingInvoice(null);
+          setEditingInvoice(inv);
+        }}
+        onOpenPartyStatement={(party) => setStatementParty(party)}
         sharingId={sharingId}
         downloadingId={downloadingId}
         downloadingRefundId={downloadingRefundId}
+      />
+
+      <PartyStatementDrawer
+        party={statementParty ? (statementParty as unknown as DrawerParty) : null}
+        isOpen={Boolean(statementParty)}
+        onClose={() => setStatementParty(null)}
+        onEdit={() => {}}
       />
 
       <DeleteInvoiceModal

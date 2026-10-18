@@ -15,6 +15,7 @@ interface InvoiceListCardProps {
   onDownloadPdf: (invoice: InvoiceListEntry) => void;
   onShareWhatsApp: (invoice: InvoiceListEntry) => void;
   onReturn: (invoice: InvoiceListEntry) => void;
+  onEdit?: (invoice: InvoiceListEntry) => void;
 }
 
 export const InvoiceListCard = React.memo(function InvoiceListCard({
@@ -25,6 +26,7 @@ export const InvoiceListCard = React.memo(function InvoiceListCard({
   onDownloadPdf,
   onShareWhatsApp,
   onReturn,
+  onEdit,
 }: InvoiceListCardProps) {
   const refundedTotal = (invoice.refundInvoices || []).reduce(
     (sum, refund) => sum + Number(refund.total || 0),
@@ -36,9 +38,21 @@ export const InvoiceListCard = React.memo(function InvoiceListCard({
       <View style={styles.cardTop}>
         <View style={{ flex: 1, minWidth: 0, marginRight: 8 }}>
           <Text style={styles.invoiceNumber} numberOfLines={1}>#{invoice.invoiceNo}</Text>
-          <Text style={styles.partyName} numberOfLines={1} ellipsizeMode="tail">
-            {invoice.party?.name || invoice.partyName || 'Counter Sale'}
-          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <Text style={styles.partyName} numberOfLines={1} ellipsizeMode="tail">
+              {invoice.party?.name || invoice.partyName || (invoice.isCashSale ? 'Cash Sale' : 'Counter Sale')}
+            </Text>
+            {invoice.isCashSale ? (
+              <View style={styles.cashSalePill}>
+                <Text style={styles.cashSalePillText}>Cash Sale</Text>
+              </View>
+            ) : null}
+          </View>
+          {invoice.address ? (
+            <Text style={styles.addressText} numberOfLines={1} ellipsizeMode="tail">
+              📍 {invoice.address}
+            </Text>
+          ) : null}
           {invoice.party?.phone || invoice.partyPhone ? (
             <Text style={styles.partyPhone} numberOfLines={1}>{invoice.party?.phone || invoice.partyPhone}</Text>
           ) : null}
@@ -167,5 +181,23 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     color: '#F87171',
+  },
+  cashSalePill: {
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+    backgroundColor: 'rgba(16, 185, 129, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  cashSalePillText: {
+    color: '#10B981',
+    fontSize: 9,
+    fontWeight: '800',
+  },
+  addressText: {
+    fontSize: 10,
+    color: Colors.dark.textTertiary,
+    marginTop: 2,
   },
 });

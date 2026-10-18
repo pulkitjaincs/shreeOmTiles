@@ -27,6 +27,10 @@
 - **Warehouse Supervisor Cockpit**: Dedicated interface for godown supervisors with **price-masked inventory**, godown-scoped stock adjustments, and multi-warehouse loading verification.
 - **Delivery Challan & Dispatch System**: Stream unpriced official Delivery Challans for transport and drivers, with support for partial quantity dispatching.
 - **Safe Transactional Invoice Deletion**: Owner/Admin modal allowing verified invoice deletion with atomic row-level locked inventory restoration.
+- **Transactional Invoice Editing**: Full bill editing workflow accessible from the Invoice Details Drawer, allowing line item, price, discount, and site address adjustments with automatic inventory reallocation.
+- **Cash Sale (Counter Pickup) & Custom Site Addresses**: Rapid walk-in counter billing bypassing logistics queues, paired with custom per-bill delivery site address inputs.
+- **Overhauled Logistics & Two-Mode Dispatch**: Unified dispatch processing with dedicated Driver Dispatch and Counter Pickup modes, Challan PDF printing, and a comprehensive Delivery Details inspector.
+- **Compact Invoice Table Actions**: Space-efficient `h-8 w-8` action buttons preventing row overflow and keeping views clean across all desktop resolutions.
 - **Double-Entry Party Statement Ledgers**: Comprehensive customer and supplier registries with live Net Due vs. Store Credit, date-filtered chronological transaction statements, and 1-click printable PDF exports.
 - **Warehouse Management & Positive-Stock Filtering**: Manage godown locations with optional zero-stock suppression to instantly isolate active inventory.
 - **Automatic Cache Invalidation & Synchronicity**: Real-time invalidation of `/invoices` and `/payments` caches on delivery handovers and status updates in `lib/api.ts`.
@@ -170,6 +174,20 @@ When a user logs in, the `/dashboard` home automatically mounts the designated c
 - Slide-over sheet showing complete chronological transaction ledger.
 - Date range picker (`Start Date` to `End Date`) with automatic balance-brought-forward calculation.
 - 1-click button to download the official PDF Party Statement.
+
+### 7. Invoice Editing Workflow (`components/invoices/create-invoice-modal.tsx`)
+- Accessed via the **Edit Bill** button inside `InvoiceDetailsDrawer`.
+- Opens `CreateInvoiceModal` pre-populated with original invoice lines, discount, tax rate, custom address, and transport charges.
+- Displays party previous balance context and allows toggling between Party account and Cash Sale (Counter Pickup).
+- Executes `PUT /invoices/:id` with automatic inventory reversion and re-allocation upon submission.
+
+### 8. Two-Mode Dispatch Processing (`components/deliveries/push-delivery-modal.tsx`)
+- **Driver Dispatch**: Select available company drivers, transport vehicle numbers, and customize line-item quantities for partial deliveries.
+- **Counter Pickup**: Instant 1-click self-pickup checklist for walk-in customers or yard pickups without driver assignment.
+- Directly updates inventory and prints unpriced Delivery Challan PDFs.
+
+### 9. Delivery Details Modal (`components/deliveries/delivery-details-modal.tsx`)
+- Full inspector dialog showing customer destination, driver phone, vehicle details, cash collection amounts, and individual item loading verification status.
 
 ---
 

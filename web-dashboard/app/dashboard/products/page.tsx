@@ -255,36 +255,34 @@ export default function ProductsPage() {
                       </td>
                       <td className="py-3.5 px-4 text-right">
                         {canManage ? (
-                          <div className="flex items-center justify-end gap-2">
+                          <div className="flex items-center justify-end gap-1.5">
                             <button
                               onClick={() => {
                                 setProductToEdit(prod);
                                 setIsFormOpen(true);
                               }}
-                              title="Edit Product (Name, Category, Size, Finish, Price)"
-                              className="text-xs font-medium text-foreground hover:bg-muted/80 px-2 py-1.5 rounded-[0.5rem] bg-muted transition-all inline-flex items-center gap-1 active:scale-95"
+                              title="Edit Product Details"
+                              className="h-8 w-8 inline-flex items-center justify-center rounded-[0.5rem] bg-muted hover:bg-muted/80 text-foreground transition active:scale-95 border border-border/60 shadow-2xs"
                             >
                               <Pencil className="h-3.5 w-3.5 text-primary" />
-                              Edit
                             </button>
 
                             <Link
                               href={`/dashboard/warehouses?inwardProduct=${prod.id}`}
-                              className="text-xs font-medium text-primary hover:bg-primary/20 px-2.5 py-1.5 rounded-[0.5rem] bg-primary/10 transition-all inline-flex items-center gap-1.5 active:scale-95"
+                              title="Inward Stock for this Product"
+                              className="h-8 w-8 inline-flex items-center justify-center rounded-[0.5rem] bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 transition active:scale-95 shadow-2xs"
                             >
                               <PackagePlus className="h-3.5 w-3.5" />
-                              Inward
                             </Link>
 
                             {/* Set quantity to 0 if stock > 0 */}
                             {totalStock > 0 && (
                               <button
                                 onClick={() => setZeroOutTarget(prod)}
-                                title="Set quantity to 0 to enable deleting this product"
-                                className="text-xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 px-2 py-1.5 rounded-[0.5rem] bg-amber-500/10 transition-all inline-flex items-center gap-1 active:scale-95"
+                                title="Set quantity to 0 (Enable Deletion)"
+                                className="h-8 w-8 inline-flex items-center justify-center rounded-[0.5rem] bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/20 transition active:scale-95 shadow-2xs"
                               >
                                 <RotateCcw className="h-3.5 w-3.5" />
-                                Set to 0
                               </button>
                             )}
 
@@ -293,7 +291,7 @@ export default function ProductsPage() {
                               <button
                                 onClick={() => setDeleteProductTarget(prod)}
                                 title="Remove Product (Quantity is 0)"
-                                className="p-1.5 rounded-[0.5rem] text-rose-600 dark:text-rose-400 hover:bg-rose-500/20 bg-rose-500/10 transition-all inline-flex items-center active:scale-95"
+                                className="h-8 w-8 inline-flex items-center justify-center rounded-[0.5rem] bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 transition active:scale-95 shadow-2xs"
                               >
                                 <Trash2 className="h-4 w-4" />
                               </button>

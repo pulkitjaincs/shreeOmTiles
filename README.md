@@ -61,7 +61,7 @@ graph TD
 ```
 dhraERP/
 ├── backend/                  # NestJS 11 core REST API & microservices
-│   ├── prisma/               # Prisma 7 schema definitions, seed scripts, clean-test-db & CSV importer
+│   ├── prisma/               # Prisma 7 schema definition (schema.prisma)
 │   ├── src/
 │   │   ├── analytics/        # Financial KPIs, revenue curves, Day Book till cash, GST reports
 │   │   ├── auth/             # Passport JWT auth, hashing & RBAC guards
@@ -177,6 +177,24 @@ dhraERP/
 - Date-filtered statement export to high-precision printable PDF documents.
 - Overdue credit ageing analysis categorized into `0-30`, `31-60`, `61-90`, and `90+` days.
 
+### 11. Transactional Invoice Editing & Reallocation Engine (`PUT /invoices/:id`)
+- Seamlessly edit existing sales bills while preserving invoice numbering and chronological integrity.
+- **Stock Reversion & Re-Allocation**: Automatically restocks originally billed quantities back to warehouse inventories before verifying and locking new item allocations using row-level locks (`SELECT ... FOR UPDATE`).
+- **Synchronized Ledgers & Payments**: Automatically recalculates balances, adjusts party ledger statements, updates existing payment receipts, and logs the complete modification to `AuditLog`.
+- Direct 1-click **Edit Bill** access from within the Invoice Details drawer on both Web and Mobile.
+
+### 12. Cash Sale (Counter Pickup) & Per-Bill Custom Addresses
+- **Cash Sale Workflow**: Rapid counter billing for walk-in customers with optional customer name and phone, automatically tagged as counter pickup.
+- **Delivery Queue Exclusion**: Counter cash sales are automatically excluded from the pending logistics delivery queue, preventing dispatch clutter.
+- **Per-Bill Custom Site Address**: Invoices can capture a custom delivery/site address (`Invoice.address`) overriding default party master addresses for direct on-site drops, rendered accurately on both Tax Invoices and Delivery Challans.
+- **Customer Balance Context**: Real-time display of previous outstanding balances during invoice creation and embedded breakdown on printed invoices.
+
+### 13. Overhauled Logistics Dispatch & Counter Pickup Processing
+- Unified dispatch modal supporting two distinct workflows:
+  - **Driver Dispatch**: Assign vehicles, drivers, and selective line-item quantities with unpriced delivery challan generation.
+  - **Counter Pickup**: Instant checklist for walk-in or customer vehicle collections without requiring driver assignment.
+- Streamlined deliveries table with compact actions and a dedicated **Delivery Details Modal**.
+
 ---
 
 ## 🔔 Automated Push Notification Triggers
@@ -212,6 +230,7 @@ The system enforces strict permission boundaries at the NestJS API layer (`@Role
 | **Business Expenses Logging** | ✅ Full Access | ✅ Full Access | ✅ Full Access | ❌ Hidden | ❌ Hidden | ❌ Hidden |
 | **Party Directory & Statements** | ✅ Full Access | ✅ Full Access | ✅ Full Access | ❌ Hidden | ✅ View / Create | ❌ Hidden |
 | **Create Invoices & Upfront UPI QR** | ✅ Full Access | ✅ Full Access | ✅ Full Access | ❌ Hidden | ✅ Full Access | ❌ Hidden |
+| **Edit Invoices & Stock Reallocation** | ✅ Full Access | ✅ Full Access | ✅ Full Access | ❌ Hidden | ✅ Full Access | ❌ Hidden |
 | **Safe Invoice Deletion & Restock** | ✅ Full Access | ✅ Full Access | ❌ Hidden | ❌ Hidden | ❌ Hidden | ❌ Hidden |
 | **Process Returns / Credit Notes** | ✅ Full Access | ✅ Full Access | ✅ Full Access | ❌ Hidden | ✅ Full Access | ❌ Hidden |
 | **Warehouse Stock Management** | ✅ All Godowns | ✅ All Godowns | 👁️ View Only | 🔒 Scoped Godown | 👁️ View Only | ❌ Hidden |
@@ -258,9 +277,6 @@ npm install
 # Push Prisma schema to Neon PostgreSQL
 npx prisma generate
 npx prisma db push
-
-# (Optional) Seed demo accounts, products, warehouses, parties
-npx prisma db seed
 
 # Start NestJS backend with fast SWC compiler
 npm run start:dev

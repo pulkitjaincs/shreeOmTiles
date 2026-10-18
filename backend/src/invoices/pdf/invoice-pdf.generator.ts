@@ -263,28 +263,27 @@ export async function generateInvoicePdf(
     font: fontBold,
     color: black,
   });
-  page.drawText(
-    safePdfText(
-      (invoice.party?.name || 'Cash Customer').toUpperCase().slice(0, 35),
-    ),
-    {
-      x: leftMargin + 8,
-      y: currentY - 26,
-      size: 8.5,
-      font: fontBold,
-      color: black,
-    },
-  );
-  page.drawText(
-    safePdfText((invoice.party?.address || 'Counter Sale').slice(0, 42)),
-    {
-      x: leftMargin + 8,
-      y: currentY - 38,
-      size: 8,
-      font: fontRegular,
-      color: darkGray,
-    },
-  );
+  const customerName =
+    invoice.isCashSale &&
+    (!invoice.party?.name || invoice.party.name === 'Walk-in Customer')
+      ? 'Cash Sale'
+      : invoice.party?.name || 'Cash Customer';
+  page.drawText(safePdfText(customerName.toUpperCase().slice(0, 35)), {
+    x: leftMargin + 8,
+    y: currentY - 26,
+    size: 8.5,
+    font: fontBold,
+    color: black,
+  });
+  const billAddress =
+    invoice.address || invoice.party?.address || 'Counter Sale';
+  page.drawText(safePdfText(billAddress.slice(0, 42)), {
+    x: leftMargin + 8,
+    y: currentY - 38,
+    size: 8,
+    font: fontRegular,
+    color: darkGray,
+  });
   page.drawText(safePdfText(`Contact No. : ${invoice.party?.phone || 'N/A'}`), {
     x: leftMargin + 8,
     y: currentY - 50,
@@ -301,22 +300,19 @@ export async function generateInvoicePdf(
     font: fontBold,
     color: black,
   });
-  page.drawText(
-    safePdfText(
-      (
-        invoice.party?.address ||
-        invoice.party?.name ||
-        'Counter Delivery'
-      ).slice(0, 40),
-    ),
-    {
-      x: leftMargin + halfWidth + 8,
-      y: currentY - 26,
-      size: 8.5,
-      font: fontRegular,
-      color: black,
-    },
-  );
+  const shipAddress = invoice.isCashSale
+    ? 'Counter Pickup (Cash Sale)'
+    : invoice.address ||
+      invoice.party?.address ||
+      invoice.party?.name ||
+      'Counter Delivery';
+  page.drawText(safePdfText(shipAddress.slice(0, 40)), {
+    x: leftMargin + halfWidth + 8,
+    y: currentY - 26,
+    size: 8.5,
+    font: fontRegular,
+    color: black,
+  });
   if (invoice.party?.gstin) {
     page.drawText(safePdfText(`GSTIN: ${invoice.party.gstin}`), {
       x: leftMargin + halfWidth + 8,
@@ -579,21 +575,27 @@ export async function generateInvoicePdf(
     color: darkGray,
   });
   let paymentModeDisplay = invoice.paymentMode || 'Credit';
-  if (Array.isArray(invoice.payments) && invoice.payments.length > 1) {
-    const parts = (
+  if (Array.isArray(invoice.payments) && invoice.payments.length > 0) {
+    const validPayments = (
       invoice.payments as unknown as Array<{ mode: string; amount: unknown }>
-    )
-      .filter((p) => Number(p.amount) > 0)
-      .map(
+    ).filter((p) => Number(p.amount) > 0);
+    if (validPayments.length > 1) {
+      const parts = validPayments.map(
         (p) =>
-          `${p.mode}: ₹${Math.round(Number(p.amount)).toLocaleString('en-IN')}`,
+          `${p.mode}: Rs. ${Math.round(Number(p.amount)).toLocaleString('en-IN')}`,
       );
-    paymentModeDisplay = `Split (${parts.join(', ')})`;
+      paymentModeDisplay = parts.join(' | ');
+    } else if (validPayments.length === 1) {
+      paymentModeDisplay = `${validPayments[0].mode}: Rs. ${Math.round(Number(validPayments[0].amount)).toLocaleString('en-IN')}`;
+    }
   }
-  page.drawText(safePdfText(paymentModeDisplay), {
+  const modeText = safePdfText(paymentModeDisplay);
+  const modeFontSize =
+    modeText.length > 45 ? 7 : modeText.length > 30 ? 7.5 : 8.5;
+  page.drawText(modeText, {
     x: wordsLeftX,
     y: currentY - 74,
-    size: 8.5,
+    size: modeFontSize,
     font: fontBold,
     color: black,
   });

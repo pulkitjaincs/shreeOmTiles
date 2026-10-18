@@ -15,6 +15,7 @@ interface InvoiceDetailsModalProps {
   onShareWhatsApp: (invoice: any) => void;
   onDownloadRefundPdf?: (refundId: string, refundNo: string) => Promise<void> | void;
   onInitiateReturn?: (invoice: any) => void;
+  onEdit?: (invoice: any) => void;
   canDelete?: boolean;
   onDeleteInvoice?: (invoice: any) => void;
   isSupervisor?: boolean;
@@ -27,6 +28,7 @@ export function InvoiceDetailsModal({
   onShareWhatsApp,
   onDownloadRefundPdf,
   onInitiateReturn,
+  onEdit,
   canDelete,
   onDeleteInvoice,
   isSupervisor = false,
@@ -77,9 +79,45 @@ export function InvoiceDetailsModal({
         </View>
 
         <Card style={styles.detailMetaCard}>
-          <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Customer</Text><Text style={styles.summaryVal}>{invoice.party?.name || 'Walk-in Customer'}</Text></View>
-          {invoice.party?.phone ? <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Phone</Text><Text style={styles.summaryVal}>{invoice.party.phone}</Text></View> : null}
-          {invoice.party?.address ? <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Address</Text><Text style={[styles.summaryVal, styles.wrapValue]}>{invoice.party.address}</Text></View> : null}
+          {invoice.isCashSale ? (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Sale Type</Text>
+              <Text style={[styles.summaryVal, { color: '#10B981', fontWeight: '700' }]}>
+                Cash Sale (Counter Pickup)
+              </Text>
+            </View>
+          ) : null}
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Customer</Text>
+            <Text style={styles.summaryVal}>
+              {invoice.party?.name || (invoice.isCashSale ? 'Cash Sale' : 'Walk-in Customer')}
+            </Text>
+          </View>
+          {invoice.party?.phone ? (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Phone</Text>
+              <Text style={styles.summaryVal}>{invoice.party.phone}</Text>
+            </View>
+          ) : null}
+          {invoice.address ? (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Bill Address</Text>
+              <Text style={[styles.summaryVal, styles.wrapValue]}>{invoice.address}</Text>
+            </View>
+          ) : invoice.party?.address ? (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Address</Text>
+              <Text style={[styles.summaryVal, styles.wrapValue]}>{invoice.party.address}</Text>
+            </View>
+          ) : null}
+          {Number(invoice.previousBalance || 0) > 0 ? (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Prior Balance Context</Text>
+              <Text style={[styles.summaryVal, { color: '#F59E0B' }]}>
+                {formatINR(Number(invoice.previousBalance))}
+              </Text>
+            </View>
+          ) : null}
           {!isSupervisor ? (
             <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Payment Mode</Text><Text style={styles.summaryVal}>{invoice.paymentMode || 'CASH'}</Text></View>
           ) : null}
@@ -222,6 +260,22 @@ export function InvoiceDetailsModal({
         ) : null}
 
         <View style={{ gap: 10, marginTop: 16 }}>
+          {!isSupervisor && onEdit && (
+            <Button
+              title="Edit Bill Details"
+              icon="create-outline"
+              variant="outline"
+              onPress={() => {
+                onClose();
+                onEdit(invoice);
+              }}
+              style={{
+                borderColor: 'rgba(245, 158, 11, 0.4)',
+                backgroundColor: 'rgba(245, 158, 11, 0.1)',
+              }}
+              textStyle={{ color: '#F59E0B' }}
+            />
+          )}
           {!isSupervisor ? (
             <Button
               title={downloading ? 'Downloading PDF...' : 'Download Official PDF'}

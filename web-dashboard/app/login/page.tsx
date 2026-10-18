@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { useAuth } from '@/components/auth-provider';
 import { Button } from '@/components/ui/button';
 import { apiRequest } from '@/lib/api';
@@ -59,8 +60,15 @@ export default function LoginPage() {
 
       <div className="relative w-full max-w-md space-y-6 rounded-3xl border border-border/80 bg-card/75 p-6 sm:p-8 shadow-2xl backdrop-blur-2xl">
         <div className="text-center space-y-2">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground font-black text-xl shadow-lg">
-            SO
+          <div className="inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-white p-1.5 shadow-lg border border-border/60 overflow-hidden">
+            <Image
+              src="/logo.png"
+              alt="Shree Om Tiles Logo"
+              width={64}
+              height={64}
+              className="h-full w-full object-contain"
+              priority
+            />
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight text-foreground">Shree Om Tiles</h1>
           <p className="text-xs text-muted-foreground">

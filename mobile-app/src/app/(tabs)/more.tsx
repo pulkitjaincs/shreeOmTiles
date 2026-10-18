@@ -37,10 +37,12 @@ import { DayBookView } from '@/components/day-book/DayBookView';
 import { QuotationsView } from '@/components/quotations/QuotationsView';
 import { PurchasesView } from '@/components/purchases/PurchasesView';
 import { ExpensesView } from '@/components/expenses/ExpensesView';
+import { useTheme } from '@/lib/theme-context';
 
 export default function MoreScreen() {
   const { user, logout, updateUser } = useAuth();
   const router = useRouter();
+  const { themeMode, setThemeMode } = useTheme();
   const isDirector = user?.role === 'OWNER' || (user?.role as any) === 'DIRECTOR';
   const isAdmin = user?.role === 'ADMIN';
   const isAccountant = user?.role === 'ACCOUNTANT';
@@ -639,6 +641,47 @@ export default function MoreScreen() {
               </TouchableOpacity>
             ) : null}
 
+            {/* Appearance & Theme Mode Switcher */}
+            <View style={styles.themeCard}>
+              <View style={styles.themeHeader}>
+                <View style={styles.themeIconWrap}>
+                  <Ionicons name="color-palette-outline" size={18} color="#A855F7" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.themeTitle}>App Appearance & Theme</Text>
+                  <Text style={styles.themeSub}>
+                    Choose between Light, Dark, or System mode
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.themeSegmentRow}>
+                {(['system', 'dark', 'light'] as const).map((mode) => {
+                  const isActive = themeMode === mode;
+                  const label = mode === 'system' ? 'System' : mode === 'dark' ? 'Dark Mode' : 'Light Mode';
+                  const iconName = mode === 'system' ? 'phone-portrait-outline' : mode === 'dark' ? 'moon-outline' : 'sunny-outline';
+
+                  return (
+                    <TouchableOpacity
+                      key={mode}
+                      style={[styles.themeOptionBtn, isActive && styles.themeOptionBtnActive]}
+                      onPress={() => void setThemeMode(mode)}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name={iconName as any}
+                        size={14}
+                        color={isActive ? '#09090B' : Colors.dark.textSecondary}
+                      />
+                      <Text style={[styles.themeOptionText, isActive && styles.themeOptionTextActive]}>
+                        {label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
             {/* 5. Device Push Notifications Card */}
             <View style={styles.notificationCard}>
               <View style={styles.notificationHeader}>
@@ -1072,5 +1115,74 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     fontWeight: '700',
     color: '#10B981',
+  },
+  themeCard: {
+    backgroundColor: '#18181B',
+    borderRadius: 14,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#27272A',
+    marginTop: 14,
+    marginBottom: 4,
+  },
+  themeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  themeIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(168, 85, 247, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  themeTitle: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  themeSub: {
+    fontSize: 11,
+    color: Colors.dark.textSecondary,
+    marginTop: 2,
+  },
+  themeSegmentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 14,
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+    padding: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  themeOptionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 8,
+    borderRadius: 7,
+  },
+  themeOptionBtnActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.15,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  themeOptionText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: Colors.dark.textSecondary,
+  },
+  themeOptionTextActive: {
+    color: '#09090B',
+    fontWeight: '800',
   },
 });

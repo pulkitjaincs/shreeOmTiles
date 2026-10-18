@@ -33,6 +33,10 @@ import {
 import { SettlementModal } from '@/components/payments/settlement-modal';
 import { CreditLedgerModal } from '@/components/payments/credit-ledger-modal';
 import { TablePagination } from '@/components/ui/table-pagination';
+import { InvoiceDetailsDrawer } from '@/components/invoices/invoice-details-drawer';
+import { PartyStatementDrawer } from '@/components/parties/party-statement-drawer';
+import type { Party as PartyStatementType } from '@/components/parties/types';
+import { Invoice } from '@/components/invoices/types';
 
 export interface DayBookResponse {
   date: string;
@@ -126,6 +130,69 @@ export default function TransactionsPage() {
   });
   const [isCreditModalOpen, setIsCreditModalOpen] = useState(false);
   const [creditPartyId, setCreditPartyId] = useState('');
+
+  // Interconnected Drawers State
+  const [statementParty, setStatementParty] = useState<Party | null>(null);
+  const [viewingInvoice, setViewingInvoice] = useState<Invoice | null>(null);
+  const [downloadingPdfId, setDownloadingPdfId] = useState<string | null>(null);
+
+  const handleOpenParty = useCallback((partyId?: string | null, partyName?: string) => {
+    if (!partyId) return;
+    const found = parties.find((p) => p.id === partyId);
+    if (found) {
+      setStatementParty(found);
+    } else {
+      void apiRequest<Party>(`/parties/${partyId}`)
+        .then((fresh) => {
+          if (fresh) setStatementParty(fresh);
+        })
+        .catch(() => {
+          if (partyName) {
+            setStatementParty({ id: partyId, name: partyName, phone: '' } as Party);
+          }
+        });
+    }
+  }, [parties]);
+
+  const handleOpenInvoice = useCallback(async (invoiceIdOrNo?: string | null) => {
+    if (!invoiceIdOrNo) return;
+    try {
+      const inv = await apiRequest<Invoice>(`/invoices/${invoiceIdOrNo}`).catch(() =>
+        apiRequest<Invoice>(`/invoices/lookup/${encodeURIComponent(invoiceIdOrNo)}`),
+      );
+      if (inv) setViewingInvoice(inv);
+    } catch (err: unknown) {
+      alert('Could not open invoice details: ' + (err as Error).message);
+    }
+  }, []);
+
+  const handleDownloadInvoicePdf = async (id: string, no: string) => {
+    try {
+      setDownloadingPdfId(id);
+      const blob = await apiRequest<Blob>(`/invoices/${id}/pdf`);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Invoice-${no}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+    } catch (err: unknown) {
+      alert('Failed to download invoice PDF: ' + (err as Error).message);
+    } finally {
+      setDownloadingPdfId(null);
+    }
+  };
+
+  const handleShareWhatsApp = (inv: Invoice) => {
+    const cleanPhone = inv.party?.phone ? inv.party.phone.replace(/\D/g, '').slice(-10) : '';
+    const text = `Invoice #${inv.invoiceNo} - Total: Rs. ${Number(inv.total).toFixed(2)}`;
+    const url = cleanPhone
+      ? `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(text)}`
+      : `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
 
   // Helper to format pending items: pending invoices + unsettled credit ledgers
   const formatPendingList = useCallback(
@@ -1013,11 +1080,23 @@ export default function TransactionsPage() {
                     <tr key={item.id} className="hover:bg-muted/30 transition-colors group">
                       <td className="py-3.5 px-4 font-medium text-foreground">
                         <div className="flex items-center gap-2.5">
-                          <div className="h-8 w-8 rounded-[0.5rem] bg-primary/10 text-primary border border-primary/20 flex items-center justify-center text-xs font-bold uppercase">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenParty(item.partyId, item.partyName)}
+                            className="h-8 w-8 rounded-[0.5rem] bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 flex items-center justify-center text-xs font-bold uppercase transition active:scale-95 shrink-0"
+                            title="Open Party Ledger Statement"
+                          >
                             {item.partyName.slice(0, 2)}
-                          </div>
+                          </button>
                           <div>
-                            <span className="font-semibold text-foreground">{item.partyName}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenParty(item.partyId, item.partyName)}
+                              className="font-semibold text-foreground hover:text-primary hover:underline text-left transition"
+                              title="Open Party Ledger Statement"
+                            >
+                              {item.partyName}
+                            </button>
                             {item.partyPhone && (
                               <p className="text-xs text-muted-foreground font-mono">{item.partyPhone}</p>
                             )}
@@ -1026,9 +1105,20 @@ export default function TransactionsPage() {
                       </td>
 
                       <td className="py-3.5 px-4 font-mono text-xs">
-                        <span className="text-foreground bg-muted px-2 py-0.5 rounded-[0.375rem] border border-border/60">
-                          {item.invoiceNo}
-                        </span>
+                        {item.invoiceNo ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenInvoice(item.id || item.invoiceNo)}
+                            className="text-primary hover:underline font-mono bg-primary/5 hover:bg-primary/10 px-2 py-0.5 rounded-[0.375rem] border border-primary/20 transition inline-block"
+                            title="View Full Invoice Details"
+                          >
+                            {item.invoiceNo}
+                          </button>
+                        ) : (
+                          <span className="text-foreground bg-muted px-2 py-0.5 rounded-[0.375rem] border border-border/60">
+                            Direct Credit
+                          </span>
+                        )}
                         <div className="text-[0.625rem] text-muted-foreground mt-1">
                           {new Date(item.createdAt).toLocaleDateString('en-IN', {
                             day: 'numeric',
@@ -1051,11 +1141,10 @@ export default function TransactionsPage() {
                         </span>
                       </td>
 
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
+                          <button
+                            type="button"
                             onClick={() => {
                               const url = buildCustomerDuesReminderUrl({
                                 phone: item.partyPhone,
@@ -1066,18 +1155,19 @@ export default function TransactionsPage() {
                               window.open(url, '_blank');
                             }}
                             title="Send WhatsApp payment reminder"
-                            className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-xs px-2.5 py-1.5 rounded-[0.625rem] inline-flex items-center gap-1.5 transition-all active:scale-98"
+                            className="h-8 w-8 inline-flex items-center justify-center rounded-[0.5rem] bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-2xs transition active:scale-95"
                           >
-                            <MessageSquare className="h-3.5 w-3.5" />
-                            <span className="hidden sm:inline">WhatsApp</span>
-                          </Button>
-                          <Button
+                            <MessageSquare className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => handleOpenActionForPending(item)}
-                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs px-3.5 py-1.5 rounded-[0.625rem] shadow-sm inline-flex items-center gap-1.5 transition-all active:scale-98"
+                            className="h-8 px-3 inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-[0.5rem] shadow-2xs transition active:scale-95"
+                            title="Collect Payment & Clear Due"
                           >
                             <Banknote className="h-3.5 w-3.5" />
-                            Collect Payment
-                          </Button>
+                            <span>Collect</span>
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -1151,11 +1241,23 @@ export default function TransactionsPage() {
                     <tr key={item.id} className="hover:bg-muted/30 transition-colors group">
                       <td className="py-3.5 px-4 font-medium text-foreground">
                         <div className="flex items-center gap-2.5">
-                          <div className="h-8 w-8 rounded-[0.5rem] bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 flex items-center justify-center text-xs font-bold uppercase">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenParty(item.partyId, item.partyName)}
+                            className="h-8 w-8 rounded-[0.5rem] bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20 flex items-center justify-center text-xs font-bold uppercase transition active:scale-95 shrink-0"
+                            title="Open Party Ledger Statement"
+                          >
                             {item.partyName.slice(0, 2)}
-                          </div>
+                          </button>
                           <div>
-                            <span className="font-semibold text-foreground">{item.partyName}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenParty(item.partyId, item.partyName)}
+                              className="font-semibold text-foreground hover:text-amber-600 dark:hover:text-amber-400 hover:underline text-left transition"
+                              title="Open Party Ledger Statement"
+                            >
+                              {item.partyName}
+                            </button>
                             {item.partyPhone && (
                               <p className="text-xs text-muted-foreground font-mono">{item.partyPhone}</p>
                             )}
@@ -1164,9 +1266,20 @@ export default function TransactionsPage() {
                       </td>
 
                       <td className="py-3.5 px-4 font-mono text-xs">
-                        <span className="text-foreground bg-muted px-2 py-0.5 rounded-[0.375rem] border border-border/60">
-                          {item.invoiceNo}
-                        </span>
+                        {item.invoiceNo ? (
+                          <button
+                            type="button"
+                            onClick={() => handleOpenInvoice(item.id || item.invoiceNo)}
+                            className="text-amber-700 dark:text-amber-400 hover:underline font-mono bg-amber-500/10 px-2 py-0.5 rounded-[0.375rem] border border-amber-500/20 transition inline-block"
+                            title="View Debt / Bill Details"
+                          >
+                            {item.invoiceNo}
+                          </button>
+                        ) : (
+                          <span className="text-foreground bg-muted px-2 py-0.5 rounded-[0.375rem] border border-border/60">
+                            Direct Debt
+                          </span>
+                        )}
                         <div className="text-[0.625rem] text-muted-foreground mt-1">
                           {new Date(item.createdAt).toLocaleDateString('en-IN', {
                             day: 'numeric',
@@ -1189,14 +1302,16 @@ export default function TransactionsPage() {
                         </span>
                       </td>
 
-                      <td className="py-3.5 px-4 text-right">
-                        <Button
+                      <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                        <button
+                          type="button"
                           onClick={() => handleOpenActionForPending(item)}
-                          className="bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs px-3.5 py-1.5 rounded-[0.625rem] shadow-sm inline-flex items-center gap-1.5 transition-all active:scale-98"
+                          className="h-8 px-3 inline-flex items-center gap-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs rounded-[0.5rem] shadow-2xs transition active:scale-95"
+                          title="Disburse / Pay Party Debt"
                         >
                           <ArrowUpRight className="h-3.5 w-3.5" />
-                          Pay Party
-                        </Button>
+                          <span>Pay Party</span>
+                        </button>
                       </td>
                     </tr>
                   ))
@@ -1261,12 +1376,33 @@ export default function TransactionsPage() {
                           </td>
 
                           <td className="py-3.5 px-4">
-                            <div className="font-semibold text-foreground text-sm">{partyName}</div>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                handleOpenParty(
+                                  payment.invoice?.party?.id || payment.party?.id,
+                                  partyName,
+                                )
+                              }
+                              className="font-semibold text-foreground hover:text-primary hover:underline text-left text-sm transition"
+                              title="Open Party Ledger Statement"
+                            >
+                              {partyName}
+                            </button>
                             <div className="text-xs text-muted-foreground font-mono flex items-center gap-1.5 mt-0.5">
                               {payment.invoice?.invoiceNo && (
-                                <span className="bg-muted px-1.5 py-0.2 rounded border border-border/60">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleOpenInvoice(
+                                      payment.invoice?.id || payment.invoice?.invoiceNo,
+                                    )
+                                  }
+                                  className="bg-muted hover:bg-primary/10 hover:text-primary px-1.5 py-0.2 rounded border border-border/60 transition"
+                                  title="Open Invoice Details"
+                                >
                                   {payment.invoice.invoiceNo}
-                                </span>
+                                </button>
                               )}
                               {partyPhone && <span>{partyPhone}</span>}
                             </div>
@@ -1412,9 +1548,28 @@ export default function TransactionsPage() {
                           })}
                         </td>
 
-                        <td className="py-3.5 px-4 font-semibold text-foreground">
-                          <div>{cl.party?.name || 'Party'}</div>
-                          <div className="text-xs text-muted-foreground font-mono">{cl.party?.phone}</div>
+                        <td className="py-3.5 px-4 font-medium text-foreground">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenParty(cl.partyId, cl.party?.name)}
+                            className="font-semibold text-foreground hover:text-primary hover:underline text-left transition"
+                            title="Open Party Ledger Statement"
+                          >
+                            {cl.party?.name || 'Party'}
+                          </button>
+                          <div className="text-xs text-muted-foreground font-mono flex items-center gap-1.5 mt-0.5">
+                            {cl.invoice?.invoiceNo && (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenInvoice(cl.invoiceId || cl.invoice?.invoiceNo)}
+                                className="bg-muted hover:bg-primary/10 hover:text-primary px-1.5 py-0.2 rounded border border-border/60 transition inline-block"
+                                title="Open Invoice Details"
+                              >
+                                {cl.invoice.invoiceNo}
+                              </button>
+                            )}
+                            {cl.party?.phone && <span>{cl.party.phone}</span>}
+                          </div>
                         </td>
 
                         <td className="py-3.5 px-4">
@@ -1454,10 +1609,11 @@ export default function TransactionsPage() {
                           {cl.notes && <div className="text-xs text-muted-foreground mt-1">{cl.notes}</div>}
                         </td>
 
-                        <td className="py-3.5 px-4 text-right">
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
                           {cl.status !== 'SETTLED' ? (
                             isPayable ? (
-                              <Button
+                              <button
+                                type="button"
                                 onClick={() => {
                                   handleOpenActionForPending({
                                     id: cl.id,
@@ -1474,16 +1630,16 @@ export default function TransactionsPage() {
                                     creditType: 'PAYABLE',
                                   });
                                 }}
-                                className="bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs px-3 py-1 rounded-[0.5rem] shadow-sm inline-flex items-center gap-1 transition-all active:scale-98"
+                                className="h-8 px-3 inline-flex items-center gap-1.5 bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs rounded-[0.5rem] shadow-2xs transition active:scale-95"
+                                title="Pay Party"
                               >
-                                <ArrowUpRight className="h-3 w-3" />
-                                Pay Party
-                              </Button>
+                                <ArrowUpRight className="h-3.5 w-3.5" />
+                                <span>Pay</span>
+                              </button>
                             ) : (
                               <div className="flex items-center justify-end gap-1.5">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
+                                <button
+                                  type="button"
                                   onClick={() => {
                                     const url = buildCustomerDuesReminderUrl({
                                       phone: cl.party?.phone,
@@ -1494,12 +1650,12 @@ export default function TransactionsPage() {
                                     window.open(url, '_blank');
                                   }}
                                   title="Send WhatsApp payment reminder"
-                                  className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-xs px-2 py-1 rounded-[0.5rem] inline-flex items-center gap-1 transition-all active:scale-98"
+                                  className="h-8 w-8 inline-flex items-center justify-center rounded-[0.5rem] bg-[#25D366] hover:bg-[#20bd5a] text-white shadow-2xs transition active:scale-95"
                                 >
-                                  <MessageSquare className="h-3 w-3" />
-                                  <span className="hidden sm:inline">WhatsApp</span>
-                                </Button>
-                                <Button
+                                  <MessageSquare className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
                                   onClick={() => {
                                     handleOpenActionForPending({
                                       id: cl.id,
@@ -1516,11 +1672,12 @@ export default function TransactionsPage() {
                                       creditType: 'RECEIVABLE',
                                     });
                                   }}
-                                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs px-3 py-1 rounded-[0.5rem] shadow-sm inline-flex items-center gap-1 transition-all active:scale-98"
+                                  className="h-8 px-3 inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-[0.5rem] shadow-2xs transition active:scale-95"
+                                  title="Collect Payment"
                                 >
-                                  <Banknote className="h-3 w-3" />
-                                  Collect
-                                </Button>
+                                  <Banknote className="h-3.5 w-3.5" />
+                                  <span>Collect</span>
+                                </button>
                               </div>
                             )
                           ) : (
@@ -1567,6 +1724,28 @@ export default function TransactionsPage() {
         onSuccess={loadData}
         parties={parties}
         defaultPartyId={creditPartyId}
+      />
+
+      {/* Invoice Details Drawer */}
+      <InvoiceDetailsDrawer
+        invoice={viewingInvoice}
+        onClose={() => setViewingInvoice(null)}
+        onShareWhatsApp={handleShareWhatsApp}
+        onDownloadPdf={handleDownloadInvoicePdf}
+        downloadingId={downloadingPdfId}
+        sharingId={null}
+        onOpenPartyStatement={(party) => {
+          setViewingInvoice(null);
+          setStatementParty(party as Party);
+        }}
+      />
+
+      {/* Party Statement Drawer */}
+      <PartyStatementDrawer
+        party={statementParty as unknown as PartyStatementType}
+        isOpen={Boolean(statementParty)}
+        onClose={() => setStatementParty(null)}
+        onEdit={() => {}}
       />
     </div>
   );

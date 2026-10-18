@@ -26,6 +26,7 @@ export interface DispatchedItem {
   qty: number;
   pickedUp?: boolean;
   pickedUpAt?: string;
+  pickedUpByName?: string;
 }
 
 export interface SupervisorUser {
@@ -48,6 +49,7 @@ export interface Delivery {
   status: string;
   notes?: string;
   driverId?: string;
+  vehicle?: string;
   createdAt: string;
   amountToCollect?: number;
   cashCollected?: number;

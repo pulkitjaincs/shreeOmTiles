@@ -32,8 +32,12 @@
 - **Supervisor Loading Verification**: Dedicated godown supervisor cockpit with **price-masked inventory** to verify and lock loaded items before driver departure.
 - **Logistics Delivery Challans**: 1-tap download and sharing of unpriced official Delivery Challans for drivers and warehouse dispatchers.
 - **Streamlined Returns & Credit Ledgers**: Process sales returns with item-level restocking, auto-reflecting credits in party statement ledgers without obsolete duplicate return invoice PDFs.
+- **Mobile Transactional Invoice Editing**: Edit bills directly from `InvoiceDetailsModal`, updating line items, quantities, discounts, transport charges, and delivery addresses with backend stock and ledger synchronization.
+- **Cash Sale Mode & Customer Balance Insight**: Rapid counter sales toggle for walk-ins without master party records, plus real-time customer balance badges during billing.
+- **Camera Invoice QR Scanner**: Built-in camera scanner (`InvoiceQrScannerModal.tsx`) to rapidly scan QR codes on printed invoices with manual number fallback.
 - **Safe Transactional Invoice Deletion**: Director/Admin modal to safely delete an invoice with automatic inventory replenishment back into the godown.
 - **Counter Sales Invoicing with Upfront UPI QR**: Salesmen calculate tile boxes to sq. ft. on the go, issue tax invoices, and present high-contrast NPCI UPI QR codes directly to walk-in customers.
+- **Adaptive Theme System**: Persistent theme provider (`theme-context.tsx`) supporting System, Dark, and Light modes stored in AsyncStorage.
 - **Real-Time Push Notifications**: Instant heads-up alerts for new invoices, payments, credit notes, low stock warnings, and delivery assignments.
 - **Native Document Sharing & WhatsApp**: Download GST invoices, challans, quotes, and party statements directly to device storage and share via WhatsApp or print.
 - **Over-The-Air (OTA) Updates**: Configured with `expo-updates` and EAS Update channels for instant code deployments without requiring a new APK compilation or store resubmission.
@@ -115,7 +119,7 @@ src/components/
 ├── deliveries/                       # DeliveryCard (with Challan button & Supervisor actions),
 │                                     # PushDeliveryModal (partial dispatch), DeliveryRunModal
 ├── invoices/                         # InvoiceListCard, InvoiceLineItemCard, CreateInvoiceModal,
-│                                     # DeleteInvoiceModal, InvoiceDetailsModal, ReturnInvoiceModal
+│                                     # DeleteInvoiceModal, InvoiceDetailsModal, ReturnInvoiceModal, InvoiceQrScannerModal
 ├── parties/                          # PartiesDirectoryView, PartyCard, PartyFormModal (with categories),
 │                                     # PartyStatementDrawer (with date range & PDF export)
 ├── payments/                         # PaymentStatsRow, TransactionTabsBar, CustomerDuesCard

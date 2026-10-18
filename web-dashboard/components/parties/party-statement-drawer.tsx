@@ -140,13 +140,15 @@ export function PartyStatementDrawer({
 
   // WhatsApp Reminder handler
   const handleSendReminder = () => {
-    const cleanPhone = party.phone.replace(/[^0-9]/g, '');
+    const cleanPhone = (party.phone || '').replace(/[^0-9]/g, '');
     const formattedDue = `₹${Math.abs(totalDues).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
     const message =
       totalDues > 0
         ? `Dear ${party.name}, this is a friendly reminder from Shree Om Tiles regarding your outstanding balance of ${formattedDue}. Please clear the payment at your earliest convenience. Thank you!`
         : `Dear ${party.name}, this is an account statement from Shree Om Tiles. You currently have an advance store credit balance of ${formattedDue} available with us. Thank you!`;
-    const url = `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(message)}`;
+    const url = cleanPhone
+      ? `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(message)}`
+      : `https://wa.me/?text=${encodeURIComponent(message)}`;
     window.open(url, '_blank');
   };
 
@@ -167,7 +169,7 @@ export function PartyStatementDrawer({
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1">
                 <span className="flex items-center gap-1">
                   <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                  <span className="font-mono text-foreground">{party.phone}</span>
+                  <span className="font-mono text-foreground">{party.phone || 'N/A'}</span>
                 </span>
                 {party.gstin && (
                   <span className="flex items-center gap-1 font-mono text-primary font-medium">

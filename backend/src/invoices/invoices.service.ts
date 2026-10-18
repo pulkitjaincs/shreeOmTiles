@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateInvoiceDto } from './dto/create-invoice.dto';
+import { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import {
   InvoiceStatus,
   PaymentMode,
@@ -21,12 +22,47 @@ import {
   CreditType,
   CreditStatus,
 } from '@prisma/client';
+import {
+  ProcessReturnDto,
+  ProcessStandaloneReturnDto,
+} from './dto/process-return.dto';
 import { PaginationParams } from '../common/interfaces/pagination.interface';
 import { generateUpiIntentQr } from '../common/utils/upi.util';
 import { GeneratedPdfResult, TaxBreakupData } from './pdf/pdf-utils';
 import { generateInvoicePdf } from './pdf/invoice-pdf.generator';
 import { generateRefundInvoicePdf } from './pdf/refund-pdf.generator';
 import { NotificationsService } from '../notifications/notifications.service';
+
+interface ExtendedInvoice {
+  id: string;
+  invoiceNo: string;
+  partyId: string;
+  salesmanId: string;
+  status: InvoiceStatus;
+  taxBreakup: Prisma.JsonValue;
+  subtotal: Prisma.Decimal;
+  tax: Prisma.Decimal;
+  taxRate: Prisma.Decimal;
+  transportCost: Prisma.Decimal;
+  transportGstRate: Prisma.Decimal;
+  transportTax: Prisma.Decimal;
+  itemsTax: Prisma.Decimal;
+  total: Prisma.Decimal;
+  paymentMode: PaymentMode | null;
+  notes: string | null;
+  address?: string | null;
+  previousBalance?: Prisma.Decimal;
+  isCashSale?: boolean;
+  quotationId?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  party?: Party;
+}
+
+type ExtendedRefundInvoiceItemInput =
+  Prisma.RefundInvoiceItemUncheckedCreateWithoutRefundInvoiceInput & {
+    customItemName?: string | null;
+  };
 
 @Injectable()
 export class InvoicesService {
@@ -87,6 +123,7 @@ export class InvoicesService {
       100;
 
     const fy = this.getFinancialYear();
+    let resolvedPartyName = 'Customer';
 
     const invoice = await this.prisma.$transaction(async (tx) => {
       // 1. Transactional Party Resolution / Creation (prevents orphaned records on failure)
@@ -96,13 +133,17 @@ export class InvoicesService {
           where: { id: data.partyId },
         });
       } else if (data.newParty) {
+        const partyName =
+          data.newParty.name?.trim() ||
+          (data.isCashSale ? 'Cash Sale' : 'Walk-in Customer');
+        const partyPhone = data.newParty.phone?.trim() || '';
         party = await tx.party.create({
           data: {
-            name: data.newParty.name,
-            phone: data.newParty.phone,
-            address: data.newParty.address,
-            gstin: data.newParty.gstin,
-            isSaved: data.newParty.isSaved ?? true,
+            name: partyName,
+            phone: partyPhone,
+            address: data.newParty.address || null,
+            gstin: data.newParty.gstin || null,
+            isSaved: data.newParty.isSaved ?? (data.isCashSale ? false : true),
           },
         });
       }
@@ -110,6 +151,25 @@ export class InvoicesService {
       if (!party) {
         throw new NotFoundException(
           'Selected customer/party does not exist and new party details were not provided',
+        );
+      }
+
+      resolvedPartyName = party.name;
+
+      let previousBalance = Number(data.previousBalance || 0);
+      if (party) {
+        const priorLedgers = await tx.creditLedger.findMany({
+          where: {
+            partyId: party.id,
+            status: { not: CreditStatus.SETTLED },
+          },
+        });
+        previousBalance = priorLedgers.reduce(
+          (sum, cl) =>
+            cl.type === CreditType.RECEIVABLE
+              ? sum + Number(cl.amountDue || 0)
+              : sum - Number(cl.amountDue || 0),
+          0,
         );
       }
 
@@ -312,11 +372,13 @@ export class InvoicesService {
         ];
       } else if (
         data.paymentMode === PaymentMode.CASH ||
-        data.paymentMode === PaymentMode.UPI
+        data.paymentMode === PaymentMode.UPI ||
+        (data.paymentMode as string) === 'CARD' ||
+        data.paymentMode === PaymentMode.BANK_TRANSFER
       ) {
         paymentSplits = [
           {
-            mode: data.paymentMode,
+            mode: data.paymentMode as PaymentMode,
             amount: totalAmount,
           },
         ];
@@ -370,28 +432,33 @@ export class InvoicesService {
         });
       }
 
-      const invoice = await tx.invoice.create({
-        data: {
-          invoiceNo,
-          partyId: party.id,
-          salesmanId,
-          paymentMode: effectiveInvoicePaymentMode,
-          status: initialStatus,
-          notes: data.notes,
-          quotationId: data.quotationId || null,
-          subtotal: new Prisma.Decimal(subtotal.toFixed(2)),
-          tax: new Prisma.Decimal(taxAmount.toFixed(2)),
-          taxRate: new Prisma.Decimal(taxRate.toFixed(2)),
-          transportCost: new Prisma.Decimal(transportCost.toFixed(2)),
-          transportGstRate: new Prisma.Decimal(transportGstRate.toFixed(2)),
-          transportTax: new Prisma.Decimal(transportTax.toFixed(2)),
-          itemsTax: new Prisma.Decimal(itemsTax.toFixed(2)),
-          total: new Prisma.Decimal(totalAmount.toFixed(2)),
-          taxBreakup: taxBreakup,
-          items: {
-            create: allocatedInvoiceItems,
-          },
+      const createData = {
+        invoiceNo,
+        partyId: party.id,
+        salesmanId,
+        paymentMode: effectiveInvoicePaymentMode,
+        status: initialStatus,
+        notes: data.notes,
+        address: data.address || party.address || null,
+        previousBalance: new Prisma.Decimal(previousBalance.toFixed(2)),
+        isCashSale: Boolean(data.isCashSale),
+        quotationId: data.quotationId || null,
+        subtotal: new Prisma.Decimal(subtotal.toFixed(2)),
+        tax: new Prisma.Decimal(taxAmount.toFixed(2)),
+        taxRate: new Prisma.Decimal(taxRate.toFixed(2)),
+        transportCost: new Prisma.Decimal(transportCost.toFixed(2)),
+        transportGstRate: new Prisma.Decimal(transportGstRate.toFixed(2)),
+        transportTax: new Prisma.Decimal(transportTax.toFixed(2)),
+        itemsTax: new Prisma.Decimal(itemsTax.toFixed(2)),
+        total: new Prisma.Decimal(totalAmount.toFixed(2)),
+        taxBreakup: taxBreakup,
+        items: {
+          create: allocatedInvoiceItems,
         },
+      };
+
+      const invoice = await tx.invoice.create({
+        data: createData as unknown as Prisma.InvoiceCreateInput,
         include: {
           items: { include: { product: true, warehouse: true } },
           party: true,
@@ -444,21 +511,23 @@ export class InvoicesService {
       }
 
       // 6. Automatically dispatch to Delivery section in PENDING status
-      // Link the leftover credit amount to driver's delivery collection!
-      await tx.delivery.create({
-        data: {
-          invoiceId: invoice.id,
-          status: DeliveryStatus.PENDING,
-          amountToCollect: new Prisma.Decimal(balanceCredit.toFixed(2)),
-          notes: data.notes || null,
-        },
-      });
+      // Cash Sales are customer pickup at counter by default - do NOT push to deliveries!
+      if (!data.isCashSale) {
+        await tx.delivery.create({
+          data: {
+            invoiceId: invoice.id,
+            status: DeliveryStatus.PENDING,
+            amountToCollect: new Prisma.Decimal(balanceCredit.toFixed(2)),
+            notes: data.notes || null,
+          },
+        });
+      }
 
       return invoice;
     });
 
     // Notify Owner & Admin about new sale
-    const partyName = invoice.party?.name || 'Customer';
+    const partyName = resolvedPartyName;
     void this.notifications.notifyAdmins(
       'New Sale Generated!',
       `₹${Math.round(totalAmount).toLocaleString('en-IN')} invoiced for ${partyName}.`,
@@ -744,14 +813,19 @@ export class InvoicesService {
     const invoice = await this.findOne(id);
     const companyName = process.env.COMPANY_NAME || 'Shree Om Tiles';
     const customerName = invoice.party.name;
-    const customerPhone = invoice.party.phone;
+    const customerPhone = invoice.party.phone || '';
     const total = Number(invoice.total).toLocaleString('en-IN', {
       maximumFractionDigits: 2,
     });
 
     // Customer caption - strictly direct message without any external links
     const customerMessage = `Hi ${customerName}, please find attached your Tax Invoice #${invoice.invoiceNo} from ${companyName}. Total Amount: Rs. ${total}. Thank you for your business!`;
-    const customerWhatsAppUrl = `https://wa.me/91${customerPhone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(customerMessage)}`;
+    const cleanPhone = customerPhone
+      ? customerPhone.replace(/[^0-9]/g, '')
+      : '';
+    const customerWhatsAppUrl = cleanPhone
+      ? `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(customerMessage)}`
+      : '';
 
     // Driver caption
     const itemsList = invoice.items
@@ -760,7 +834,7 @@ export class InvoicesService {
           `• ${i.product?.name || 'Item'} (${Number(i.qty)} ${i.product?.unit || 'unit'}) [WH: ${i.warehouse?.name || 'Standard'}]`,
       )
       .join('\n');
-    const driverMessage = `Delivery for Invoice #${invoice.invoiceNo}\nCustomer: ${customerName} (${customerPhone})\nAddress: ${invoice.party.address || 'Counter Pickup'}\nItems:\n${itemsList}`;
+    const driverMessage = `Delivery for Invoice #${invoice.invoiceNo}\nCustomer: ${customerName}${customerPhone ? ` (${customerPhone})` : ''}\nAddress: ${invoice.party.address || 'Counter Pickup'}\nItems:\n${itemsList}`;
 
     return {
       invoiceNo: invoice.invoiceNo,
@@ -839,21 +913,7 @@ export class InvoicesService {
    * Process customer return with formal Refund Invoice (Credit Note),
    * showroom/godown restocking and financial refund accounting
    */
-  async processReturn(
-    id: string,
-    data: {
-      items: Array<{
-        productId: string;
-        warehouseId: string;
-        batchNo?: string;
-        qty: number;
-        unitPrice: number;
-      }>;
-      refundMode: PaymentMode;
-      reason?: string;
-    },
-    userId: string,
-  ) {
+  async processReturn(id: string, data: ProcessReturnDto, userId: string) {
     if (!data.items || data.items.length === 0) {
       throw new BadRequestException('At least one item must be returned.');
     }
@@ -894,6 +954,11 @@ export class InvoicesService {
 
       for (const retItem of data.items) {
         if (!retItem.qty || retItem.qty <= 0) continue;
+        if (!retItem.productId) {
+          throw new BadRequestException(
+            'Product ID is required for invoice returns.',
+          );
+        }
         const key = `${retItem.productId}_${retItem.batchNo || ''}`;
         const purchasedItem = invoice.items.find(
           (it) =>
@@ -928,8 +993,7 @@ export class InvoicesService {
 
       let subtotal = 0;
       const returnedSummaries: string[] = [];
-      const refundInvoiceItemsData: Prisma.RefundInvoiceItemUncheckedCreateWithoutRefundInvoiceInput[] =
-        [];
+      const refundInvoiceItemsData: ExtendedRefundInvoiceItemInput[] = [];
 
       for (const item of data.items) {
         if (!item.qty || item.qty <= 0) continue;
@@ -956,7 +1020,7 @@ export class InvoicesService {
         } else {
           existingStock = await tx.stockLedger.create({
             data: {
-              productId: item.productId,
+              productId: item.productId!,
               warehouseId: null,
               batchNo: null,
               quantity: new Prisma.Decimal(item.qty.toFixed(2)),
@@ -964,16 +1028,19 @@ export class InvoicesService {
           });
         }
 
-        const product = await tx.product.findUnique({
-          where: { id: item.productId },
-        });
+        const product = item.productId
+          ? await tx.product.findUnique({
+              where: { id: item.productId },
+            })
+          : null;
 
         returnedSummaries.push(
-          `${item.qty}x ${product?.name || 'Item'} returned to stock`,
+          `${item.qty}x ${product?.name || item.customItemName || 'Item'} returned to stock`,
         );
 
         refundInvoiceItemsData.push({
-          productId: item.productId,
+          productId: item.productId || null,
+          customItemName: item.customItemName || null,
           warehouseId: null,
           batchNo: null,
           qty: new Prisma.Decimal(item.qty.toFixed(2)),
@@ -1039,6 +1106,7 @@ export class InvoicesService {
       if (
         data.refundMode === PaymentMode.CASH ||
         data.refundMode === PaymentMode.UPI ||
+        (data.refundMode as string) === 'CARD' ||
         data.refundMode === PaymentMode.BANK_TRANSFER
       ) {
         await tx.payment.create({
@@ -1178,6 +1246,260 @@ export class InvoicesService {
       {
         type: 'CREDIT_NOTE_ISSUED',
         invoiceId: id,
+        refundInvoiceId: result.refundInvoice.id,
+      },
+    );
+
+    return result;
+  }
+
+  /**
+   * Process standalone / legacy return (without linked modern invoice record).
+   * Supports catalog items (restocked to warehouse) and custom uncataloged items.
+   * Standalone returns NEVER push to delivery by design.
+   */
+  async processStandaloneReturn(
+    data: ProcessStandaloneReturnDto,
+    userId: string,
+  ) {
+    if (!data.items || data.items.length === 0) {
+      throw new BadRequestException('At least one item must be returned.');
+    }
+
+    const fy = this.getFinancialYear();
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      // 1. Resolve or create party if specified
+      let resolvedPartyId: string | null = data.partyId || null;
+      let partyName = 'Walk-in Customer';
+
+      if (resolvedPartyId) {
+        const existingParty = await tx.party.findUnique({
+          where: { id: resolvedPartyId },
+          select: { name: true },
+        });
+        if (existingParty) partyName = existingParty.name;
+      } else if (data.newParty?.name) {
+        const createdParty = await tx.party.create({
+          data: {
+            name: data.newParty.name,
+            phone: data.newParty.phone || '',
+            address: data.newParty.address || null,
+            gstin: data.newParty.gstin || null,
+            category: 'RETAIL',
+          },
+        });
+        resolvedPartyId = createdParty.id;
+        partyName = createdParty.name;
+      }
+
+      if (!resolvedPartyId) {
+        let walkInParty = await tx.party.findFirst({
+          where: { name: 'Walk-in Customer' },
+        });
+        if (!walkInParty) {
+          walkInParty = await tx.party.create({
+            data: {
+              name: 'Walk-in Customer',
+              phone: '0000000000',
+              category: 'RETAIL',
+            },
+          });
+        }
+        resolvedPartyId = walkInParty.id;
+      }
+
+      let subtotal = 0;
+      let totalTax = 0;
+      const returnedSummaries: string[] = [];
+      const refundInvoiceItemsData: ExtendedRefundInvoiceItemInput[] = [];
+
+      for (const item of data.items) {
+        if (!item.qty || item.qty <= 0) continue;
+        const lineTotal = item.qty * item.unitPrice;
+        subtotal += lineTotal;
+        const lineTaxRate = item.taxRate !== undefined ? item.taxRate : 18;
+        const lineTax = (lineTotal * lineTaxRate) / 100;
+        totalTax += lineTax;
+
+        if (item.productId) {
+          // Increment stock ledger if catalog product exists
+          const existingStock = await tx.stockLedger.findFirst({
+            where: { productId: item.productId },
+            orderBy: { updatedAt: 'desc' },
+          });
+
+          if (existingStock) {
+            await tx.$queryRawUnsafe(
+              `SELECT id, quantity FROM "StockLedger" WHERE id = $1 FOR UPDATE`,
+              existingStock.id,
+            );
+            await tx.stockLedger.update({
+              where: { id: existingStock.id },
+              data: {
+                quantity: {
+                  increment: new Prisma.Decimal(item.qty.toFixed(2)),
+                },
+              },
+            });
+          } else {
+            await tx.stockLedger.create({
+              data: {
+                productId: item.productId,
+                warehouseId: null,
+                batchNo: null,
+                quantity: new Prisma.Decimal(item.qty.toFixed(2)),
+              },
+            });
+          }
+        }
+
+        const product = item.productId
+          ? await tx.product.findUnique({
+              where: { id: item.productId },
+            })
+          : null;
+
+        const itemName = product?.name || item.customItemName || 'Item';
+        returnedSummaries.push(`${item.qty}x ${itemName} returned`);
+
+        refundInvoiceItemsData.push({
+          productId: item.productId || null,
+          customItemName: item.customItemName || null,
+          warehouseId: null,
+          batchNo: item.batchNo || null,
+          qty: new Prisma.Decimal(item.qty.toFixed(2)),
+          unitPrice: new Prisma.Decimal(item.unitPrice.toFixed(2)),
+          taxRate: new Prisma.Decimal(lineTaxRate.toFixed(2)),
+          total: new Prisma.Decimal((lineTotal + lineTax).toFixed(2)),
+        });
+      }
+
+      const totalRefund = subtotal + totalTax;
+
+      // 2. Generate Gapless Sequence
+      const seq = await tx.refundSequence.upsert({
+        where: { financialYear: fy },
+        update: { lastNumber: { increment: 1 } },
+        create: { financialYear: fy, lastNumber: 1 },
+      });
+      const refundNo = `RF-${fy}-${String(seq.lastNumber).padStart(4, '0')}`;
+
+      // Notes
+      const notes =
+        data.notes ||
+        (data.originalInvoiceNumber
+          ? `Standalone return against legacy Bill #${data.originalInvoiceNumber}`
+          : 'Standalone customer sales return');
+
+      // 3. Create RefundInvoice
+      const refundInvoiceData = {
+        refundNo,
+        originalInvoiceId: null,
+        partyId: resolvedPartyId,
+        createdById: userId,
+        subtotal: new Prisma.Decimal(subtotal.toFixed(2)),
+        tax: new Prisma.Decimal(totalTax.toFixed(2)),
+        total: new Prisma.Decimal(totalRefund.toFixed(2)),
+        taxBreakup: {
+          rate: 18,
+          cgst: totalTax / 2,
+          sgst: totalTax / 2,
+          igst: 0,
+          isInterState: false,
+        },
+        refundMode: data.refundMode,
+        reason: data.reason || 'Standalone return',
+        notes,
+        items: {
+          create: refundInvoiceItemsData,
+        },
+      };
+
+      const refundInvoice = await tx.refundInvoice.create({
+        data: refundInvoiceData as unknown as Prisma.RefundInvoiceCreateInput,
+        include: {
+          items: { include: { product: true } },
+          party: true,
+          createdBy: { select: { id: true, name: true } },
+        },
+      });
+
+      // 4. Financial payout or store credit
+      if (
+        data.refundMode === PaymentMode.CASH ||
+        data.refundMode === PaymentMode.UPI ||
+        (data.refundMode as string) === 'CARD' ||
+        data.refundMode === PaymentMode.BANK_TRANSFER
+      ) {
+        await tx.payment.create({
+          data: {
+            refundInvoiceId: refundInvoice.id,
+            invoiceId: null,
+            partyId: resolvedPartyId || null,
+            mode: data.refundMode,
+            amount: new Prisma.Decimal(totalRefund.toFixed(2)),
+            status: PaymentStatus.CONFIRMED,
+            type: PaymentType.OUTFLOW,
+            notes: `Refund payout for ${refundNo}`,
+            paidAt: new Date(),
+          },
+        });
+      } else if (data.refundMode === PaymentMode.CREDIT && resolvedPartyId) {
+        await tx.creditLedger.create({
+          data: {
+            partyId: resolvedPartyId,
+            refundInvoiceId: refundInvoice.id,
+            invoiceId: null,
+            amountDue: new Prisma.Decimal(totalRefund.toFixed(2)),
+            type: CreditType.PAYABLE,
+            status: CreditStatus.UNPAID,
+            notes: `Store Credit issued via ${refundNo}`,
+          },
+        });
+      }
+
+      // 5. Audit Log
+      await tx.auditLog.create({
+        data: {
+          actorId: userId,
+          action: 'STANDALONE_RETURN',
+          entity: 'RefundInvoice',
+          entityId: refundInvoice.id,
+          diff: {
+            refundNo,
+            refundTotal: totalRefund,
+            subtotal,
+            tax: totalTax,
+            refundMode: data.refundMode,
+            originalInvoiceNumber: data.originalInvoiceNumber,
+            reason: data.reason || 'Standalone return',
+            restocked: returnedSummaries,
+          },
+        },
+      });
+
+      return {
+        success: true,
+        refundInvoice,
+        refundNo,
+        partyName,
+        totalRefund,
+        subtotal,
+        tax: totalTax,
+        refundMode: data.refundMode,
+        restockedItems: returnedSummaries,
+      };
+    });
+
+    const formattedRefund = Math.round(result.totalRefund).toLocaleString(
+      'en-IN',
+    );
+    void this.notifications.notifyAdmins(
+      'Standalone Return Processed',
+      `₹${formattedRefund} refunded for standalone return ${result.refundNo} (${result.partyName}).`,
+      {
+        type: 'CREDIT_NOTE_ISSUED',
         refundInvoiceId: result.refundInvoice.id,
       },
     );
@@ -1383,6 +1705,525 @@ export class InvoicesService {
         success: true,
         message: `Invoice #${invoice.invoiceNo} successfully deleted. Inventory restored.`,
       };
+    });
+  }
+
+  /**
+   * Transactional invoice update (Bill Editing) with inventory rollback, re-allocation,
+   * payment & credit ledger sync, and delivery reconciliation.
+   */
+  async update(
+    id: string,
+    data: UpdateInvoiceDto,
+    actorId: string,
+    actorRole: Role,
+  ) {
+    if (
+      actorRole !== Role.OWNER &&
+      actorRole !== Role.ADMIN &&
+      actorRole !== Role.SALESMAN &&
+      actorRole !== Role.ACCOUNTANT
+    ) {
+      throw new ForbiddenException(
+        'You do not have permission to edit invoices',
+      );
+    }
+
+    if (!data.items || data.items.length === 0) {
+      throw new BadRequestException(
+        'An invoice must contain at least one line item',
+      );
+    }
+
+    const existing = await this.prisma.invoice.findUnique({
+      where: { id },
+      include: {
+        items: true,
+        refundInvoices: true,
+        deliveries: true,
+        payments: true,
+        creditLedgers: true,
+        party: true,
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException(`Invoice with ID ${id} not found`);
+    }
+
+    if (existing.refundInvoices && existing.refundInvoices.length > 0) {
+      throw new BadRequestException(
+        'Cannot edit invoice with processed returns. Revert refunds first.',
+      );
+    }
+
+    const hasDelivered = existing.deliveries?.some(
+      (d) => d.status === DeliveryStatus.DELIVERED,
+    );
+    if (hasDelivered) {
+      throw new BadRequestException(
+        'Order has already been delivered. Cannot edit line items.',
+      );
+    }
+
+    const companyState = process.env.COMPANY_STATE_CODE || '07';
+    const taxRate =
+      data.taxRate !== undefined
+        ? Math.max(0, data.taxRate)
+        : Number(existing.taxRate || 18);
+    const transportCost =
+      data.transportCost !== undefined
+        ? Math.max(0, data.transportCost)
+        : Number(existing.transportCost || 0);
+    const transportGstRate =
+      data.transportGstRate !== undefined
+        ? Math.max(0, data.transportGstRate)
+        : Number(existing.transportGstRate || 0);
+
+    let subtotal = 0;
+    const calculatedItems = data.items.map((item) => {
+      const discount = item.discount || 0;
+      const lineTotal = item.qty * item.unitPrice - discount;
+      subtotal += lineTotal;
+      return {
+        ...item,
+        discount,
+        total: lineTotal,
+      };
+    });
+
+    const itemsTax = Math.round(((subtotal * taxRate) / 100) * 100) / 100;
+    const transportTax =
+      Math.round(((transportCost * transportGstRate) / 100) * 100) / 100;
+    const taxAmount = Math.round((itemsTax + transportTax) * 100) / 100;
+    const totalAmount =
+      Math.round((subtotal + itemsTax + transportCost + transportTax) * 100) /
+      100;
+
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Resolve Party
+      let party: Party | null = null;
+      if (data.partyId) {
+        party = await tx.party.findUnique({
+          where: { id: data.partyId },
+        });
+      } else if (data.newParty) {
+        const partyName =
+          data.newParty.name?.trim() ||
+          (data.isCashSale ? 'Cash Sale' : 'Walk-in Customer');
+        const partyPhone = data.newParty.phone?.trim() || '';
+        party = await tx.party.create({
+          data: {
+            name: partyName,
+            phone: partyPhone,
+            address: data.newParty.address || null,
+            gstin: data.newParty.gstin || null,
+            isSaved: data.newParty.isSaved ?? (data.isCashSale ? false : true),
+          },
+        });
+      } else {
+        party = existing.party;
+      }
+
+      if (!party) {
+        throw new NotFoundException('Selected customer/party does not exist');
+      }
+
+      // GST Breakup based on party GSTIN state
+      const trimmedGstin = party.gstin ? party.gstin.trim() : '';
+      const isInterState =
+        trimmedGstin.length >= 2
+          ? trimmedGstin.slice(0, 2) !== companyState
+          : false;
+
+      const taxBreakup = {
+        rate: taxRate,
+        isInterState,
+        totalTax: taxAmount,
+        cgst: isInterState ? 0 : taxAmount / 2,
+        sgst: isInterState ? 0 : taxAmount / 2,
+        igst: isInterState ? taxAmount : 0,
+        items: {
+          rate: taxRate,
+          taxable: subtotal,
+          cgst: isInterState ? 0 : itemsTax / 2,
+          sgst: isInterState ? 0 : itemsTax / 2,
+          igst: isInterState ? itemsTax : 0,
+          totalTax: itemsTax,
+        },
+        transport: {
+          rate: transportGstRate,
+          taxable: transportCost,
+          cgst: isInterState ? 0 : transportTax / 2,
+          sgst: isInterState ? 0 : transportTax / 2,
+          igst: isInterState ? transportTax : 0,
+          totalTax: transportTax,
+        },
+      };
+
+      // 2. Revert previous inventory stock for all existing line items
+      for (const oldItem of existing.items) {
+        if (!oldItem.productId) continue;
+        const oldQty = Number(oldItem.qty);
+        const stock = await tx.stockLedger.findFirst({
+          where: { productId: oldItem.productId },
+          orderBy: { updatedAt: 'desc' },
+        });
+        if (stock) {
+          await tx.stockLedger.update({
+            where: { id: stock.id },
+            data: {
+              quantity: {
+                increment: new Prisma.Decimal(oldQty.toFixed(2)),
+              },
+            },
+          });
+        }
+      }
+
+      // 3. Validate & Decrement Stock for all updated line items
+      const allocatedInvoiceItems: Prisma.InvoiceItemUncheckedCreateWithoutInvoiceInput[] =
+        [];
+      const pendingAuditLogs: Array<{
+        action: string;
+        entity: string;
+        entityId: string;
+        diff: Record<string, any>;
+        actorId: string;
+      }> = [];
+
+      for (const item of calculatedItems) {
+        let remainingQty = item.qty;
+
+        const stockLedgers: Array<
+          StockLedger & { product: Product; warehouse: Warehouse | null }
+        > = await tx.stockLedger.findMany({
+          where: {
+            productId: item.productId,
+            quantity: { gt: 0 },
+          },
+          orderBy: { quantity: 'desc' },
+          include: { product: true, warehouse: true },
+        });
+
+        for (const stock of stockLedgers) {
+          if (remainingQty <= 0) break;
+
+          const lockedRows = await tx.$queryRawUnsafe<
+            Array<{ id: string; quantity: string | number }>
+          >(
+            `SELECT id, quantity FROM "StockLedger" WHERE id = $1 FOR UPDATE`,
+            stock.id,
+          );
+          const lockedQty = Number(lockedRows[0]?.quantity ?? stock.quantity);
+          if (lockedQty <= 0) continue;
+
+          const qtyToTake = Math.min(lockedQty, remainingQty);
+          if (qtyToTake <= 0) continue;
+
+          await tx.stockLedger.update({
+            where: { id: stock.id },
+            data: {
+              quantity: {
+                decrement: new Prisma.Decimal(qtyToTake.toFixed(2)),
+              },
+            },
+          });
+
+          pendingAuditLogs.push({
+            action: 'ADJUST_STOCK',
+            entity: 'StockLedger',
+            entityId: stock.id,
+            diff: {
+              reason: 'Invoice Sales (Edit Update)',
+              previousQuantity: lockedQty,
+              newQuantity: lockedQty - qtyToTake,
+              change: -qtyToTake,
+            },
+            actorId,
+          });
+
+          remainingQty -= qtyToTake;
+        }
+
+        if (remainingQty > 0) {
+          let fallbackStock = await tx.stockLedger.findFirst({
+            where: { productId: item.productId },
+            orderBy: { updatedAt: 'desc' },
+          });
+
+          if (!fallbackStock) {
+            fallbackStock = await tx.stockLedger.create({
+              data: {
+                productId: item.productId,
+                warehouseId: null,
+                batchNo: null,
+                quantity: new Prisma.Decimal(0),
+              },
+            });
+          }
+
+          const lockedFallbackRows = await tx.$queryRawUnsafe<
+            Array<{ id: string; quantity: string | number }>
+          >(
+            `SELECT id, quantity FROM "StockLedger" WHERE id = $1 FOR UPDATE`,
+            fallbackStock.id,
+          );
+          const currentQty = Number(
+            lockedFallbackRows[0]?.quantity ?? fallbackStock.quantity,
+          );
+
+          await tx.stockLedger.update({
+            where: { id: fallbackStock.id },
+            data: {
+              quantity: {
+                decrement: new Prisma.Decimal(remainingQty.toFixed(2)),
+              },
+            },
+          });
+
+          pendingAuditLogs.push({
+            action: 'ADJUST_STOCK',
+            entity: 'StockLedger',
+            entityId: fallbackStock.id,
+            diff: {
+              reason: 'Invoice Sales (Edit Negative Overdraft)',
+              previousQuantity: currentQty,
+              newQuantity: currentQty - remainingQty,
+              change: -remainingQty,
+            },
+            actorId,
+          });
+
+          remainingQty = 0;
+        }
+
+        allocatedInvoiceItems.push({
+          productId: item.productId,
+          warehouseId: null,
+          batchNo: null,
+          qty: new Prisma.Decimal(item.qty.toFixed(2)),
+          unitPrice: new Prisma.Decimal(item.unitPrice.toFixed(2)),
+          discount: new Prisma.Decimal((item.discount || 0).toFixed(2)),
+          total: new Prisma.Decimal(item.total.toFixed(2)),
+        });
+      }
+
+      // 4. Upfront Payment and Credit Balance Calculation
+      let paymentSplits: Array<{
+        mode: PaymentMode;
+        amount: number;
+        upiTxnRef?: string;
+        upiUtr?: string;
+        notes?: string;
+      }> = [];
+
+      if (data.payments && data.payments.length > 0) {
+        paymentSplits = data.payments
+          .filter((p) => Number(p.amount) > 0)
+          .map((p) => ({
+            mode: p.mode,
+            amount: Number(p.amount),
+            upiTxnRef: p.upiTxnRef,
+            upiUtr: p.upiUtr,
+            notes: p.notes,
+          }));
+      } else if (
+        data.amountPaidNow !== undefined &&
+        data.amountPaidNow !== null &&
+        Number(data.amountPaidNow) > 0 &&
+        data.paymentMode !== PaymentMode.CREDIT
+      ) {
+        paymentSplits = [
+          {
+            mode: data.paymentMode || PaymentMode.CASH,
+            amount: Number(data.amountPaidNow),
+          },
+        ];
+      }
+
+      const rawUpfrontAmount = paymentSplits.reduce(
+        (sum, p) => sum + Number(p.amount),
+        0,
+      );
+      let upfrontAmount = Math.max(0, Math.min(rawUpfrontAmount, totalAmount));
+      upfrontAmount = Math.round(upfrontAmount * 100) / 100;
+      const balanceCredit = Math.max(
+        0,
+        Math.round((totalAmount - upfrontAmount) * 100) / 100,
+      );
+
+      let effectiveInvoicePaymentMode: PaymentMode;
+      if (paymentSplits.length === 0) {
+        effectiveInvoicePaymentMode = PaymentMode.CREDIT;
+      } else if (paymentSplits.length === 1) {
+        effectiveInvoicePaymentMode = paymentSplits[0].mode;
+      } else {
+        effectiveInvoicePaymentMode = PaymentMode.SPLIT;
+      }
+
+      let newStatus: InvoiceStatus;
+      if (balanceCredit === 0 && upfrontAmount > 0) {
+        newStatus = InvoiceStatus.PAID;
+      } else if (upfrontAmount > 0) {
+        newStatus = InvoiceStatus.PARTIAL;
+      } else {
+        newStatus = InvoiceStatus.CREATED;
+      }
+
+      // 5. Replace Line Items
+      await tx.invoiceItem.deleteMany({
+        where: { invoiceId: id },
+      });
+
+      // 6. Replace Payments
+      await tx.payment.deleteMany({
+        where: { invoiceId: id },
+      });
+      for (const split of paymentSplits) {
+        if (split.amount <= 0) continue;
+        await tx.payment.create({
+          data: {
+            invoiceId: id,
+            partyId: party.id,
+            mode: split.mode,
+            amount: new Prisma.Decimal(split.amount.toFixed(2)),
+            status: PaymentStatus.CONFIRMED,
+            paidAt: new Date(),
+            confirmedById: actorId,
+            upiTxnRef: split.upiTxnRef,
+            upiUtr: split.upiUtr,
+            notes:
+              split.notes ||
+              `Updated ${split.mode} payment of ₹${split.amount.toFixed(2)} for ${existing.invoiceNo}`,
+          },
+        });
+      }
+
+      // 7. Update Credit Ledger
+      await tx.creditLedger.deleteMany({
+        where: { invoiceId: id },
+      });
+      if (balanceCredit > 0) {
+        await tx.creditLedger.create({
+          data: {
+            partyId: party.id,
+            invoiceId: id,
+            amountDue: new Prisma.Decimal(balanceCredit.toFixed(2)),
+            type: CreditType.RECEIVABLE,
+            dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            notes: `Balance receivable for Invoice #${existing.invoiceNo} (Updated)`,
+          },
+        });
+      }
+
+      // 8. Reconcile Deliveries
+      const existingExtended = existing as unknown as ExtendedInvoice;
+      const isCashSale =
+        data.isCashSale !== undefined
+          ? Boolean(data.isCashSale)
+          : Boolean(existingExtended.isCashSale);
+
+      if (isCashSale) {
+        // Cash sales are customer pickup; remove any pending deliveries
+        await tx.delivery.deleteMany({
+          where: { invoiceId: id, status: DeliveryStatus.PENDING },
+        });
+      } else {
+        const pendingDelivery = await tx.delivery.findFirst({
+          where: { invoiceId: id, status: DeliveryStatus.PENDING },
+        });
+        if (pendingDelivery) {
+          await tx.delivery.update({
+            where: { id: pendingDelivery.id },
+            data: {
+              amountToCollect: new Prisma.Decimal(balanceCredit.toFixed(2)),
+              notes: data.notes || null,
+            },
+          });
+        } else {
+          await tx.delivery.create({
+            data: {
+              invoiceId: id,
+              status: DeliveryStatus.PENDING,
+              amountToCollect: new Prisma.Decimal(balanceCredit.toFixed(2)),
+              notes: data.notes || null,
+            },
+          });
+        }
+      }
+
+      if (pendingAuditLogs.length > 0) {
+        await tx.auditLog.createMany({
+          data: pendingAuditLogs.map((log) => ({
+            ...log,
+            diff: { ...log.diff, invoiceNo: existing.invoiceNo },
+          })),
+        });
+      }
+
+      // 9. Update the Invoice record
+      const updateData = {
+        partyId: party.id,
+        status: newStatus,
+        paymentMode: effectiveInvoicePaymentMode,
+        notes: data.notes !== undefined ? data.notes : existing.notes,
+        address:
+          data.address !== undefined
+            ? data.address
+            : existingExtended.address || party.address || null,
+        isCashSale,
+        subtotal: new Prisma.Decimal(subtotal.toFixed(2)),
+        tax: new Prisma.Decimal(taxAmount.toFixed(2)),
+        taxRate: new Prisma.Decimal(taxRate.toFixed(2)),
+        transportCost: new Prisma.Decimal(transportCost.toFixed(2)),
+        transportGstRate: new Prisma.Decimal(transportGstRate.toFixed(2)),
+        transportTax: new Prisma.Decimal(transportTax.toFixed(2)),
+        itemsTax: new Prisma.Decimal(itemsTax.toFixed(2)),
+        total: new Prisma.Decimal(totalAmount.toFixed(2)),
+        taxBreakup,
+        items: {
+          create: allocatedInvoiceItems,
+        },
+      };
+
+      const updatedInvoice = await tx.invoice.update({
+        where: { id },
+        data: updateData,
+        include: {
+          items: { include: { product: true, warehouse: true } },
+          party: true,
+          salesman: {
+            select: { id: true, name: true, phone: true, role: true },
+          },
+          deliveries: true,
+          payments: true,
+          creditLedgers: true,
+        },
+      });
+
+      const updatedExtended = updatedInvoice as unknown as ExtendedInvoice;
+
+      // 10. Audit Log for Edit Invoice
+      await tx.auditLog.create({
+        data: {
+          actorId,
+          action: 'EDIT_INVOICE',
+          entity: 'Invoice',
+          entityId: id,
+          diff: {
+            invoiceNo: existing.invoiceNo,
+            oldTotal: Number(existing.total),
+            newTotal: totalAmount,
+            oldItemsCount: existing.items.length,
+            newItemsCount: allocatedInvoiceItems.length,
+            isCashSale,
+            address: updatedExtended.address || null,
+          },
+        },
+      });
+
+      return updatedInvoice;
     });
   }
 

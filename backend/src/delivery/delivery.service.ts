@@ -360,7 +360,7 @@ export class DeliveryService {
             warehouseName: it.warehouse?.name || 'Warehouse',
             warehouseAddress: it.warehouse?.address || '',
             batchNo: it.batchNo,
-            qty: it.qty,
+            qty: Number(it.qty),
             pickedUp: false,
           }));
 
@@ -447,13 +447,13 @@ export class DeliveryService {
         : [];
     if (isMarkingCustomerPickup) {
       if (updatedItems.length === 0 && delivery.invoice?.items) {
-        updatedItems = delivery.invoice.items.map((it: any) => ({
+        updatedItems = delivery.invoice.items.map((it) => ({
           productId: it.productId,
           productName: it.product?.name || 'Product',
-          qty: it.qty,
+          qty: Number(it.qty),
           batchNo: it.batchNo,
           warehouseId: it.warehouseId,
-          warehouseName: it.warehouse?.name,
+          warehouseName: it.warehouse?.name || 'Warehouse',
           pickedUp: true,
           pickedUpAt: new Date().toISOString(),
         }));
@@ -572,29 +572,43 @@ export class DeliveryService {
 
     if (
       this.isCustomerPickedUp(delivery) ||
-      delivery.status === DeliveryStatus.DELIVERED
+      (delivery.status === DeliveryStatus.DELIVERED && !dto.isCustomerPickup)
     ) {
       throw new BadRequestException(
-        'Order was picked up by customer (or already delivered). Driver dispatch is strictly blocked.',
+        'Order was already delivered or customer pickup completed.',
       );
     }
 
-    const effectiveDriverId = dto.driverId || delivery.driverId;
-    if (!effectiveDriverId) {
+    if (
+      delivery.status !== DeliveryStatus.PENDING &&
+      delivery.status !== DeliveryStatus.ASSIGNED
+    ) {
       throw new BadRequestException(
-        'A driver must be assigned before pushing delivery',
-      );
-    }
-    const driver = await this.prisma.user.findUnique({
-      where: { id: effectiveDriverId },
-    });
-    if (!driver || !driver.isActive) {
-      throw new BadRequestException(
-        'Assigned driver is inactive. Cannot push delivery to inactive staff.',
+        'Delivery has already progressed beyond dispatch editing.',
       );
     }
 
-    // 1. Determine dispatched items for this delivery (each item starts with pickedUp: false)
+    const isCustomerPickup = Boolean(dto.isCustomerPickup);
+    let effectiveDriverId: string | null = null;
+
+    if (!isCustomerPickup) {
+      effectiveDriverId = dto.driverId || delivery.driverId || null;
+      if (!effectiveDriverId) {
+        throw new BadRequestException(
+          'A driver must be assigned before pushing delivery',
+        );
+      }
+      const driver = await this.prisma.user.findUnique({
+        where: { id: effectiveDriverId },
+      });
+      if (!driver || !driver.isActive) {
+        throw new BadRequestException(
+          'Assigned driver is inactive. Cannot push delivery to inactive staff.',
+        );
+      }
+    }
+
+    // 1. Determine dispatched items for this delivery
     const defaultItems = delivery.invoice.items.map((it) => ({
       invoiceItemId: it.id,
       productId: it.productId,
@@ -605,18 +619,23 @@ export class DeliveryService {
       warehouseAddress: it.warehouse?.address || '',
       batchNo: it.batchNo,
       qty: it.qty,
-      pickedUp: false,
+      pickedUp: isCustomerPickup,
+      pickedUpAt: isCustomerPickup ? new Date().toISOString() : undefined,
     }));
 
     const dispatchedItems =
       dto.items && dto.items.length > 0
-        ? dto.items.map((it) => ({ ...it, pickedUp: false }))
+        ? dto.items.map((it) => ({
+            ...it,
+            pickedUp: isCustomerPickup,
+            pickedUpAt: isCustomerPickup ? new Date().toISOString() : undefined,
+          }))
         : defaultItems;
 
     // 2. Execute all dispatch modifications atomically inside a transaction
     const result = await this.prisma.$transaction(async (tx) => {
-      // If vehicle is specified, record vehicle trip info without auto-creating transport pricing
-      if (dto.vehicle || dto.vehicleNo) {
+      // If vehicle is specified and not customer pickup, record vehicle trip info
+      if (!isCustomerPickup && (dto.vehicle || dto.vehicleNo)) {
         await tx.deliveryTrip.create({
           data: {
             deliveryId: id,
@@ -629,7 +648,7 @@ export class DeliveryService {
       }
 
       // If supervisors are provided, sync DeliverySupervisor records
-      if (dto.supervisorIds !== undefined) {
+      if (!isCustomerPickup && dto.supervisorIds !== undefined) {
         await tx.deliverySupervisor.deleteMany({
           where: { deliveryId: id },
         });
@@ -643,12 +662,24 @@ export class DeliveryService {
         }
       }
 
-      // Transition this delivery status to ASSIGNED with amountToCollect and dispatched items
+      const newStatus = isCustomerPickup
+        ? DeliveryStatus.DELIVERED
+        : DeliveryStatus.ASSIGNED;
+      const finalNotes = isCustomerPickup
+        ? dto.notes
+          ? `Customer Picked Up: ${dto.notes}`
+          : 'Customer Picked Up (Self/Counter Pickup)'
+        : dto.notes !== undefined
+          ? dto.notes
+          : delivery.notes;
+
+      // Transition this delivery status with amountToCollect and dispatched items
       const updatedDelivery = await tx.delivery.update({
         where: { id },
         data: {
-          status: DeliveryStatus.ASSIGNED,
+          status: newStatus,
           driverId: effectiveDriverId,
+          notes: finalNotes,
           items: dispatchedItems,
           amountToCollect:
             dto.amountToCollect !== undefined
@@ -713,7 +744,7 @@ export class DeliveryService {
           0 ||
           dispatchedQtyByItem[keyFallback] ||
           0;
-        const remainingQty = invItem.qty - alreadyDispatched;
+        const remainingQty = Number(invItem.qty) - alreadyDispatched;
 
         if (remainingQty > 0) {
           remainingItems.push({
@@ -773,12 +804,14 @@ export class DeliveryService {
     });
 
     // Notify driver about newly assigned delivery
-    void this.notifications.notifyUser(
-      effectiveDriverId,
-      'New Delivery Assigned!',
-      `Invoice #${delivery.invoice?.invoiceNo} dispatched to you. Pick up items from warehouse.`,
-      { type: 'DELIVERY_ASSIGNED', deliveryId: id },
-    );
+    if (effectiveDriverId) {
+      void this.notifications.notifyUser(
+        effectiveDriverId,
+        'New Delivery Assigned!',
+        `Invoice #${delivery.invoice?.invoiceNo} dispatched to you. Pick up items from warehouse.`,
+        { type: 'DELIVERY_ASSIGNED', deliveryId: id },
+      );
+    }
 
     // Notify assigned supervisors
     if (dto.supervisorIds && dto.supervisorIds.length > 0) {
@@ -817,11 +850,14 @@ export class DeliveryService {
 
     // If supervisor, check that they are assigned to this delivery
     if (actor?.role === Role.SUPERVISOR) {
-      const supervisors = (delivery as any).supervisors || [];
+      const supervisors =
+        (
+          delivery as unknown as {
+            supervisors?: Array<{ supervisorId: string }>;
+          }
+        ).supervisors || [];
       if (supervisors.length > 0) {
-        const isAssigned = supervisors.some(
-          (s: any) => s.supervisorId === actor.id,
-        );
+        const isAssigned = supervisors.some((s) => s.supervisorId === actor.id);
         if (!isAssigned) {
           throw new ForbiddenException(
             'You are not assigned as a supervisor for this delivery.',

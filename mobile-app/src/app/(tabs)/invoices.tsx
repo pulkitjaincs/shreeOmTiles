@@ -35,6 +35,7 @@ import {
   InvoiceListCard,
   filterInvoiceList,
   DeleteInvoiceModal,
+  InvoiceQrScannerModal,
 } from '@/components/invoices';
 
 export default function InvoicesScreen() {
@@ -61,10 +62,12 @@ export default function InvoicesScreen() {
   const [dateTo, setDateTo] = useState('');
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<any>(null);
   const [detailsInvoice, setDetailsInvoice] = useState<any>(null);
   const [returnInvoice, setReturnInvoice] = useState<any>(null);
   const [deleteInvoiceTarget, setDeleteInvoiceTarget] = useState<any>(null);
   const [createdInvoiceSuccess, setCreatedInvoiceSuccess] = useState<Invoice | null>(null);
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   // Parties are loaded lazily — only when the create modal is first opened.
   // See loadPartiesLazy() below.
@@ -122,10 +125,10 @@ export default function InvoicesScreen() {
   }, [parties.length]);
 
   useEffect(() => {
-    if (createModalOpen) {
+    if (createModalOpen || editingInvoice) {
       void loadPartiesLazy();
     }
-  }, [createModalOpen, loadPartiesLazy]);
+  }, [createModalOpen, editingInvoice, loadPartiesLazy]);
 
   useFocusEffect(
     useCallback(() => {
@@ -206,6 +209,43 @@ export default function InvoicesScreen() {
     }
   };
 
+  const handleQrScanned = async (query: string) => {
+    try {
+      const match = invoices.find(
+        (i) =>
+          i.id === query ||
+          i.invoiceNo?.toLowerCase() === query.toLowerCase() ||
+          (query.includes(i.invoiceNo || '') && (i.invoiceNo || '').length > 3),
+      );
+      if (match) {
+        await handleOpenInvoiceDetails(match);
+        return;
+      }
+      const full = await mobileApiRequest<any>(`/invoices/lookup/${encodeURIComponent(query)}`);
+      if (full && full.id) {
+        await handleOpenInvoiceDetails(full);
+      } else {
+        Alert.alert('Invoice Not Found', `No bill matching "${query}" could be found.`);
+      }
+    } catch (err: any) {
+      Alert.alert('Lookup Error', err.message || 'Invoice lookup failed.');
+    }
+  };
+
+  const handleOpenEditInvoice = async (invoice: any) => {
+    try {
+      void loadPartiesLazy();
+      let fullInv = invoice;
+      if (!invoice.items || invoice.items.length === 0) {
+        const res = await mobileApiRequest<any>(`/invoices/${invoice.id}`);
+        if (res && res.id) fullInv = res;
+      }
+      setEditingInvoice(fullInv);
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Could not load bill details for editing');
+    }
+  };
+
   const handleDownloadRefundPdf = async (refundId: string, refundNo: string) => {
     await downloadAndSharePdf(`invoices/refund/${refundId}/pdf`, refundNo || `Credit_Note_${refundId}`);
   };
@@ -244,19 +284,30 @@ export default function InvoicesScreen() {
 
       {!isSupervisor || canReturn ? (
         <View style={styles.utilityActions}>
-          {!isSupervisor ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {!isSupervisor ? (
+              <TouchableOpacity
+                style={styles.newBillAction}
+                onPress={() => {
+                  void loadPartiesLazy();
+                  setCreateModalOpen(true);
+                }}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="add" size={16} color="#09090B" />
+                <Text style={styles.newBillActionText}>New Bill</Text>
+              </TouchableOpacity>
+            ) : null}
+
             <TouchableOpacity
-              style={styles.newBillAction}
-              onPress={() => {
-                void loadPartiesLazy();
-                setCreateModalOpen(true);
-              }}
+              style={styles.scannerAction}
+              onPress={() => setScannerOpen(true)}
               activeOpacity={0.8}
             >
-              <Ionicons name="add" size={16} color="#09090B" />
-              <Text style={styles.newBillActionText}>New Bill</Text>
+              <Ionicons name="qr-code-outline" size={15} color="#38BDF8" />
+              <Text style={styles.scannerActionText}>Scan QR</Text>
             </TouchableOpacity>
-          ) : <View />}
+          </View>
 
           {canReturn ? (
             <TouchableOpacity
@@ -321,6 +372,7 @@ export default function InvoicesScreen() {
               canReturn={canReturn}
               isSupervisor={isSupervisor}
               onOpen={handleOpenInvoiceDetails}
+              onEdit={!isSupervisor ? handleOpenEditInvoice : undefined}
               onDownloadPdf={(inv) => void downloadAndSharePdf(`invoices/${inv.id}/pdf`, inv.invoiceNo || `Invoice_${inv.id}`)}
               onShareWhatsApp={handleShareWhatsApp}
               onReturn={setReturnInvoice}
@@ -343,6 +395,26 @@ export default function InvoicesScreen() {
         onRefreshStock={refreshInvoiceStock}
       />
 
+      {/* Edit Invoice Modal */}
+      <CreateInvoiceModal
+        visible={Boolean(editingInvoice)}
+        invoiceToEdit={editingInvoice}
+        onClose={() => setEditingInvoice(null)}
+        onSuccess={(res) => {
+          setEditingInvoice(null);
+          void loadData(true);
+          Alert.alert(
+            'Invoice Updated',
+            `Invoice #${res?.invoiceNo || editingInvoice?.invoiceNo} was updated successfully.`,
+          );
+        }}
+        products={products}
+        warehouses={warehouses}
+        parties={parties}
+        stockList={stockList}
+        onRefreshStock={refreshInvoiceStock}
+      />
+
       <InvoiceDetailsModal
         invoice={detailsInvoice}
         visible={Boolean(detailsInvoice)}
@@ -350,6 +422,7 @@ export default function InvoicesScreen() {
         onShareWhatsApp={handleShareWhatsApp}
         onDownloadRefundPdf={handleDownloadRefundPdf}
         onInitiateReturn={canReturn ? (inv) => setReturnInvoice(inv) : undefined}
+        onEdit={!isSupervisor ? (inv) => { setDetailsInvoice(null); void handleOpenEditInvoice(inv); } : undefined}
         canDelete={isOwnerOrAdmin}
         onDeleteInvoice={(inv) => setDeleteInvoiceTarget(inv)}
         isSupervisor={isSupervisor}
@@ -378,6 +451,12 @@ export default function InvoicesScreen() {
         onClose={() => setCreatedInvoiceSuccess(null)}
         onShareWhatsApp={handleShareWhatsApp}
         onViewDetails={handleOpenInvoiceDetails}
+      />
+
+      <InvoiceQrScannerModal
+        visible={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScan={handleQrScanned}
       />
 
     </View>
@@ -440,6 +519,22 @@ const styles = StyleSheet.create({
   returnActionText: {
     color: '#FBBF24',
     fontSize: 11,
+    fontWeight: '700',
+  },
+  scannerAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 34,
+    paddingHorizontal: 11,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.35)',
+    backgroundColor: 'rgba(56, 189, 248, 0.08)',
+  },
+  scannerActionText: {
+    color: '#38BDF8',
+    fontSize: 12,
     fontWeight: '700',
   },
 });

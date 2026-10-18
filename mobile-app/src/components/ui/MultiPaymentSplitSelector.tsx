@@ -61,6 +61,12 @@ export function MultiPaymentSplitSelector({
       color: '#0EA5E9',
       bgColor: 'rgba(14, 165, 233, 0.12)',
     },
+    CARD: {
+      label: 'Card (POS)',
+      icon: 'card-outline',
+      color: '#F59E0B',
+      bgColor: 'rgba(245, 158, 11, 0.12)',
+    },
   };
 
   const totalPaidNow = splits.reduce((sum, s) => {

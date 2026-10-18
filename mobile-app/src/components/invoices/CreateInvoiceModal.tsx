@@ -3,9 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Card } from '@/components/ui/Card';
@@ -14,7 +12,7 @@ import { Input } from '@/components/ui/Input';
 import { Colors } from '@/constants/theme';
 import { formatINR } from '@/lib/formatters';
 import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
-import { Product, Warehouse, Party, StockLedger, InvoiceLineItem, UpiAccount, PaymentSplitItem } from './types';
+import { Product, Warehouse, Party, StockLedger, InvoiceLineItem, UpiAccount, PaymentSplitItem, Invoice } from './types';
 import { CustomerSelector } from './CustomerSelector';
 import { InvoiceLineItemCard } from './InvoiceLineItemCard';
 import { CounterUpiModal } from './CounterUpiModal';
@@ -29,6 +27,7 @@ interface CreateInvoiceModalProps {
   parties: Party[];
   stockList: StockLedger[];
   onRefreshStock: () => Promise<StockLedger[]>;
+  invoiceToEdit?: Invoice | null;
 }
 
 export function CreateInvoiceModal({
@@ -40,10 +39,12 @@ export function CreateInvoiceModal({
   parties,
   stockList,
   onRefreshStock,
+  invoiceToEdit,
 }: CreateInvoiceModalProps) {
   const wasVisible = useRef(false);
-  const [customerMode, setCustomerMode] = useState<'existing' | 'new'>('existing');
+  const [customerMode, setCustomerMode] = useState<'existing' | 'new' | 'cash_sale'>('existing');
   const [selectedPartyId, setSelectedPartyId] = useState('');
+  const [billAddress, setBillAddress] = useState('');
   const [newPartyName, setNewPartyName] = useState('');
   const [newPartyPhone, setNewPartyPhone] = useState('');
   const [newPartyAddress, setNewPartyAddress] = useState('');
@@ -67,7 +68,6 @@ export function CreateInvoiceModal({
   ]);
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [refreshingStock, setRefreshingStock] = useState(false);
   const [currentStockList, setCurrentStockList] = useState(stockList);
 
   // Dynamic UPI accounts & live preview QR
@@ -90,20 +90,38 @@ export function CreateInvoiceModal({
     stockListRef.current = stockList;
   }, [stockList]);
 
+  // Selected party & balance calculation (context display only)
+  const selectedParty = useMemo(
+    () => parties.find((p) => p.id === selectedPartyId),
+    [parties, selectedPartyId],
+  );
+
+  const partyBalance = useMemo(() => {
+    if (!selectedParty?.creditLedgers) return 0;
+    return selectedParty.creditLedgers.reduce((sum: number, cl: any) => {
+      if (cl.status === 'SETTLED') return sum;
+      const amt = Number(cl.amountDue || 0);
+      return cl.type === 'RECEIVABLE' ? sum + amt : sum - amt;
+    }, 0);
+  }, [selectedParty]);
+
   const resetForm = useCallback(() => {
     setCustomerMode('existing');
     setSelectedPartyId('');
+    setBillAddress('');
     setNewPartyName('');
     setNewPartyPhone('');
     setNewPartyAddress('');
     setNewPartyGstin('');
     setSaveNewParty(true);
-    setItems([{
-      productId: '',
-      qty: 1,
-      unitPrice: 0,
-      discount: 0,
-    }]);
+    setItems([
+      {
+        productId: '',
+        qty: 1,
+        unitPrice: 0,
+        discount: 0,
+      },
+    ]);
     setTaxRate(18);
     setTransportCost('0');
     setTransportGstRate(0);
@@ -129,6 +147,10 @@ export function CreateInvoiceModal({
 
   const handleSelectedPartyChange = (partyId: string) => {
     setSelectedPartyId(partyId);
+    const party = parties.find((p) => p.id === partyId);
+    if (party?.address) {
+      setBillAddress(party.address);
+    }
     setItems((current) =>
       current.map((item) => {
         if (!item.productId) return item;
@@ -143,17 +165,60 @@ export function CreateInvoiceModal({
   useEffect(() => {
     if (!visible) {
       wasVisible.current = false;
-      setRefreshingStock(false);
       return;
     }
     if (wasVisible.current) return;
     wasVisible.current = true;
 
     let isMountedOrOpen = true;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-    // Immediately reset the form state so old inputs do not persist
-    resetForm();
+    if (invoiceToEdit) {
+      // Edit mode initialization
+      const isCash = Boolean(invoiceToEdit.isCashSale);
+      setCustomerMode(isCash ? 'cash_sale' : 'existing');
+      const pId = invoiceToEdit.partyId || invoiceToEdit.party?.id || '';
+      setSelectedPartyId(pId);
+      setNewPartyName(invoiceToEdit.party?.name || '');
+      setNewPartyPhone(invoiceToEdit.party?.phone || '');
+      setBillAddress(invoiceToEdit.address || invoiceToEdit.party?.address || '');
+      setNewPartyAddress(invoiceToEdit.address || invoiceToEdit.party?.address || '');
+      setTaxRate(Number(invoiceToEdit.taxRate ?? (invoiceToEdit.taxBreakup?.rate ?? 18)));
+      setTransportCost(String((invoiceToEdit as any).transportCost ?? '0'));
+      setTransportGstRate(Number((invoiceToEdit as any).transportGstRate ?? 0));
+      setNotes(invoiceToEdit.notes || '');
+
+      if (invoiceToEdit.items && invoiceToEdit.items.length > 0) {
+        setItems(
+          invoiceToEdit.items.map((it: any) => ({
+            productId: it.productId,
+            qty: Number(it.qty || 1),
+            unitPrice: Number(it.unitPrice || 0),
+            discount: Number(it.discount || 0),
+          })),
+        );
+      }
+
+      if (invoiceToEdit.payments && invoiceToEdit.payments.length > 0) {
+        setPaymentSplits(
+          invoiceToEdit.payments.map((p: any) => ({
+            mode: p.mode,
+            amount: String(p.amount),
+            upiUtr: p.upiUtr,
+            referenceNo: p.referenceNo,
+          })),
+        );
+      } else {
+        setPaymentSplits([
+          {
+            mode: (invoiceToEdit.paymentMode as any) || 'CASH',
+            amount: String(invoiceToEdit.total || ''),
+          },
+        ]);
+      }
+    } else {
+      resetForm();
+    }
+
     if (Array.isArray(stockListRef.current)) {
       setCurrentStockList(stockListRef.current);
     }
@@ -168,7 +233,10 @@ export function CreateInvoiceModal({
           }
         }
       } catch (err: any) {
-        console.warn('[CreateInvoiceModal] Background stock refresh completed with cache fallback:', err?.message);
+        console.warn(
+          '[CreateInvoiceModal] Background stock refresh completed with cache fallback:',
+          err?.message,
+        );
       }
     };
 
@@ -190,19 +258,14 @@ export function CreateInvoiceModal({
     return () => {
       isMountedOrOpen = false;
       wasVisible.current = false;
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
-      setRefreshingStock(false);
     };
-  }, [visible, resetForm]);
+  }, [visible, invoiceToEdit, resetForm]);
 
   useEffect(() => {
     if (Array.isArray(stockList)) {
       setCurrentStockList(stockList);
     }
   }, [stockList]);
-
 
   const handleProductChange = (index: number, newProductId: string) => {
     if (!newProductId) {
@@ -250,7 +313,10 @@ export function CreateInvoiceModal({
     }
     const hasEmptyItem = items.some((item) => !item.productId);
     if (hasEmptyItem) {
-      Alert.alert('Select Product', 'Please select a product for the empty item before adding another.');
+      Alert.alert(
+        'Select Product',
+        'Please select a product for the empty item before adding another.',
+      );
       return;
     }
     setItems((prev) => [
@@ -283,12 +349,13 @@ export function CreateInvoiceModal({
 
   const { subtotal, itemsTax, numTransportCost, transportTax, grandTotal } = useMemo(() => {
     const rawSub = items.reduce((acc, it) => {
-      const lineTotal = (Number(it.qty) || 0) * (Number(it.unitPrice) || 0) - (Number(it.discount) || 0);
+      const lineTotal =
+        (Number(it.qty) || 0) * (Number(it.unitPrice) || 0) - (Number(it.discount) || 0);
       return acc + Math.max(0, lineTotal);
     }, 0);
-    const tax = Math.round((rawSub * (taxRate / 100)) * 100) / 100;
+    const tax = Math.round(rawSub * (taxRate / 100) * 100) / 100;
     const tCost = Math.max(0, Number(transportCost) || 0);
-    const tTax = Math.round((tCost * (transportGstRate / 100)) * 100) / 100;
+    const tTax = Math.round(tCost * (transportGstRate / 100) * 100) / 100;
     return {
       subtotal: rawSub,
       itemsTax: tax,
@@ -344,13 +411,15 @@ export function CreateInvoiceModal({
       Alert.alert('Validation Error', 'Please select a customer');
       return;
     }
-    if (customerMode === 'new' && (!newPartyName.trim() || !newPartyPhone.trim())) {
-      Alert.alert('Validation Error', 'Customer Name and Mobile Number are required');
-      return;
-    }
-    if (customerMode === 'new' && newPartyPhone.replace(/\D/g, '').length !== 10) {
-      Alert.alert('Validation Error', 'Customer mobile number must be 10 digits.');
-      return;
+    if (customerMode === 'new') {
+      if (!newPartyName.trim() || !newPartyPhone.trim()) {
+        Alert.alert('Validation Error', 'Customer Name and Mobile Number are required');
+        return;
+      }
+      if (newPartyPhone.replace(/\D/g, '').length !== 10) {
+        Alert.alert('Validation Error', 'Customer mobile number must be 10 digits.');
+        return;
+      }
     }
     if (items.length === 0) {
       Alert.alert('Validation Error', 'Please add at least one line item');
@@ -376,8 +445,8 @@ export function CreateInvoiceModal({
       }
     }
 
-    // Upfront UPI QR checkout flow: show dynamic exact QR before creating DB invoice
-    if (upiSplitAmount > 0 && !modeOverride && !upiPreviewData) {
+    // Upfront UPI QR checkout flow (only in create mode)
+    if (!invoiceToEdit && upiSplitAmount > 0 && !modeOverride && !upiPreviewData) {
       await fetchPreviewQr(upiSplitAmount, selectedUpiAccount);
       return;
     }
@@ -413,9 +482,21 @@ export function CreateInvoiceModal({
         })),
       };
 
-      if (customerMode === 'existing') {
+      if (customerMode === 'cash_sale') {
+        payload.isCashSale = true;
+        payload.address = (billAddress || newPartyAddress).trim() || undefined;
+        payload.newParty = {
+          name: newPartyName.trim() || 'Cash Sale',
+          phone: newPartyPhone.trim(),
+          address: (billAddress || newPartyAddress).trim() || undefined,
+          isSaved: false,
+        };
+      } else if (customerMode === 'existing') {
         payload.partyId = selectedPartyId;
+        payload.address = billAddress.trim() || undefined;
+        payload.previousBalance = partyBalance;
       } else {
+        payload.address = newPartyAddress.trim() || undefined;
         payload.newParty = {
           name: newPartyName.trim(),
           phone: newPartyPhone.trim(),
@@ -425,8 +506,11 @@ export function CreateInvoiceModal({
         };
       }
 
-      const res = await mobileApiRequest('/invoices', {
-        method: 'POST',
+      const endpoint = invoiceToEdit ? `/invoices/${invoiceToEdit.id}` : '/invoices';
+      const method = invoiceToEdit ? 'PUT' : 'POST';
+
+      const res = await mobileApiRequest(endpoint, {
+        method,
         body: JSON.stringify(payload),
       });
 
@@ -435,7 +519,10 @@ export function CreateInvoiceModal({
       onClose();
       onSuccess(res);
     } catch (err: any) {
-      Alert.alert('Creation Failed', err.message || 'Could not generate invoice');
+      Alert.alert(
+        invoiceToEdit ? 'Update Failed' : 'Creation Failed',
+        err.message || 'Could not process invoice',
+      );
     } finally {
       setSubmitting(false);
     }
@@ -445,8 +532,12 @@ export function CreateInvoiceModal({
     <BottomSheetModal
       visible={visible}
       onClose={onClose}
-      title="Create New Tax Invoice"
-      subtitle="Issue GST bill and deduct stock directly from product inventory"
+      title={invoiceToEdit ? `Edit Invoice #${invoiceToEdit.invoiceNo}` : 'Create New Tax Invoice'}
+      subtitle={
+        invoiceToEdit
+          ? 'Update line items, pricing, address, or payment splits'
+          : 'Issue GST bill and deduct stock directly from product inventory'
+      }
     >
       <View>
         {/* 1. Customer Section */}
@@ -456,6 +547,9 @@ export function CreateInvoiceModal({
           parties={parties}
           selectedPartyId={selectedPartyId}
           onSelectedPartyChange={handleSelectedPartyChange}
+          billAddress={billAddress}
+          onBillAddressChange={setBillAddress}
+          partyBalance={partyBalance}
           newPartyName={newPartyName}
           onNewPartyNameChange={setNewPartyName}
           newPartyPhone={newPartyPhone}
@@ -470,8 +564,7 @@ export function CreateInvoiceModal({
 
         {/* 2. Line Items Section */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={styles.modalSectionTitle}>2. Line Items</Text>
-          <Button title="+ Add Item" size="sm" variant="outline" onPress={handleAddItem} />
+          <Text style={styles.modalSectionTitle}>2. Line Items & Products</Text>
         </View>
 
         {items.map((item, idx) => (
@@ -490,8 +583,17 @@ export function CreateInvoiceModal({
           />
         ))}
 
-        {/* 3. Tax & Payment Settlement */}
-        <Text style={styles.modalSectionTitle}>3. Tax & Settlement</Text>
+        {/* Add Product Button Relocated Directly Below Last Product Card */}
+        <Button
+          title="+ Add Another Product"
+          size="sm"
+          variant="outline"
+          onPress={handleAddItem}
+          style={{ marginBottom: 16 }}
+        />
+
+        {/* 3. Tax & Transport Controls Directly Above Summary */}
+        <Text style={styles.modalSectionTitle}>3. Tax & Transport</Text>
         <Input
           label="Items GST Rate (%)"
           placeholder="e.g. 18 or 0"
@@ -520,15 +622,6 @@ export function CreateInvoiceModal({
             setTransportGstRate(isNaN(num) ? 0 : Math.min(100, Math.max(0, num)));
           }}
           keyboardType="decimal-pad"
-        />
-
-        <MultiPaymentSplitSelector
-          totalAmount={grandTotal}
-          splits={paymentSplits}
-          onChange={setPaymentSplits}
-          allowCredit={true}
-          onPreviewUpi={(amt) => void fetchPreviewQr(amt, selectedUpiAccount)}
-          previewUpiLoading={loadingQr}
         />
 
         <Input
@@ -568,6 +661,12 @@ export function CreateInvoiceModal({
             <Text style={styles.grandTotalLabel}>Grand Total</Text>
             <Text style={styles.grandTotalVal}>{formatINR(grandTotal)}</Text>
           </View>
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryLabel}>Amount Paid Upfront</Text>
+            <Text style={[styles.summaryVal, { color: Colors.dark.statusPaid }]}>
+              {formatINR(effectivePaidNow)}
+            </Text>
+          </View>
           {balanceDue > 0 ? (
             <View style={styles.balanceDueRow}>
               <Text style={styles.balanceDueLabel}>Remaining Due</Text>
@@ -576,12 +675,27 @@ export function CreateInvoiceModal({
           ) : null}
         </Card>
 
+        {/* 4. Payment Breakdown (Relocated to the very end below Summary) */}
+        <Text style={[styles.modalSectionTitle, { marginTop: 16 }]}>4. Payment Breakdown</Text>
+        <MultiPaymentSplitSelector
+          totalAmount={grandTotal}
+          splits={paymentSplits}
+          onChange={setPaymentSplits}
+          allowCredit={true}
+          onPreviewUpi={(amt) => void fetchPreviewQr(amt, selectedUpiAccount)}
+          previewUpiLoading={loadingQr}
+        />
+
         <Button
           title={
             loadingQr
               ? 'Generating UPI QR...'
               : submitting
-              ? 'Generating Invoice...'
+              ? invoiceToEdit
+                ? 'Updating Invoice...'
+                : 'Generating Invoice...'
+              : invoiceToEdit
+              ? `Save & Update Invoice (${formatINR(grandTotal)})`
               : upiSplitAmount > 0
               ? `Proceed to UPI QR (${formatINR(upiSplitAmount)})`
               : `Generate Invoice (${formatINR(grandTotal)})`
@@ -605,7 +719,9 @@ export function CreateInvoiceModal({
         onSelectUpiAccount={(acc) => {
           setSelectedUpiAccount(acc);
           if (upiPreviewData?.amount) {
-            setUpiPreviewData((current) => current ? { ...current, qrDataUrl: '', vpa: acc.upiId } : current);
+            setUpiPreviewData((current) =>
+              current ? { ...current, qrDataUrl: '', vpa: acc.upiId } : current,
+            );
             void fetchPreviewQr(upiPreviewData.amount, acc);
           }
         }}
@@ -622,22 +738,13 @@ export function CreateInvoiceModal({
   );
 }
 
+export function EditInvoiceModal(
+  props: Omit<CreateInvoiceModalProps, 'invoiceToEdit'> & { invoice: Invoice | null },
+) {
+  return <CreateInvoiceModal {...props} invoiceToEdit={props.invoice} />;
+}
+
 const styles = StyleSheet.create({
-  stockRefreshNotice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 9,
-    paddingVertical: 10,
-    marginBottom: 6,
-    borderRadius: 10,
-    backgroundColor: Colors.dark.card,
-  },
-  stockRefreshText: {
-    color: Colors.dark.textSecondary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
   modalSectionTitle: {
     fontSize: 14,
     fontWeight: '800',
@@ -652,130 +759,56 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 4,
   },
-  fieldLabel: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-    marginBottom: 6,
-    textTransform: 'uppercase',
-  },
-  tabToggle: {
-    flexDirection: 'row',
-    backgroundColor: Colors.dark.card,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-    padding: 2,
-    marginBottom: 10,
-  },
-  toggleBtn: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  toggleBtnActive: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  toggleText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  toggleTextActive: {
-    color: '#09090B',
-    fontWeight: '800',
-  },
-  taxRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 12,
-  },
-  taxChip: {
-    flex: 1,
-    paddingVertical: 7,
-    alignItems: 'center',
-    borderRadius: 8,
-    backgroundColor: Colors.dark.card,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  taxChipActive: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  taxChipText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  taxChipTextActive: {
-    color: '#09090B',
-    fontWeight: '800',
-  },
-  fullPayBtn: {
-    alignSelf: 'flex-end',
-    marginTop: -8,
-    marginBottom: 10,
-  },
-  fullPayText: {
-    color: Colors.dark.primary,
-    fontSize: 12,
-    fontWeight: '700',
-  },
   summaryBox: {
-    padding: 14,
-    marginVertical: 10,
+    padding: 12,
+    marginTop: 10,
     backgroundColor: Colors.dark.card,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
   },
   summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginVertical: 3,
+    alignItems: 'center',
+    paddingVertical: 3,
   },
   summaryLabel: {
-    fontSize: 13,
+    fontSize: 12,
     color: Colors.dark.textSecondary,
+    fontWeight: '500',
   },
   summaryVal: {
-    fontSize: 13,
-    color: Colors.dark.text,
-    fontWeight: '600',
+    fontSize: 12,
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
   grandTotalRow: {
     borderTopWidth: 1,
     borderTopColor: Colors.dark.border,
     paddingTop: 8,
-    marginTop: 4,
+    marginTop: 6,
+    marginBottom: 4,
   },
   grandTotalLabel: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: Colors.dark.text,
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#FFFFFF',
   },
   grandTotalVal: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '900',
     color: '#10B981',
   },
   balanceDueRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingTop: 6,
+    alignItems: 'center',
+    paddingVertical: 4,
     marginTop: 4,
+    paddingTop: 6,
     borderTopWidth: 1,
-    borderTopColor: Colors.dark.border,
+    borderTopColor: 'rgba(251,191,36,0.2)',
   },
   balanceDueLabel: {
     fontSize: 12,

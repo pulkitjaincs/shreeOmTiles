@@ -15,8 +15,10 @@ import {
   Banknote,
   QrCode,
   Building2,
+  Pencil,
+  ExternalLink,
 } from 'lucide-react';
-import { Invoice } from './types';
+import { Invoice, Party } from './types';
 import { formatINR, formatDateTime, formatDate } from '@/lib/formatters';
 import { useAuth } from '@/components/auth-provider';
 
@@ -27,6 +29,8 @@ interface InvoiceDetailsDrawerProps {
   onDownloadPdf: (id: string, no: string) => void;
   onDownloadRefundPdf?: (refundId: string, refundNo: string) => void;
   onDelete?: (invoice: Invoice) => void;
+  onEdit?: (invoice: Invoice) => void;
+  onOpenPartyStatement?: (party: Party) => void;
   canDelete?: boolean;
   sharingId: string | null;
   downloadingId: string | null;
@@ -40,6 +44,8 @@ export function InvoiceDetailsDrawer({
   onDownloadPdf,
   onDownloadRefundPdf,
   onDelete,
+  onEdit,
+  onOpenPartyStatement,
   canDelete = false,
   sharingId,
   downloadingId,
@@ -102,6 +108,18 @@ export function InvoiceDetailsDrawer({
 
           {/* Header Actions */}
           <div className="flex items-center gap-2">
+            {!isSupervisor && onEdit && (
+              <button
+                type="button"
+                onClick={() => onEdit(invoice)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[0.625rem] text-[0.75rem] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 transition shadow-2xs active:scale-98"
+                title="Edit bill details, quantities, pricing, address"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                <span>Edit Bill</span>
+              </button>
+            )}
+
             {!isSupervisor && (
               <>
                 <button
@@ -159,20 +177,50 @@ export function InvoiceDetailsDrawer({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Customer */}
           <div className="rounded-[1rem] border border-border bg-muted/30 p-3.5 space-y-1.5">
-            <span className="text-[0.6875rem] font-semibold text-muted-foreground uppercase tracking-wider block">
-              Customer / Billed To
-            </span>
-            <p className="text-[0.875rem] font-bold text-foreground">
-              {invoice.party?.name || 'Walk-in Customer'}
-            </p>
+            <div className="flex items-center justify-between">
+              <span className="text-[0.6875rem] font-semibold text-muted-foreground uppercase tracking-wider block">
+                Customer / Billed To
+              </span>
+              {invoice.isCashSale && (
+                <span className="text-[0.625rem] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
+                  Cash Sale (Pickup)
+                </span>
+              )}
+            </div>
+            {invoice.party && onOpenPartyStatement ? (
+              <button
+                type="button"
+                onClick={() => onOpenPartyStatement(invoice.party)}
+                className="text-[0.875rem] font-bold text-primary hover:underline text-left inline-flex items-center gap-1 group"
+                title="View Party Ledger & Statement"
+              >
+                <span>{invoice.party.name}</span>
+                <ExternalLink className="h-3 w-3 opacity-70 group-hover:opacity-100 transition-opacity" />
+              </button>
+            ) : (
+              <p className="text-[0.875rem] font-bold text-foreground">
+                {invoice.party?.name || (invoice.isCashSale ? 'Cash Sale' : 'Walk-in Customer')}
+              </p>
+            )}
             <p className="text-[0.75rem] text-muted-foreground font-mono">
               {invoice.party?.phone || 'No phone provided'}
             </p>
-            {invoice.party?.address && (
-              <p className="text-[0.75rem] text-muted-foreground flex items-start gap-1 pt-1">
+            {(invoice.address || invoice.party?.address) && (
+              <div className="text-[0.75rem] text-muted-foreground flex items-start gap-1 pt-1">
                 <MapPin className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-0.5" />
-                <span>{invoice.party.address}</span>
-              </p>
+                <div>
+                  <span className="font-semibold text-foreground/80">
+                    {invoice.address ? 'Bill / Delivery Address: ' : 'Address: '}
+                  </span>
+                  <span>{invoice.address || invoice.party?.address}</span>
+                </div>
+              </div>
+            )}
+            {Number(invoice.previousBalance || 0) > 0 && (
+              <div className="mt-2 pt-2 border-t border-border/60 text-[0.6875rem] text-amber-600 dark:text-amber-400 font-medium flex items-center justify-between">
+                <span>Prior Balance Context:</span>
+                <span className="font-mono font-bold">{formatINR(Number(invoice.previousBalance))}</span>
+              </div>
             )}
           </div>
 
@@ -470,6 +518,22 @@ export function InvoiceDetailsDrawer({
                             )}
                             <span>Updated Invoice PDF</span>
                           </button>
+                          {onDownloadRefundPdf && (
+                            <button
+                              type="button"
+                              onClick={() => onDownloadRefundPdf(refund.id, refund.refundNo)}
+                              disabled={downloadingRefundId === refund.id}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-[0.5rem] text-[0.75rem] font-medium text-rose-700 dark:text-rose-300 hover:bg-rose-500/10 border border-rose-500/20 shadow-2xs transition disabled:opacity-50 active:scale-98"
+                              title="Download Credit Note (Refund) PDF"
+                            >
+                              {downloadingRefundId === refund.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Download className="h-3.5 w-3.5" />
+                              )}
+                              <span>Credit Note PDF</span>
+                            </button>
+                          )}
                         </>
                       )}
                     </div>

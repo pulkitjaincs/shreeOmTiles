@@ -416,30 +416,30 @@ export default function PurchasesPage() {
                           </td>
                         </>
                       )}
-                      <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
-                        <button
-                          onClick={() => setViewingPurchase(p)}
-                          className="px-2.5 py-1.5 rounded-lg text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 text-xs font-medium inline-flex items-center gap-1 transition"
-                          title="View Inward Breakdown"
-                        >
-                          <Eye className="h-3.5 w-3.5" />
-                          <span>View</span>
-                        </button>
-                        {!isSupervisor && (
+                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center justify-end gap-1.5">
                           <button
-                            onClick={() => {
-                              setDebitNoteTarget(p);
-                              setDebitNoteAmount('');
-                              setDebitNoteReason('');
-                              setDebitNoteError('');
-                            }}
-                            className="px-2.5 py-1.5 rounded-lg text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-xs font-medium inline-flex items-center gap-1 transition"
-                            title="Issue Debit Note (Return to Vendor)"
+                            onClick={() => setViewingPurchase(p)}
+                            className="h-8 w-8 inline-flex items-center justify-center rounded-[0.5rem] text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 transition active:scale-95 shadow-2xs"
+                            title="View Inward Breakdown"
                           >
-                            <RotateCcw className="h-3.5 w-3.5" />
-                            <span>Debit Note</span>
+                            <Eye className="h-4 w-4" />
                           </button>
-                        )}
+                          {!isSupervisor && (
+                            <button
+                              onClick={() => {
+                                setDebitNoteTarget(p);
+                                setDebitNoteAmount('');
+                                setDebitNoteReason('');
+                                setDebitNoteError('');
+                              }}
+                              className="h-8 w-8 inline-flex items-center justify-center rounded-[0.5rem] text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition active:scale-95 shadow-2xs"
+                              title="Issue Debit Note (Return to Vendor)"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

@@ -4,6 +4,7 @@ import { useAuth } from '@/components/auth-provider';
 import { useRouter, usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { 
   BarChart3, 
   Receipt, 
@@ -21,7 +22,6 @@ import {
   FileText,
   ShoppingCart,
   Wallet,
-  BookOpen,
 } from 'lucide-react';
 import { OwnerSettingsModal } from '@/components/settings/owner-settings-modal';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -32,6 +32,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const [prevPath, setPrevPath] = useState(pathname);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -57,9 +58,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [isLoading, isAuthenticated, router]);
 
   // Close mobile drawer upon route change
-  useEffect(() => {
+  if (prevPath !== pathname) {
+    setPrevPath(pathname);
     setIsMobileMenuOpen(false);
-  }, [pathname]);
+  }
 
   if (isLoading || !isAuthenticated) {
     return (
@@ -97,8 +99,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Mobile Top Header */}
       <header className="md:hidden flex items-center justify-between px-4 py-3 bg-card/85 backdrop-blur-xl border-b border-border/80 sticky top-0 z-30 shrink-0">
         <div className="flex items-center gap-2.5">
-          <div className="h-8 w-8 rounded-xl bg-primary text-primary-foreground flex items-center justify-center font-extrabold text-sm shadow-xs">
-            SO
+          <div className="h-8 w-8 rounded-xl overflow-hidden bg-white shadow-xs border border-border/60 flex items-center justify-center shrink-0 p-0.5">
+            <Image
+              src="/logo.png"
+              alt="Shree Om Tiles Logo"
+              width={32}
+              height={32}
+              className="h-full w-full object-contain"
+              priority
+            />
           </div>
           <div>
             <h2 className="text-sm font-bold text-foreground leading-none">Shree Om Tiles</h2>
@@ -144,8 +153,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="flex flex-col min-h-0 flex-1">
           <div className="p-5 flex items-center justify-between border-b border-border/80 shrink-0">
             <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center font-extrabold text-sm shadow-sm">
-                SO
+              <div className="h-9 w-9 rounded-2xl overflow-hidden bg-white shadow-sm border border-border/60 flex items-center justify-center shrink-0 p-0.5">
+                <Image
+                  src="/logo.png"
+                  alt="Shree Om Tiles Logo"
+                  width={36}
+                  height={36}
+                  className="h-full w-full object-contain"
+                  priority
+                />
               </div>
               <div>
                 <h2 className="text-sm font-extrabold tracking-tight text-foreground leading-none">Shree Om Tiles</h2>

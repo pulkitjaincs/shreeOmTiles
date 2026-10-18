@@ -55,6 +55,7 @@ enum PaymentMode {
   UPI
   CREDIT
   BANK_TRANSFER
+  CARD
   SPLIT
 }
 
@@ -177,7 +178,7 @@ model StockLedger {
 model Party {
   id            String         @id @default(uuid())
   name          String
-  phone         String
+  phone         String?        @default("")
   address       String?
   gstin         String?
   category      PartyCategory  @default(RETAIL)
@@ -224,6 +225,9 @@ model Invoice {
   total            Decimal        @default(0) @db.Decimal(12, 2)
   paymentMode      PaymentMode?
   notes            String?
+  address          String?        @db.Text
+  previousBalance  Decimal        @default(0) @db.Decimal(12, 2)
+  isCashSale       Boolean        @default(false)
   quotationId      String?
   quotation        Quotation?     @relation(fields: [quotationId], references: [id], onDelete: SetNull)
   createdAt        DateTime       @default(now())
@@ -398,8 +402,8 @@ model RefundSequence {
 model RefundInvoice {
   id                String              @id @default(uuid())
   refundNo          String              @unique // e.g. "RF-2425-0001"
-  originalInvoiceId String
-  originalInvoice   Invoice             @relation(fields: [originalInvoiceId], references: [id], onDelete: Cascade)
+  originalInvoiceId String?
+  originalInvoice   Invoice?            @relation(fields: [originalInvoiceId], references: [id], onDelete: SetNull)
   partyId           String
   party             Party               @relation(fields: [partyId], references: [id])
   createdById       String
@@ -433,6 +437,7 @@ model RefundInvoiceItem {
   warehouseId     String?
   warehouse       Warehouse?    @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
   batchNo         String?
+  customItemName  String?
   qty             Decimal       @default(1) @db.Decimal(12, 2)
   unitPrice       Decimal       @db.Decimal(12, 2)
   taxRate         Decimal       @default(18) @db.Decimal(5, 2)

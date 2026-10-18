@@ -148,6 +148,17 @@ Role-based access is enforced via the custom `@Roles(...)` decorator and `RolesG
 - Deletes associated delivery orders, trips, unconfirmed payments, and credit ledger entries within a single ACID transaction.
 - Comprehensive immutable audit trail logged to `AuditLog`.
 
+### 7. Transactional Invoice Editing & Inventory Reallocation (`PUT /invoices/:id`)
+- Allows authorized staff (`OWNER`, `ADMIN`, `SALESMAN`, `ACCOUNTANT`) to modify existing invoices while preserving the original invoice sequence number (`INV-2627-XXXX`).
+- **Two-Phase Inventory Sync**: Reverts previously deducted stock back to source warehouses, verifies stock sufficiency for updated quantities, and deducts updated items with row-level pessimistic locks (`SELECT ... FOR UPDATE`).
+- **Payment & Ledger Synchronicity**: Automatically recalculates subtotals, GST breakdown, transport charges, and round-offs. Adjusts outstanding customer ledger dues and updates linked payment records.
+- **Auditing**: Records an immutable audit log entry detailing who made the modification, the invoice number, and previous values.
+
+### 8. Cash Sale (Counter Pickup) & Logistics Separation
+- B2C walk-in sales flagged with `isCashSale: true` capture optional customer name and phone without mandatory master ledger creation.
+- **Logistics Segregation**: Cash sales are automatically excluded from the pending delivery dispatch manifest queue (`/delivery`), preventing counter pickups from polluting the transport dispatch board.
+- **Per-Bill Custom Delivery Address**: Supports custom site/shipping address (`Invoice.address`) on both regular party bills and counter sales, rendering dynamically on PDFs and dispatch challans.
+
 ---
 
 ## 🔔 Automated Push Notification Engine
@@ -231,6 +242,8 @@ Built with `pdf-lib` for pixel-perfect, vector-sharp PDF generation:
 | `GET` | `/invoices` | List invoices with status, date, and party filters | Any Authenticated |
 | `POST` | `/invoices` | Create invoice, deduct stock, generate upfront UPI QR | OWNER, ADMIN, SALESMAN, ACCOUNTANT |
 | `GET` | `/invoices/:id` | Fetch complete invoice details (price-masked for supervisors) | Any Authenticated |
+| `PUT` | `/invoices/:id` | Full transactional update of existing invoice & inventory reallocation | OWNER, ADMIN, SALESMAN, ACCOUNTANT |
+| `PATCH` | `/invoices/:id` | Partial update / modification of invoice | OWNER, ADMIN, SALESMAN, ACCOUNTANT |
 | `GET` | `/invoices/:id/pdf` | Stream generated binary PDF tax invoice (blocked for supervisors) | OWNER, ADMIN, SALESMAN, ACCOUNTANT |
 | `POST` | `/invoices/:id/return` | Process full/partial sales return and restock items | OWNER, ADMIN, SALESMAN |
 | `DELETE` | `/invoices/:id` | Atomically delete invoice, restore stock, and clean ledger | OWNER, ADMIN |
@@ -373,14 +386,7 @@ npx prisma generate
 # 3. Synchronize database schema with Neon PostgreSQL
 npx prisma db push
 
-# 4. (Optional) Run seed script to populate demo data
-npx prisma db seed
-
-# 5. Bulk Master Inventory CSV Importer
-# Parses tile catalog, godown batches, and square-feet rates from CSV:
-node prisma/import-inventory.js
-
-# 6. Start development server in watch mode with SWC
+# 4. Start development server in watch mode with SWC
 npm run start:dev
 ```
 

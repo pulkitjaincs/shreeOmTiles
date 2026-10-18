@@ -42,15 +42,15 @@ export class CreateInvoiceItemDto {
 
 export class CreateNewPartyDto {
   @IsString()
-  @IsNotEmpty()
-  name: string;
+  @IsOptional()
+  name?: string;
 
   @IsString()
-  @IsNotEmpty()
-  @Matches(/^\d{10}$/, {
-    message: 'Customer phone number must be strictly 10 digits',
+  @IsOptional()
+  @Matches(/^$|^\d{10}$/, {
+    message: 'Customer phone number must be 10 digits if provided',
   })
-  phone: string;
+  phone?: string;
 
   @IsString()
   @IsOptional()
@@ -73,6 +73,17 @@ export class CreateInvoiceDto {
   @ValidateNested()
   @Type(() => CreateNewPartyDto)
   newParty?: CreateNewPartyDto;
+
+  @IsString()
+  @IsOptional()
+  address?: string;
+
+  @IsOptional()
+  isCashSale?: boolean;
+
+  @IsNumber()
+  @IsOptional()
+  previousBalance?: number;
 
   @IsEnum(PaymentMode)
   @IsOptional()

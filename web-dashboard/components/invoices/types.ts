@@ -4,6 +4,7 @@ export interface Product {
   category: string;
   hsnCode?: string;
   unit: string;
+  price?: number;
   attributes?: Record<string, unknown>;
   availableQuantity?: number;
   totalStock?: number;
@@ -19,11 +20,18 @@ export interface Warehouse {
 export interface Party {
   id: string;
   name: string;
-  phone: string;
+  phone?: string;
   address?: string;
   gstin?: string;
   isSaved?: boolean;
   category?: 'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER';
+  creditLedgers?: Array<{
+    id: string;
+    amountDue: number | string;
+    type: 'RECEIVABLE' | 'PAYABLE';
+    status: string;
+    dueDate?: string;
+  }>;
 }
 
 export interface StockLedgerRecord {
@@ -65,7 +73,8 @@ export interface InvoiceItemDetail {
   total: string | number;
   returnedQty?: number;
   remainingReturnable?: number;
-  product: {
+  customItemName?: string | null;
+  product?: {
     name: string;
     unit: string;
   };
@@ -76,13 +85,14 @@ export interface InvoiceItemDetail {
 
 export interface RefundInvoiceItemDetail {
   id: string;
-  productId: string;
-  warehouseId: string;
+  productId?: string;
+  warehouseId?: string;
   batchNo: string | null;
   qty: number;
   unitPrice: string | number;
   taxRate: string | number;
   total: string | number;
+  customItemName?: string | null;
   product?: {
     name: string;
     unit: string;
@@ -95,7 +105,7 @@ export interface RefundInvoiceItemDetail {
 export interface RefundInvoiceDetail {
   id: string;
   refundNo: string;
-  originalInvoiceId: string;
+  originalInvoiceId?: string | null;
   total: number | string;
   subtotal: number | string;
   tax: number | string;
@@ -115,10 +125,19 @@ export interface Invoice {
   id: string;
   invoiceNo: string;
   party: Party;
+  partyId?: string;
   salesman: { name: string };
   total: number | string;
   subtotal: number | string;
   tax: number | string;
+  taxRate?: number | string;
+  transportCost?: number | string;
+  transportGstRate?: number | string;
+  transportTax?: number | string;
+  itemsTax?: number | string;
+  address?: string;
+  previousBalance?: number | string;
+  isCashSale?: boolean;
   taxBreakup?: {
     rate?: number;
     isInterState?: boolean;
