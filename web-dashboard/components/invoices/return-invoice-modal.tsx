@@ -80,6 +80,7 @@ export function ReturnInvoiceModal({
   const [standalonePartyId, setStandalonePartyId] = useState<string>('');
   const [standaloneCustomerName, setStandaloneCustomerName] = useState<string>('');
   const [standaloneCustomerPhone, setStandaloneCustomerPhone] = useState<string>('');
+  const [saveStandaloneCustomer, setSaveStandaloneCustomer] = useState(false);
   const [standaloneRefundMode, setStandaloneRefundMode] = useState<'CASH' | 'UPI' | 'CARD' | 'CREDIT'>('CASH');
   const [standaloneReason, setStandaloneReason] = useState('Legacy / Standalone Bill Return');
   const [standaloneTaxRate, setStandaloneTaxRate] = useState(18);
@@ -240,10 +241,46 @@ export function ReturnInvoiceModal({
     setReturnSuccessMsg('');
 
     try {
+      let partyId = standalonePartyId || undefined;
+      if (!partyId && saveStandaloneCustomer) {
+        const name = standaloneCustomerName.trim();
+        const phone = standaloneCustomerPhone.replace(/\D/g, '');
+        if (!name) {
+          setReturnErrorMsg('Please provide a customer name to save this customer.');
+          return;
+        }
+        if (phone.length !== 10) {
+          setReturnErrorMsg('Please provide a valid 10-digit phone number to save this customer.');
+          return;
+        }
+
+        const existingParty = parties.find(
+          (party) =>
+            party.name.trim().toLowerCase() === name.toLowerCase() &&
+            (party.phone || '').replace(/\D/g, '') === phone,
+        );
+        if (existingParty) {
+          partyId = existingParty.id;
+        } else {
+          const createdParty = await apiRequest<{ id?: string; party?: { id?: string } }>('/parties', {
+            method: 'POST',
+            body: JSON.stringify({
+              name,
+              phone,
+              category: 'RETAIL',
+            }),
+          });
+          partyId = createdParty.id || createdParty.party?.id;
+          if (!partyId) {
+            throw new Error('Customer was not saved because the party ID was missing from the response.');
+          }
+        }
+      }
+
       const payload = {
-        partyId: standalonePartyId || undefined,
-        customerName: !standalonePartyId ? standaloneCustomerName.trim() || undefined : undefined,
-        customerPhone: !standalonePartyId ? standaloneCustomerPhone.trim() || undefined : undefined,
+        partyId,
+        customerName: !partyId ? standaloneCustomerName.trim() || undefined : undefined,
+        customerPhone: !partyId ? standaloneCustomerPhone.trim() || undefined : undefined,
         refundMode: standaloneRefundMode,
         reason: standaloneReason.trim() || undefined,
         items: standaloneItems.map((it) => ({
@@ -295,6 +332,8 @@ export function ReturnInvoiceModal({
       ]);
       setStandaloneCustomerName('');
       setStandaloneCustomerPhone('');
+      setStandalonePartyId('');
+      setSaveStandaloneCustomer(false);
     } catch (err: unknown) {
       setReturnErrorMsg((err as Error).message || 'Failed to process standalone return');
     } finally {
@@ -307,6 +346,10 @@ export function ReturnInvoiceModal({
     setReturnSuccessMsg('');
     setReturnErrorMsg('');
     setReturnSearch('');
+    setStandalonePartyId('');
+    setStandaloneCustomerName('');
+    setStandaloneCustomerPhone('');
+    setSaveStandaloneCustomer(false);
     onClose();
   };
 
@@ -712,6 +755,11 @@ export function ReturnInvoiceModal({
                           setStandaloneCustomerName(p.name);
                           setStandaloneCustomerPhone(p.phone || '');
                         }
+                        setSaveStandaloneCustomer(false);
+                      } else {
+                        setStandaloneCustomerName('');
+                        setStandaloneCustomerPhone('');
+                        setSaveStandaloneCustomer(false);
                       }
                     }}
                     options={[
@@ -750,6 +798,15 @@ export function ReturnInvoiceModal({
                         className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-[0.75rem] text-foreground focus:border-primary focus:outline-none"
                       />
                     </div>
+                    <label className="sm:col-span-3 flex items-center gap-2 text-[0.75rem] text-foreground cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={saveStandaloneCustomer}
+                        onChange={(e) => setSaveStandaloneCustomer(e.target.checked)}
+                        className="h-4 w-4 rounded border-input accent-primary"
+                      />
+                      Save this customer to the party directory
+                    </label>
                   </>
                 )}
               </div>

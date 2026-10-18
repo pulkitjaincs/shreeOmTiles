@@ -66,6 +66,7 @@ export function ReturnInvoiceModal({
   // Standalone Return State
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [saveCustomer, setSaveCustomer] = useState(false);
   const [standalonePartyId, setStandalonePartyId] = useState('');
   const [standaloneReason, setStandaloneReason] = useState('Legacy / Standalone Return');
   const [standaloneMode, setStandaloneMode] = useState<'CASH' | 'UPI' | 'CARD' | 'CREDIT'>('CASH');
@@ -241,10 +242,46 @@ export function ReturnInvoiceModal({
     setError('');
     setSuccess(null);
     try {
+      let partyId = standalonePartyId || undefined;
+      if (!partyId && saveCustomer) {
+        const name = customerName.trim();
+        const phone = customerPhone.replace(/\D/g, '');
+        if (!name) {
+          setError('Please provide a customer name to save this customer.');
+          return;
+        }
+        if (phone.length !== 10) {
+          setError('Please provide a valid 10-digit phone number to save this customer.');
+          return;
+        }
+
+        const existingParty = parties.find(
+          (party) =>
+            party.name.trim().toLowerCase() === name.toLowerCase() &&
+            (party.phone || '').replace(/\D/g, '') === phone,
+        );
+        if (existingParty) {
+          partyId = existingParty.id;
+        } else {
+          const createdParty = await mobileApiRequest<any>('/parties', {
+            method: 'POST',
+            body: JSON.stringify({
+              name,
+              phone,
+              category: 'RETAIL',
+            }),
+          });
+          partyId = createdParty?.id || createdParty?.party?.id;
+          if (!partyId) {
+            throw new Error('Customer was not saved because the party ID was missing from the response.');
+          }
+        }
+      }
+
       const payload = {
-        partyId: standalonePartyId || undefined,
-        customerName: customerName.trim() || undefined,
-        customerPhone: customerPhone.trim() || undefined,
+        partyId,
+        customerName: !partyId ? customerName.trim() || undefined : undefined,
+        customerPhone: !partyId ? customerPhone.trim() || undefined : undefined,
         refundMode: standaloneMode,
         reason: standaloneReason.trim() || undefined,
         items: standaloneItems.map((it) => ({
@@ -271,6 +308,10 @@ export function ReturnInvoiceModal({
         isStandalone: true,
       });
       await onSuccess();
+      setCustomerName('');
+      setCustomerPhone('');
+      setSaveCustomer(false);
+      setStandalonePartyId('');
       setStandaloneItems([
         {
           id: `item-${Date.now()}`,
@@ -304,6 +345,10 @@ export function ReturnInvoiceModal({
     setAllocations({});
     setError('');
     setSuccess(null);
+    setCustomerName('');
+    setCustomerPhone('');
+    setSaveCustomer(false);
+    setStandalonePartyId('');
     onClose();
   };
 
@@ -517,6 +562,11 @@ export function ReturnInvoiceModal({
                 if (party) {
                   setCustomerName(party.name);
                   setCustomerPhone(party.phone || '');
+                  setSaveCustomer(false);
+                } else {
+                  setCustomerName('');
+                  setCustomerPhone('');
+                  setSaveCustomer(false);
                 }
               }}
             />
@@ -535,6 +585,21 @@ export function ReturnInvoiceModal({
               onChangeText={setCustomerPhone}
               keyboardType="phone-pad"
             />
+
+            {!standalonePartyId ? (
+              <TouchableOpacity
+                style={styles.checkboxRow}
+                onPress={() => setSaveCustomer((current) => !current)}
+                activeOpacity={0.7}
+              >
+                <Ionicons
+                  name={saveCustomer ? 'checkbox' : 'square-outline'}
+                  size={20}
+                  color={saveCustomer ? colors.primary : colors.textSecondary}
+                />
+                <Text style={styles.checkboxLabel}>Save this customer to the party directory</Text>
+              </TouchableOpacity>
+            ) : null}
 
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionTitle}>Items to Return ({standaloneItems.length})</Text>
@@ -757,6 +822,18 @@ const createStyles = (colors: ThemeColors, isDark: boolean) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
+    },
+    checkboxRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 4,
+      marginBottom: 8,
+    },
+    checkboxLabel: {
+      flex: 1,
+      fontSize: 12,
+      color: colors.text,
     },
     addItemBtn: {
       flexDirection: 'row',
