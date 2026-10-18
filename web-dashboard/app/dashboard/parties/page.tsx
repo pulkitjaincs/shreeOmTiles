@@ -118,7 +118,7 @@ export default function PartiesPage() {
       if (q) {
         const matchesSearch =
           p.name.toLowerCase().includes(q) ||
-          p.phone.includes(q) ||
+          (p.phone && p.phone.includes(q)) ||
           (p.gstin && p.gstin.toLowerCase().includes(q)) ||
           (p.address && p.address.toLowerCase().includes(q));
         if (!matchesSearch) return false;
