@@ -12,6 +12,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
+import { MultiSelect } from '@/components/ui/MultiSelect';
 import { Colors } from '@/constants/theme';
 import { mobileApiRequest } from '@/lib/api';
 import { buildFullDeliveryManifestShareUrl } from '@/lib/whatsapp';
@@ -191,39 +192,20 @@ export function PushDeliveryModal({
               No active supervisors found. You can dispatch directly.
             </Text>
           ) : (
-            <View style={styles.supervisorChipRow}>
-              {supervisors.map((s) => {
-                const isSelected = selectedSupervisorIds.includes(s.id);
-                return (
-                  <TouchableOpacity
-                    key={s.id}
-                    onPress={() => {
-                      setSelectedSupervisorIds((prev) =>
-                        isSelected ? prev.filter((id) => id !== s.id) : [...prev, s.id],
-                      );
-                    }}
-                    style={[
-                      styles.supervisorChip,
-                      isSelected && styles.supervisorChipActive,
-                    ]}
-                  >
-                    <Ionicons
-                      name={isSelected ? 'shield-checkmark' : 'shield-outline'}
-                      size={14}
-                      color={isSelected ? '#10B981' : Colors.dark.textSecondary}
-                    />
-                    <Text
-                      style={[
-                        styles.supervisorChipText,
-                        isSelected && styles.supervisorChipTextActive,
-                      ]}
-                    >
-                      {s.name}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            <MultiSelect
+              placeholder="Select warehouse supervisors..."
+              searchPlaceholder="Search supervisors..."
+              values={selectedSupervisorIds}
+              onChange={setSelectedSupervisorIds}
+              options={supervisors.map((s) => ({
+                value: s.id,
+                label: s.name,
+                subLabel: s.phone ? `Ph: ${s.phone}` : 'Field Incharge',
+                badge: 'Supervisor',
+              }))}
+              icon="shield-checkmark-outline"
+              showTags={true}
+            />
           )}
         </View>
 

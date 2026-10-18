@@ -50,6 +50,7 @@ export interface DayBookResponse {
     digital: {
       upiIn: number;
       bankIn: number;
+      cardIn?: number;
       totalDigital: number;
     };
   };
@@ -596,15 +597,11 @@ export default function TransactionsPage() {
 
         <div className="flex flex-wrap items-center gap-2.5">
           <Button
-            variant="outline"
-            onClick={() => {
-              setCreditPartyId(parties[0]?.id || '');
-              setIsCreditModalOpen(true);
-            }}
-            className="inline-flex items-center gap-2 border-border/60 text-foreground font-medium px-3.5 py-2 rounded-[0.75rem] text-xs sm:text-sm active:scale-98"
+            onClick={handleOpenGeneralCollect}
+            className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-4 py-2 rounded-[0.75rem] text-xs sm:text-sm shadow-sm active:scale-98"
           >
-            <CreditCard className="h-4 w-4 text-amber-500" />
-            Record Credit / Advance
+            <Banknote className="h-4 w-4" />
+            Collect Payment
           </Button>
 
           <Button
@@ -616,11 +613,15 @@ export default function TransactionsPage() {
           </Button>
 
           <Button
-            onClick={handleOpenGeneralCollect}
-            className="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-medium px-4 py-2 rounded-[0.75rem] text-xs sm:text-sm shadow-sm active:scale-98"
+            variant="outline"
+            onClick={() => {
+              setCreditPartyId(parties[0]?.id || '');
+              setIsCreditModalOpen(true);
+            }}
+            className="inline-flex items-center gap-2 border-border/60 text-foreground font-medium px-3.5 py-2 rounded-[0.75rem] text-xs sm:text-sm active:scale-98"
           >
-            <Banknote className="h-4 w-4" />
-            Collect Payment
+            <CreditCard className="h-4 w-4 text-amber-500" />
+            Record Credit / Advance
           </Button>
         </div>
       </div>
@@ -1376,19 +1377,25 @@ export default function TransactionsPage() {
                           </td>
 
                           <td className="py-3.5 px-4">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                handleOpenParty(
-                                  payment.invoice?.party?.id || payment.party?.id,
-                                  partyName,
-                                )
-                              }
-                              className="font-semibold text-foreground hover:text-primary hover:underline text-left text-sm transition"
-                              title="Open Party Ledger Statement"
-                            >
-                              {partyName}
-                            </button>
+                            {payment.invoice?.isCashSale ? (
+                              <span className="font-semibold text-foreground text-sm">
+                                {partyName}
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleOpenParty(
+                                    payment.invoice?.party?.id || payment.party?.id,
+                                    partyName,
+                                  )
+                                }
+                                className="font-semibold text-foreground hover:text-primary hover:underline text-left text-sm transition"
+                                title="Open Party Ledger Statement"
+                              >
+                                {partyName}
+                              </button>
+                            )}
                             <div className="text-xs text-muted-foreground font-mono flex items-center gap-1.5 mt-0.5">
                               {payment.invoice?.invoiceNo && (
                                 <button
@@ -1421,6 +1428,8 @@ export default function TransactionsPage() {
                                     ? 'bg-primary/10 text-primary border-primary/20'
                                     : payment.mode === 'CASH'
                                     ? 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-400 border border-emerald-500/20'
+                                    : payment.mode === 'CARD'
+                                    ? 'bg-amber-500/10 text-amber-800 dark:text-amber-400 border border-amber-500/20'
                                     : payment.mode === 'BANK_TRANSFER' || payment.mode === 'BANK'
                                     ? 'bg-indigo-500/10 text-indigo-800 dark:text-indigo-400 border border-indigo-500/20'
                                     : payment.mode === 'SPLIT'
@@ -1428,7 +1437,7 @@ export default function TransactionsPage() {
                                     : 'bg-muted text-muted-foreground border-border/50'
                                 }`}
                               >
-                                {payment.mode === 'BANK_TRANSFER' ? 'BANK' : payment.mode}
+                                {payment.mode === 'CARD' ? 'CARD (POS)' : payment.mode === 'BANK_TRANSFER' ? 'BANK' : payment.mode}
                               </span>
                               {payment.type === 'OUTFLOW' ? (
                                 <span className="px-1.5 py-0.5 rounded text-[0.625rem] font-semibold bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20">

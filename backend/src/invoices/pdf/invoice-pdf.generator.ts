@@ -574,7 +574,9 @@ export async function generateInvoicePdf(
     font: fontRegular,
     color: darkGray,
   });
-  let paymentModeDisplay = invoice.paymentMode || 'Credit';
+  const formatModeLabel = (m: string) =>
+    m === 'CARD' ? 'Card (POS)' : m === 'BANK_TRANSFER' ? 'Bank' : m;
+  let paymentModeDisplay = formatModeLabel(invoice.paymentMode || 'Credit');
   if (Array.isArray(invoice.payments) && invoice.payments.length > 0) {
     const validPayments = (
       invoice.payments as unknown as Array<{ mode: string; amount: unknown }>
@@ -582,11 +584,11 @@ export async function generateInvoicePdf(
     if (validPayments.length > 1) {
       const parts = validPayments.map(
         (p) =>
-          `${p.mode}: Rs. ${Math.round(Number(p.amount)).toLocaleString('en-IN')}`,
+          `${formatModeLabel(p.mode)}: Rs. ${Math.round(Number(p.amount)).toLocaleString('en-IN')}`,
       );
       paymentModeDisplay = parts.join(' | ');
     } else if (validPayments.length === 1) {
-      paymentModeDisplay = `${validPayments[0].mode}: Rs. ${Math.round(Number(validPayments[0].amount)).toLocaleString('en-IN')}`;
+      paymentModeDisplay = `${formatModeLabel(validPayments[0].mode)}: Rs. ${Math.round(Number(validPayments[0].amount)).toLocaleString('en-IN')}`;
     }
   }
   const modeText = safePdfText(paymentModeDisplay);

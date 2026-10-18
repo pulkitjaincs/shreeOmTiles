@@ -1023,13 +1023,14 @@ export class AnalyticsService {
       }),
     ]);
 
-    // Breakdowns
     let cashIn = 0;
     let cashOut = 0;
     let upiIn = 0;
     let upiOut = 0;
     let bankIn = 0;
     let bankOut = 0;
+    let cardIn = 0;
+    let cardOut = 0;
     let expenseCash = 0;
 
     for (const p of todayPayments) {
@@ -1046,6 +1047,9 @@ export class AnalyticsService {
       } else if (p.mode === PaymentMode.BANK_TRANSFER) {
         if (p.type === PaymentType.INFLOW) bankIn += amt;
         else bankOut += amt;
+      } else if (p.mode === PaymentMode.CARD) {
+        if (p.type === PaymentType.INFLOW) cardIn += amt;
+        else cardOut += amt;
       }
     }
 
@@ -1071,7 +1075,8 @@ export class AnalyticsService {
         digital: {
           upiIn,
           bankIn,
-          totalDigital: Math.max(0, upiIn + bankIn - (upiOut + bankOut)),
+          cardIn,
+          totalDigital: Math.max(0, upiIn + bankIn + cardIn - (upiOut + bankOut + cardOut)),
         },
       },
       transactions: {

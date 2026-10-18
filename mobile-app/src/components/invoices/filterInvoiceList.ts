@@ -38,7 +38,12 @@ export function filterInvoiceList(
       (filters.status === 'REFUNDED'
         ? invoice.status === 'REFUNDED' || (Array.isArray(invoice.refundInvoices) && invoice.refundInvoices.length > 0)
         : invoice.status === filters.status);
-    const matchesMode = filters.paymentMode === 'ALL' || invoice.paymentMode === filters.paymentMode;
+    const matchesMode =
+      filters.paymentMode === 'ALL' ||
+      invoice.paymentMode === filters.paymentMode ||
+      (invoice.paymentMode === 'SPLIT' &&
+        Array.isArray(invoice.payments) &&
+        invoice.payments.some((p: any) => p.mode === filters.paymentMode));
     const date = new Date(invoice.createdAt);
     const matchesPreset =
       filters.datePreset === 'ALL' ||

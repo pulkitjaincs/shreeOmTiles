@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Delivery, DispatchSelectionItem, DispatchedItem, DriverUser, PushSuccessDialogData, SupervisorUser } from './types';
 import { cleanPhoneNumber } from '@/lib/formatters';
+import { ThemedMultiSelect } from '@/components/ui/themed-multi-select';
 
 interface PushDeliveryModalProps {
   delivery: Delivery | null;
@@ -405,25 +406,19 @@ ${itemsList}${supervisorSection}
                   ) : availableSupervisors.length === 0 ? (
                     <div className="text-xs text-muted-foreground italic py-2">No supervisors registered</div>
                   ) : (
-                    <div className="flex flex-wrap gap-1.5">
-                      {availableSupervisors.map((s) => {
-                        const isSelected = selectedSupervisorIds.includes(s.id);
-                        return (
-                          <button
-                            key={s.id}
-                            type="button"
-                            onClick={() => handleToggleSupervisor(s.id)}
-                            className={`px-2 py-1 rounded-lg text-xs font-medium border transition cursor-pointer flex items-center gap-1 ${
-                              isSelected
-                                ? 'bg-primary/10 border-primary text-primary font-bold'
-                                : 'bg-background border-border text-muted-foreground hover:text-foreground'
-                            }`}
-                          >
-                            <span>{s.name}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
+                    <ThemedMultiSelect
+                      values={selectedSupervisorIds}
+                      onChange={setSelectedSupervisorIds}
+                      options={availableSupervisors.map((s) => ({
+                        value: s.id,
+                        label: s.name,
+                        subLabel: s.phone || 'Field Incharge',
+                        badge: 'Supervisor',
+                      }))}
+                      placeholder="Select warehouse supervisors..."
+                      searchPlaceholder="Search supervisors..."
+                      showTags={true}
+                    />
                   )}
                 </div>
               </div>

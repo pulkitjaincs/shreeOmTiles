@@ -89,9 +89,21 @@ export const InvoiceListCard = React.memo(function InvoiceListCard({
       <View style={styles.cardBottom}>
         <View style={styles.badgeRow}>
           {!isSupervisor ? (
-            <View style={[styles.modeBadge, invoice.paymentMode === 'SPLIT' && styles.splitBadge]}>
-              <Text style={[styles.modeText, invoice.paymentMode === 'SPLIT' && styles.splitText]}>
-                {invoice.paymentMode || 'CASH'}
+            <View
+              style={[
+                styles.modeBadge,
+                invoice.paymentMode === 'SPLIT' && styles.splitBadge,
+                invoice.paymentMode === 'CARD' && styles.cardBadge,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.modeText,
+                  invoice.paymentMode === 'SPLIT' && styles.splitText,
+                  invoice.paymentMode === 'CARD' && styles.cardText,
+                ]}
+              >
+                {invoice.paymentMode === 'CARD' ? 'CARD (POS)' : invoice.paymentMode || 'CASH'}
               </Text>
             </View>
           ) : null}
@@ -163,6 +175,14 @@ const styles = StyleSheet.create({
   },
   splitText: {
     color: '#A78BFA',
+  },
+  cardBadge: {
+    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 158, 11, 0.35)',
+  },
+  cardText: {
+    color: '#F59E0B',
   },
   refundText: { color: '#F87171', fontSize: 10, fontWeight: '700' },
   salesmanText: { color: Colors.dark.textTertiary, fontSize: 11 },

@@ -502,26 +502,7 @@ export function ReturnInvoiceModal({
             />
 
             <View style={styles.sectionHeaderRow}>
-              <Text style={styles.sectionTitle}>Items to Return</Text>
-              <TouchableOpacity
-                style={styles.addItemBtn}
-                onPress={() =>
-                  setStandaloneItems((prev) => [
-                    ...prev,
-                    {
-                      id: `item-${Date.now()}`,
-                      isCustom: true,
-                      customItemName: 'Other Returned Goods',
-                      qty: 1,
-                      unitPrice: 0,
-                      taxRate: 18,
-                    },
-                  ])
-                }
-              >
-                <Ionicons name="add" size={14} color="#38BDF8" />
-                <Text style={styles.addItemBtnText}>Add Item</Text>
-              </TouchableOpacity>
+              <Text style={styles.sectionTitle}>Items to Return ({standaloneItems.length})</Text>
             </View>
 
             {standaloneItems.map((it, idx) => (
@@ -584,6 +565,27 @@ export function ReturnInvoiceModal({
                 </View>
               </Card>
             ))}
+
+            <TouchableOpacity
+              style={styles.addStandaloneItemDashedBtn}
+              onPress={() =>
+                setStandaloneItems((prev) => [
+                  ...prev,
+                  {
+                    id: `item-${Date.now()}`,
+                    isCustom: true,
+                    customItemName: 'Other Returned Goods',
+                    qty: 1,
+                    unitPrice: 0,
+                    taxRate: 18,
+                  },
+                ])
+              }
+              activeOpacity={0.8}
+            >
+              <Ionicons name="add-circle-outline" size={16} color="#38BDF8" />
+              <Text style={styles.addStandaloneItemDashedBtnText}>Add Product / Item</Text>
+            </TouchableOpacity>
 
             <Card style={styles.summaryCard}>
               <View style={styles.summaryRow}>
@@ -846,5 +848,24 @@ const styles = StyleSheet.create({
   rowInputs: {
     flexDirection: 'row',
     gap: 10,
+  },
+  addStandaloneItemDashedBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: '#38BDF8',
+    backgroundColor: 'rgba(56, 189, 248, 0.08)',
+    marginBottom: 12,
+  },
+  addStandaloneItemDashedBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#38BDF8',
   },
 });

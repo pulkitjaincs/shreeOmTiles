@@ -205,4 +205,4 @@ export interface PaymentReceipt {
 export type CustomerMode = 'EXISTING' | 'NEW_SAVED' | 'UNREGISTERED' | 'existing' | 'new' | 'cash_sale';
 export type DatePreset = 'ALL' | 'TODAY' | 'YESTERDAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'CUSTOM';
 export type InvoiceStatusFilter = 'ALL' | 'PAID' | 'PARTIAL' | 'CREATED' | 'REFUNDED';
-export type PaymentModeFilter = 'ALL' | 'UPI' | 'CASH' | 'CREDIT' | 'SPLIT';
+export type PaymentModeFilter = 'ALL' | 'UPI' | 'CASH' | 'CARD' | 'CREDIT' | 'SPLIT';

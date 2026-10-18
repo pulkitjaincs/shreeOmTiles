@@ -37,6 +37,7 @@ export interface PaymentRecord {
     id: string;
     invoiceNo: string;
     total: number | string;
+    isCashSale?: boolean;
     party?: { id: string; name: string; phone: string };
   } | null;
   party?: { id: string; name: string; phone: string } | null;

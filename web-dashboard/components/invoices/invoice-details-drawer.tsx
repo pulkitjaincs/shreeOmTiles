@@ -187,7 +187,7 @@ export function InvoiceDetailsDrawer({
                 </span>
               )}
             </div>
-            {invoice.party && onOpenPartyStatement ? (
+            {invoice.party && !invoice.isCashSale && onOpenPartyStatement ? (
               <button
                 type="button"
                 onClick={() => onOpenPartyStatement(invoice.party)}
@@ -236,6 +236,8 @@ export function InvoiceDetailsDrawer({
                   <span className="font-semibold text-foreground">
                     {invoice.paymentMode === 'SPLIT' && invoice.payments && invoice.payments.length > 1
                       ? `Split (${invoice.payments.map((p) => p.mode).join(' + ')})`
+                      : invoice.paymentMode === 'CARD'
+                      ? 'Card (POS Machine)'
                       : invoice.paymentMode || 'CREDIT'}
                   </span>
                 </div>

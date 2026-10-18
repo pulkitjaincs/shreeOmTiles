@@ -744,18 +744,10 @@ export function ReturnInvoiceModal({
 
               {/* Standalone Items Table */}
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
+                <div>
                   <label className="text-[0.6875rem] font-semibold text-muted-foreground uppercase tracking-wider block">
                     Returned Items & Products ({standaloneItems.length})
                   </label>
-                  <button
-                    type="button"
-                    onClick={addStandaloneItem}
-                    className="inline-flex items-center gap-1 text-[0.75rem] font-semibold text-primary hover:text-primary/80 transition"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                    <span>Add Item</span>
-                  </button>
                 </div>
 
                 <div className="space-y-3">
@@ -955,6 +947,16 @@ export function ReturnInvoiceModal({
                     </div>
                   ))}
                 </div>
+
+                {/* Add Product Button directly below last product */}
+                <button
+                  type="button"
+                  onClick={addStandaloneItem}
+                  className="w-full py-2.5 px-3 rounded-[0.75rem] border border-dashed border-primary/40 bg-primary/5 hover:bg-primary/10 text-primary text-[0.75rem] font-semibold flex items-center justify-center gap-1.5 transition active:scale-[0.99]"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span>Add Product / Item</span>
+                </button>
 
                 {/* Standalone Financial Breakdown */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-[0.875rem] border border-primary/20 bg-primary/5 text-[0.75rem] gap-2">

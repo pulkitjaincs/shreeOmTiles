@@ -11,7 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { mobileApiRequest, cachedMobileApiRequest, subscribeToAppSync } from '@/lib/api';
-import { Colors } from '@/constants/theme';
+import { useTheme, useThemedStyles, ThemeColors } from '@/lib/theme-context';
 import { Header } from '@/components/ui/Header';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { FilterPills } from '@/components/ui/FilterPills';
@@ -51,6 +51,7 @@ interface DayBookResponse {
     digital: {
       upiIn: number;
       bankIn: number;
+      cardIn?: number;
       totalDigital: number;
     };
   };
@@ -100,6 +101,8 @@ export interface DayBookEntry {
 type TransactionListItem = PendingItem | PaymentRecord | CreditLedgerRecord | DayBookEntry;
 
 export default function TransactionsScreen() {
+  const { colors } = useTheme();
+  const styles = useThemedStyles(createStyles);
   const params = useLocalSearchParams<{ tab?: string }>();
   const [activeTab, setActiveTab] = useState<ActiveTabType>(
     params.tab === 'daybook' ? 'daybook' : 'all',
@@ -453,6 +456,27 @@ export default function TransactionsScreen() {
 
 
 
+  // Open General Collect / Pay
+  const handleOpenGeneralCollect = () => {
+    setSettleDirection('COLLECT');
+    setSelectedPartyId(parties[0]?.id || '');
+    setSettleInvoiceId('');
+    setSettleInvoiceNo('');
+    setSettleAmount('');
+    setSettleNotes('Counter payment collection');
+    setSettleModalOpen(true);
+  };
+
+  const handleOpenGeneralPay = () => {
+    setSettleDirection('PAY');
+    setSelectedPartyId(parties[0]?.id || '');
+    setSettleInvoiceId('');
+    setSettleInvoiceNo('');
+    setSettleAmount('');
+    setSettleNotes('Store payout / disbursement');
+    setSettleModalOpen(true);
+  };
+
   // Open Record Credit Modal
   const handleOpenRecordCredit = (partyId?: string) => {
     setCreditPartyId(partyId || '');
@@ -558,7 +582,7 @@ export default function TransactionsScreen() {
         }
         keyExtractor={(item, idx) => item.id || String(idx)}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#FFFFFF" />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />
         }
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
@@ -584,11 +608,11 @@ export default function TransactionsScreen() {
 
               <View style={styles.datePickerBox}>
                 <TouchableOpacity onPress={() => handleShiftDay(-1)} style={styles.dateArrowBtn}>
-                  <Ionicons name="chevron-back" size={16} color="#FFFFFF" />
+                  <Ionicons name="chevron-back" size={16} color={colors.text} />
                 </TouchableOpacity>
                 <Text style={styles.selectedDateText}>{selectedDate}</Text>
                 <TouchableOpacity onPress={() => handleShiftDay(1)} style={styles.dateArrowBtn}>
-                  <Ionicons name="chevron-forward" size={16} color="#FFFFFF" />
+                  <Ionicons name="chevron-forward" size={16} color={colors.text} />
                 </TouchableOpacity>
               </View>
 
@@ -748,12 +772,30 @@ export default function TransactionsScreen() {
               />
 
               <TouchableOpacity
+                style={styles.collectBtn}
+                onPress={handleOpenGeneralCollect}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="wallet-outline" size={14} color="#10B981" />
+                <Text style={styles.collectBtnText}>Collect</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.makePaymentBtn}
+                onPress={handleOpenGeneralPay}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="arrow-up-circle-outline" size={14} color="#F59E0B" />
+                <Text style={styles.makePaymentBtnText}>Pay</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 style={styles.recordCreditBtn}
                 onPress={() => handleOpenRecordCredit()}
                 activeOpacity={0.8}
               >
-                <Ionicons name="add-circle" size={16} color="#F59E0B" />
-                <Text style={styles.recordCreditBtnText}>Record Credit</Text>
+                <Ionicons name="add-circle" size={14} color="#A78BFA" />
+                <Text style={styles.recordCreditBtnText}>Credit</Text>
               </TouchableOpacity>
             </View>
 
@@ -782,6 +824,7 @@ export default function TransactionsScreen() {
                     { label: 'All Modes', value: 'ALL' },
                     { label: 'UPI', value: 'UPI' },
                     { label: 'Cash', value: 'CASH' },
+                    { label: 'Card (POS)', value: 'CARD' },
                     { label: 'Bank Transfer', value: 'BANK_TRANSFER' },
                     { label: 'Split', value: 'SPLIT' },
                     { label: 'Credit', value: 'CREDIT' },
@@ -889,7 +932,7 @@ export default function TransactionsScreen() {
                   </View>
                 </View>
                 <View style={styles.dayBookTimeRow}>
-                  <Ionicons name="time-outline" size={12} color={Colors.dark.textTertiary} />
+                  <Ionicons name="time-outline" size={12} color={colors.textTertiary} />
                   <Text style={styles.dayBookTimeText}>
                     {new Date(entry.timeStr).toLocaleTimeString('en-IN', {
                       hour: '2-digit',
@@ -987,318 +1030,355 @@ export default function TransactionsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: Colors.dark.background,
-  },
-  listContent: {
-    paddingBottom: 90,
-  },
-  viewSelectorRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    marginTop: 2,
-    marginBottom: 8,
-    gap: 10,
-  },
-  recordCreditBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(245, 158, 11, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.35)',
-    borderRadius: 10,
-    paddingHorizontal: 13,
-    paddingVertical: 9,
-    minHeight: 38,
-    gap: 6,
-  },
-  recordCreditBtnText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#F59E0B',
-  },
-  searchContainer: {
-    paddingHorizontal: 16,
-    marginBottom: 8,
-  },
-  filterPillsContainer: {
-    paddingHorizontal: 16,
-    marginBottom: 8,
-  },
-  duesHeaderBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.25)',
-    marginHorizontal: 16,
-    marginBottom: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  duesBannerText: {
-    fontSize: 12,
-    color: Colors.dark.text,
-    fontWeight: '600',
-  },
-  duesAmountHighlight: {
-    fontWeight: '900',
-    color: '#EF4444',
-  },
-  payablesHeaderBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 158, 11, 0.25)',
-    marginHorizontal: 16,
-    marginBottom: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  payablesBannerText: {
-    fontSize: 12,
-    color: Colors.dark.text,
-    fontWeight: '600',
-  },
-  payablesAmountHighlight: {
-    fontWeight: '900',
-    color: '#F59E0B',
-  },
-  center: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 50,
-  },
-  loadingText: {
-    fontSize: 12,
-    color: Colors.dark.textSecondary,
-    marginTop: 8,
-  },
-  dateToolbar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    marginTop: 4,
-    marginBottom: 8,
-    gap: 6,
-  },
-  dateModePill: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  dateModePillActive: {
-    backgroundColor: '#3B82F6',
-    borderColor: '#60A5FA',
-  },
-  dateModePillText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.dark.textSecondary,
-  },
-  dateModePillTextActive: {
-    color: '#FFFFFF',
-  },
-  datePickerBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-  },
-  dateArrowBtn: {
-    padding: 4,
-  },
-  selectedDateText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.text,
-    marginHorizontal: 4,
-  },
-  quickDateBtn: {
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  quickDateBtnActive: {
-    backgroundColor: 'rgba(59, 130, 246, 0.2)',
-    borderColor: '#3B82F6',
-  },
-  quickDateText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.dark.text,
-  },
-  tillCard: {
-    marginHorizontal: 16,
-    marginBottom: 12,
-    padding: 14,
-    backgroundColor: 'rgba(16, 185, 129, 0.05)',
-    borderColor: 'rgba(16, 185, 129, 0.25)',
-    borderWidth: 1,
-    borderRadius: 12,
-  },
-  tillHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  tillTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.dark.text,
-  },
-  tillGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  tillGridCol: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  tillMiniLabel: {
-    fontSize: 10,
-    color: Colors.dark.textSecondary,
-    marginBottom: 2,
-  },
-  tillMiniVal: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: Colors.dark.text,
-  },
-  closingTillBox: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: 'rgba(16, 185, 129, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(16, 185, 129, 0.3)',
-    borderRadius: 10,
-    padding: 10,
-    marginBottom: 8,
-  },
-  closingTillLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  closingTillSub: {
-    fontSize: 10,
-    color: Colors.dark.textSecondary,
-  },
-  closingTillAmount: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#10B981',
-  },
-  netFlowText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: Colors.dark.textSecondary,
-    marginTop: 1,
-  },
-  digitalSplitRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 6,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.07)',
-  },
-  digitalSplitLabel: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    fontWeight: '500',
-  },
-  digitalSplitVal: {
-    fontSize: 11,
-    color: Colors.dark.text,
-    fontWeight: '600',
-  },
-  dayBookRowCard: {
-    marginHorizontal: 16,
-    marginBottom: 8,
-    padding: 12,
-    borderRadius: 10,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  dayBookRowHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 6,
-  },
-  dayBookTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: Colors.dark.text,
-  },
-  dayBookSub: {
-    fontSize: 11,
-    color: Colors.dark.textSecondary,
-    marginTop: 2,
-  },
-  dayBookAmount: {
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  dayBookBadge: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    marginTop: 4,
-    alignSelf: 'flex-end',
-  },
-  dayBookBadgeText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: Colors.dark.textSecondary,
-  },
-  dayBookTimeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
-  },
-  dayBookTimeText: {
-    fontSize: 10,
-    color: Colors.dark.textTertiary,
-  },
-  settledPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  settledPillText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#10B981',
-  },
-});
+const createStyles = (colors: ThemeColors, isDark: boolean) =>
+  StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    listContent: {
+      paddingBottom: 90,
+    },
+    viewSelectorRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      marginTop: 2,
+      marginBottom: 8,
+      gap: 10,
+    },
+    collectBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.35)',
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 9,
+      minHeight: 38,
+      gap: 5,
+    },
+    collectBtnText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: '#10B981',
+    },
+    makePaymentBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(245, 158, 11, 0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(245, 158, 11, 0.35)',
+      borderRadius: 10,
+      paddingHorizontal: 10,
+      paddingVertical: 9,
+      minHeight: 38,
+      gap: 5,
+    },
+    makePaymentBtnText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: '#F59E0B',
+    },
+    recordCreditBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: 'rgba(245, 158, 11, 0.12)',
+      borderWidth: 1,
+      borderColor: 'rgba(245, 158, 11, 0.35)',
+      borderRadius: 10,
+      paddingHorizontal: 13,
+      paddingVertical: 9,
+      minHeight: 38,
+      gap: 6,
+    },
+    recordCreditBtnText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: '#F59E0B',
+    },
+    searchContainer: {
+      paddingHorizontal: 16,
+      marginBottom: 8,
+    },
+    filterPillsContainer: {
+      paddingHorizontal: 16,
+      marginBottom: 8,
+    },
+    duesHeaderBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: 'rgba(239, 68, 68, 0.1)',
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: 'rgba(239, 68, 68, 0.25)',
+      marginHorizontal: 16,
+      marginBottom: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    duesBannerText: {
+      fontSize: 12,
+      color: colors.text,
+      fontWeight: '600',
+    },
+    duesAmountHighlight: {
+      fontWeight: '900',
+      color: '#EF4444',
+    },
+    payablesHeaderBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: 'rgba(245, 158, 11, 0.1)',
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: 'rgba(245, 158, 11, 0.25)',
+      marginHorizontal: 16,
+      marginBottom: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    payablesBannerText: {
+      fontSize: 12,
+      color: colors.text,
+      fontWeight: '600',
+    },
+    payablesAmountHighlight: {
+      fontWeight: '900',
+      color: '#F59E0B',
+    },
+    center: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 50,
+    },
+    loadingText: {
+      fontSize: 12,
+      color: colors.textSecondary,
+      marginTop: 8,
+    },
+    dateToolbar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      marginTop: 4,
+      marginBottom: 8,
+      gap: 6,
+    },
+    dateModePill: {
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 8,
+      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    dateModePillActive: {
+      backgroundColor: '#3B82F6',
+      borderColor: '#60A5FA',
+    },
+    dateModePillText: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    dateModePillTextActive: {
+      color: '#FFFFFF',
+    },
+    datePickerBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : colors.cardElevated,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingHorizontal: 4,
+      paddingVertical: 2,
+    },
+    dateArrowBtn: {
+      padding: 4,
+    },
+    selectedDateText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.text,
+      marginHorizontal: 4,
+    },
+    quickDateBtn: {
+      paddingHorizontal: 8,
+      paddingVertical: 6,
+      borderRadius: 8,
+      backgroundColor: isDark ? 'rgba(255,255,255,0.06)' : colors.cardElevated,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    quickDateBtnActive: {
+      backgroundColor: 'rgba(59, 130, 246, 0.2)',
+      borderColor: '#3B82F6',
+    },
+    quickDateText: {
+      fontSize: 11,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    tillCard: {
+      marginHorizontal: 16,
+      marginBottom: 12,
+      padding: 14,
+      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.05)' : 'rgba(16, 185, 129, 0.08)',
+      borderColor: isDark ? 'rgba(16, 185, 129, 0.25)' : 'rgba(16, 185, 129, 0.2)',
+      borderWidth: 1,
+      borderRadius: 12,
+    },
+    tillHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    tillTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    tillGrid: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: 12,
+    },
+    tillGridCol: {
+      alignItems: 'center',
+      flex: 1,
+    },
+    tillMiniLabel: {
+      fontSize: 10,
+      color: colors.textSecondary,
+      marginBottom: 2,
+    },
+    tillMiniVal: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    closingTillBox: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: isDark ? 'rgba(16, 185, 129, 0.12)' : 'rgba(16, 185, 129, 0.15)',
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.35)',
+      borderRadius: 10,
+      padding: 10,
+      marginBottom: 8,
+    },
+    closingTillLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: '#10B981',
+    },
+    closingTillSub: {
+      fontSize: 10,
+      color: colors.textSecondary,
+    },
+    closingTillAmount: {
+      fontSize: 15,
+      fontWeight: '900',
+      color: '#10B981',
+    },
+    netFlowText: {
+      fontSize: 10,
+      fontWeight: '600',
+      color: colors.textSecondary,
+      marginTop: 1,
+    },
+    digitalSplitRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingTop: 6,
+      borderTopWidth: 1,
+      borderTopColor: colors.border,
+    },
+    digitalSplitLabel: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      fontWeight: '500',
+    },
+    digitalSplitVal: {
+      fontSize: 11,
+      color: colors.text,
+      fontWeight: '600',
+    },
+    dayBookRowCard: {
+      marginHorizontal: 16,
+      marginBottom: 8,
+      padding: 12,
+      borderRadius: 10,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    dayBookRowHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: 6,
+    },
+    dayBookTitle: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    dayBookSub: {
+      fontSize: 11,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    dayBookAmount: {
+      fontSize: 14,
+      fontWeight: '800',
+    },
+    dayBookBadge: {
+      backgroundColor: colors.cardElevated,
+      borderRadius: 4,
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      marginTop: 4,
+      alignSelf: 'flex-end',
+    },
+    dayBookBadgeText: {
+      fontSize: 9,
+      fontWeight: '700',
+      color: colors.textSecondary,
+    },
+    dayBookTimeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: 4,
+    },
+    dayBookTimeText: {
+      fontSize: 10,
+      color: colors.textTertiary,
+    },
+    settledPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 3,
+      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+    },
+    settledPillText: {
+      fontSize: 10,
+      fontWeight: '600',
+      color: '#10B981',
+    },
+  });

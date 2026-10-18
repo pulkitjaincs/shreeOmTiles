@@ -211,7 +211,8 @@ export class PurchasesService {
       } else if (
         data.paymentMode === PaymentMode.CASH ||
         data.paymentMode === PaymentMode.BANK_TRANSFER ||
-        data.paymentMode === PaymentMode.UPI
+        data.paymentMode === PaymentMode.UPI ||
+        data.paymentMode === PaymentMode.CARD
       ) {
         paymentSplits = [
           {

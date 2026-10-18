@@ -427,6 +427,7 @@ export default function InvoicesPage() {
                   { value: 'ALL', label: 'All Modes' },
                   { value: 'CASH', label: 'Cash' },
                   { value: 'UPI', label: 'UPI' },
+                  { value: 'CARD', label: 'Card (POS)' },
                   { value: 'CREDIT', label: 'Credit' },
                   { value: 'SPLIT', label: 'Split Payments' },
                 ]}
@@ -593,6 +594,10 @@ export default function InvoicesPage() {
                               }
                             >
                               Split {inv.payments && inv.payments.length > 0 ? `(${inv.payments.map((p) => p.mode).join('+')})` : ''}
+                            </span>
+                          ) : inv.paymentMode === 'CARD' ? (
+                            <span className="px-2 py-0.5 rounded text-[0.6875rem] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                              Card (POS)
                             </span>
                           ) : (
                             <span className="px-2 py-0.5 rounded text-[0.6875rem] font-medium bg-muted text-muted-foreground border border-border">

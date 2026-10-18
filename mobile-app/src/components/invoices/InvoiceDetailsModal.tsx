@@ -119,7 +119,7 @@ export function InvoiceDetailsModal({
             </View>
           ) : null}
           {!isSupervisor ? (
-            <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Payment Mode</Text><Text style={styles.summaryVal}>{invoice.paymentMode || 'CASH'}</Text></View>
+            <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Payment Mode</Text><Text style={styles.summaryVal}>{invoice.paymentMode === 'CARD' ? 'Card (POS Machine)' : invoice.paymentMode || 'CASH'}</Text></View>
           ) : null}
           <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Billed By</Text><Text style={styles.summaryVal}>{invoice.salesman?.name || 'Staff'}</Text></View>
           <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Line Items</Text><Text style={styles.summaryVal}>{invoice.items?.length || 0}</Text></View>
