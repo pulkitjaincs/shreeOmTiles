@@ -6,31 +6,40 @@ import {
 import { CreateWarehouseDto } from './dto/create-warehouse.dto';
 import { UpdateWarehouseDto } from './dto/update-warehouse.dto';
 import { PrismaService } from '../prisma/prisma.service';
-
+import { CacheService } from '../common/cache.service';
 import { Role } from '@prisma/client';
 
 @Injectable()
 export class WarehousesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cacheService: CacheService,
+  ) {}
 
   async create(data: CreateWarehouseDto) {
-    return this.prisma.warehouse.create({ data });
+    const res = await this.prisma.warehouse.create({ data });
+    this.cacheService.invalidatePrefix('warehouses:');
+    return res;
   }
 
   async findAll(user?: { id: string; role: Role }) {
-    const list = await this.prisma.warehouse.findMany({
-      include: {
-        stockLedgers: {
-          include: { product: true },
+    const cacheKey = `warehouses:${user?.role || 'ALL'}`;
+    // Warehouses cache: 3 hours (10800 seconds)
+    return this.cacheService.wrap(cacheKey, 10800, async () => {
+      const list = await this.prisma.warehouse.findMany({
+        include: {
+          stockLedgers: {
+            include: { product: true },
+          },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+      });
 
-    if (user?.role === Role.SUPERVISOR) {
-      return list.map((wh) => this.sanitizeWarehouseForSupervisor(wh));
-    }
-    return list;
+      if (user?.role === Role.SUPERVISOR) {
+        return list.map((wh) => this.sanitizeWarehouseForSupervisor(wh));
+      }
+      return list;
+    });
   }
 
   async findOne(id: string, user?: { id: string; role: Role }) {
@@ -89,11 +98,13 @@ export class WarehousesService {
 
   async update(id: string, data: UpdateWarehouseDto) {
     await this.findOne(id);
-    return this.prisma.warehouse.update({ where: { id }, data });
+    const res = await this.prisma.warehouse.update({ where: { id }, data });
+    this.cacheService.invalidatePrefix('warehouses:');
+    return res;
   }
 
   async remove(id: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const warehouse = await tx.warehouse.findUnique({
         where: { id },
         include: { stockLedgers: true },
@@ -123,5 +134,7 @@ export class WarehousesService {
       await tx.stockLedger.deleteMany({ where: { warehouseId: id } });
       return tx.warehouse.delete({ where: { id } });
     });
+    this.cacheService.invalidatePrefix('warehouses:');
+    return result;
   }
 }

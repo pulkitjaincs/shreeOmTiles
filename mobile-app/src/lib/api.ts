@@ -432,9 +432,38 @@ function revalidateMobileInBackground<T>(
   });
 }
 
+export function getDefaultMobileTtlMs(endpoint: string): number {
+  const ep = endpoint.toLowerCase();
+  // 3 hours (10,800,000ms): Products, Warehouses, Settings
+  if (ep.includes('/products') || ep.includes('/warehouses') || ep.includes('/settings')) {
+    return 3 * 60 * 60 * 1000;
+  }
+  // 2 hours (7,200,000ms): Parties Directory
+  if (ep.includes('/parties')) {
+    return 2 * 60 * 60 * 1000;
+  }
+  // 1 hour (3,600,000ms): Quotations / Estimates
+  if (ep.includes('/quotations')) {
+    return 60 * 60 * 1000;
+  }
+  // 30 minutes (1,800,000ms): Invoices, Returns, Purchases, Expenses, Stock, Transactions/Payments, Analytics/Dashboard
+  if (
+    ep.includes('/invoices') ||
+    ep.includes('/payments') ||
+    ep.includes('/purchases') ||
+    ep.includes('/expenses') ||
+    ep.includes('/stock') ||
+    ep.includes('/analytics')
+  ) {
+    return 30 * 60 * 1000;
+  }
+  // Default fallback 10 minutes (600,000ms)
+  return 10 * 60 * 1000;
+}
+
 /**
  * Mobile Device Cache Request with Stale-While-Revalidate (SWR).
- * 1. Checks AsyncStorage: if fresh within ttlMs (default 5s), returns in 0ms without network roundtrip.
+ * 1. Checks AsyncStorage: if fresh within ttlMs, returns in 0ms without network roundtrip.
  * 2. If stale but cached data exists, returns cached data immediately (0ms UI render)
  *    and silently revalidates with the backend in the background, updating AsyncStorage
  *    and firing options.onRevalidate(freshData).
@@ -451,7 +480,7 @@ export async function cachedMobileApiRequest<T = any>(
     return mobileApiRequest<T>(endpoint, options);
   }
 
-  const ttlMs = options.ttlMs ?? 5_000;
+  const ttlMs = options.ttlMs ?? getDefaultMobileTtlMs(endpoint);
   const forceRefresh = options.forceRefresh ?? false;
   const user = await getMobileUser();
   const userPrefix = user?.id ? `${user.id}:` : '';

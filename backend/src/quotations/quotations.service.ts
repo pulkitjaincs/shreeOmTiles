@@ -4,6 +4,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CacheService } from '../common/cache.service';
 import { CreateQuotationDto } from './dto/create-quotation.dto';
 import { InvoicesService } from '../invoices/invoices.service';
 import { Prisma, QuotationStatus, PaymentMode } from '@prisma/client';
@@ -15,6 +16,7 @@ import { PaymentSplitDto } from '../common/dto/payment-split.dto';
 export class QuotationsService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly cacheService: CacheService,
     private readonly invoicesService: InvoicesService,
   ) {}
 
@@ -63,7 +65,7 @@ export class QuotationsService {
     const tax = Math.round((itemsTax + transportTax) * 100) / 100;
     const total = Math.round((subtotal + tax + transportCost) * 100) / 100;
 
-    return this.prisma.$transaction(async (tx) => {
+    const res = await this.prisma.$transaction(async (tx) => {
       const seq = await tx.quotationSequence.upsert({
         where: { financialYear: fy },
         update: { lastNumber: { increment: 1 } },
@@ -98,56 +100,74 @@ export class QuotationsService {
         },
       });
     });
+    this.cacheService.invalidatePrefix('quotations:');
+    this.cacheService.invalidatePrefix('analytics:');
+    return res;
   }
 
   async findAll(pagination?: PaginationParams, search?: string) {
-    const where: Prisma.QuotationWhereInput = {};
-    if (search) {
-      where.OR = [
-        { quotationNo: { contains: search, mode: 'insensitive' } },
-        { customerName: { contains: search, mode: 'insensitive' } },
-        { customerPhone: { contains: search, mode: 'insensitive' } },
-        { party: { name: { contains: search, mode: 'insensitive' } } },
-      ];
-    }
+    const cacheKey = `quotations:${search || ''}:${JSON.stringify(pagination || {})}`;
+    // Quotations cache: 1 hour (3600 seconds)
+    return this.cacheService.wrap(cacheKey, 3600, async () => {
+      const where: Prisma.QuotationWhereInput = {};
+      if (search) {
+        where.OR = [
+          { quotationNo: { contains: search, mode: 'insensitive' } },
+          { customerName: { contains: search, mode: 'insensitive' } },
+          { customerPhone: { contains: search, mode: 'insensitive' } },
+          { party: { name: { contains: search, mode: 'insensitive' } } },
+        ];
+      }
 
-    const includeRelations = {
-      party: true,
-      createdBy: { select: { id: true, name: true, phone: true } },
-      items: { include: { product: true } },
-      invoices: true,
-    };
-
-    if (pagination?.page !== undefined || pagination?.limit !== undefined) {
-      const page = Math.max(1, pagination?.page || 1);
-      const limit = Math.min(Math.max(1, pagination?.limit || 25), 100);
-      const skip = (page - 1) * limit;
-
-      const [data, total] = await Promise.all([
-        this.prisma.quotation.findMany({
-          where,
-          include: includeRelations,
-          orderBy: { createdAt: 'desc' },
-          skip,
-          take: limit,
-        }),
-        this.prisma.quotation.count({ where }),
-      ]);
-
-      return {
-        data,
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
+      // Optimization: pruned joins for list view
+      const includeRelations = {
+        party: { select: { id: true, name: true, phone: true } },
+        createdBy: { select: { id: true, name: true, phone: true } },
+        items: {
+          select: {
+            id: true,
+            productId: true,
+            qty: true,
+            unitPrice: true,
+            discount: true,
+            total: true,
+            product: { select: { id: true, name: true, unit: true } },
+          },
+        },
+        invoices: { select: { id: true, invoiceNo: true } },
       };
-    }
 
-    return this.prisma.quotation.findMany({
-      where,
-      include: includeRelations,
-      orderBy: { createdAt: 'desc' },
-      take: 100,
+      if (pagination?.page !== undefined || pagination?.limit !== undefined) {
+        const page = Math.max(1, pagination?.page || 1);
+        const limit = Math.min(Math.max(1, pagination?.limit || 25), 100);
+        const skip = (page - 1) * limit;
+
+        const [data, total] = await Promise.all([
+          this.prisma.quotation.findMany({
+            where,
+            include: includeRelations,
+            orderBy: { createdAt: 'desc' },
+            skip,
+            take: limit,
+          }),
+          this.prisma.quotation.count({ where }),
+        ]);
+
+        return {
+          data,
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        };
+      }
+
+      return this.prisma.quotation.findMany({
+        where,
+        include: includeRelations,
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      });
     });
   }
 
@@ -267,6 +287,8 @@ export class QuotationsService {
       data: { status: QuotationStatus.CONVERTED },
     });
 
+    this.cacheService.invalidatePrefix('quotations:');
+    this.cacheService.invalidatePrefix('analytics:');
     return invoice;
   }
 
@@ -277,7 +299,7 @@ export class QuotationsService {
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const res = await this.prisma.$transaction(async (tx) => {
       const quotation = await tx.quotation.findUnique({
         where: { id },
         include: { items: true },
@@ -360,10 +382,13 @@ export class QuotationsService {
 
       return updated;
     });
+    this.cacheService.invalidatePrefix('quotations:');
+    this.cacheService.invalidatePrefix('analytics:');
+    return res;
   }
 
   async delete(id: string, userId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const res = await this.prisma.$transaction(async (tx) => {
       const quotation = await tx.quotation.findUnique({
         where: { id },
       });
@@ -395,5 +420,8 @@ export class QuotationsService {
         message: `Quotation ${quotation.quotationNo} deleted successfully`,
       };
     });
+    this.cacheService.invalidatePrefix('quotations:');
+    this.cacheService.invalidatePrefix('analytics:');
+    return res;
   }
 }

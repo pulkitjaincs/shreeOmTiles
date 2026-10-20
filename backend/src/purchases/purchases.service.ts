@@ -19,10 +19,23 @@ import {
   Role,
 } from '@prisma/client';
 import { PaginationParams } from '../common/interfaces/pagination.interface';
+import { CacheService } from '../common/cache.service';
 
 @Injectable()
 export class PurchasesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cacheService: CacheService,
+  ) {}
+
+  private invalidatePurchaseCaches(): void {
+    this.cacheService.invalidatePrefix('purchases:');
+    this.cacheService.invalidatePrefix('products:');
+    this.cacheService.invalidatePrefix('stock:');
+    this.cacheService.invalidatePrefix('analytics:');
+    this.cacheService.invalidatePrefix('parties:');
+    this.cacheService.invalidatePrefix('payments:');
+  }
 
   private getFinancialYear(date: Date = new Date()): string {
     const year = date.getFullYear();
@@ -41,7 +54,7 @@ export class PurchasesService {
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       const existing = await tx.purchase.findUnique({
         where: { id },
         include: { items: true },
@@ -200,6 +213,8 @@ export class PurchasesService {
       }
       return updated;
     });
+    this.invalidatePurchaseCaches();
+    return updated;
   }
 
   async create(data: CreatePurchaseDto, userId: string) {
@@ -234,7 +249,7 @@ export class PurchasesService {
     const totalAmount =
       Math.round((subtotal + taxAmount + transportCost) * 100) / 100;
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       // 1. Resolve or create vendor party
       let party: Party | null = null;
       if (data.partyId) {
@@ -476,6 +491,8 @@ export class PurchasesService {
 
       return purchase;
     });
+    this.invalidatePurchaseCaches();
+    return updated;
   }
 
   async findAll(
@@ -483,67 +500,70 @@ export class PurchasesService {
     search?: string,
     user?: { id: string; role: Role; scope?: string | null },
   ) {
-    const where: Prisma.PurchaseWhereInput = {};
-    if (search) {
-      where.OR = [
-        { purchaseNo: { contains: search, mode: 'insensitive' } },
-        { vendorBillNo: { contains: search, mode: 'insensitive' } },
-        { party: { name: { contains: search, mode: 'insensitive' } } },
-      ];
-    }
+    const cacheKey = `purchases:list:${user?.role || 'ALL'}:${user?.scope || 'none'}:${search || 'all'}:${pagination?.page || 1}:${pagination?.limit || 'all'}`;
+    return this.cacheService.wrap(cacheKey, 1800, async () => {
+      const where: Prisma.PurchaseWhereInput = {};
+      if (search) {
+        where.OR = [
+          { purchaseNo: { contains: search, mode: 'insensitive' } },
+          { vendorBillNo: { contains: search, mode: 'insensitive' } },
+          { party: { name: { contains: search, mode: 'insensitive' } } },
+        ];
+      }
 
-    const isSupervisor = user?.role === Role.SUPERVISOR;
-    if (isSupervisor && user?.scope) {
-      where.items = {
-        some: { warehouseId: user.scope },
+      const isSupervisor = user?.role === Role.SUPERVISOR;
+      if (isSupervisor && user?.scope) {
+        where.items = {
+          some: { warehouseId: user.scope },
+        };
+      }
+
+      const includeRelations = {
+        party: true,
+        createdBy: { select: { id: true, name: true, phone: true } },
+        items: { include: { product: true, warehouse: true } },
+        payments: true,
+        creditLedgers: true,
       };
-    }
 
-    const includeRelations = {
-      party: true,
-      createdBy: { select: { id: true, name: true, phone: true } },
-      items: { include: { product: true, warehouse: true } },
-      payments: true,
-      creditLedgers: true,
-    };
+      if (pagination?.page !== undefined || pagination?.limit !== undefined) {
+        const page = Math.max(1, pagination?.page || 1);
+        const limit = Math.min(Math.max(1, pagination?.limit || 25), 100);
+        const skip = (page - 1) * limit;
 
-    if (pagination?.page !== undefined || pagination?.limit !== undefined) {
-      const page = Math.max(1, pagination?.page || 1);
-      const limit = Math.min(Math.max(1, pagination?.limit || 25), 100);
-      const skip = (page - 1) * limit;
+        const [data, total] = await Promise.all([
+          this.prisma.purchase.findMany({
+            where,
+            include: includeRelations,
+            orderBy: { createdAt: 'desc' },
+            skip,
+            take: limit,
+          }),
+          this.prisma.purchase.count({ where }),
+        ]);
 
-      const [data, total] = await Promise.all([
-        this.prisma.purchase.findMany({
-          where,
-          include: includeRelations,
-          orderBy: { createdAt: 'desc' },
-          skip,
-          take: limit,
-        }),
-        this.prisma.purchase.count({ where }),
-      ]);
+        return {
+          data: isSupervisor
+            ? data.map((p) => this.sanitizePurchaseForSupervisor(p))
+            : data,
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        };
+      }
 
-      return {
-        data: isSupervisor
-          ? data.map((p) => this.sanitizePurchaseForSupervisor(p))
-          : data,
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      };
-    }
+      const purchases = await this.prisma.purchase.findMany({
+        where,
+        include: includeRelations,
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      });
 
-    const purchases = await this.prisma.purchase.findMany({
-      where,
-      include: includeRelations,
-      orderBy: { createdAt: 'desc' },
-      take: 100,
+      return isSupervisor
+        ? purchases.map((p) => this.sanitizePurchaseForSupervisor(p))
+        : purchases;
     });
-
-    return isSupervisor
-      ? purchases.map((p) => this.sanitizePurchaseForSupervisor(p))
-      : purchases;
   }
 
   private sanitizePurchaseForSupervisor<T extends Record<string, unknown>>(
@@ -633,7 +653,7 @@ export class PurchasesService {
     const purchase = await this.findOne(purchaseId);
     const fy = this.getFinancialYear();
 
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       const seq = await tx.debitNoteSequence.upsert({
         where: { financialYear: fy },
         update: { lastNumber: { increment: 1 } },
@@ -713,10 +733,12 @@ export class PurchasesService {
 
       return debitNote;
     });
+    this.invalidatePurchaseCaches();
+    return updated;
   }
 
   async deletePurchase(id: string, userId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       const purchase = await tx.purchase.findUnique({
         where: { id },
         include: {
@@ -776,5 +798,7 @@ export class PurchasesService {
         message: `Purchase ${purchase.purchaseNo} deleted and stock reverted successfully`,
       };
     });
+    this.invalidatePurchaseCaches();
+    return updated;
   }
 }

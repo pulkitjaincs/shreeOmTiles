@@ -6,6 +6,7 @@ import {
 import { CreatePartyDto } from './dto/create-party.dto';
 import { UpdatePartyDto } from './dto/update-party.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { CacheService } from '../common/cache.service';
 import { Prisma, CreditStatus } from '@prisma/client';
 import { PaginationParams } from '../common/interfaces/pagination.interface';
 import {
@@ -33,10 +34,13 @@ function getCreditLedgerOriginalAmount(cl: {
 
 @Injectable()
 export class PartiesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cacheService: CacheService,
+  ) {}
 
   async create(data: CreatePartyDto) {
-    return this.prisma.party.create({
+    const res = await this.prisma.party.create({
       data: {
         name: data.name,
         phone: data.phone,
@@ -45,6 +49,8 @@ export class PartiesService {
         category: data.category,
       },
     });
+    this.cacheService.invalidatePrefix('parties:');
+    return res;
   }
 
   async findAll(
@@ -52,7 +58,10 @@ export class PartiesService {
     includeUnsaved: boolean = false,
     pagination?: PaginationParams,
   ): Promise<any> {
-    const andConditions: Prisma.PartyWhereInput[] = [];
+    const cacheKey = `parties:${includeUnsaved}:${search || ''}:${JSON.stringify(pagination || {})}`;
+    // Parties cache: 2 hours (7200 seconds)
+    return this.cacheService.wrap(cacheKey, 7200, async () => {
+      const andConditions: Prisma.PartyWhereInput[] = [];
 
     if (!includeUnsaved) {
       // Show permanent saved directory parties OR any walk-in / unregistered debtor who owes unsettled dues
@@ -136,6 +145,7 @@ export class PartiesService {
       where,
       include: includeRelations,
       orderBy: { name: 'asc' },
+    });
     });
   }
 
@@ -222,7 +232,9 @@ export class PartiesService {
 
   async update(id: string, data: UpdatePartyDto) {
     await this.findOne(id);
-    return this.prisma.party.update({ where: { id }, data });
+    const res = await this.prisma.party.update({ where: { id }, data });
+    this.cacheService.invalidatePrefix('parties:');
+    return res;
   }
 
   async remove(id: string) {
@@ -308,6 +320,7 @@ export class PartiesService {
         where: { id },
         data: { isSaved: false },
       });
+      this.cacheService.invalidatePrefix('parties:');
       return {
         success: true,
         message: `Customer '${party.name}' removed from directory.`,
@@ -317,6 +330,7 @@ export class PartiesService {
     // If no historical invoices exist, attempt hard-delete; fall back to soft delete if relations exist
     try {
       await this.prisma.party.delete({ where: { id } });
+      this.cacheService.invalidatePrefix('parties:');
       return {
         success: true,
         message: `Customer '${party.name}' permanently deleted.`,
@@ -326,6 +340,7 @@ export class PartiesService {
         where: { id },
         data: { isSaved: false },
       });
+      this.cacheService.invalidatePrefix('parties:');
       return {
         success: true,
         message: `Customer '${party.name}' removed from directory.`,

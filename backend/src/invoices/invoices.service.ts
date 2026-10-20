@@ -32,6 +32,7 @@ import { GeneratedPdfResult, TaxBreakupData } from './pdf/pdf-utils';
 import { generateInvoicePdf } from './pdf/invoice-pdf.generator';
 import { generateRefundInvoicePdf } from './pdf/refund-pdf.generator';
 import { NotificationsService } from '../notifications/notifications.service';
+import { CacheService } from '../common/cache.service';
 
 interface ExtendedInvoice {
   id: string;
@@ -72,7 +73,16 @@ export class InvoicesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly cacheService: CacheService,
   ) {}
+
+  private invalidateInvoiceCaches(): void {
+    this.cacheService.invalidatePrefix('invoices:');
+    this.cacheService.invalidatePrefix('analytics:');
+    this.cacheService.invalidatePrefix('parties:');
+    this.cacheService.invalidatePrefix('products:');
+    this.cacheService.invalidatePrefix('stock:');
+  }
 
   /**
    * Calculates the Indian Financial Year string (e.g. "2425" or "2526" or "2627")
@@ -550,6 +560,7 @@ export class InvoicesService {
       { type: 'NEW_INVOICE', invoiceId: invoice.id },
     );
 
+    this.invalidateInvoiceCaches();
     return invoice;
   }
 
@@ -557,16 +568,19 @@ export class InvoicesService {
     user: { id: string; role: Role },
     pagination?: PaginationParams & { createdById?: string },
   ): Promise<any> {
-    const where: Prisma.InvoiceWhereInput = {};
-    // Salesmen only view their own sales unless Admin/Owner
-    if (user.role === Role.SALESMAN) {
-      where.salesmanId = user.id;
-    } else if (
-      pagination?.createdById &&
-      (user.role === Role.OWNER || user.role === Role.ADMIN)
-    ) {
-      where.salesmanId = pagination.createdById;
-    }
+    const cacheKey = `invoices:${user.role}:${user.id}:${JSON.stringify(pagination || {})}`;
+    // Invoices list cache: 30 minutes (1800 seconds)
+    return this.cacheService.wrap(cacheKey, 1800, async () => {
+      const where: Prisma.InvoiceWhereInput = {};
+      // Salesmen only view their own sales unless Admin/Owner
+      if (user.role === Role.SALESMAN) {
+        where.salesmanId = user.id;
+      } else if (
+        pagination?.createdById &&
+        (user.role === Role.OWNER || user.role === Role.ADMIN)
+      ) {
+        where.salesmanId = pagination.createdById;
+      }
 
     const includeRelations = {
       party: {
@@ -673,6 +687,7 @@ export class InvoicesService {
     return user.role === Role.SUPERVISOR
       ? invoices.map((inv) => this.sanitizeInvoiceForSupervisor(inv))
       : invoices;
+    });
   }
 
   private sanitizeInvoiceForSupervisor<T extends Record<string, unknown>>(
@@ -1275,6 +1290,7 @@ export class InvoicesService {
       },
     );
 
+    this.invalidateInvoiceCaches();
     return result;
   }
 
@@ -1557,6 +1573,7 @@ export class InvoicesService {
       },
     );
 
+    this.invalidateInvoiceCaches();
     return result;
   }
 
@@ -1636,7 +1653,7 @@ export class InvoicesService {
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // 1. Atomically restore inventory to StockLedger with row-level locks
       for (const item of invoice.items) {
         if (!item.productId) continue;
@@ -1770,6 +1787,8 @@ export class InvoicesService {
         message: `Invoice #${invoice.invoiceNo} successfully deleted. Inventory restored.`,
       };
     });
+    this.invalidateInvoiceCaches();
+    return result;
   }
 
   /**
@@ -1873,7 +1892,7 @@ export class InvoicesService {
     const totalAmount =
       Math.round((calculatedTotal + roundOffAmount) * 100) / 100;
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       // 1. Resolve Party
       let party: Party | null = null;
       if (data.partyId) {
@@ -2429,6 +2448,8 @@ export class InvoicesService {
 
       return updatedInvoice;
     });
+    this.invalidateInvoiceCaches();
+    return result;
   }
 
   /**
@@ -2444,7 +2465,7 @@ export class InvoicesService {
       throw new BadRequestException('At least one returned item is required.');
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const refund = await tx.refundInvoice.findUnique({
         where: { id: refundId },
         include: {
@@ -2639,10 +2660,12 @@ export class InvoicesService {
         include: { items: { include: { product: true } } },
       });
     });
+    this.invalidateInvoiceCaches();
+    return result;
   }
 
   async deleteReturn(refundId: string, userId: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const refund = await tx.refundInvoice.findUnique({
         where: { id: refundId },
         include: {
@@ -2746,6 +2769,8 @@ export class InvoicesService {
         message: `Refund ${refund.refundNo} deleted and stock adjusted.`,
       };
     });
+    this.invalidateInvoiceCaches();
+    return result;
   }
 
   async generateRefundPdf(refundId: string): Promise<GeneratedPdfResult> {

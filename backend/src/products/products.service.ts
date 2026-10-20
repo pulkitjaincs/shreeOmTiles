@@ -6,11 +6,15 @@ import {
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { CacheService } from '../common/cache.service';
 import { Prisma, Role } from '@prisma/client';
 
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cacheService: CacheService,
+  ) {}
 
   async create(data: CreateProductDto, actorId?: string) {
     const finalAttributes = {
@@ -18,7 +22,7 @@ export class ProductsService {
       ...(data.price !== undefined ? { price: data.price } : {}),
     };
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const product = await tx.product.create({
         data: {
           category: data.category,
@@ -65,6 +69,8 @@ export class ProductsService {
         },
       });
     });
+    this.cacheService.invalidatePrefix('products:');
+    return result;
   }
 
   async findAll(
@@ -77,82 +83,87 @@ export class ProductsService {
     },
     user?: { id: string; role: Role },
   ): Promise<any> {
-    const where: Prisma.ProductWhereInput = {};
-    if (!query?.includeInactive) {
-      where.isActive = true;
-    }
-    if (query?.category) {
-      where.category = query.category;
-    }
-    if (query?.search) {
-      where.OR = [
-        { name: { contains: query.search, mode: 'insensitive' } },
-        { category: { contains: query.search, mode: 'insensitive' } },
-        { hsnCode: { contains: query.search, mode: 'insensitive' } },
-      ];
-    }
+    const cacheKey = `products:${user?.role || 'ALL'}:${JSON.stringify(query || {})}`;
+    // Products cache: 3 hours (10800 seconds)
+    return this.cacheService.wrap(cacheKey, 10800, async () => {
+      const where: Prisma.ProductWhereInput = {};
+      if (!query?.includeInactive) {
+        where.isActive = true;
+      }
+      if (query?.category) {
+        where.category = query.category;
+      }
+      if (query?.search) {
+        where.OR = [
+          { name: { contains: query.search, mode: 'insensitive' } },
+          { category: { contains: query.search, mode: 'insensitive' } },
+          { hsnCode: { contains: query.search, mode: 'insensitive' } },
+        ];
+      }
 
-    const includeRelations = {
-      stockLedgers: {
-        include: { warehouse: true },
-      },
-    };
-
-    const isSupervisor = user?.role === Role.SUPERVISOR;
-
-    const formatProduct = (p: any) => {
-      const stockLedgers = p.stockLedgers || [];
-      const totalStock = stockLedgers.reduce(
-        (sum: number, s: any) => sum + Number(s.quantity || 0),
-        0,
-      );
-      const sanitized = isSupervisor ? this.sanitizeProductForSupervisor(p) : p;
-      return {
-        ...sanitized,
-        availableQuantity: Number(totalStock.toFixed(2)),
-        totalStock: Number(totalStock.toFixed(2)),
-        stockLedgers: stockLedgers.map((s: any) => ({
-          id: s.id,
-          quantity: Number(s.quantity || 0),
-          batchNo: s.batchNo || null,
-          warehouseId: null,
-          warehouse: null,
-        })),
+      // Optimization: prune dead warehouse join; only select necessary columns
+      const includeRelations = {
+        stockLedgers: {
+          select: { id: true, quantity: true, batchNo: true },
+        },
       };
-    };
 
-    if (query?.page !== undefined || query?.limit !== undefined) {
-      const page = Math.max(1, query.page || 1);
-      const limit = Math.min(Math.max(1, query.limit || 25), 100);
-      const skip = (page - 1) * limit;
+      const isSupervisor = user?.role === Role.SUPERVISOR;
 
-      const [data, total] = await Promise.all([
-        this.prisma.product.findMany({
-          where,
-          include: includeRelations,
-          orderBy: { createdAt: 'desc' },
-          skip,
-          take: limit,
-        }),
-        this.prisma.product.count({ where }),
-      ]);
-
-      return {
-        data: data.map((p) => formatProduct(p)),
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
+      const formatProduct = (p: any) => {
+        const stockLedgers = p.stockLedgers || [];
+        const totalStock = stockLedgers.reduce(
+          (sum: number, s: any) => sum + Number(s.quantity || 0),
+          0,
+        );
+        const sanitized = isSupervisor ? this.sanitizeProductForSupervisor(p) : p;
+        return {
+          ...sanitized,
+          availableQuantity: Number(totalStock.toFixed(2)),
+          totalStock: Number(totalStock.toFixed(2)),
+          stockLedgers: stockLedgers.map((s: any) => ({
+            id: s.id,
+            quantity: Number(s.quantity || 0),
+            batchNo: s.batchNo || null,
+            warehouseId: null,
+            warehouse: null,
+          })),
+        };
       };
-    }
 
-    const products = await this.prisma.product.findMany({
-      where,
-      include: includeRelations,
-      orderBy: { createdAt: 'desc' },
+      if (query?.page !== undefined || query?.limit !== undefined) {
+        const page = Math.max(1, query.page || 1);
+        const limit = Math.min(Math.max(1, query.limit || 25), 100);
+        const skip = (page - 1) * limit;
+
+        const [data, total] = await Promise.all([
+          this.prisma.product.findMany({
+            where,
+            include: includeRelations,
+            orderBy: { createdAt: 'desc' },
+            skip,
+            take: limit,
+          }),
+          this.prisma.product.count({ where }),
+        ]);
+
+        return {
+          data: data.map((p) => formatProduct(p)),
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        };
+      }
+
+      const products = await this.prisma.product.findMany({
+        where,
+        include: includeRelations,
+        orderBy: { createdAt: 'desc' },
+      });
+
+      return products.map((p) => formatProduct(p));
     });
-
-    return products.map((p) => formatProduct(p));
   }
 
   private sanitizeProductForSupervisor<T extends Record<string, unknown>>(
@@ -230,17 +241,19 @@ export class ProductsService {
     delete rest.initialBatchNo;
     delete rest.attributes;
 
-    return this.prisma.product.update({
+    const res = await this.prisma.product.update({
       where: { id },
       data: {
         ...rest,
         attributes: updatedAttrs as Prisma.InputJsonValue,
       },
     });
+    this.cacheService.invalidatePrefix('products:');
+    return res;
   }
 
   async remove(id: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const product = await tx.product.findUnique({
         where: { id },
         include: {
@@ -276,5 +289,7 @@ export class ProductsService {
       await tx.stockLedger.deleteMany({ where: { productId: id } });
       return tx.product.delete({ where: { id } });
     });
+    this.cacheService.invalidatePrefix('products:');
+    return result;
   }
 }

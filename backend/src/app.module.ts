@@ -15,6 +15,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { SettingsModule } from './settings/settings.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { CacheModule } from './common/cache.module';
 
 import { PurchasesModule } from './purchases/purchases.module';
 import { QuotationsModule } from './quotations/quotations.module';
@@ -23,6 +24,7 @@ import { ExpensesModule } from './expenses/expenses.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    CacheModule,
     PrismaModule,
     NotificationsModule,
     AuthModule,

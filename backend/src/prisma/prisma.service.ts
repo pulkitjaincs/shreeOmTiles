@@ -21,7 +21,7 @@ export class PrismaService
     const pool = new Pool({
       connectionString,
       max: 10, // Safe connection limit for Neon connection pooler
-      idleTimeoutMillis: 10000,
+      idleTimeoutMillis: 1800000, // 30 minutes keep-alive to avoid frequent SSL handshake churn
       connectionTimeoutMillis: 10000, // 10s timeout to allow Neon serverless compute wake-up
     });
 

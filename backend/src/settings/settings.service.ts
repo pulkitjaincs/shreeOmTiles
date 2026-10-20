@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CacheService } from '../common/cache.service';
 import { UpdateUpiDto } from './dto/update-upi.dto';
 import { AddUpiAccountDto } from './dto/add-upi-account.dto';
 import { Prisma } from '@prisma/client';
@@ -18,7 +19,10 @@ export interface UpiAccount {
 
 @Injectable()
 export class SettingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cacheService: CacheService,
+  ) {}
 
   private parseUpiAccounts(
     raw: unknown,
@@ -81,47 +85,50 @@ export class SettingsService {
   }
 
   async getSettings() {
-    let setting = await this.prisma.companySetting.findUnique({
-      where: { id: 'default' },
-    });
-
-    if (!setting) {
-      setting = await this.prisma.companySetting.create({
-        data: {
-          id: 'default',
-          upiId: process.env.UPI_VPA || null,
-          merchantName: process.env.UPI_MERCHANT_NAME || 'Shree Om Tiles',
-          upiAccounts: process.env.UPI_VPA
-            ? [
-                {
-                  id: 'upi_default',
-                  upiId: process.env.UPI_VPA,
-                  merchantName:
-                    process.env.UPI_MERCHANT_NAME || 'Shree Om Tiles',
-                  isPrimary: true,
-                  createdAt: new Date().toISOString(),
-                },
-              ]
-            : [],
-        },
+    // Settings cache: 3 hours (10800 seconds)
+    return this.cacheService.wrap('settings:default', 10800, async () => {
+      let setting = await this.prisma.companySetting.findUnique({
+        where: { id: 'default' },
       });
-    }
 
-    const accounts = this.parseUpiAccounts(
-      setting.upiAccounts,
-      setting.upiId,
-      setting.merchantName,
-    );
-    const primary = accounts.find((a) => a.isPrimary) || accounts[0] || null;
+      if (!setting) {
+        setting = await this.prisma.companySetting.create({
+          data: {
+            id: 'default',
+            upiId: process.env.UPI_VPA || null,
+            merchantName: process.env.UPI_MERCHANT_NAME || 'Shree Om Tiles',
+            upiAccounts: process.env.UPI_VPA
+              ? [
+                  {
+                    id: 'upi_default',
+                    upiId: process.env.UPI_VPA,
+                    merchantName:
+                      process.env.UPI_MERCHANT_NAME || 'Shree Om Tiles',
+                    isPrimary: true,
+                    createdAt: new Date().toISOString(),
+                  },
+                ]
+              : [],
+          },
+        });
+      }
 
-    return {
-      upiId: primary?.upiId || setting.upiId || null,
-      merchantName:
-        primary?.merchantName || setting.merchantName || 'Shree Om Tiles',
-      isConfigured: accounts.length > 0 || Boolean(setting.upiId),
-      upiAccounts: accounts,
-      updatedAt: setting.updatedAt,
-    };
+      const accounts = this.parseUpiAccounts(
+        setting.upiAccounts,
+        setting.upiId,
+        setting.merchantName,
+      );
+      const primary = accounts.find((a) => a.isPrimary) || accounts[0] || null;
+
+      return {
+        upiId: primary?.upiId || setting.upiId || null,
+        merchantName:
+          primary?.merchantName || setting.merchantName || 'Shree Om Tiles',
+        isConfigured: accounts.length > 0 || Boolean(setting.upiId),
+        upiAccounts: accounts,
+        updatedAt: setting.updatedAt,
+      };
+    });
   }
 
   async addUpiAccount(dto: AddUpiAccountDto) {
@@ -183,6 +190,7 @@ export class SettingsService {
       },
     });
 
+    this.cacheService.invalidatePrefix('settings:');
     return {
       success: true,
       message: `✓ Added UPI ID ${newAccount.upiId} successfully`,
@@ -229,6 +237,7 @@ export class SettingsService {
       },
     });
 
+    this.cacheService.invalidatePrefix('settings:');
     return {
       success: true,
       message: `✓ Removed UPI ID ${removed.upiId}`,
@@ -266,6 +275,7 @@ export class SettingsService {
       },
     });
 
+    this.cacheService.invalidatePrefix('settings:');
     return {
       success: true,
       message: `✓ Primary UPI ID set to ${target.upiId}`,
@@ -306,6 +316,7 @@ export class SettingsService {
       },
     });
 
+    this.cacheService.invalidatePrefix('settings:');
     return {
       success: true,
       message: 'Store UPI ID removed',

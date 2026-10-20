@@ -233,6 +233,35 @@ function revalidateInBackground<T>(
     });
 }
 
+export function getDefaultTtlMs(endpoint: string): number {
+  const ep = endpoint.toLowerCase();
+  // 3 hours (10,800,000ms): Products, Warehouses, Settings
+  if (ep.includes('/products') || ep.includes('/warehouses') || ep.includes('/settings')) {
+    return 3 * 60 * 60 * 1000;
+  }
+  // 2 hours (7,200,000ms): Parties Directory
+  if (ep.includes('/parties')) {
+    return 2 * 60 * 60 * 1000;
+  }
+  // 1 hour (3,600,000ms): Quotations / Estimates
+  if (ep.includes('/quotations')) {
+    return 60 * 60 * 1000;
+  }
+  // 30 minutes (1,800,000ms): Invoices, Returns, Purchases, Expenses, Stock, Transactions/Payments, Analytics/Dashboard
+  if (
+    ep.includes('/invoices') ||
+    ep.includes('/payments') ||
+    ep.includes('/purchases') ||
+    ep.includes('/expenses') ||
+    ep.includes('/stock') ||
+    ep.includes('/analytics')
+  ) {
+    return 30 * 60 * 1000;
+  }
+  // Default fallback 10 minutes (600,000ms)
+  return 10 * 60 * 1000;
+}
+
 /**
  * Client-side Device Cache Request with Stale-While-Revalidate (SWR) support.
  * 1. Checks localStorage: if fresh within ttlMs, returns instantaneously (0ms network roundtrip).
@@ -251,7 +280,7 @@ export async function cachedApiRequest<T = unknown>(
     return apiRequest<T>(endpoint, options);
   }
 
-  const ttlMs = options.ttlMs ?? 60_000; // default 1 minute device cache
+  const ttlMs = options.ttlMs ?? getDefaultTtlMs(endpoint);
   const forceRefresh = options.forceRefresh ?? false;
   const cacheKey = `${CACHE_PREFIX}${endpoint}`;
 

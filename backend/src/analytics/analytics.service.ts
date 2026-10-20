@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { CacheService } from '../common/cache.service';
 import {
   PaymentMode,
   PaymentStatus,
@@ -69,129 +70,135 @@ interface SalesmanRecentInvoiceItem {
 
 @Injectable()
 export class AnalyticsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cacheService: CacheService,
+  ) {}
 
   async getSummary() {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    // Executive summary cache: 30 minutes (1800 seconds)
+    return this.cacheService.wrap('analytics:summary', 1800, async () => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-    const [
-      revenueAgg,
-      todayInvoices,
-      totalInvoices,
-      upiAgg,
-      creditAgg,
-      driverCashDeliveries,
-      confirmedInflowsAgg,
-      confirmedOutflowsAgg,
-      refundAgg,
-      productCount,
-      partyCount,
-    ] = await Promise.all([
-      // 1. Total Revenue (excl cancelled/draft)
-      this.prisma.invoice.aggregate({
-        where: {
-          status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
-        },
-        _sum: { total: true },
-      }),
-      // Today Invoices
-      this.prisma.invoice.count({
-        where: {
-          createdAt: { gte: today },
-          status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
-        },
-      }),
-      // Total Invoices
-      this.prisma.invoice.count({
-        where: {
-          status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
-        },
-      }),
-      // 2. Pending UPI
-      this.prisma.payment.aggregate({
-        where: { mode: PaymentMode.UPI, status: PaymentStatus.PENDING },
-        _sum: { amount: true },
-      }),
-      // 3. Outstanding Credit (RECEIVABLES ONLY)
-      this.prisma.creditLedger.aggregate({
-        where: {
-          type: CreditType.RECEIVABLE,
-          status: { in: ['UNPAID', 'PARTIAL', 'OVERDUE'] },
-        },
-        _sum: { amountDue: true },
-      }),
-      // 4. Cash to be collected from drivers (driver collected from customer, not yet handed over to owner)
-      this.prisma.delivery.findMany({
-        where: {
-          cashHandedOver: false,
-          cashCollected: { gt: 0 },
-          status: DeliveryStatus.DELIVERED,
-        },
-        include: {
-          driver: { select: { id: true, name: true, phone: true } },
-          invoice: {
-            select: { invoiceNo: true, party: { select: { name: true } } },
+      const [
+        revenueAgg,
+        todayInvoices,
+        totalInvoices,
+        upiAgg,
+        creditAgg,
+        driverCashDeliveries,
+        confirmedInflowsAgg,
+        confirmedOutflowsAgg,
+        refundAgg,
+        productCount,
+        partyCount,
+      ] = await Promise.all([
+        // 1. Total Revenue (excl cancelled/draft)
+        this.prisma.invoice.aggregate({
+          where: {
+            status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
           },
-        },
-      }),
-      // 5. Total Actual Transactions (Confirmed Inflow Payments)
-      this.prisma.payment.aggregate({
-        where: { status: PaymentStatus.CONFIRMED, type: PaymentType.INFLOW },
-        _sum: { amount: true },
-        _count: { id: true },
-      }),
-      // Confirmed Outflow Payments (Refunds / Payouts)
-      this.prisma.payment.aggregate({
-        where: { status: PaymentStatus.CONFIRMED, type: PaymentType.OUTFLOW },
-        _sum: { amount: true },
-      }),
-      // Total Refunds (Credit Notes)
-      this.prisma.refundInvoice.aggregate({
-        _sum: { total: true },
-      }),
-      // 6. Total Products & Total Parties
-      this.prisma.product.count(),
-      this.prisma.party.count(),
-    ]);
+          _sum: { total: true },
+        }),
+        // Today Invoices
+        this.prisma.invoice.count({
+          where: {
+            createdAt: { gte: today },
+            status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
+          },
+        }),
+        // Total Invoices
+        this.prisma.invoice.count({
+          where: {
+            status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
+          },
+        }),
+        // 2. Pending UPI
+        this.prisma.payment.aggregate({
+          where: { mode: PaymentMode.UPI, status: PaymentStatus.PENDING },
+          _sum: { amount: true },
+        }),
+        // 3. Outstanding Credit (RECEIVABLES ONLY)
+        this.prisma.creditLedger.aggregate({
+          where: {
+            type: CreditType.RECEIVABLE,
+            status: { in: ['UNPAID', 'PARTIAL', 'OVERDUE'] },
+          },
+          _sum: { amountDue: true },
+        }),
+        // 4. Cash to be collected from drivers (driver collected from customer, not yet handed over to owner)
+        this.prisma.delivery.findMany({
+          where: {
+            cashHandedOver: false,
+            cashCollected: { gt: 0 },
+            status: DeliveryStatus.DELIVERED,
+          },
+          include: {
+            driver: { select: { id: true, name: true, phone: true } },
+            invoice: {
+              select: { invoiceNo: true, party: { select: { name: true } } },
+            },
+          },
+        }),
+        // 5. Total Actual Transactions (Confirmed Inflow Payments)
+        this.prisma.payment.aggregate({
+          where: { status: PaymentStatus.CONFIRMED, type: PaymentType.INFLOW },
+          _sum: { amount: true },
+          _count: { id: true },
+        }),
+        // Confirmed Outflow Payments (Refunds / Payouts)
+        this.prisma.payment.aggregate({
+          where: { status: PaymentStatus.CONFIRMED, type: PaymentType.OUTFLOW },
+          _sum: { amount: true },
+        }),
+        // Total Refunds (Credit Notes)
+        this.prisma.refundInvoice.aggregate({
+          _sum: { total: true },
+        }),
+        // 6. Total Products & Total Parties
+        this.prisma.product.count(),
+        this.prisma.party.count(),
+      ]);
 
-    const totalRevenue = Math.max(
-      0,
-      Number(revenueAgg._sum.total || 0) - Number(refundAgg._sum.total || 0),
-    );
-    const pendingUpi = Number(upiAgg._sum.amount || 0);
-    const outstandingCredit = Number(creditAgg._sum.amountDue || 0);
-    const cashToBeCollectedFromDrivers = driverCashDeliveries.reduce(
-      (sum, d) => sum + Number(d.cashCollected || 0),
-      0,
-    );
-    const actualTransactionsTotal = Math.max(
-      0,
-      Number(confirmedInflowsAgg._sum.amount || 0) -
-        Number(confirmedOutflowsAgg._sum.amount || 0),
-    );
-    const actualTransactionsCount = confirmedInflowsAgg._count.id;
+      const totalRevenue = Math.max(
+        0,
+        Number(revenueAgg._sum.total || 0) - Number(refundAgg._sum.total || 0),
+      );
+      const pendingUpi = Number(upiAgg._sum.amount || 0);
+      const outstandingCredit = Number(creditAgg._sum.amountDue || 0);
+      const cashToBeCollectedFromDrivers = driverCashDeliveries.reduce(
+        (sum, d) => sum + Number(d.cashCollected || 0),
+        0,
+      );
+      const actualTransactionsTotal = Math.max(
+        0,
+        Number(confirmedInflowsAgg._sum.amount || 0) -
+          Number(confirmedOutflowsAgg._sum.amount || 0),
+      );
+      const actualTransactionsCount = confirmedInflowsAgg._count.id;
 
-    return {
-      totalRevenue,
-      todayInvoices,
-      totalInvoices,
-      pendingUpi,
-      outstandingCredit,
-      cashToBeCollectedFromDrivers,
-      pendingDriverDeliveries: driverCashDeliveries.map((d) => ({
-        id: d.id,
-        invoiceNo: d.invoice.invoiceNo,
-        partyName: d.invoice.party.name,
-        driverName: d.driver?.name || 'Driver',
-        amount: Number(d.cashCollected || 0),
-        cashCollectedAt: d.cashCollectedAt,
-      })),
-      actualTransactionsTotal,
-      actualTransactionsCount,
-      productCount,
-      partyCount,
-    };
+      return {
+        totalRevenue,
+        todayInvoices,
+        totalInvoices,
+        pendingUpi,
+        outstandingCredit,
+        cashToBeCollectedFromDrivers,
+        pendingDriverDeliveries: driverCashDeliveries.map((d) => ({
+          id: d.id,
+          invoiceNo: d.invoice.invoiceNo,
+          partyName: d.invoice.party.name,
+          driverName: d.driver?.name || 'Driver',
+          amount: Number(d.cashCollected || 0),
+          cashCollectedAt: d.cashCollectedAt,
+        })),
+        actualTransactionsTotal,
+        actualTransactionsCount,
+        productCount,
+        partyCount,
+      };
+    });
   }
 
   async getRecentTransactions(limit = 15) {
@@ -320,14 +327,17 @@ export class AnalyticsService {
     query: { from?: string; to?: string; preset?: string },
     user?: { id: string; role: Role },
   ) {
-    const isSalesman = user?.role === Role.SALESMAN;
-    const salesmanId = user?.id;
-    const salesmanScope = isSalesman && salesmanId ? { salesmanId } : undefined;
+    const cacheKey = `analytics:dashboard:${user?.id || 'ALL'}:${JSON.stringify(query || {})}`;
+    // Executive dashboard cache: 30 minutes (1800 seconds)
+    return this.cacheService.wrap(cacheKey, 1800, async () => {
+      const isSalesman = user?.role === Role.SALESMAN;
+      const salesmanId = user?.id;
+      const salesmanScope = isSalesman && salesmanId ? { salesmanId } : undefined;
 
-    const now = new Date();
-    let startDate: Date | undefined;
-    let endDate: Date | undefined;
-    const preset = query.preset || (query.from ? 'custom' : 'all');
+      const now = new Date();
+      let startDate: Date | undefined;
+      let endDate: Date | undefined;
+      const preset = query.preset || (query.from ? 'custom' : 'all');
 
     if (preset === 'today') {
       startDate = new Date(
@@ -625,6 +635,7 @@ export class AnalyticsService {
             : {}),
         },
         select: { mode: true, amount: true, invoiceId: true },
+        take: 500,
       }),
       // Category split via SQL GROUP BY (Zero full table scan)
       this.prisma.$queryRaw<Array<{ name: string; value: number }>>`
@@ -970,14 +981,17 @@ export class AnalyticsService {
         createdAt: inv.createdAt,
       })),
     };
+    });
   }
 
   async getDayBook(dateStr?: string) {
-    const targetDate = dateStr ? new Date(dateStr) : new Date();
-    const startOfDay = new Date(targetDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(targetDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    // Day Book cache: 30 minutes (1800 seconds)
+    return this.cacheService.wrap(`analytics:day-book:${dateStr || 'today'}`, 1800, async () => {
+      const targetDate = dateStr ? new Date(dateStr) : new Date();
+      const startOfDay = new Date(targetDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(targetDate);
+      endOfDay.setHours(23, 59, 59, 999);
 
     // 1. Calculate opening cash in hand before this day
     const [prevCashIn, prevCashOut, prevExpenses] = await Promise.all([
@@ -1146,6 +1160,7 @@ export class AnalyticsService {
         })),
       },
     };
+    });
   }
 
   async getGstReports(month?: number, year?: number) {

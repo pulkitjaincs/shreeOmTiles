@@ -7,10 +7,20 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CreateExpenseDto, UpdateExpenseDto } from './dto/create-expense.dto';
 import { ExpenseCategory, Prisma } from '@prisma/client';
 import { PaginationParams } from '../common/interfaces/pagination.interface';
+import { CacheService } from '../common/cache.service';
 
 @Injectable()
 export class ExpensesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cacheService: CacheService,
+  ) {}
+
+  private invalidateExpenseCaches(): void {
+    this.cacheService.invalidatePrefix('expenses:');
+    this.cacheService.invalidatePrefix('analytics:');
+    this.cacheService.invalidatePrefix('payments:');
+  }
 
   private getFinancialYear(date: Date = new Date()): string {
     const year = date.getFullYear();
@@ -26,7 +36,7 @@ export class ExpensesService {
     const expDate = data.expenseDate ? new Date(data.expenseDate) : new Date();
     const fy = this.getFinancialYear(expDate);
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       if (data.splits && data.splits.length > 0) {
         const splits = data.splits.filter((s) => Number(s.amount) > 0);
         if (splits.length > 1) {
@@ -101,6 +111,8 @@ export class ExpensesService {
         },
       });
     });
+    this.invalidateExpenseCaches();
+    return result;
   }
 
   async findAll(
@@ -112,69 +124,72 @@ export class ExpensesService {
       search?: string;
     },
   ) {
-    const where: Prisma.ExpenseWhereInput = {};
+    const cacheKey = `expenses:list:${filters?.category || 'all'}:${filters?.startDate || ''}:${filters?.endDate || ''}:${filters?.search || ''}:${pagination?.page || 1}:${pagination?.limit || 'all'}`;
+    return this.cacheService.wrap(cacheKey, 1800, async () => {
+      const where: Prisma.ExpenseWhereInput = {};
 
-    if (filters?.category) {
-      where.category = filters.category;
-    }
-
-    if (filters?.startDate || filters?.endDate) {
-      where.expenseDate = {};
-      if (filters.startDate) {
-        where.expenseDate.gte = new Date(filters.startDate);
+      if (filters?.category) {
+        where.category = filters.category;
       }
-      if (filters.endDate) {
-        where.expenseDate.lte = new Date(filters.endDate);
+
+      if (filters?.startDate || filters?.endDate) {
+        where.expenseDate = {};
+        if (filters.startDate) {
+          where.expenseDate.gte = new Date(filters.startDate);
+        }
+        if (filters.endDate) {
+          where.expenseDate.lte = new Date(filters.endDate);
+        }
       }
-    }
 
-    if (filters?.search) {
-      where.OR = [
-        { expenseNo: { contains: filters.search, mode: 'insensitive' } },
-        { paidTo: { contains: filters.search, mode: 'insensitive' } },
-        { notes: { contains: filters.search, mode: 'insensitive' } },
-      ];
-    }
+      if (filters?.search) {
+        where.OR = [
+          { expenseNo: { contains: filters.search, mode: 'insensitive' } },
+          { paidTo: { contains: filters.search, mode: 'insensitive' } },
+          { notes: { contains: filters.search, mode: 'insensitive' } },
+        ];
+      }
 
-    const includeRelations = {
-      createdBy: { select: { id: true, name: true, phone: true } },
-    };
-
-    if (pagination?.page !== undefined || pagination?.limit !== undefined) {
-      const page = Math.max(1, pagination?.page || 1);
-      const limit = Math.min(Math.max(1, pagination?.limit || 25), 100);
-      const skip = (page - 1) * limit;
-
-      const [data, total, totalAmountAgg] = await Promise.all([
-        this.prisma.expense.findMany({
-          where,
-          include: includeRelations,
-          orderBy: { expenseDate: 'desc' },
-          skip,
-          take: limit,
-        }),
-        this.prisma.expense.count({ where }),
-        this.prisma.expense.aggregate({
-          where,
-          _sum: { amount: true },
-        }),
-      ]);
-
-      return {
-        data,
-        total,
-        totalAmount: Number(totalAmountAgg._sum.amount || 0),
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
+      const includeRelations = {
+        createdBy: { select: { id: true, name: true, phone: true } },
       };
-    }
 
-    return this.prisma.expense.findMany({
-      where,
-      include: includeRelations,
-      orderBy: { expenseDate: 'desc' },
-      take: 100,
+      if (pagination?.page !== undefined || pagination?.limit !== undefined) {
+        const page = Math.max(1, pagination?.page || 1);
+        const limit = Math.min(Math.max(1, pagination?.limit || 25), 100);
+        const skip = (page - 1) * limit;
+
+        const [data, total, totalAmountAgg] = await Promise.all([
+          this.prisma.expense.findMany({
+            where,
+            include: includeRelations,
+            orderBy: { expenseDate: 'desc' },
+            skip,
+            take: limit,
+          }),
+          this.prisma.expense.count({ where }),
+          this.prisma.expense.aggregate({
+            where,
+            _sum: { amount: true },
+          }),
+        ]);
+
+        return {
+          data,
+          total,
+          totalAmount: Number(totalAmountAgg._sum.amount || 0),
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        };
+      }
+
+      return this.prisma.expense.findMany({
+        where,
+        include: includeRelations,
+        orderBy: { expenseDate: 'desc' },
+        take: 100,
+      });
     });
   }
 
@@ -206,7 +221,7 @@ export class ExpensesService {
       : existing.expenseDate;
     const title = data.title?.trim();
     const notes = data.notes?.trim();
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.expense.update({
         where: { id },
         data: {
@@ -236,6 +251,8 @@ export class ExpensesService {
       });
       return updated;
     });
+    this.invalidateExpenseCaches();
+    return updated;
   }
 
   async delete(id: string, userId: string) {
@@ -243,7 +260,7 @@ export class ExpensesService {
     if (!existing)
       throw new NotFoundException(`Expense with ID ${id} not found`);
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       await tx.expense.delete({ where: { id } });
       await tx.auditLog.create({
         data: {
@@ -260,5 +277,7 @@ export class ExpensesService {
       });
       return { success: true, message: `Expense deleted successfully` };
     });
+    this.invalidateExpenseCaches();
+    return result;
   }
 }
