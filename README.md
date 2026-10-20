@@ -125,19 +125,22 @@ dhraERP/
 
 ### 1. Tile Inventory & Multi-Warehouse Operations
 - Engineered specifically for tile wholesaling where products are stored and counted in **Boxes**, but quoted, billed, and measured in **Square Feet** (`sq. ft.`).
+- **Unified Catalog Stock**: Clean front-line billing and purchasing with automated default warehouse stock allocation, eliminating tedious manual batch number inputs and warehouse picking during counter operations.
 - Real-time stock visibility broken down by individual warehouses and showrooms.
 - Stock adjustments, inward stock receipting, and inter-godown transfers with automatic inventory integrity validation.
-- Live decrementation on invoice generation, with automated restock on sales returns and invoice deletions.
+- Live decrementation on invoice generation, with automated restock on sales returns, invoice edits, and invoice deletions.
 
 ### 2. Inward Procurement & Vendor Purchases (`/purchases`)
 - Complete vendor purchasing pipeline with sequential bill numbering (`PUR-2627-0001`).
 - Automatic inventory addition directly into targeted warehouses.
 - Issuance of **Debit Notes** (`DN-2627-0001`) for damaged or returned goods with automatic supplier ledger adjustment.
+- **Full Lifecycle Editing & Safe Deletion**: Modify supplier bills (`PATCH /purchases/:id`) with automatic inward stock and ledger reconciliation; safely delete purchases (`DELETE /purchases/:id`, Owner/Admin only) with atomic inventory reversal.
 
 ### 3. Price Estimates & Quotations (`/quotations`)
 - Generate formal quotations (`EST-2627-0001`) with expiration dates, line discounts, transport charges, and taxes.
 - Download branded estimate PDFs or share directly on WhatsApp.
 - **1-Click Convert to Invoice**: Seamlessly promotes quotes to active tax invoices without re-typing line items.
+- **Quotation Editing & Deletion**: Update line items, terms, and discounts (`PATCH /quotations/:id`) or delete obsolete/expired estimates (`DELETE /quotations/:id`, Owner/Admin only).
 
 ### 4. Daily Till Book / Day Book (`/analytics/day-book`)
 - Real-time counter cash till reconciliation:
@@ -147,24 +150,25 @@ dhraERP/
   - **Digital Inflows** (tracked separately for UPI & Bank Transfers).
   - **Net Daily Cash Flow** and verified **Closing Till Balance**.
 - Historical calendar date navigation to inspect any day's financial activity.
+- Automatic live recalculation upon payment or expense creation, editing, or deletion.
 
-### 5. Automated GST Analytics (`/analytics/gst-reports`)
+### 5. Categorized Business Expenses (`/expenses`)
+- Track operational overheads across standardized categories (fuel, hamali, rent, utilities, advances, refreshments, maintenance, marketing).
+- Support for Cash and Digital (UPI/Bank) payment modes with direct Day Book till reconciliation.
+- **Expense Editing & Safe Deletion**: Edit expense records (`PATCH /expenses/:id`) or safely delete entries (`DELETE /expenses/:id`, Owner/Admin only) with immediate till balance readjustment.
+
+### 6. Automated GST Analytics (`/analytics/gst-reports`)
 - **GSTR-1**: Automatic separation of sales into B2B (with party GSTIN) and B2C, complete with taxable amounts and CGST/SGST/IGST breakdown.
 - **GSTR-3B**: Calculation of outward taxable supplies, inward purchases with Input Tax Credit (ITC) eligibility, and net tax payable.
 
-### 6. Warehouse Supervisor Cockpit & Loading Verification
+### 7. Warehouse Supervisor Cockpit & Loading Verification
 - Dedicated godown supervisor views on Web and Mobile scoped to the supervisor's assigned warehouse.
 - **Strict Price Masking**: Tile purchase rates, selling prices, and invoice profit margins are hidden from supervisors.
 - **Loading Checklist**: Drivers cannot pick up items on their own; godown supervisors inspect items and tap **Confirm Pick**, permanently locking the verification with an immutable supervisor timestamp.
 
-### 7. Unpriced Delivery Challans (`/delivery/:id/challan-pdf`)
+### 8. Unpriced Delivery Challans (`/delivery/:id/challan-pdf`)
 - Generates official delivery challans designed for transport drivers and warehouse dispatchers.
 - Highlights items, packaging units, vehicle numbers, and signature blocks while omitting commercial pricing details.
-
-### 8. Safe Transactional Invoice Deletion (`DELETE /invoices/:id`)
-- Restricted strictly to `OWNER` and `ADMIN`.
-- Atomically restores deducted inventory with row-level locking (`SELECT ... FOR UPDATE`).
-- Cascades cleanup across delivery runs, trips, payments, and credit ledgers in a single ACID transaction with audit logging.
 
 ### 9. Upfront NPCI Dynamic UPI QR Engine
 - Generates dynamic payment QR codes conforming strictly to National Payments Corporation of India (NPCI) standards:  
@@ -181,15 +185,28 @@ dhraERP/
 - Seamlessly edit existing sales bills while preserving invoice numbering and chronological integrity.
 - **Stock Reversion & Re-Allocation**: Automatically restocks originally billed quantities back to warehouse inventories before verifying and locking new item allocations using row-level locks (`SELECT ... FOR UPDATE`).
 - **Synchronized Ledgers & Payments**: Automatically recalculates balances, adjusts party ledger statements, updates existing payment receipts, and logs the complete modification to `AuditLog`.
-- Direct 1-click **Edit Bill** access from within the Invoice Details drawer on both Web and Mobile.
+- **Salesman Scoping**: Salesmen can edit only invoices created by themselves; Admin and Owner have unrestricted editing access.
 
-### 12. Cash Sale (Counter Pickup) & Per-Bill Custom Addresses
+### 12. Safe Transactional Deletion Engine (`DELETE`)
+- Restricted strictly to `OWNER` and `ADMIN`.
+- **Invoices**: Restores deducted inventory with row-level locks (`SELECT ... FOR UPDATE`), cleans up associated delivery runs, trips, payments, and credit ledgers in a single ACID transaction with audit logging.
+- **Purchases**: Safely decrements inward stock and removes associated credit ledger entries.
+- **Quotations**: Removes obsolete estimates cleanly without affecting inventory.
+- **Expenses**: Safely removes overhead records and readjusts the Day Book cash balance.
+- **Payments / Collections**: Reverts customer ledger credits or supplier debit entries atomically.
+
+### 13. Cash Collections & Payments Lifecycle (`/payments`)
+- Full payment collection management with support for `CASH`, `UPI`, `CREDIT`, and `BANK_TRANSFER`.
+- **Editing & Deletion**: Edit collected receipts (`PATCH /payments/:id`) with party balance resynchronization; delete receipts (`DELETE /payments/:id`, Owner/Admin only).
+- **Salesman Scoping**: Salesmen can view and edit only payments collected by themselves; outflow disbursements are restricted to Owner, Admin, and Accountant.
+
+### 14. Cash Sale (Counter Pickup) & Per-Bill Custom Addresses
 - **Cash Sale Workflow**: Rapid counter billing for walk-in customers with optional customer name and phone, automatically tagged as counter pickup.
 - **Delivery Queue Exclusion**: Counter cash sales are automatically excluded from the pending logistics delivery queue, preventing dispatch clutter.
 - **Per-Bill Custom Site Address**: Invoices can capture a custom delivery/site address (`Invoice.address`) overriding default party master addresses for direct on-site drops, rendered accurately on both Tax Invoices and Delivery Challans.
 - **Customer Balance Context**: Real-time display of previous outstanding balances during invoice creation and embedded breakdown on printed invoices.
 
-### 13. Overhauled Logistics Dispatch & Counter Pickup Processing
+### 15. Overhauled Logistics Dispatch & Counter Pickup Processing
 - Unified dispatch modal supporting two distinct workflows:
   - **Driver Dispatch**: Assign vehicles, drivers, and selective line-item quantities with unpriced delivery challan generation.
   - **Counter Pickup**: Instant checklist for walk-in or customer vehicle collections without requiring driver assignment.
@@ -226,18 +243,27 @@ The system enforces strict permission boundaries at the NestJS API layer (`@Role
 | **Company Settings & UPI Accounts** | ✅ Full Access | ❌ Hidden | ❌ Hidden | ❌ Hidden | ❌ Hidden | ❌ Hidden |
 | **Staff & User Role Directory** | ✅ Full Access | ❌ Hidden | ❌ Hidden | ❌ Hidden | ❌ Hidden | ❌ Hidden |
 | **Inward Purchases & Debit Notes** | ✅ Full Access | ✅ Full Access | ✅ Full Access | 👁️ View Only | ❌ Hidden | ❌ Hidden |
+| **Edit Purchases & Stock Recalculation** | ✅ Full Access | ✅ Full Access | ✅ Full Access | ❌ Hidden | ❌ Hidden | ❌ Hidden |
+| **Safe Purchase Deletion & Reversal** | ✅ Full Access | ✅ Full Access | ❌ Hidden | ❌ Hidden | ❌ Hidden | ❌ Hidden |
 | **Price Estimates & Quotations** | ✅ Full Access | ✅ Full Access | ✅ Full Access | ❌ Hidden | ✅ Create / Convert | ❌ Hidden |
+| **Edit Quotations & Estimates** | ✅ Full Access | ✅ Full Access | ✅ Full Access | ❌ Hidden | ❌ Hidden | ❌ Hidden |
+| **Delete Quotations** | ✅ Full Access | ✅ Full Access | ❌ Hidden | ❌ Hidden | ❌ Hidden | ❌ Hidden |
 | **Business Expenses Logging** | ✅ Full Access | ✅ Full Access | ✅ Full Access | ❌ Hidden | ❌ Hidden | ❌ Hidden |
+| **Edit Expenses & Till Recalculation** | ✅ Full Access | ✅ Full Access | ✅ Full Access | ❌ Hidden | ❌ Hidden | ❌ Hidden |
+| **Delete Expenses** | ✅ Full Access | ✅ Full Access | ❌ Hidden | ❌ Hidden | ❌ Hidden | ❌ Hidden |
 | **Party Directory & Statements** | ✅ Full Access | ✅ Full Access | ✅ Full Access | ❌ Hidden | ✅ View / Create | ❌ Hidden |
 | **Create Invoices & Upfront UPI QR** | ✅ Full Access | ✅ Full Access | ✅ Full Access | ❌ Hidden | ✅ Full Access | ❌ Hidden |
-| **Edit Invoices & Stock Reallocation** | ✅ Full Access | ✅ Full Access | ✅ Full Access | ❌ Hidden | ✅ Full Access | ❌ Hidden |
+| **Edit Invoices & Stock Reallocation** | ✅ Full Access | ✅ Full Access | ✅ Full Access | ❌ Hidden | 🔒 Own Bills Only | ❌ Hidden |
 | **Safe Invoice Deletion & Restock** | ✅ Full Access | ✅ Full Access | ❌ Hidden | ❌ Hidden | ❌ Hidden | ❌ Hidden |
 | **Process Returns / Credit Notes** | ✅ Full Access | ✅ Full Access | ✅ Full Access | ❌ Hidden | ✅ Full Access | ❌ Hidden |
+| **Edit / Delete Sales Returns** | ✅ Full Access | ✅ Full Access | 🔒 Edit Only | ❌ Hidden | 🔒 Own Bills Only | ❌ Hidden |
+| **Collect Payments & Receipts** | ✅ Full Access | ✅ Full Access | ✅ Full Access | ❌ Hidden | 🔒 Inflows Only | ✅ Cash & UPI |
+| **Edit Payments & Balance Sync** | ✅ Full Access | ✅ Full Access | ✅ Full Access | ❌ Hidden | 🔒 Own Receipts Only | ❌ Hidden |
+| **Delete Payments** | ✅ Full Access | ✅ Full Access | ❌ Hidden | ❌ Hidden | ❌ Hidden | ❌ Hidden |
 | **Warehouse Stock Management** | ✅ All Godowns | ✅ All Godowns | 👁️ View Only | 🔒 Scoped Godown | 👁️ View Only | ❌ Hidden |
 | **Warehouse Item Pickup Check** | ✅ Full Access | ✅ Full Access | ❌ Hidden | 🔒 Scoped Godown | ❌ Hidden | ❌ Locked |
 | **Delivery Challan PDF Download** | ✅ Full Access | ✅ Full Access | ✅ Full Access | ✅ Full Access | ✅ Full Access | ✅ Full Access |
 | **Trip Manifest & Status Updates** | ✅ Full Access | ✅ Full Access | 👁️ View Only | 👁️ View Only | ❌ Hidden | ✅ Dedicated View |
-| **On-Site Payment Collection** | ✅ Full Access | ✅ Full Access | ❌ Hidden | ❌ Hidden | ✅ Full Access | ✅ Cash & UPI |
 | **Driver Cash Settlement Approval** | ✅ Full Approval | ✅ Full Approval | ❌ Hidden | ❌ Hidden | ❌ Hidden | ❌ Hidden |
 
 ---

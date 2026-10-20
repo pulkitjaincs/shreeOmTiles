@@ -119,15 +119,19 @@ Role-based access is enforced via the custom `@Roles(...)` decorator and `RolesG
 - Manage vendor purchase orders with sequential numbering (`PUR-2627-0001`).
 - Multi-warehouse stock allocation automatically increments product inventory upon purchase creation.
 - Record Debit Notes (`DN-2627-0001`) against purchases for supplier returns or rate adjustments, automatically updating supplier balances.
+- **Transactional Purchase Editing (`PATCH /purchases/:id`)**: Authorized staff (`OWNER`, `ADMIN`, `ACCOUNTANT`) can edit purchase details, recalculating quantity differences (+ or -) against warehouse inventory and resynchronizing supplier credit ledgers.
+- **Safe Purchase Deletion (`DELETE /purchases/:id`)**: Strictly restricted to `OWNER` and `ADMIN`. Atomically decrements inward stock received from the purchase and deletes associated supplier ledger entries within a single ACID transaction.
 
 ### 2. Price Estimates & Quotations (`/quotations`)
 - Generate formal quotations (`EST-2627-0001`) with expiration dates, item discounts, transport costs, and GST breakdowns.
 - 1-click **Convert to Invoice** (`POST /quotations/:id/convert-to-invoice`) creates an active tax invoice and seamlessly transitions stock allocations without re-entering data.
 - Generates clean, branded Estimate PDFs for customer delivery.
+- **Quotation Editing & Deletion (`PATCH /quotations/:id`, `DELETE /quotations/:id`)**: Modify estimate line items, terms, or delete obsolete quotes (`DELETE` restricted to `OWNER` and `ADMIN`).
 
 ### 3. Business Expenses Tracker (`/expenses`)
-- Record daily cash and digital overheads across categorized buckets.
+- Record daily cash and digital overheads across categorized buckets (`FUEL_TRANSPORT`, `LABOUR_HAMALI`, `RENT_GODOWN`, `ELECTRICITY_UTILITIES`, `SALARY_ADVANCE`, `PANTRY_REFRESHMENTS`, `MAINTENANCE_REPAIRS`, `MARKETING_SAMPLE`, `OTHER`).
 - Directly reconciled against the daily cash counter inside the Day Book.
+- **Expense Editing & Safe Deletion (`PATCH /expenses/:id`, `DELETE /expenses/:id`)**: Modify amounts, categories, or payment modes (`PATCH`) or safely delete records (`DELETE` restricted to `OWNER` and `ADMIN`). Both actions immediately recalculate the Day Book net till balance.
 
 ### 4. Daily Till Book / Day Book (`/analytics/day-book`)
 - Real-time daily cash reconciliation:
@@ -137,6 +141,7 @@ Role-based access is enforced via the custom `@Roles(...)` decorator and `RolesG
   - **Digital Inflows** (UPI and Bank Transfers tracked separately).
   - **Net Cash Flow** and verified **Closing Till Balance**.
 - Itemized chronological stream of all transactions for any chosen calendar date.
+- Real-time dynamic updates on every invoice, payment, expense, or purchase creation, modification, or deletion.
 
 ### 5. Automated GST Analytics (`/analytics/gst-reports`)
 - **GSTR-1**: Automatic categorization of sales into B2B (with buyer GSTIN) and B2C, complete with taxable values and CGST/SGST/IGST breakdown.
@@ -152,9 +157,21 @@ Role-based access is enforced via the custom `@Roles(...)` decorator and `RolesG
 - Allows authorized staff (`OWNER`, `ADMIN`, `SALESMAN`, `ACCOUNTANT`) to modify existing invoices while preserving the original invoice sequence number (`INV-2627-XXXX`).
 - **Two-Phase Inventory Sync**: Reverts previously deducted stock back to source warehouses, verifies stock sufficiency for updated quantities, and deducts updated items with row-level pessimistic locks (`SELECT ... FOR UPDATE`).
 - **Payment & Ledger Synchronicity**: Automatically recalculates subtotals, GST breakdown, transport charges, and round-offs. Adjusts outstanding customer ledger dues and updates linked payment records.
+- **Salesman Scoping Security**: Salesmen can edit **only** invoices created by themselves (`createdById === req.user.id`). Modifications to other staff members' invoices are blocked with `ForbiddenException`.
 - **Auditing**: Records an immutable audit log entry detailing who made the modification, the invoice number, and previous values.
 
-### 8. Cash Sale (Counter Pickup) & Logistics Separation
+### 8. Sales Return & Credit Note Lifecycle (`/invoices/refund/:refundId`)
+- Issue credit notes against existing invoices or standalone returns (`POST /invoices/:id/return`, `POST /invoices/returns/standalone`).
+- **Return Editing (`PATCH /invoices/refund/:refundId`)**: Adjust return quantities with dynamic inventory restock reconciliation. Scoped to creator for salesmen.
+- **Return Deletion (`DELETE /invoices/refund/:refundId`)**: Restricted to `OWNER` and `ADMIN`. Reverts restocked inventory and clears customer credit note balances safely.
+
+### 9. Payments & Cash Collections Lifecycle (`/payments`)
+- Record customer payments and supplier debt settlements across `CASH`, `UPI`, `CREDIT`, and `BANK_TRANSFER`.
+- **Payment Editing (`PATCH /payments/:id`)**: Edit collected amount, mode, or notes. Recomputes party running balances and Day Book till entries automatically.
+- **Payment Deletion (`DELETE /payments/:id`)**: Restricted to `OWNER` and `ADMIN`. Safely reverts ledger credits.
+- **Salesman Scoping Security**: Salesmen can only collect payments for their own invoices and can edit only payment receipts they confirmed (`confirmedById === req.user.id`). Outflow disbursements are forbidden for salesmen.
+
+### 10. Cash Sale (Counter Pickup) & Logistics Separation
 - B2C walk-in sales flagged with `isCashSale: true` capture optional customer name and phone without mandatory master ledger creation.
 - **Logistics Segregation**: Cash sales are automatically excluded from the pending delivery dispatch manifest queue (`/delivery`), preventing counter pickups from polluting the transport dispatch board.
 - **Per-Bill Custom Delivery Address**: Supports custom site/shipping address (`Invoice.address`) on both regular party bills and counter sales, rendering dynamically on PDFs and dispatch challans.
@@ -242,10 +259,13 @@ Built with `pdf-lib` for pixel-perfect, vector-sharp PDF generation:
 | `GET` | `/invoices` | List invoices with status, date, and party filters | Any Authenticated |
 | `POST` | `/invoices` | Create invoice, deduct stock, generate upfront UPI QR | OWNER, ADMIN, SALESMAN, ACCOUNTANT |
 | `GET` | `/invoices/:id` | Fetch complete invoice details (price-masked for supervisors) | Any Authenticated |
-| `PUT` | `/invoices/:id` | Full transactional update of existing invoice & inventory reallocation | OWNER, ADMIN, SALESMAN, ACCOUNTANT |
-| `PATCH` | `/invoices/:id` | Partial update / modification of invoice | OWNER, ADMIN, SALESMAN, ACCOUNTANT |
+| `PUT` | `/invoices/:id` | Full transactional update of existing invoice & inventory reallocation | OWNER, ADMIN, ACCOUNTANT, SALESMAN (own only) |
+| `PATCH` | `/invoices/:id` | Partial update / modification of invoice | OWNER, ADMIN, ACCOUNTANT, SALESMAN (own only) |
 | `GET` | `/invoices/:id/pdf` | Stream generated binary PDF tax invoice (blocked for supervisors) | OWNER, ADMIN, SALESMAN, ACCOUNTANT |
-| `POST` | `/invoices/:id/return` | Process full/partial sales return and restock items | OWNER, ADMIN, SALESMAN |
+| `POST` | `/invoices/:id/return` | Process full/partial sales return and restock items | OWNER, ADMIN, SALESMAN, ACCOUNTANT |
+| `PATCH` | `/invoices/refund/:refundId` | Update sales return quantities and re-adjust stock | OWNER, ADMIN, ACCOUNTANT, SALESMAN (own only) |
+| `DELETE` | `/invoices/refund/:refundId` | Atomically delete sales return and revert stock restock | OWNER, ADMIN |
+| `POST` | `/invoices/returns/standalone` | Create standalone credit note return | OWNER, ADMIN, SALESMAN, ACCOUNTANT |
 | `DELETE` | `/invoices/:id` | Atomically delete invoice, restore stock, and clean ledger | OWNER, ADMIN |
 
 ### 4. Price Estimates & Quotations (`/quotations`)
@@ -254,8 +274,10 @@ Built with `pdf-lib` for pixel-perfect, vector-sharp PDF generation:
 | `POST` | `/quotations` | Create a new formal price estimate | OWNER, ADMIN, SALESMAN, ACCOUNTANT |
 | `GET` | `/quotations` | List quotations with search and pagination | OWNER, ADMIN, SALESMAN, ACCOUNTANT |
 | `GET` | `/quotations/:id` | Retrieve quotation details and line items | OWNER, ADMIN, SALESMAN, ACCOUNTANT |
+| `PATCH` | `/quotations/:id` | Update quotation lines, terms, discounts, and charges | OWNER, ADMIN, ACCOUNTANT |
 | `GET` | `/quotations/:id/pdf` | Stream downloadable quotation / estimate PDF | OWNER, ADMIN, SALESMAN, ACCOUNTANT |
 | `POST` | `/quotations/:id/convert-to-invoice` | Convert estimate directly into a live tax invoice | OWNER, ADMIN, SALESMAN, ACCOUNTANT |
+| `DELETE` | `/quotations/:id` | Safely delete obsolete or expired quotation | OWNER, ADMIN |
 
 ### 5. Procurement & Purchases (`/purchases`)
 | Method | Endpoint | Description | Role Required |
@@ -263,7 +285,9 @@ Built with `pdf-lib` for pixel-perfect, vector-sharp PDF generation:
 | `POST` | `/purchases` | Create vendor purchase bill and increment warehouse stock | OWNER, ADMIN, ACCOUNTANT |
 | `GET` | `/purchases` | List purchases with supplier and pagination filters | OWNER, ADMIN, ACCOUNTANT, SUPERVISOR |
 | `GET` | `/purchases/:id` | Fetch purchase details (price-masked for supervisors) | OWNER, ADMIN, ACCOUNTANT, SUPERVISOR |
+| `PATCH` | `/purchases/:id` | Update purchase items, recalculating inward inventory & ledger | OWNER, ADMIN, ACCOUNTANT |
 | `POST` | `/purchases/:id/debit-note` | Issue debit note against purchase for goods returned | OWNER, ADMIN, ACCOUNTANT |
+| `DELETE` | `/purchases/:id` | Atomically delete purchase, revert inward stock, clean ledger | OWNER, ADMIN |
 
 ### 6. Business Expenses (`/expenses`)
 | Method | Endpoint | Description | Role Required |
@@ -271,6 +295,8 @@ Built with `pdf-lib` for pixel-perfect, vector-sharp PDF generation:
 | `POST` | `/expenses` | Log business overhead expense with category and payment mode | OWNER, ADMIN, ACCOUNTANT |
 | `GET` | `/expenses` | List expenses with category and date-range filters | OWNER, ADMIN, ACCOUNTANT |
 | `GET` | `/expenses/:id` | Retrieve single expense record | OWNER, ADMIN, ACCOUNTANT |
+| `PATCH` | `/expenses/:id` | Update expense amount, category, or mode and recalculate Day Book | OWNER, ADMIN, ACCOUNTANT |
+| `DELETE` | `/expenses/:id` | Delete expense and adjust Day Book till balance | OWNER, ADMIN |
 
 ### 7. Logistics & Deliveries (`/delivery`)
 | Method | Endpoint | Description | Role Required |
@@ -326,9 +352,14 @@ Built with `pdf-lib` for pixel-perfect, vector-sharp PDF generation:
 ### 12. Payments & Settlements (`/payments`)
 | Method | Endpoint | Description | Role Required |
 |:---|:---|:---|:---|
-| `GET` | `/payments` | List all logged payments and settlements | OWNER, ADMIN, ACCOUNTANT |
-| `POST` | `/payments` | Record customer or vendor payment with reference # | OWNER, ADMIN, SALESMAN, ACCOUNTANT |
+| `GET` | `/payments` | List all logged payments and settlements | OWNER, ADMIN, ACCOUNTANT, SALESMAN |
+| `POST` | `/payments` | Record customer or vendor payment with reference # | OWNER, ADMIN, SALESMAN (inflow only), ACCOUNTANT |
+| `GET` | `/payments/stats` | Fetch aggregate payment statistics | OWNER, ADMIN, ACCOUNTANT, SALESMAN |
+| `GET` | `/payments/pending` | Fetch pending invoices / collections | OWNER, ADMIN, ACCOUNTANT, SALESMAN |
 | `GET` | `/payments/party/:partyId` | List transaction history for a specific party | Any Authenticated |
+| `PATCH` | `/payments/:id` | Edit payment receipt amount, mode, note with balance sync | OWNER, ADMIN, ACCOUNTANT, SALESMAN (own only) |
+| `DELETE` | `/payments/:id` | Safely delete payment receipt and revert ledger credit | OWNER, ADMIN |
+| `PATCH` | `/payments/:id/confirm`| Confirm unconfirmed pending payment | OWNER, ADMIN, ACCOUNTANT |
 
 ### 13. Company Settings & UPI Accounts (`/settings`)
 | Method | Endpoint | Description | Role Required |

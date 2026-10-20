@@ -24,14 +24,21 @@
 ## ✨ Key Features
 
 - **Full Parity with Web ERP**: Complete feature set matching the desktop web dashboard including counter billing, vendor procurement, quotations, inventory inward/transfer, payment collection, customer dues, and driver manifests.
-- **Dynamic Role-Adaptive Cockpits**: Home tab dynamically switches between specialized dashboards for `DIRECTOR`, `SALESMAN`, `DRIVER`, and `SUPERVISOR`.
+- **Dynamic Role-Adaptive Cockpits**: Home tab dynamically switches between specialized dashboards for `DIRECTOR` (Owner/Admin), `SALESMAN`, `DRIVER`, and `SUPERVISOR`.
 - **Integrated Transactions & Daily Till Book**: Merged cash drawer reconciliation and payment management into a unified Transactions tab (`src/app/(tabs)/transactions.tsx`) displaying opening till cash, cash in/out, expenses, digital collections, and verified closing cash with date-wise navigation.
-- **Price Estimates & Mobile Quotations**: Issue formal quotations on the go (`CreateQuotationModal.tsx`), multi-tile line items with box/sq. ft. calculations, download/share branded PDFs via WhatsApp, and convert quotes to active sales invoices with a single tap.
-- **Inward Purchases & Vendor Procurement**: Record incoming vendor bills on mobile (`CreatePurchaseModal.tsx`), assign destination warehouses, compute GST, and replenish inventory instantaneously.
+- **Price Estimates & Mobile Quotations**: Issue and edit formal quotations on the go (`CreateQuotationModal.tsx`), multi-tile line items with box/sq. ft. calculations, download/share branded PDFs via WhatsApp, safe deletion, and convert quotes to active sales invoices with a single tap.
+- **Inward Purchases & Vendor Procurement**: Record and edit incoming vendor bills on mobile (`CreatePurchaseModal.tsx`), assign destination warehouses without tedious batch numbers, compute GST, replenish inventory, and safely delete with automatic stock reversal.
+- **Categorized Business Expenses**: Record, edit, and safely delete operational overheads on mobile (`CreateExpenseModal.tsx`) across standardized categories with immediate Day Book till cash recalculation.
+- **Full Edit & Safe Deletion Lifecycle with Role Scoping**:
+  - **Invoices, Returns, and Payments/Collections**: Editable on mobile with inventory and ledger synchronicity. Salesmen can edit **only** their own records (`createdById`/`confirmedById`); Director/Admin have full edit authorization.
+  - **Purchases, Quotations, Expenses**: Editable only by Director/Admin and Accountant (hidden from salesmen).
+  - **Safe Deletion**: Deletion buttons across Invoices, Purchases, Quotations, Expenses, and Payments are strictly reserved for `DIRECTOR` and `ADMIN` with native confirmation alerts.
+- **Double-Submission Prevention**: All mobile action buttons and modals enforce submission locks (`if (submitting) return;`) preventing duplicate network requests.
+- **Unified Catalog Stock**: Clean front-line billing and purchasing with automated default warehouse stock allocation, eliminating manual batch number inputs and warehouse picking during counter operations.
 - **Warehouse Positive-Stock Filtering**: Displays only items with quantity > 0 in warehouse stock cards (`WarehouseCard.tsx`), omitting zero-quantity records for clean inventory auditing.
 - **Supervisor Loading Verification**: Dedicated godown supervisor cockpit with **price-masked inventory** to verify and lock loaded items before driver departure.
 - **Logistics Delivery Challans**: 1-tap download and sharing of unpriced official Delivery Challans for drivers and warehouse dispatchers.
-- **Streamlined Returns & Credit Ledgers**: Process sales returns with item-level restocking, auto-reflecting credits in party statement ledgers without obsolete duplicate return invoice PDFs.
+- **Streamlined Returns & Credit Ledgers**: Process and edit sales returns with item-level restocking, auto-reflecting credits in party statement ledgers without obsolete duplicate return invoice PDFs.
 - **Mobile Transactional Invoice Editing**: Edit bills directly from `InvoiceDetailsModal`, updating line items, quantities, discounts, transport charges, and delivery addresses with backend stock and ledger synchronization.
 - **Cash Sale Mode & Customer Balance Insight**: Rapid counter sales toggle for walk-ins without master party records, plus real-time customer balance badges during billing.
 - **Camera Invoice QR Scanner**: Built-in camera scanner (`InvoiceQrScannerModal.tsx`) to rapidly scan QR codes on printed invoices with manual number fallback.
@@ -172,15 +179,22 @@ The `More` and `Transactions` views provide comprehensive wholesale financial to
   - Live cash till drawer reconciliation displaying **Opening Cash**, **Cash Inflows**, **Cash Outflows**, **Daily Expenses**, and **Net Closing Cash**.
   - Digital collection stream (UPI & Bank Transfers) tracked independently.
   - Interactive calendar date toolbar to audit any historical day's till closing.
+  - **Payment Edits & Deletions**: Record new collections (`RecordSettlementModal.tsx`), edit receipts with instant ledger resync, or safely delete receipts (Director/Admin only). Salesmen are scoped strictly to their own confirmed receipts.
 - **Price Estimates & Quotations (`QuotationsView.tsx` & `CreateQuotationModal.tsx`)**:
   - Browse existing estimates, preview quotation details, download/share PDFs.
   - Tap **New Quotation** to open full-featured creation modal with customer selection, multi-item tile picker, square feet/box converters, custom GST rates, and transport charges.
+  - Edit existing estimates directly in `CreateQuotationModal` with pre-filled line items.
   - 1-click **Convert to Invoice** button to instantly promote estimates to active tax invoices.
+  - Delete obsolete quotations with native confirmation alert (Director/Admin only).
 - **Inward Procurement & Purchases (`PurchasesView.tsx` & `CreatePurchaseModal.tsx`)**:
   - Review purchase history, supplier bills, and debit notes.
-  - Tap **New Purchase** to record incoming supplier bills directly on mobile, selecting supplier party, target warehouse, line items, and immediate stock increment.
+  - Tap **New Purchase** to record incoming supplier bills directly on mobile, selecting supplier party, target warehouse, line items, and immediate stock increment without manual batch tracking.
+  - Edit existing purchases in `CreatePurchaseModal` with automatic inventory difference adjustment (+ or -) and supplier balance resynchronization.
+  - Safe purchase deletion reverting inward stock and wiping credit ledger entries (Director/Admin only).
 - **Business Expenses (`ExpensesView.tsx` & `CreateExpenseModal.tsx`)**:
   - Record operational overheads on the go with standardized categories (fuel, hamali, godown rent, utilities, salary advances) with cash vs digital tracking.
+  - Edit or delete overhead entries with direct, live Day Book till cash recalculation.
+- **Double-Submission Guard**: All mobile modal action triggers lock upon tap (`if (submitting) return;`) preventing double-invoicing or duplicate ledger entries on mobile network latency.
 
 ---
 

@@ -21,9 +21,15 @@
 - **Blazing Fast Turbopack Engine**: Instant Hot Module Replacement (HMR) and optimized compilation powered by Next.js 16.3.1 Turbopack.
 - **Dynamic Role-Based Cockpits**: Automatically adapts navigation and screens for `OWNER`, `ADMIN`, `ACCOUNTANT`, `SUPERVISOR`, `SALESMAN`, and `DRIVER`.
 - **Daily Till Book (Day Book)**: Real-time cash till reconciliation displaying opening cash, cash in/out, business expenses, digital payments (UPI/Bank), and closing balance with calendar date switching.
-- **Vendor Purchases & Inward Stock**: Record supplier invoices (`PUR-2627-0001`), calculate taxes and transport, automatically increment godown stock, and generate Debit Notes.
-- **Price Estimates & 1-Click Invoicing**: Create formal quotations (`EST-2627-0001`), preview/download branded estimate PDFs, and convert them to live tax invoices with a single click.
-- **Business Expenses Management**: Track daily overheads across standardized categories (fuel, hamali, rent, utilities, advances) with cash vs. digital breakdown.
+- **Vendor Purchases & Inward Stock**: Record supplier invoices (`PUR-2627-0001`), calculate taxes and transport, automatically increment godown stock, generate Debit Notes, and edit/delete purchases with stock and supplier ledger synchronization.
+- **Price Estimates & 1-Click Invoicing**: Create formal quotations (`EST-2627-0001`), edit terms and line items, preview/download branded estimate PDFs, delete obsolete quotes, and convert them to live tax invoices with a single click.
+- **Business Expenses Management**: Track daily overheads across standardized categories (fuel, hamali, rent, utilities, advances) with cash vs. digital breakdown, inline editing, and deletion with live till balance readjustment.
+- **Full Edit & Delete Lifecycle with Scoped Permissions**:
+  - **Invoices, Returns, Payments/Collections**: Full edit capabilities synchronized with stock, ledger, and Day Book. Salesmen can edit only their own records (`createdById`/`confirmedById`); Owner and Admin have unrestricted edit access.
+  - **Purchases, Quotations, Expenses**: Edit access granted to Owner, Admin, and Accountant (hidden from salesmen).
+  - **Transactional Deletion**: Deletion buttons across Invoices, Purchases, Quotations, Expenses, and Payments are strictly restricted to `OWNER` and `ADMIN`.
+- **Double-Submission Protection**: Client-side locks (`if (submitting) return;`) across all modal forms preventing accidental duplicate requests.
+- **Unified Catalog Stock**: Front-line billing and purchasing with automated default warehouse stock allocation, eliminating tedious manual batch number inputs and warehouse picking during counter operations.
 - **Warehouse Supervisor Cockpit**: Dedicated interface for godown supervisors with **price-masked inventory**, godown-scoped stock adjustments, and multi-warehouse loading verification.
 - **Delivery Challan & Dispatch System**: Stream unpriced official Delivery Challans for transport and drivers, with support for partial quantity dispatching.
 - **Safe Transactional Invoice Deletion**: Owner/Admin modal allowing verified invoice deletion with atomic row-level locked inventory restoration.
@@ -155,38 +161,50 @@ When a user logs in, the `/dashboard` home automatically mounts the designated c
 - Draft formal estimates with customer info, product lines, discounts, transport charges, and tax.
 - Generate and download vector PDF quotes on demand.
 - 1-click **Convert to Invoice** button instantly turns the quote into an active GST invoice, transferring line items automatically.
+- **Edit & Delete Workflows**: Modal supports editing line items and terms (`create-quotation-modal.tsx`), while Owner/Admin can delete obsolete quotes with confirmation.
 
 ### 3. Procurement & Inward Purchases (`components/purchases/`)
 - Record vendor bills with PO numbers, tax rates, and transport overheads.
-- Automatic inventory replenishment into selected warehouses.
+- Automatic inventory replenishment into selected warehouses without tedious batch numbers.
 - Generate **Debit Notes** directly against supplier bills with ledger balance deduction.
+- **Edit & Delete Workflows**: Edit inward quantities and supplier bills with automated stock difference adjustment and ledger resync; safe deletion (Owner/Admin) atomically decrements inward stock.
 
-### 4. Safe Invoice Deletion Modal (`components/invoices/delete-invoice-modal.tsx`)
+### 4. Categorized Business Expenses (`components/expenses/`)
+- Log daily operational overheads with standardized categories and cash/digital payment modes.
+- **Edit & Delete Workflows**: Edit expense entries (`create-expense-modal.tsx`) or delete them with direct, real-time Day Book till balance reconciliation.
+
+### 5. Safe Invoice Deletion Modal (`components/invoices/delete-invoice-modal.tsx`)
 - Triggered by Owner or Admin from the invoice details drawer.
 - Prompts for confirmation and warns about automatic stock restocking.
 - If the order has already been physically delivered, requires explicit confirmation before rolling back.
 
-### 5. Official Delivery Challan (`/delivery/:id/challan-pdf`)
+### 6. Official Delivery Challan (`/delivery/:id/challan-pdf`)
 - 1-click printable PDF delivery challan accessible from both the Deliveries board and Invoice details.
 - Includes items, packaging units, vehicle number, and signature blocks without displaying sales prices.
 
-### 6. Party Statement Drawer (`components/parties/party-statement-drawer.tsx`)
+### 7. Party Statement Drawer (`components/parties/party-statement-drawer.tsx`)
 - Slide-over sheet showing complete chronological transaction ledger.
 - Date range picker (`Start Date` to `End Date`) with automatic balance-brought-forward calculation.
 - 1-click button to download the official PDF Party Statement.
 
-### 7. Invoice Editing Workflow (`components/invoices/create-invoice-modal.tsx`)
+### 8. Invoice Editing Workflow (`components/invoices/create-invoice-modal.tsx`)
 - Accessed via the **Edit Bill** button inside `InvoiceDetailsDrawer`.
 - Opens `CreateInvoiceModal` pre-populated with original invoice lines, discount, tax rate, custom address, and transport charges.
 - Displays party previous balance context and allows toggling between Party account and Cash Sale (Counter Pickup).
 - Executes `PUT /invoices/:id` with automatic inventory reversion and re-allocation upon submission.
+- Salesmen are scoped strictly to edit only invoices they created.
 
-### 8. Two-Mode Dispatch Processing (`components/deliveries/push-delivery-modal.tsx`)
+### 9. Payments & Cash Collections Workflow (`components/payments/`)
+- Record customer collections and supplier settlements via `settlement-modal.tsx`.
+- Edit payment receipts with automatic party ledger and till cash adjustment.
+- Scoped permissions: Salesman can edit only receipts they confirmed; Owner/Admin have delete authorization.
+
+### 10. Two-Mode Dispatch Processing (`components/deliveries/push-delivery-modal.tsx`)
 - **Driver Dispatch**: Select available company drivers, transport vehicle numbers, and customize line-item quantities for partial deliveries.
 - **Counter Pickup**: Instant 1-click self-pickup checklist for walk-in customers or yard pickups without driver assignment.
 - Directly updates inventory and prints unpriced Delivery Challan PDFs.
 
-### 9. Delivery Details Modal (`components/deliveries/delivery-details-modal.tsx`)
+### 11. Delivery Details Modal (`components/deliveries/delivery-details-modal.tsx`)
 - Full inspector dialog showing customer destination, driver phone, vehicle details, cash collection amounts, and individual item loading verification status.
 
 ---
