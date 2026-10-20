@@ -245,9 +245,16 @@ export class AnalyticsService {
     return this.prisma.$queryRaw<Array<{ name: string; value: number }>>`
       SELECT 
         COALESCE(p.category, 'Other') AS name, 
-        ROUND(COALESCE(SUM(ii.total), 0))::int AS value
+        ROUND(COALESCE(SUM(
+          CASE 
+            WHEN inv.subtotal > 0 THEN (ii.total / inv.subtotal) * inv.total
+            ELSE ii.total 
+          END
+        ), 0))::int AS value
       FROM "InvoiceItem" ii
       LEFT JOIN "Product" p ON ii."productId" = p.id
+      JOIN "Invoice" inv ON ii."invoiceId" = inv.id
+      WHERE inv.status NOT IN ('CANCELLED', 'DRAFT')
       GROUP BY COALESCE(p.category, 'Other')
       ORDER BY value DESC
     `;
@@ -300,6 +307,7 @@ export class AnalyticsService {
         COUNT(id)::int AS count, 
         ROUND(COALESCE(SUM(total), 0))::int AS total
       FROM "Invoice"
+      WHERE "status" NOT IN ('CANCELLED', 'DRAFT')
       GROUP BY "salesmanId"
     `;
 
@@ -414,7 +422,9 @@ export class AnalyticsService {
       const trendEnd = endDate || now;
 
       // Dynamic SQL conditions for PostgreSQL query plan optimization (avoids $1 IS NULL index invalidation)
-      const salesmanSalesConditions: Prisma.Sql[] = [];
+      const salesmanSalesConditions: Prisma.Sql[] = [
+        Prisma.sql`"status" NOT IN ('CANCELLED', 'DRAFT')`,
+      ];
       if (startDate) {
         salesmanSalesConditions.push(Prisma.sql`"createdAt" >= ${startDate}`);
       }
@@ -426,7 +436,9 @@ export class AnalyticsService {
           ? Prisma.sql`WHERE ${Prisma.join(salesmanSalesConditions, ' AND ')}`
           : Prisma.empty;
 
-      const categorySplitConditions: Prisma.Sql[] = [];
+      const categorySplitConditions: Prisma.Sql[] = [
+        Prisma.sql`inv."status" NOT IN ('CANCELLED', 'DRAFT')`,
+      ];
       if (startDate) {
         categorySplitConditions.push(
           Prisma.sql`inv."createdAt" >= ${startDate}`,
@@ -511,6 +523,9 @@ export class AnalyticsService {
         this.prisma.refundInvoice.aggregate({
           where: {
             ...(dateFilter ? { createdAt: dateFilter } : {}),
+            ...(salesmanScope
+              ? { originalInvoice: { salesmanId: salesmanScope.salesmanId } }
+              : {}),
           },
           _sum: { total: true },
         }),
@@ -655,7 +670,12 @@ export class AnalyticsService {
         this.prisma.$queryRaw<Array<{ name: string; value: number }>>`
         SELECT 
           COALESCE(p.category, 'General') AS name, 
-          ROUND(COALESCE(SUM(ii.total), 0))::int AS value
+          ROUND(COALESCE(SUM(
+            CASE 
+              WHEN inv.subtotal > 0 THEN (ii.total / inv.subtotal) * inv.total
+              ELSE ii.total 
+            END
+          ), 0))::int AS value
         FROM "InvoiceItem" ii
         LEFT JOIN "Product" p ON ii."productId" = p.id
         JOIN "Invoice" inv ON ii."invoiceId" = inv.id
@@ -754,7 +774,13 @@ export class AnalyticsService {
         // Salesman's recent invoices
         isSalesman && salesmanId
           ? (this.prisma.invoice.findMany({
-              where: { salesmanId },
+              where: {
+                salesmanId,
+                status: {
+                  notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT],
+                },
+                ...(dateFilter ? { createdAt: dateFilter } : {}),
+              },
               orderBy: { createdAt: 'desc' },
               take: 10,
               include: { party: { select: { name: true, phone: true } } },
@@ -803,11 +829,13 @@ export class AnalyticsService {
         .filter((u) => u.invoiceCount > 0 || u.role === Role.SALESMAN);
 
       // Calculate deltas
-      const currentRevenue = Math.max(
-        0,
-        Number(revenueAgg._sum.total || 0) -
-          Number(periodRefundAgg?._sum?.total || 0),
-      );
+      const currentRevenue = isSalesman
+        ? Number(revenueAgg._sum.total || 0)
+        : Math.max(
+            0,
+            Number(revenueAgg._sum.total || 0) -
+              Number(periodRefundAgg?._sum?.total || 0),
+          );
       const prevRevenue = Number(prevRevenueAgg._sum.total || 0);
       let deltaRevenue: number | null = null;
       if (prevDateFilter && prevRevenue > 0) {
