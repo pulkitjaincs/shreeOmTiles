@@ -198,10 +198,10 @@ export async function generateInvoicePdf(
 
   // Invoice metadata (Right side)
   const metaX = leftMargin + shopColWidth + 8;
-  page.drawText('Invoice No.', {
+  page.drawText('Bill of Supply No.', {
     x: metaX,
     y: currentY - 16,
-    size: 8.5,
+    size: 8,
     font: fontBold,
     color: darkGray,
   });
@@ -530,7 +530,7 @@ export async function generateInvoicePdf(
 
   // LEFT SIDE: Words & Payment Mode & QR
   const wordsLeftX = leftMargin + 8;
-  page.drawText('Invoice Amount in Words:', {
+  page.drawText('Bill of Supply Amount in Words:', {
     x: wordsLeftX,
     y: currentY - 14,
     size: 8,
@@ -943,8 +943,8 @@ export async function generateInvoicePdf(
 
   const ackContentY = currentY - 42;
 
-  // Column 1: Invoice To
-  page.drawText('Invoice To:', {
+  // Column 1: Bill of Supply To
+  page.drawText('Bill of Supply To:', {
     x: ackCol1,
     y: ackContentY,
     size: 8,
@@ -971,35 +971,38 @@ export async function generateInvoicePdf(
     color: darkGray,
   });
 
-  // Column 2: Invoice Details
-  page.drawText('Invoice Details:', {
+  // Column 2: Bill of Supply Details
+  page.drawText('Bill of Supply Details:', {
     x: ackCol2,
     y: ackContentY,
     size: 8,
     font: fontBold,
     color: black,
   });
-  page.drawText(`Invoice No. : ${invoice.invoiceNo}`, {
+  page.drawText(`Bill of Supply No. : ${invoice.invoiceNo}`, {
     x: ackCol2,
     y: ackContentY - 12,
     size: 7.5,
     font: fontRegular,
     color: black,
   });
-  page.drawText(`Invoice date : ${dateStr}`, {
+  page.drawText(`Bill of Supply date : ${dateStr}`, {
     x: ackCol2,
     y: ackContentY - 22,
     size: 7.5,
     font: fontRegular,
     color: black,
   });
-  page.drawText(`Invoice Amount : Rs. ${totalAmount.toLocaleString('en-IN')}`, {
-    x: ackCol2,
-    y: ackContentY - 32,
-    size: 7.5,
-    font: fontBold,
-    color: black,
-  });
+  page.drawText(
+    `Bill of Supply Amount : Rs. ${totalAmount.toLocaleString('en-IN')}`,
+    {
+      x: ackCol2,
+      y: ackContentY - 32,
+      size: 7.5,
+      font: fontBold,
+      color: black,
+    },
+  );
 
   // Column 3: Receiver's Seal & Sign
   page.drawLine({
