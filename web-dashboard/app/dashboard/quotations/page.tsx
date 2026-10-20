@@ -1,5 +1,7 @@
 'use client';
 
+import { useAuth } from '@/components/auth-provider';
+
 import { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
 import { apiRequest, cachedApiRequest } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -12,7 +14,9 @@ import {
   ArrowRight, 
   X,
   Eye,
-  Loader2
+  Loader2,
+  Pencil,
+  Trash2
 } from 'lucide-react';
 import { Product, Party } from '@/components/invoices/types';
 import { CreateQuotationModal } from '@/components/quotations/create-quotation-modal';
@@ -52,6 +56,11 @@ interface QuotationRecord {
 }
 
 export default function QuotationsPage() {
+  const { user } = useAuth();
+  const canManage = user?.role === 'OWNER' || user?.role === 'ADMIN';
+  const [editingQuotation, setEditingQuotation] = useState<QuotationRecord | null>(null);
+  const [deletingQuotation, setDeletingQuotation] = useState<QuotationRecord | null>(null);
+  const [deletingSubmitting, setDeletingSubmitting] = useState(false);
   const [quotations, setQuotations] = useState<QuotationRecord[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [parties, setParties] = useState<Party[]>([]);
@@ -385,18 +394,42 @@ export default function QuotationsPage() {
                         </button>
 
                         {!isConverted && (
-                          <button
-                            onClick={() => {
-                              setConvertTarget(q);
-                              setConvertSplits([{ mode: 'CASH', amount: String(q.total) }]);
-                              setConvertError('');
-                            }}
-                            className="px-2.5 py-1.5 rounded-lg text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-xs font-semibold inline-flex items-center gap-1 transition active:scale-98"
-                            title="Convert Quotation into Official Tax Invoice"
-                          >
-                            <ArrowRight className="h-3.5 w-3.5" />
-                            <span>Convert to Invoice</span>
-                          </button>
+                          <>
+                            <button
+                              onClick={() => {
+                                void loadModalData();
+                                setEditingQuotation(q);
+                                setShowCreateModal(true);
+                              }}
+                              className="p-1.5 rounded-lg text-amber-700 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 transition active:scale-95"
+                              title="Edit Quotation"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+
+                            {canManage && (
+                              <button
+                                onClick={() => setDeletingQuotation(q)}
+                                className="p-1.5 rounded-lg text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition active:scale-95"
+                                title="Delete Quotation"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+
+                            <button
+                              onClick={() => {
+                                setConvertTarget(q);
+                                setConvertSplits([{ mode: 'CASH', amount: String(q.total) }]);
+                                setConvertError('');
+                              }}
+                              className="px-2.5 py-1.5 rounded-lg text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-xs font-semibold inline-flex items-center gap-1 transition active:scale-98"
+                              title="Convert Quotation into Official Tax Invoice"
+                            >
+                              <ArrowRight className="h-3.5 w-3.5" />
+                              <span>Convert to Invoice</span>
+                            </button>
+                          </>
                         )}
                       </td>
                     </tr>
@@ -415,14 +448,71 @@ export default function QuotationsPage() {
         />
       </div>
 
-      {/* Create Modal */}
+      {/* Create / Edit Modal */}
       <CreateQuotationModal
         isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onSuccess={() => loadData(true)}
+        quotationToEdit={editingQuotation}
+        onClose={() => {
+          setShowCreateModal(false);
+          setEditingQuotation(null);
+        }}
+        onSuccess={() => {
+          setEditingQuotation(null);
+          loadData(true);
+        }}
         products={products}
         parties={parties}
       />
+
+      {/* Delete Confirmation Dialog */}
+      {deletingQuotation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4 text-foreground">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-600">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-foreground">Delete Quotation?</h3>
+                <p className="text-xs text-muted-foreground">Estimate #{deletingQuotation.quotationNo}</p>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to delete this quotation? This action is permanent and cannot be undone.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={deletingSubmitting}
+                onClick={() => setDeletingQuotation(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={deletingSubmitting}
+                onClick={async () => {
+                  if (deletingSubmitting) return;
+                  setDeletingSubmitting(true);
+                  try {
+                    await apiRequest(`/quotations/${deletingQuotation.id}`, { method: 'DELETE' });
+                    setDeletingQuotation(null);
+                    await loadData(true);
+                  } catch (err: any) {
+                    alert(err.message || 'Failed to delete quotation');
+                  } finally {
+                    setDeletingSubmitting(false);
+                  }
+                }}
+              >
+                {deletingSubmitting ? 'Deleting...' : 'Delete Quotation'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Quotation Details Drawer */}
       {viewingQuotation && (

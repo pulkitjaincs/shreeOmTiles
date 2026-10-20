@@ -73,7 +73,7 @@ export class InvoicesController {
   }
 
   @Patch('refund/:refundId')
-  @Roles(Role.OWNER, Role.ADMIN, Role.ACCOUNTANT)
+  @Roles(Role.OWNER, Role.ADMIN, Role.ACCOUNTANT, Role.SALESMAN)
   updateRefund(
     @Param('refundId') refundId: string,
     @Body() returnData: ProcessReturnDto,
@@ -83,7 +83,17 @@ export class InvoicesController {
       refundId,
       returnData,
       req.user.id,
+      req.user.role,
     );
+  }
+
+  @Delete('refund/:refundId')
+  @Roles(Role.OWNER, Role.ADMIN)
+  deleteRefund(
+    @Param('refundId') refundId: string,
+    @Request() req: RequestWithUser,
+  ) {
+    return this.invoicesService.deleteReturn(refundId, req.user.id);
   }
 
   @Get()

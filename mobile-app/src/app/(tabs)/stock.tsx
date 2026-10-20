@@ -54,8 +54,6 @@ export default function StockScreen() {
   // Modals state
   const [inwardModalOpen, setInwardModalOpen] = useState(false);
   const [inwardProductId, setInwardProductId] = useState<string | undefined>(undefined);
-  const [inwardWarehouseId, setInwardWarehouseId] = useState<string | undefined>(undefined);
-  const [inwardBatchNo, setInwardBatchNo] = useState<string | undefined>(undefined);
   const [adjustModalOpen, setAdjustModalOpen] = useState(false);
   const [selectedAdjustStock, setSelectedAdjustStock] = useState<StockItem | null>(null);
   const [productFormModalOpen, setProductFormModalOpen] = useState(false);
@@ -272,8 +270,6 @@ export default function StockScreen() {
                 variant="primary"
                 onPress={() => {
                   setInwardProductId(undefined);
-                  setInwardWarehouseId(undefined);
-                  setInwardBatchNo(undefined);
                   setInwardModalOpen(true);
                 }}
                 style={styles.actionBtn}
@@ -363,8 +359,6 @@ export default function StockScreen() {
               userWarehouseId={userWarehouseId}
               onInward={(stock) => {
                 setInwardProductId(stock.productId);
-                setInwardWarehouseId(stock.warehouseId);
-                setInwardBatchNo(stock.batchNo);
                 setInwardModalOpen(true);
               }}
               onAdjust={(stock) => {
@@ -420,16 +414,12 @@ export default function StockScreen() {
         onClose={() => {
           setInwardModalOpen(false);
           setInwardProductId(undefined);
-          setInwardWarehouseId(undefined);
-          setInwardBatchNo(undefined);
         }}
         onSuccess={() => loadData(true)}
         products={products}
         warehouses={warehouses}
         stocks={stocks}
         initialProductId={inwardProductId}
-        initialWarehouseId={inwardWarehouseId}
-        initialBatchNo={inwardBatchNo}
       />
 
 

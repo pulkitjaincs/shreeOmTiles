@@ -13,15 +13,19 @@ import { PaymentRecord } from './types';
 interface TransactionHistoryCardProps {
   payment: PaymentRecord;
   confirmingId: string | null;
+  canDelete?: boolean;
   onConfirm: (paymentId: string) => void;
   onEdit?: (payment: PaymentRecord) => void;
+  onDelete?: (payment: PaymentRecord) => void;
 }
 
 export function TransactionHistoryCard({
   payment,
   confirmingId,
+  canDelete,
   onConfirm,
   onEdit,
+  onDelete,
 }: TransactionHistoryCardProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -187,6 +191,16 @@ export function TransactionHistoryCard({
           >
             <Ionicons name="create-outline" size={13} color="#F59E0B" />
             <Text style={[styles.shareReceiptText, { color: '#F59E0B' }]}>Edit Payment</Text>
+          </TouchableOpacity>
+        ) : null}
+        {canDelete && onDelete ? (
+          <TouchableOpacity
+            style={[styles.shareReceiptBtn, { borderColor: 'rgba(239, 68, 68, 0.3)', backgroundColor: 'rgba(239, 68, 68, 0.05)' }]}
+            onPress={() => onDelete(payment)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="trash-outline" size={13} color="#EF4444" />
+            <Text style={[styles.shareReceiptText, { color: '#EF4444' }]}>Delete</Text>
           </TouchableOpacity>
         ) : null}
         {isInflow && (

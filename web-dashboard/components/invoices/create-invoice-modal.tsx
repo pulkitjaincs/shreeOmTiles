@@ -55,7 +55,7 @@ export function CreateInvoiceModal({
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
   const [partyId, setPartyId] = useState('');
   const [billAddress, setBillAddress] = useState('');
-  const [newParty, setNewParty] = useState({ name: '', phone: '', address: '' });
+  const [newParty, setNewParty] = useState({ name: '', phone: '', address: '', gstin: '' });
   const [paymentMode, setPaymentMode] = useState('UPI');
   const [paymentSplits, setPaymentSplits] = useState<SplitRow[]>([
     { mode: 'UPI', amount: '' },
@@ -209,7 +209,7 @@ export function CreateInvoiceModal({
         setCustomerSearch('');
         setIsCustomerDropdownOpen(false);
         setOpenProductDropdownIdx(null);
-        setNewParty({ name: '', phone: '', address: '' });
+        setNewParty({ name: '', phone: '', address: '', gstin: '' });
         setNotes('');
         setDiscountAmount('0');
         setRoundOffEnabled(false);
@@ -327,16 +327,16 @@ export function CreateInvoiceModal({
   // Calculations
   const itemsSubtotal = items.reduce((sum, item) => sum + item.qty * item.unitPrice, 0);
   const discount = Math.min(itemsSubtotal, Math.max(0, Number(discountAmount) || 0));
-  const subtotal = Math.max(0, itemsSubtotal - discount);
+  const subtotal = Math.round(Math.max(0, itemsSubtotal - discount) * 100) / 100;
   const activeTaxRate = taxRate === '' ? 0 : Number(taxRate);
-  const itemsTax = (subtotal * activeTaxRate) / 100;
+  const itemsTax = Math.round(((subtotal * activeTaxRate) / 100) * 100) / 100;
   const numTransportCost = transportCost === '' ? 0 : Number(transportCost);
-  const transportTax = (numTransportCost * transportGstRate) / 100;
-  const calculatedTotal = subtotal + itemsTax + numTransportCost + transportTax;
+  const transportTax = Math.round(((numTransportCost * transportGstRate) / 100) * 100) / 100;
+  const calculatedTotal = Math.round((subtotal + itemsTax + numTransportCost + transportTax) * 100) / 100;
   const roundOffAmount = roundOffEnabled
     ? Math.round(calculatedTotal) - calculatedTotal
     : 0;
-  const grandTotal = Math.max(0, Number((calculatedTotal + roundOffAmount).toFixed(2)));
+  const grandTotal = Math.max(0, Math.round((calculatedTotal + roundOffAmount) * 100) / 100);
 
   // Upfront Payment & Credit Calculations
   const calculatedGrandTotal = Math.max(0, Number(grandTotal.toFixed(2)));
@@ -450,6 +450,7 @@ export function CreateInvoiceModal({
               name: newParty.name.trim() || (customerMode === 'UNREGISTERED' ? 'Cash Sale' : 'Walk-in Customer'),
               phone: cleanPhone || undefined,
               address: (billAddress.trim() || newParty.address.trim()) || undefined,
+              gstin: newParty.gstin.trim() ? newParty.gstin.trim().toUpperCase() : undefined,
               isSaved: customerMode === 'NEW_SAVED',
             }
           : undefined,
@@ -477,6 +478,7 @@ export function CreateInvoiceModal({
   };
 
   const executeCreateInvoice = async (modeOverride?: string) => {
+    if (submitting) return;
     setSubmitting(true);
     setFormError('');
     try {
@@ -529,6 +531,7 @@ export function CreateInvoiceModal({
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     setFormError('');
 
     try {
@@ -792,7 +795,7 @@ export function CreateInvoiceModal({
               )}
 
               {customerMode !== 'EXISTING' && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
                   <div>
                     <label className="block text-[0.75rem] font-medium text-foreground mb-1">
                       Customer Name {customerMode === 'NEW_SAVED' ? '*' : '(Optional)'}
@@ -823,6 +826,24 @@ export function CreateInvoiceModal({
                         })
                       }
                       className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-[0.75rem] text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[0.75rem] font-medium text-foreground mb-1">
+                      GSTIN (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      maxLength={15}
+                      placeholder="e.g. 07AAAAA0000A1Z5"
+                      value={newParty.gstin}
+                      onChange={(e) =>
+                        setNewParty({
+                          ...newParty,
+                          gstin: e.target.value.toUpperCase(),
+                        })
+                      }
+                      className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-[0.75rem] text-foreground placeholder:text-muted-foreground uppercase focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 font-mono"
                     />
                   </div>
                   <div>

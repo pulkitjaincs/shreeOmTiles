@@ -43,6 +43,7 @@ export function PartyFormModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     const cleanPhone = phone.replace(/\D/g, '');
     if (cleanPhone.length !== 10) {
       setError('Mobile number must be strictly 10 digits');

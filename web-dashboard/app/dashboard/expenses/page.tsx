@@ -1,7 +1,9 @@
 'use client';
 
+import { useAuth } from '@/components/auth-provider';
+
 import { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
-import { cachedApiRequest } from '@/lib/api';
+import { apiRequest, cachedApiRequest } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { 
   Wallet, 
@@ -10,6 +12,7 @@ import {
   Tag, 
   X,
   Pencil,
+  Trash2,
 } from 'lucide-react';
 import { CreateExpenseModal } from '@/components/expenses/create-expense-modal';
 import { formatINR, formatDate } from '@/lib/formatters';
@@ -48,6 +51,10 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export default function ExpensesPage() {
+  const { user } = useAuth();
+  const canManage = user?.role === 'OWNER' || user?.role === 'ADMIN';
+  const [deletingExpense, setDeletingExpense] = useState<ExpenseRecord | null>(null);
+  const [deletingSubmitting, setDeletingSubmitting] = useState(false);
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -303,17 +310,30 @@ export default function ExpensesPage() {
                       {exp.user?.name || 'Staff'}
                     </td>
                     <td className="py-3 px-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingExpense(exp);
-                          setShowCreateModal(true);
-                        }}
-                        className="inline-flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[0.6875rem] font-semibold text-amber-700 dark:text-amber-300"
-                      >
-                        <Pencil className="h-3 w-3" />
-                        Edit
-                      </button>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingExpense(exp);
+                            setShowCreateModal(true);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[0.6875rem] font-semibold text-amber-700 dark:text-amber-300"
+                        >
+                          <Pencil className="h-3 w-3" />
+                          Edit
+                        </button>
+                        {canManage && (
+                          <button
+                            type="button"
+                            onClick={() => setDeletingExpense(exp)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1.5 text-[0.6875rem] font-semibold text-rose-600 dark:text-rose-400"
+                            title="Delete Expense"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                            Delete
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -340,6 +360,56 @@ export default function ExpensesPage() {
         }}
         onSuccess={() => loadExpenses(true)}
       />
+
+      {/* Delete Expense Dialog */}
+      {deletingExpense && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4 text-foreground">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-600">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-foreground">Delete Expense?</h3>
+                <p className="text-xs text-muted-foreground">{formatINR(deletingExpense.amount)} - {CATEGORY_LABELS[deletingExpense.category] || deletingExpense.category}</p>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to delete this operational expense? This transaction will be removed from Day Book balances.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={deletingSubmitting}
+                onClick={() => setDeletingExpense(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={deletingSubmitting}
+                onClick={async () => {
+                  if (deletingSubmitting) return;
+                  setDeletingSubmitting(true);
+                  try {
+                    await apiRequest(`/expenses/${deletingExpense.id}`, { method: 'DELETE' });
+                    setDeletingExpense(null);
+                    await loadExpenses(true);
+                  } catch (err: unknown) {
+                    alert((err as Error).message || 'Failed to delete expense');
+                  } finally {
+                    setDeletingSubmitting(false);
+                  }
+                }}
+              >
+                {deletingSubmitting ? 'Deleting...' : 'Delete Expense'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

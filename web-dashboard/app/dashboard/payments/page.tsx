@@ -19,6 +19,9 @@ import {
   ArrowLeft,
   ArrowRight,
   MessageSquare,
+  Pencil,
+  Trash2,
+  X,
 } from 'lucide-react';
 import { buildCustomerDuesReminderUrl } from '@/lib/whatsapp';
 import { PaymentStatsGrid } from '@/components/payments/payment-stats-grid';
@@ -102,6 +105,17 @@ interface SettlementConfig {
 export default function TransactionsPage() {
   const { user } = useAuth();
   const isSalesman = user?.role === 'SALESMAN';
+  const canManage = user?.role === 'OWNER' || user?.role === 'ADMIN';
+  const [editingPayment, setEditingPayment] = useState<PaymentRecord | null>(null);
+  const [editPaymentAmount, setEditPaymentAmount] = useState('');
+  const [editPaymentMode, setEditPaymentMode] = useState('CASH');
+  const [editPaymentUtr, setEditPaymentUtr] = useState('');
+  const [editPaymentNotes, setEditPaymentNotes] = useState('');
+  const [editPaymentSubmitting, setEditPaymentSubmitting] = useState(false);
+  const [editPaymentError, setEditPaymentError] = useState('');
+
+  const [deletingPayment, setDeletingPayment] = useState<PaymentRecord | null>(null);
+  const [deletingPaymentSubmitting, setDeletingPaymentSubmitting] = useState(false);
   // Data states
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [creditLedgers, setCreditLedgers] = useState<CreditLedgerRecord[]>([]);
@@ -1543,19 +1557,44 @@ export default function TransactionsPage() {
                           </td>
 
                           <td className="py-3.5 px-4 text-right">
-                            {payment.status === 'PENDING' ? (
-                              <button
-                                onClick={() => handleConfirmPendingPayment(payment.id)}
-                                className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:underline px-3 py-1.5 border border-emerald-500/30 rounded-[0.5rem] hover:bg-emerald-500/10 transition-all inline-flex items-center gap-1.5 active:scale-95"
-                              >
-                                <Check className="h-3.5 w-3.5" />
-                                Confirm
-                              </button>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">
-                                {payment.confirmedBy?.name || 'Counter Staff'}
-                              </span>
-                            )}
+                            <div className="flex items-center justify-end gap-1.5">
+                              {payment.status === 'PENDING' && (
+                                <button
+                                  onClick={() => handleConfirmPendingPayment(payment.id)}
+                                  className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 hover:underline px-2.5 py-1 border border-emerald-500/30 rounded-[0.5rem] hover:bg-emerald-500/10 transition-all inline-flex items-center gap-1 active:scale-95"
+                                >
+                                  <Check className="h-3 w-3" />
+                                  Confirm
+                                </button>
+                              )}
+
+                              {((canManage || (isSalesman && payment.invoiceId && ownedInvoiceIds?.has(payment.invoiceId))) && payment.type !== 'OUTFLOW') && (
+                                <button
+                                  onClick={() => {
+                                    setEditingPayment(payment);
+                                    setEditPaymentAmount(String(payment.amount));
+                                    setEditPaymentMode(payment.mode);
+                                    setEditPaymentUtr(payment.upiUtr || '');
+                                    setEditPaymentNotes(payment.notes || '');
+                                    setEditPaymentError('');
+                                  }}
+                                  className="p-1 rounded-[0.4rem] text-amber-700 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 transition active:scale-95"
+                                  title="Edit Payment Details"
+                                >
+                                  <Pencil className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+
+                              {canManage && (
+                                <button
+                                  onClick={() => setDeletingPayment(payment)}
+                                  className="p-1 rounded-[0.4rem] text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition active:scale-95"
+                                  title="Delete Payment & Recalculate Balance"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1812,6 +1851,179 @@ export default function TransactionsPage() {
         onClose={() => setStatementParty(null)}
         onEdit={() => {}}
       />
-    </div>
+    
+      {/* Edit Payment Modal */}
+      {editingPayment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4 text-foreground">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-700 dark:text-amber-300">
+                  <Pencil className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-foreground">Edit Received Payment</h3>
+                  <p className="text-xs text-muted-foreground">ID: #{editingPayment.id.slice(0, 8)}</p>
+                </div>
+              </div>
+              <button onClick={() => setEditingPayment(null)} className="text-muted-foreground hover:text-foreground">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {editPaymentError && (
+              <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs text-rose-600 dark:text-rose-400">
+                {editPaymentError}
+              </div>
+            )}
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-medium text-foreground mb-1">Amount (₹) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={editPaymentAmount}
+                  onChange={(e) => setEditPaymentAmount(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-input bg-background text-foreground text-sm font-semibold focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block font-medium text-foreground mb-1">Payment Mode *</label>
+                <select
+                  value={editPaymentMode}
+                  onChange={(e) => setEditPaymentMode(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl border border-input bg-background text-foreground text-xs font-medium focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="CASH">CASH</option>
+                  <option value="UPI">UPI</option>
+                  <option value="CARD">CARD (POS)</option>
+                  <option value="BANK_TRANSFER">BANK TRANSFER</option>
+                </select>
+              </div>
+
+              {editPaymentMode !== 'CASH' && (
+                <div>
+                  <label className="block font-medium text-foreground mb-1">UTR / Reference No.</label>
+                  <input
+                    type="text"
+                    value={editPaymentUtr}
+                    onChange={(e) => setEditPaymentUtr(e.target.value)}
+                    placeholder="12-digit UTR or Txn ID"
+                    className="w-full px-3 py-2 rounded-xl border border-input bg-background text-foreground font-mono text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block font-medium text-foreground mb-1">Notes</label>
+                <textarea
+                  value={editPaymentNotes}
+                  onChange={(e) => setEditPaymentNotes(e.target.value)}
+                  placeholder="Optional remarks"
+                  rows={2}
+                  className="w-full px-3 py-2 rounded-xl border border-input bg-background text-foreground text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-border">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={editPaymentSubmitting}
+                onClick={() => setEditingPayment(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={editPaymentSubmitting}
+                onClick={async () => {
+                  if (editPaymentSubmitting) return;
+                  const amt = Number(editPaymentAmount);
+                  if (!amt || amt <= 0) {
+                    setEditPaymentError('Please enter a valid payment amount');
+                    return;
+                  }
+                  setEditPaymentSubmitting(true);
+                  try {
+                    await apiRequest(`/payments/${editingPayment.id}`, {
+                      method: 'PATCH',
+                      body: JSON.stringify({
+                        amount: amt,
+                        mode: editPaymentMode,
+                        upiUtr: editPaymentUtr.trim() || undefined,
+                        notes: editPaymentNotes.trim() || undefined,
+                      }),
+                    });
+                    setEditingPayment(null);
+                    await loadData();
+                  } catch (err: any) {
+                    setEditPaymentError(err.message || 'Failed to update payment');
+                  } finally {
+                    setEditPaymentSubmitting(false);
+                  }
+                }}
+              >
+                {editPaymentSubmitting ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Payment Modal */}
+      {deletingPayment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4 text-foreground">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-600">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-foreground">Delete Payment Entry?</h3>
+                <p className="text-xs text-muted-foreground">₹{Number(deletingPayment.amount).toLocaleString('en-IN')} - {deletingPayment.mode}</p>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to delete this payment record? If this payment is linked to an invoice, the invoice paid balance, delivery amount to collect, and customer credit ledger will be automatically recalculated.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={deletingPaymentSubmitting}
+                onClick={() => setDeletingPayment(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={deletingPaymentSubmitting}
+                onClick={async () => {
+                  if (deletingPaymentSubmitting) return;
+                  setDeletingPaymentSubmitting(true);
+                  try {
+                    await apiRequest(`/payments/${deletingPayment.id}`, { method: 'DELETE' });
+                    setDeletingPayment(null);
+                    await loadData();
+                  } catch (err: any) {
+                    alert(err.message || 'Failed to delete payment');
+                  } finally {
+                    setDeletingPaymentSubmitting(false);
+                  }
+                }}
+              >
+                {deletingPaymentSubmitting ? 'Deleting...' : 'Delete Payment'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+</div>
   );
 }

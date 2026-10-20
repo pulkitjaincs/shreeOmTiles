@@ -32,6 +32,92 @@ export function buildCustomerDuesReminderUrl(params: {
 }
 
 /**
+ * Builds customer payment receipt WhatsApp message URL.
+ */
+export function buildPaymentReceiptShareUrl(params: {
+  phone?: string | null;
+  customerName: string;
+  amount: number | string;
+  mode: string;
+  invoiceNo?: string;
+  utr?: string | null;
+  date?: string;
+}): string {
+  const { phone, customerName, amount, mode, invoiceNo, utr, date } = params;
+  const amtFormatted = typeof amount === 'number' ? formatINR(amount) : formatINR(parseFloat(amount) || 0);
+
+  const lines = [
+    `🧾 *PAYMENT RECEIPT CONFIRMATION*`,
+    ``,
+    `Dear *${customerName || 'Customer'}*,`,
+    `Thank you! We have received your payment:`,
+    ``,
+    `• *Amount Received:* ${amtFormatted}`,
+    `• *Payment Mode:* ${mode || 'UPI / Cash'}`,
+    date ? `• *Date:* ${date}` : null,
+    invoiceNo ? `• *Against Invoice:* #${invoiceNo}` : null,
+    utr ? `• *Transaction Ref / UTR:* ${utr}` : null,
+    ``,
+    `Your transaction has been recorded and settled in our system.`,
+    ``,
+    `*Shree Om Tiles*`,
+  ]
+    .filter((l) => l !== null)
+    .join('\n');
+
+  const clean = cleanPhoneNumber(phone);
+  return clean
+    ? `https://wa.me/91${clean}?text=${encodeURIComponent(lines)}`
+    : `https://wa.me/?text=${encodeURIComponent(lines)}`;
+}
+
+/**
+ * Builds customer account ledger statement WhatsApp message URL.
+ */
+export function buildPartyStatementShareUrl(params: {
+  phone?: string | null;
+  name: string;
+  gstin?: string | null;
+  address?: string | null;
+  lifetimeTotal: number;
+  totalReceived: number;
+  totalDues: number;
+  totalOrders: number;
+}): string {
+  const { phone, name, gstin, address, lifetimeTotal, totalReceived, totalDues, totalOrders } = params;
+  const isDue = totalDues > 0.01;
+  const isPayable = totalDues < -0.01;
+  const payableAmt = Math.abs(totalDues);
+
+  const msg =
+    `*ACCOUNT STATEMENT — SHREE OM TILES*\n\n` +
+    `Customer: *${name || 'Customer'}*\n` +
+    (phone ? `Phone: ${phone}\n` : '') +
+    (gstin ? `GSTIN: ${gstin}\n` : '') +
+    (address ? `Address: ${address}\n` : '') +
+    `\n*Financial Summary:*\n` +
+    `• Lifetime Billing: ${formatINR(lifetimeTotal)}\n` +
+    `• Total Received: ${formatINR(totalReceived)}\n` +
+    (isDue
+      ? `• *Current Balance Due: ${formatINR(totalDues)}*\n`
+      : isPayable
+      ? `• *Store Credit / Payable Available: ${formatINR(payableAmt)}*\n`
+      : `• *Account Balance: ₹0.00 (All Clear)*\n`) +
+    `• Total Orders: ${totalOrders}\n\n` +
+    (isDue
+      ? `Kindly arrange payment clearance of ${formatINR(totalDues)} at your earliest convenience.\n\n`
+      : isPayable
+      ? `You have an available store credit / payable balance of ${formatINR(payableAmt)} with Shree Om Tiles.\n\n`
+      : `All accounts are currently in clear standing!\n\n`) +
+    `*Shree Om Tiles*`;
+
+  const clean = cleanPhoneNumber(phone);
+  return clean
+    ? `https://wa.me/91${clean}?text=${encodeURIComponent(msg)}`
+    : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+}
+
+/**
  * Builds standard driver dispatch WhatsApp URL with formatted manifest.
  */
 export function buildDriverDispatchUrl(
@@ -45,7 +131,7 @@ export function buildDriverDispatchUrl(
   const itemsText = items
     .map(
       (it) =>
-        `• ${it.productName} — ${it.qty} ${it.unit || 'unit'}${it.warehouseName ? ` (${it.warehouseName})` : ''}`,
+        `• ${it.productName} — ${it.qty} ${it.unit || 'unit'}`,
     )
     .join('\n');
 
@@ -54,8 +140,9 @@ export function buildDriverDispatchUrl(
     `• *Customer:* ${partyName || 'Customer'} (${partyPhone || 'N/A'})\n` +
     `• *Destination:* ${partyAddress || 'Counter Pickup / Direct Delivery'}\n\n` +
     `*Items to Collect & Deliver:*\n${itemsText || '• Items as per invoice'}\n\n` +
-    `💰 *Cash to Collect:* ₹${amountToCollect.toFixed(2)}\n\n` +
-    `_Instructions: Collect items and verify with assigned dispatch supervisor(s) before departure._`;
+    `💰 *Cash to Collect:* ${formatINR(amountToCollect)}\n\n` +
+    `_Instructions: Collect items and verify with assigned dispatch supervisor(s) before departure._\n\n` +
+    `*Shree Om Tiles Logistics*`;
 
   const cleanPhone = cleanPhoneNumber(driverPhone);
   return cleanPhone
@@ -76,13 +163,14 @@ export function buildInvoiceShareUrl(
 ): string {
   const msg =
     `🧾 *INVOICE #${invoiceNo}*\n\n` +
-    `Dear ${customerName || 'Customer'},\n` +
+    `Dear *${customerName || 'Customer'}*,\n` +
     `Thank you for your purchase with *Shree Om Tiles*!\n\n` +
     `• *Invoice No:* ${invoiceNo}\n` +
-    `• *Total Amount:* ₹${totalAmount.toFixed(2)}\n` +
-    `• *Amount Paid:* ₹${paidAmount.toFixed(2)}\n` +
-    (balanceDue > 0 ? `• *Balance Due:* ₹${balanceDue.toFixed(2)}\n\n` : `• *Status:* Fully Paid ✓\n\n`) +
-    `For any queries or delivery assistance, please reach out to us.`;
+    `• *Total Amount:* ${formatINR(totalAmount)}\n` +
+    `• *Amount Paid:* ${formatINR(paidAmount)}\n` +
+    (balanceDue > 0 ? `• *Balance Due:* ${formatINR(balanceDue)}\n\n` : `• *Status:* Fully Paid ✓\n\n`) +
+    `For any queries or delivery assistance, please reach out to us.\n\n` +
+    `*Shree Om Tiles*`;
 
   const cleanPhone = cleanPhoneNumber(customerPhone);
   return cleanPhone

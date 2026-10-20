@@ -8,6 +8,7 @@ import type { ThemeColors } from '@/constants/theme';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { formatINR, formatDate, getInvoicePaidAmount } from '@/lib/formatters';
 import { downloadAndSharePdf } from '@/lib/pdf';
+import { useAuth } from '@/lib/auth-context';
 
 interface InvoiceDetailsModalProps {
   invoice: any | null;
@@ -17,6 +18,7 @@ interface InvoiceDetailsModalProps {
   onDownloadRefundPdf?: (refundId: string, refundNo: string) => Promise<void> | void;
   onInitiateReturn?: (invoice: any) => void;
   onEditRefund?: (invoice: any, refund: any) => void;
+  onDeleteRefund?: (invoice: any, refund: any) => void;
   onEdit?: (invoice: any) => void;
   canDelete?: boolean;
   onDeleteInvoice?: (invoice: any) => void;
@@ -31,6 +33,7 @@ export function InvoiceDetailsModal({
   onDownloadRefundPdf,
   onInitiateReturn,
   onEditRefund,
+  onDeleteRefund,
   onEdit,
   canDelete,
   onDeleteInvoice,
@@ -38,8 +41,13 @@ export function InvoiceDetailsModal({
 }: InvoiceDetailsModalProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
+  const { user } = useAuth();
   const [downloading, setDownloading] = useState(false);
   if (!invoice) return null;
+
+  const isSalesman = user?.role === 'SALESMAN';
+  const canEditInvoice = !isSupervisor && Boolean(onEdit) && (!isSalesman || invoice.salesmanId === user?.id || (invoice.createdBy as any)?.id === user?.id);
+  const canDeleteRefund = Boolean(canDelete && onDeleteRefund);
 
   const handleDownloadPdf = async () => {
     try {
@@ -296,13 +304,23 @@ export function InvoiceDetailsModal({
                     disabled={downloading}
                     onPress={handleDownloadPdf}
                   />
-                  {onEditRefund ? (
+                  {onEditRefund && (!isSalesman || invoice.salesmanId === user?.id || refund.createdById === user?.id) ? (
                     <Button
                       title="Edit"
                       icon="create-outline"
                       size="sm"
                       variant="outline"
                       onPress={() => onEditRefund(invoice, refund)}
+                    />
+                  ) : null}
+                  {canDeleteRefund ? (
+                    <Button
+                      title="Delete"
+                      icon="trash-outline"
+                      size="sm"
+                      variant="outline"
+                      onPress={() => onDeleteRefund && onDeleteRefund(invoice, refund)}
+                      style={{ borderColor: 'rgba(239, 68, 68, 0.4)', backgroundColor: 'rgba(239, 68, 68, 0.1)' }}
                     />
                   ) : null}
                 </View>
@@ -325,14 +343,14 @@ export function InvoiceDetailsModal({
         ) : null}
 
         <View style={{ gap: 10, marginTop: 16 }}>
-          {!isSupervisor && onEdit && (
+          {canEditInvoice && (
             <Button
               title="Edit Bill Details"
               icon="create-outline"
               variant="outline"
               onPress={() => {
                 onClose();
-                onEdit(invoice);
+                onEdit && onEdit(invoice);
               }}
               style={{
                 borderColor: 'rgba(245, 158, 11, 0.4)',

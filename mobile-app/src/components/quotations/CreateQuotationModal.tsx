@@ -21,6 +21,7 @@ import { Party, Product } from '@/components/invoices/types';
 
 export interface CreateQuotationModalProps {
   visible: boolean;
+  quotationToEdit?: any | null;
   onClose: () => void;
   onSuccess: (newQuotation?: any) => void;
   initialParties?: Party[];
@@ -38,6 +39,7 @@ const GST_PRESETS = [0, 5, 12, 18, 28];
 
 export function CreateQuotationModal({
   visible,
+  quotationToEdit,
   onClose,
   onSuccess,
   initialParties,
@@ -84,17 +86,44 @@ export function CreateQuotationModal({
     if (wasVisible.current) return;
     wasVisible.current = true;
 
-    // Fresh reset on modal open
-    setCustomerMode('saved');
-    setSelectedPartyId('');
-    setCustomerName('');
-    setCustomerPhone('');
-    setCustomerAddress('');
-    setItems([{ productId: '', qty: '1', unitPrice: '', discount: '0' }]);
-    setTaxRate('18');
-    setTransportCost('0');
-    setTransportGstRate('0');
-    setNotes('');
+    if (quotationToEdit) {
+      if (quotationToEdit.partyId) {
+        setCustomerMode('saved');
+        setSelectedPartyId(quotationToEdit.partyId);
+      } else {
+        setCustomerMode('walkin');
+        setCustomerName(quotationToEdit.customerName || '');
+        setCustomerPhone(quotationToEdit.customerPhone || '');
+        setCustomerAddress(quotationToEdit.customerAddress || '');
+      }
+      setTaxRate(String(quotationToEdit.taxRate ?? '18'));
+      setTransportCost(String(quotationToEdit.transportCost ?? '0'));
+      setTransportGstRate(String(quotationToEdit.transportGstRate ?? '0'));
+      setNotes(quotationToEdit.notes || '');
+      if (quotationToEdit.items && quotationToEdit.items.length > 0) {
+        setItems(
+          quotationToEdit.items.map((it: any) => ({
+            productId: it.productId,
+            qty: String(it.qty),
+            unitPrice: String(it.unitPrice),
+            discount: String(it.discount || 0),
+          }))
+        );
+      } else {
+        setItems([{ productId: '', qty: '1', unitPrice: '', discount: '0' }]);
+      }
+    } else {
+      setCustomerMode('saved');
+      setSelectedPartyId('');
+      setCustomerName('');
+      setCustomerPhone('');
+      setCustomerAddress('');
+      setItems([{ productId: '', qty: '1', unitPrice: '', discount: '0' }]);
+      setTaxRate('18');
+      setTransportCost('0');
+      setTransportGstRate('0');
+      setNotes('');
+    }
 
     let isMounted = true;
     const shouldFetchParties = !initialParties || initialParties.length === 0;
@@ -428,10 +457,18 @@ export function CreateQuotationModal({
         })),
       };
 
-      const res = await mobileApiRequest<any>('/quotations', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
+      let res: any;
+      if (quotationToEdit) {
+        res = await mobileApiRequest<any>(`/quotations/${quotationToEdit.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(payload),
+        });
+      } else {
+        res = await mobileApiRequest<any>('/quotations', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+      }
 
       Alert.alert(
         'Price Estimate Created',
@@ -807,7 +844,7 @@ export function CreateQuotationModal({
           disabled={submitting}
         />
         <Button
-          title="Generate Estimate"
+          title={quotationToEdit ? "Save Changes" : "Generate Estimate"}
           icon="document-text-outline"
           variant="primary"
           size="md"

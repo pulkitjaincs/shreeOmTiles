@@ -23,6 +23,7 @@ import {
   ArrowDownLeft,
 } from 'lucide-react';
 import { Party, PartyDetail } from './types';
+import { buildPartyStatementShareUrl } from '@/lib/whatsapp';
 
 interface PartyStatementDrawerProps {
   party: Party | null;
@@ -43,7 +44,7 @@ export function PartyStatementDrawer({
   const [activeTab, setActiveTab] = useState<'orders' | 'purchases' | 'transactions' | 'credits'>('orders');
 
   const handleDownloadStatementPdf = async () => {
-    if (!party) return;
+    if (!party || downloadingPdf) return;
     setDownloadingPdf(true);
     try {
       const blob = await apiRequest<Blob>(`/parties/${party.id}/statement-pdf`);
@@ -140,15 +141,16 @@ export function PartyStatementDrawer({
 
   // WhatsApp Reminder handler
   const handleSendReminder = () => {
-    const cleanPhone = (party.phone || '').replace(/[^0-9]/g, '');
-    const formattedDue = `₹${Math.abs(totalDues).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
-    const message =
-      totalDues > 0
-        ? `Dear ${party.name}, this is a friendly reminder from Shree Om Tiles regarding your outstanding balance of ${formattedDue}. Please clear the payment at your earliest convenience. Thank you!`
-        : `Dear ${party.name}, this is an account statement from Shree Om Tiles. You currently have an advance store credit balance of ${formattedDue} available with us. Thank you!`;
-    const url = cleanPhone
-      ? `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(message)}`
-      : `https://wa.me/?text=${encodeURIComponent(message)}`;
+    const url = buildPartyStatementShareUrl({
+      phone: party.phone,
+      name: party.name,
+      gstin: party.gstin,
+      address: party.address,
+      lifetimeTotal,
+      totalReceived: settledPayments,
+      totalDues,
+      totalOrders: (partyData?.invoices || []).length,
+    });
     window.open(url, '_blank');
   };
 

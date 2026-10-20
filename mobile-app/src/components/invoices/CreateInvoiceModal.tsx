@@ -422,6 +422,7 @@ export function CreateInvoiceModal({
   };
 
   const handleCreateInvoice = async (modeOverride?: 'UPI' | 'CASH') => {
+    if (submitting) return;
     if (customerMode === 'existing' && !selectedPartyId) {
       Alert.alert('Validation Error', 'Please select a customer');
       return;

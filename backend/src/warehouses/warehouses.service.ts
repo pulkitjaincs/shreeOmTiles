@@ -101,7 +101,10 @@ export class WarehousesService {
       if (!warehouse) throw new NotFoundException(`Warehouse ${id} not found`);
 
       const activeStock =
-        warehouse.stockLedgers?.reduce((sum, s) => sum + s.quantity, 0) ?? 0;
+        warehouse.stockLedgers?.reduce(
+          (sum, s) => sum + Number(s.quantity),
+          0,
+        ) ?? 0;
       if (activeStock > 0) {
         throw new BadRequestException(
           `Cannot delete warehouse '${warehouse.name}' because it contains ${activeStock} units of inventory. The warehouse must be empty before deleting.`,

@@ -30,6 +30,7 @@ import {
   DatePreset,
   InvoiceStatusFilter,
   PaymentModeFilter,
+  RefundInvoiceDetail,
 } from '@/components/invoices/types';
 
 import { CreateInvoiceModal } from '@/components/invoices/create-invoice-modal';
@@ -71,7 +72,9 @@ export default function InvoicesPage() {
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [deletingInvoice, setDeletingInvoice] = useState<Invoice | null>(null);
   const [createdInvoiceSuccess, setCreatedInvoiceSuccess] = useState<Invoice | null>(null);
-  const [editingRefund, setEditingRefund] = useState<any | null>(null);
+  const [editingRefund, setEditingRefund] = useState<(RefundInvoiceDetail & { originalInvoiceId?: string }) | null>(null);
+  const [deletingRefund, setDeletingRefund] = useState<{ invoice: Invoice; refund: RefundInvoiceDetail } | null>(null);
+  const [deletingRefundSubmitting, setDeletingRefundSubmitting] = useState(false);
   const [statementParty, setStatementParty] = useState<Party | null>(null);
 
   // Loading & Feedback
@@ -804,6 +807,10 @@ export default function InvoicesPage() {
           setEditingRefund({ ...refund, originalInvoiceId: inv.id });
           setShowReturnModal(true);
         }}
+        onDeleteRefund={(inv: Invoice, refund: RefundInvoiceDetail) => {
+          setViewingInvoice(null);
+          setDeletingRefund({ invoice: inv, refund });
+        }}
         onOpenPartyStatement={(party) => setStatementParty(party)}
         sharingId={sharingId}
         downloadingId={downloadingId}
@@ -847,6 +854,57 @@ export default function InvoicesPage() {
           </button>
         </div>
       )}
-    </div>
+    
+      {/* Delete Refund Modal */}
+      {deletingRefund && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4 text-foreground">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-600">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-foreground">Delete Return Note?</h3>
+                <p className="text-xs text-muted-foreground">Return #{deletingRefund.refund.refundNo || deletingRefund.refund.id.slice(0, 8)}</p>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to delete this return note? The returned items will be deducted back out of inventory stock, and any linked payment outflows or credit notes will be reversed.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={deletingRefundSubmitting}
+                onClick={() => setDeletingRefund(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={deletingRefundSubmitting}
+                onClick={async () => {
+                  if (deletingRefundSubmitting) return;
+                  setDeletingRefundSubmitting(true);
+                  try {
+                    await apiRequest(`/invoices/refund/${deletingRefund.refund.id}`, { method: 'DELETE' });
+                    setDeletingRefund(null);
+                    setToastMsg('Return note deleted and inventory restored successfully.');
+                    await loadInitialData(true);
+                  } catch (err: unknown) {
+                    alert((err as Error).message || 'Failed to delete return');
+                  } finally {
+                    setDeletingRefundSubmitting(false);
+                  }
+                }}
+              >
+                {deletingRefundSubmitting ? 'Deleting...' : 'Delete Return'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+</div>
   );
 }

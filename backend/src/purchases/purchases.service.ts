@@ -36,7 +36,9 @@ export class PurchasesService {
 
   async update(id: string, data: CreatePurchaseDto, userId: string) {
     if (!data.items?.length) {
-      throw new BadRequestException('Purchase must contain at least one line item');
+      throw new BadRequestException(
+        'Purchase must contain at least one line item',
+      );
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -48,32 +50,55 @@ export class PurchasesService {
 
       const partyId = data.partyId || existing.partyId;
       const party = await tx.party.findUnique({ where: { id: partyId } });
-      if (!party) throw new NotFoundException('Selected supplier does not exist');
+      if (!party)
+        throw new NotFoundException('Selected supplier does not exist');
 
       const oldByProduct = new Map<string, number>();
       for (const item of existing.items) {
-        oldByProduct.set(item.productId, (oldByProduct.get(item.productId) || 0) + Number(item.qty));
+        oldByProduct.set(
+          item.productId,
+          (oldByProduct.get(item.productId) || 0) + Number(item.qty),
+        );
       }
       const newByProduct = new Map<string, number>();
       for (const item of data.items) {
-        newByProduct.set(item.productId, (newByProduct.get(item.productId) || 0) + Number(item.qty));
+        newByProduct.set(
+          item.productId,
+          (newByProduct.get(item.productId) || 0) + Number(item.qty),
+        );
       }
-      const productIds = new Set([...oldByProduct.keys(), ...newByProduct.keys()]);
+      const productIds = new Set([
+        ...oldByProduct.keys(),
+        ...newByProduct.keys(),
+      ]);
       for (const productId of productIds) {
-        const delta = (newByProduct.get(productId) || 0) - (oldByProduct.get(productId) || 0);
+        const delta =
+          (newByProduct.get(productId) || 0) -
+          (oldByProduct.get(productId) || 0);
         if (!delta) continue;
         const stock = await tx.stockLedger.findFirst({
           where: { productId },
           orderBy: { updatedAt: 'desc' },
         });
         if (!stock) {
-          if (delta < 0) throw new BadRequestException('Stock ledger missing for a removed purchase item');
+          if (delta < 0)
+            throw new BadRequestException(
+              'Stock ledger missing for a removed purchase item',
+            );
           await tx.stockLedger.create({
-            data: { productId, warehouseId: null, batchNo: null, quantity: new Prisma.Decimal(delta) },
+            data: {
+              productId,
+              warehouseId: null,
+              batchNo: null,
+              quantity: new Prisma.Decimal(delta),
+            },
           });
         } else {
           const next = Number(stock.quantity) + delta;
-          if (next < 0) throw new BadRequestException('Purchase edit would make stock negative');
+          if (next < 0)
+            throw new BadRequestException(
+              'Purchase edit would make stock negative',
+            );
           await tx.stockLedger.update({
             where: { id: stock.id },
             data: { quantity: new Prisma.Decimal(next.toFixed(2)) },
@@ -85,16 +110,29 @@ export class PurchasesService {
       const transportCost = Math.max(0, data.transportCost || 0);
       const calculatedItems = data.items.map((item) => {
         const discount = item.discount || 0;
-        return { ...item, discount, total: item.qty * item.unitPrice - discount };
+        return {
+          ...item,
+          discount,
+          total: item.qty * item.unitPrice - discount,
+        };
       });
-      const subtotal = calculatedItems.reduce((sum, item) => sum + item.total, 0);
-      const tax = Math.round((subtotal * taxRate) / 100 * 100) / 100;
+      const subtotal = calculatedItems.reduce(
+        (sum, item) => sum + item.total,
+        0,
+      );
+      const tax = Math.round(((subtotal * taxRate) / 100) * 100) / 100;
       const total = Math.round((subtotal + tax + transportCost) * 100) / 100;
-      const paymentSplits = (data.payments || []).filter((p) => Number(p.amount) > 0);
-      const paid = Math.min(total, paymentSplits.reduce((sum, p) => sum + Number(p.amount), 0));
-      const mode = paymentSplits.length > 1
-        ? PaymentMode.SPLIT
-        : paymentSplits[0]?.mode || PaymentMode.CREDIT;
+      const paymentSplits = (data.payments || []).filter(
+        (p) => Number(p.amount) > 0,
+      );
+      const paid = Math.min(
+        total,
+        paymentSplits.reduce((sum, p) => sum + Number(p.amount), 0),
+      );
+      const mode =
+        paymentSplits.length > 1
+          ? PaymentMode.SPLIT
+          : paymentSplits[0]?.mode || PaymentMode.CREDIT;
 
       await tx.purchaseItem.deleteMany({ where: { purchaseId: id } });
       await tx.payment.deleteMany({ where: { purchaseId: id } });
@@ -674,6 +712,69 @@ export class PurchasesService {
       });
 
       return debitNote;
+    });
+  }
+
+  async deletePurchase(id: string, userId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const purchase = await tx.purchase.findUnique({
+        where: { id },
+        include: {
+          items: true,
+          payments: true,
+          creditLedgers: true,
+          debitNotes: true,
+        },
+      });
+      if (!purchase) throw new NotFoundException('Purchase not found');
+      if (purchase.debitNotes && purchase.debitNotes.length > 0) {
+        throw new BadRequestException(
+          'Cannot delete purchase with existing debit notes. Revert debit notes first.',
+        );
+      }
+
+      for (const item of purchase.items) {
+        const stock = await tx.stockLedger.findFirst({
+          where: { productId: item.productId },
+          orderBy: { updatedAt: 'desc' },
+        });
+        if (stock) {
+          const next = Number(stock.quantity) - Number(item.qty);
+          if (next < 0) {
+            throw new BadRequestException(
+              `Cannot delete purchase: stock for product ${item.productId} would drop below zero`,
+            );
+          }
+          await tx.stockLedger.update({
+            where: { id: stock.id },
+            data: { quantity: new Prisma.Decimal(next.toFixed(2)) },
+          });
+        }
+      }
+
+      await tx.payment.deleteMany({ where: { purchaseId: id } });
+      await tx.creditLedger.deleteMany({ where: { purchaseId: id } });
+      await tx.purchaseItem.deleteMany({ where: { purchaseId: id } });
+      await tx.purchase.delete({ where: { id } });
+
+      await tx.auditLog.create({
+        data: {
+          actorId: userId,
+          action: 'DELETE_PURCHASE',
+          entity: 'Purchase',
+          entityId: id,
+          diff: {
+            purchaseNo: purchase.purchaseNo,
+            total: Number(purchase.total),
+            vendorBillNo: purchase.vendorBillNo,
+          },
+        },
+      });
+
+      return {
+        success: true,
+        message: `Purchase ${purchase.purchaseNo} deleted and stock reverted successfully`,
+      };
     });
   }
 }

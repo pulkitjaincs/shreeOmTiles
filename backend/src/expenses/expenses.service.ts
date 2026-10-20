@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateExpenseDto, UpdateExpenseDto } from './dto/create-expense.dto';
 import { ExpenseCategory, Prisma } from '@prisma/client';
@@ -191,12 +195,15 @@ export class ExpensesService {
 
   async update(id: string, data: UpdateExpenseDto, userId: string) {
     const existing = await this.prisma.expense.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException(`Expense with ID ${id} not found`);
+    if (!existing)
+      throw new NotFoundException(`Expense with ID ${id} not found`);
     const amount = Number(data.amount || 0);
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new BadRequestException('Expense amount must be greater than zero');
     }
-    const expDate = data.expenseDate ? new Date(data.expenseDate) : existing.expenseDate;
+    const expDate = data.expenseDate
+      ? new Date(data.expenseDate)
+      : existing.expenseDate;
     const title = data.title?.trim();
     const notes = data.notes?.trim();
     return this.prisma.$transaction(async (tx) => {
@@ -207,10 +214,16 @@ export class ExpensesService {
           amount: new Prisma.Decimal(amount.toFixed(2)),
           paymentMode: data.paymentMode || existing.paymentMode,
           paidTo: data.paidTo?.trim() || null,
-          notes: title ? (notes ? `${title} - ${notes}` : title) : notes || null,
+          notes: title
+            ? notes
+              ? `${title} - ${notes}`
+              : title
+            : notes || null,
           expenseDate: expDate,
         },
-        include: { createdBy: { select: { id: true, name: true, phone: true } } },
+        include: {
+          createdBy: { select: { id: true, name: true, phone: true } },
+        },
       });
       await tx.auditLog.create({
         data: {
@@ -222,6 +235,30 @@ export class ExpensesService {
         },
       });
       return updated;
+    });
+  }
+
+  async delete(id: string, userId: string) {
+    const existing = await this.prisma.expense.findUnique({ where: { id } });
+    if (!existing)
+      throw new NotFoundException(`Expense with ID ${id} not found`);
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.expense.delete({ where: { id } });
+      await tx.auditLog.create({
+        data: {
+          actorId: userId,
+          action: 'DELETE_EXPENSE',
+          entity: 'Expense',
+          entityId: id,
+          diff: {
+            notes: existing.notes,
+            amount: Number(existing.amount),
+            category: existing.category,
+          },
+        },
+      });
+      return { success: true, message: `Expense deleted successfully` };
     });
   }
 }

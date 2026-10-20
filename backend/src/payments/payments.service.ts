@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -16,6 +17,7 @@ import {
   CreditType,
   PaymentType,
   DeliveryStatus,
+  Role,
   Prisma,
 } from '@prisma/client';
 import { PaginationParams } from '../common/interfaces/pagination.interface';
@@ -41,6 +43,7 @@ export class PaymentsService {
     id: string,
     data: UpdatePaymentDto,
     actorId: string,
+    actorRole?: Role,
   ) {
     return this.prisma.$transaction(async (tx) => {
       const payment = await tx.payment.findUnique({
@@ -50,6 +53,17 @@ export class PaymentsService {
       if (!payment) throw new NotFoundException(`Payment ${id} not found`);
       if (payment.type === PaymentType.OUTFLOW) {
         throw new BadRequestException('Only received payments can be edited');
+      }
+
+      if (actorRole === Role.SALESMAN) {
+        const isAllowed =
+          (payment.invoice && payment.invoice.salesmanId === actorId) ||
+          payment.confirmedById === actorId;
+        if (!isAllowed) {
+          throw new ForbiddenException(
+            'Salesmen can only edit payments collected by them or for their invoices',
+          );
+        }
       }
 
       const updated = await tx.payment.update({
@@ -96,8 +110,8 @@ export class PaymentsService {
               totalPaid >= total
                 ? InvoiceStatus.PAID
                 : totalPaid > 0
-                ? InvoiceStatus.PARTIAL
-                : InvoiceStatus.CREATED,
+                  ? InvoiceStatus.PARTIAL
+                  : InvoiceStatus.CREATED,
           },
         });
         const ledger = await tx.creditLedger.findFirst({
@@ -109,13 +123,21 @@ export class PaymentsService {
             where: { id: ledger.id },
             data: {
               amountDue: new Prisma.Decimal(due.toFixed(2)),
-              status: due === 0 ? 'SETTLED' : totalPaid > 0 ? 'PARTIAL' : 'UNPAID',
+              status:
+                due === 0 ? 'SETTLED' : totalPaid > 0 ? 'PARTIAL' : 'UNPAID',
             },
           });
         }
         await tx.delivery.updateMany({
-          where: { invoiceId: payment.invoiceId, status: { not: DeliveryStatus.DELIVERED } },
-          data: { amountToCollect: new Prisma.Decimal(Math.max(0, total - totalPaid).toFixed(2)) },
+          where: {
+            invoiceId: payment.invoiceId,
+            status: { not: DeliveryStatus.DELIVERED },
+          },
+          data: {
+            amountToCollect: new Prisma.Decimal(
+              Math.max(0, total - totalPaid).toFixed(2),
+            ),
+          },
         });
       } else if (payment.partyId) {
         throw new BadRequestException(
@@ -141,14 +163,29 @@ export class PaymentsService {
     });
   }
 
-  async create(data: CreatePaymentDto, userId?: string) {
+  async create(
+    data: CreatePaymentDto,
+    user?: { id: string; role: Role; name?: string } | string,
+  ) {
+    const userId = typeof user === 'string' ? user : user?.id;
+    const actorRole = typeof user === 'object' ? user?.role : undefined;
+
     let partyId = data.partyId;
     if (data.invoiceId) {
       const invoice = await this.prisma.invoice.findUnique({
         where: { id: data.invoiceId },
       });
       if (!invoice) throw new NotFoundException('Invoice not found');
+      if (actorRole === Role.SALESMAN && invoice.salesmanId !== userId) {
+        throw new ForbiddenException(
+          'Salesmen can only collect payments for their own invoices',
+        );
+      }
       partyId = invoice.partyId;
+    } else if (actorRole === Role.SALESMAN) {
+      throw new ForbiddenException(
+        'Salesmen can only collect payments linked to an invoice',
+      );
     }
 
     const paymentType =
@@ -191,10 +228,9 @@ export class PaymentsService {
       );
     }
 
-    const totalSplitAmount = splits.reduce(
-      (sum, s) => sum + Number(s.amount),
-      0,
-    );
+    const totalSplitAmount =
+      Math.round(splits.reduce((sum, s) => sum + Number(s.amount), 0) * 100) /
+      100;
 
     if (data.autoConfirm) {
       const createdPayments = await this.prisma.$transaction(async (tx) => {
@@ -246,8 +282,8 @@ export class PaymentsService {
           const inv = await tx.invoice.findUnique({
             where: { id: data.invoiceId },
           });
+          const invoiceTotal = Number(inv?.total || 0);
           if (inv) {
-            const invoiceTotal = Number(inv.total);
             let newInvoiceStatus: InvoiceStatus = InvoiceStatus.CREATED;
             if (totalPaid >= invoiceTotal) {
               newInvoiceStatus = InvoiceStatus.PAID;
@@ -265,15 +301,17 @@ export class PaymentsService {
             where: { invoiceId: data.invoiceId },
           });
           if (creditEntry) {
-            const remainingDue = Math.max(
-              0,
-              Number(creditEntry.amountDue) - totalSplitAmount,
-            );
+            const remainingDue = Math.max(0, invoiceTotal - totalPaid);
             await tx.creditLedger.update({
               where: { id: creditEntry.id },
               data: {
                 amountDue: new Prisma.Decimal(remainingDue.toFixed(2)),
-                status: remainingDue === 0 ? 'SETTLED' : 'PARTIAL',
+                status:
+                  remainingDue === 0
+                    ? 'SETTLED'
+                    : totalPaid > 0
+                      ? 'PARTIAL'
+                      : 'UNPAID',
               },
             });
           }
@@ -403,7 +441,13 @@ export class PaymentsService {
     return pendingPayments.length === 1 ? pendingPayments[0] : pendingPayments;
   }
 
-  async findAll(pagination?: PaginationParams): Promise<any> {
+  async findAll(
+    pagination?: PaginationParams,
+    user?: { id: string; role: Role },
+  ): Promise<any> {
+    const where: Prisma.PaymentWhereInput =
+      user?.role === Role.SALESMAN ? { invoice: { salesmanId: user.id } } : {};
+
     const includeRelations = {
       invoice: { include: { party: true } },
       party: true,
@@ -417,12 +461,13 @@ export class PaymentsService {
 
       const [data, total] = await Promise.all([
         this.prisma.payment.findMany({
+          where,
           include: includeRelations,
           orderBy: { createdAt: 'desc' },
           skip,
           take: limit,
         }),
-        this.prisma.payment.count(),
+        this.prisma.payment.count({ where }),
       ]);
 
       return {
@@ -435,13 +480,14 @@ export class PaymentsService {
     }
 
     return this.prisma.payment.findMany({
+      where,
       include: includeRelations,
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user?: { id: string; role: Role }) {
     const payment = await this.prisma.payment.findUnique({
       where: { id },
       include: {
@@ -451,6 +497,14 @@ export class PaymentsService {
       },
     });
     if (!payment) throw new NotFoundException(`Payment ${id} not found`);
+    if (
+      user?.role === Role.SALESMAN &&
+      payment.invoice?.salesmanId !== user.id
+    ) {
+      throw new ForbiddenException(
+        'You do not have permission to view this payment',
+      );
+    }
     return payment;
   }
 
@@ -520,22 +574,43 @@ export class PaymentsService {
         });
 
         // 4. Update Credit Ledger if credit entry exists
+        const remainingDue = Math.max(0, invoiceTotal - totalPaid);
         const creditEntry = await tx.creditLedger.findFirst({
           where: { invoiceId: payment.invoiceId },
         });
         if (creditEntry) {
-          const remainingDue = Math.max(
-            0,
-            Number(creditEntry.amountDue) - Number(payment.amount),
-          );
           await tx.creditLedger.update({
             where: { id: creditEntry.id },
             data: {
               amountDue: new Prisma.Decimal(remainingDue.toFixed(2)),
-              status: remainingDue === 0 ? 'SETTLED' : 'PARTIAL',
+              status:
+                remainingDue === 0
+                  ? 'SETTLED'
+                  : totalPaid > 0
+                    ? 'PARTIAL'
+                    : 'UNPAID',
             },
           });
         }
+
+        // 5. Sync linked active deliveries amountToCollect
+        await tx.delivery.updateMany({
+          where: {
+            invoiceId: payment.invoiceId,
+            status: {
+              in: [
+                DeliveryStatus.PENDING,
+                DeliveryStatus.ASSIGNED,
+                DeliveryStatus.OUT_FOR_PICKUP,
+                DeliveryStatus.PICKED_UP,
+                DeliveryStatus.OUT_FOR_DELIVERY,
+              ],
+            },
+          },
+          data: {
+            amountToCollect: new Prisma.Decimal(remainingDue.toFixed(2)),
+          },
+        });
       } else if (payment.partyId) {
         const targetCreditType =
           payment.type === PaymentType.OUTFLOW
@@ -666,8 +741,12 @@ export class PaymentsService {
     });
   }
 
-  async findAllCreditLedgers() {
+  async findAllCreditLedgers(user?: { id: string; role: Role }) {
+    const where: Prisma.CreditLedgerWhereInput =
+      user?.role === Role.SALESMAN ? { invoice: { salesmanId: user.id } } : {};
+
     return this.prisma.creditLedger.findMany({
+      where,
       include: {
         party: true,
         invoice: true,
@@ -676,7 +755,16 @@ export class PaymentsService {
     });
   }
 
-  async getStats() {
+  async getStats(user?: { id: string; role: Role }) {
+    const isSalesman = user?.role === Role.SALESMAN;
+    const invoiceFilter = isSalesman ? { salesmanId: user.id } : {};
+    const paymentInvoiceFilter = isSalesman
+      ? { invoice: { salesmanId: user.id } }
+      : {};
+    const creditInvoiceFilter = isSalesman
+      ? { invoice: { salesmanId: user.id } }
+      : {};
+
     const [
       invoiceAgg,
       inflowAgg,
@@ -690,20 +778,31 @@ export class PaymentsService {
     ] = await Promise.all([
       this.prisma.invoice.aggregate({
         where: {
+          ...invoiceFilter,
           status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
         },
         _sum: { total: true },
       }),
       this.prisma.payment.aggregate({
-        where: { status: PaymentStatus.CONFIRMED, type: PaymentType.INFLOW },
+        where: {
+          ...paymentInvoiceFilter,
+          status: PaymentStatus.CONFIRMED,
+          type: PaymentType.INFLOW,
+        },
         _sum: { amount: true },
       }),
-      this.prisma.payment.aggregate({
-        where: { status: PaymentStatus.CONFIRMED, type: PaymentType.OUTFLOW },
-        _sum: { amount: true },
-      }),
+      isSalesman
+        ? Promise.resolve({ _sum: { amount: null } })
+        : this.prisma.payment.aggregate({
+            where: {
+              status: PaymentStatus.CONFIRMED,
+              type: PaymentType.OUTFLOW,
+            },
+            _sum: { amount: true },
+          }),
       this.prisma.payment.aggregate({
         where: {
+          ...paymentInvoiceFilter,
           status: PaymentStatus.CONFIRMED,
           mode: PaymentMode.CASH,
           type: PaymentType.INFLOW,
@@ -712,6 +811,7 @@ export class PaymentsService {
       }),
       this.prisma.payment.aggregate({
         where: {
+          ...paymentInvoiceFilter,
           status: PaymentStatus.CONFIRMED,
           mode: PaymentMode.UPI,
           type: PaymentType.INFLOW,
@@ -720,6 +820,7 @@ export class PaymentsService {
       }),
       this.prisma.payment.aggregate({
         where: {
+          ...paymentInvoiceFilter,
           status: PaymentStatus.CONFIRMED,
           mode: PaymentMode.BANK_TRANSFER,
           type: PaymentType.INFLOW,
@@ -728,6 +829,7 @@ export class PaymentsService {
       }),
       this.prisma.payment.aggregate({
         where: {
+          ...paymentInvoiceFilter,
           status: PaymentStatus.CONFIRMED,
           mode: PaymentMode.CARD,
           type: PaymentType.INFLOW,
@@ -735,13 +837,19 @@ export class PaymentsService {
         _sum: { amount: true },
       }),
       this.prisma.creditLedger.aggregate({
-        where: { status: { not: 'SETTLED' }, type: CreditType.RECEIVABLE },
+        where: {
+          ...creditInvoiceFilter,
+          status: { not: 'SETTLED' },
+          type: CreditType.RECEIVABLE,
+        },
         _sum: { amountDue: true },
       }),
-      this.prisma.creditLedger.aggregate({
-        where: { status: { not: 'SETTLED' }, type: CreditType.PAYABLE },
-        _sum: { amountDue: true },
-      }),
+      isSalesman
+        ? Promise.resolve({ _sum: { amountDue: null } })
+        : this.prisma.creditLedger.aggregate({
+            where: { status: { not: 'SETTLED' }, type: CreditType.PAYABLE },
+            _sum: { amountDue: true },
+          }),
     ]);
 
     const totalCollected = Math.max(
@@ -762,10 +870,13 @@ export class PaymentsService {
     };
   }
 
-  async getPendingItems() {
+  async getPendingItems(user?: { id: string; role: Role }) {
+    const isSalesman = user?.role === Role.SALESMAN;
+
     // 1. Invoices that are CREATED or PARTIAL
     const pendingInvoices = await this.prisma.invoice.findMany({
       where: {
+        ...(isSalesman ? { salesmanId: user.id } : {}),
         status: { in: [InvoiceStatus.CREATED, InvoiceStatus.PARTIAL] },
       },
       include: {
@@ -775,12 +886,20 @@ export class PaymentsService {
       orderBy: { createdAt: 'desc' },
     });
 
-    // 2. Unsettled credit ledgers: all store payables (PAYABLE) or standalone customer debts (RECEIVABLE)
+    // 2. Unsettled credit ledgers:
+    // If salesman: only receivables linked to their invoices!
+    // If owner/admin/accountant: all store payables or standalone customer debts
     const pendingLedgers = await this.prisma.creditLedger.findMany({
-      where: {
-        status: { not: 'SETTLED' },
-        OR: [{ type: CreditType.PAYABLE }, { invoiceId: null }],
-      },
+      where: isSalesman
+        ? {
+            status: { not: 'SETTLED' },
+            type: CreditType.RECEIVABLE,
+            invoice: { salesmanId: user.id },
+          }
+        : {
+            status: { not: 'SETTLED' },
+            OR: [{ type: CreditType.PAYABLE }, { invoiceId: null }],
+          },
       include: {
         party: true,
         invoice: true,
@@ -830,5 +949,115 @@ export class PaymentsService {
           createdAt: cl.createdAt,
         })),
     };
+  }
+
+  async deletePayment(id: string, userId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const payment = await tx.payment.findUnique({
+        where: { id },
+        include: { invoice: true, purchase: true, refundInvoice: true },
+      });
+      if (!payment) throw new NotFoundException(`Payment ${id} not found`);
+
+      await tx.payment.delete({ where: { id } });
+
+      if (payment.invoiceId && payment.invoice) {
+        const confirmed = await tx.payment.findMany({
+          where: {
+            invoiceId: payment.invoiceId,
+            status: PaymentStatus.CONFIRMED,
+          },
+        });
+        const totalPaid = Math.max(
+          0,
+          confirmed.reduce(
+            (sum, item) =>
+              item.type === PaymentType.OUTFLOW
+                ? sum - Number(item.amount)
+                : sum + Number(item.amount),
+            0,
+          ),
+        );
+        const total = Number(payment.invoice.total);
+        await tx.invoice.update({
+          where: { id: payment.invoiceId },
+          data: {
+            status:
+              totalPaid >= total
+                ? InvoiceStatus.PAID
+                : totalPaid > 0
+                  ? InvoiceStatus.PARTIAL
+                  : InvoiceStatus.CREATED,
+          },
+        });
+        const ledger = await tx.creditLedger.findFirst({
+          where: { invoiceId: payment.invoiceId, type: CreditType.RECEIVABLE },
+        });
+        if (ledger) {
+          const due = Math.max(0, total - totalPaid);
+          await tx.creditLedger.update({
+            where: { id: ledger.id },
+            data: {
+              amountDue: new Prisma.Decimal(due.toFixed(2)),
+              status:
+                due === 0 ? 'SETTLED' : totalPaid > 0 ? 'PARTIAL' : 'UNPAID',
+            },
+          });
+        }
+        await tx.delivery.updateMany({
+          where: {
+            invoiceId: payment.invoiceId,
+            status: { not: DeliveryStatus.DELIVERED },
+          },
+          data: {
+            amountToCollect: new Prisma.Decimal(
+              Math.max(0, total - totalPaid).toFixed(2),
+            ),
+          },
+        });
+      }
+
+      if (payment.purchaseId && payment.purchase) {
+        const purchasePayments = await tx.payment.findMany({
+          where: {
+            purchaseId: payment.purchaseId,
+            status: PaymentStatus.CONFIRMED,
+          },
+        });
+        const paid = purchasePayments.reduce((s, p) => s + Number(p.amount), 0);
+        const total = Number(payment.purchase.total);
+        const ledger = await tx.creditLedger.findFirst({
+          where: { purchaseId: payment.purchaseId, type: CreditType.PAYABLE },
+        });
+        if (ledger) {
+          const due = Math.max(0, total - paid);
+          await tx.creditLedger.update({
+            where: { id: ledger.id },
+            data: {
+              amountDue: new Prisma.Decimal(due.toFixed(2)),
+              status: due === 0 ? 'SETTLED' : paid > 0 ? 'PARTIAL' : 'UNPAID',
+            },
+          });
+        }
+      }
+
+      await tx.auditLog.create({
+        data: {
+          actorId: userId,
+          action: 'DELETE_PAYMENT',
+          entity: 'Payment',
+          entityId: id,
+          diff: {
+            amount: Number(payment.amount),
+            type: payment.type,
+            mode: payment.mode,
+            invoiceId: payment.invoiceId,
+            purchaseId: payment.purchaseId,
+          },
+        },
+      });
+
+      return { success: true, message: 'Payment deleted successfully' };
+    });
   }
 }

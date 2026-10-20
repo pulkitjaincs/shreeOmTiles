@@ -46,6 +46,7 @@ export function PartyFormModal({
   }, [visible, party]);
 
   const handleSubmit = async () => {
+    if (submitting) return;
     if (!name.trim()) {
       Alert.alert('Required', 'Please enter customer / firm name');
       return;

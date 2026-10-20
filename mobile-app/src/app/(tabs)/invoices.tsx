@@ -413,32 +413,26 @@ export default function InvoicesScreen() {
         </View>
       ) : null}
 
-      {isOwnerOrAdmin ? (
-        <View style={{ paddingHorizontal: 16, marginBottom: 6 }}>
-          <FilterDropdown
-            label="Created By"
-            value={createdById}
-            onSelect={setCreatedById}
-            options={[
-              { label: 'All Creators', value: 'ALL', icon: 'people-outline', color: '#FFFFFF' },
-              ...staff
-                .filter((member) => ['SALESMAN', 'ADMIN', 'OWNER'].includes(member.role))
-                .map((member) => ({
-                  label: member.name,
-                  value: member.id,
-                  icon: 'person-outline' as const,
-                  color: member.role === 'SALESMAN' ? '#38BDF8' : '#F59E0B',
-                })),
-            ]}
-            hideLabelPrefix
-            showCountOnTrigger
-          />
-        </View>
-      ) : null}
-
       <InvoiceListFilters
         search={search}
         onSearchChange={setSearch}
+        staffOptions={
+          isOwnerOrAdmin
+            ? [
+                { label: 'All Creators', value: 'ALL', icon: 'people-outline' as const, color: '#FFFFFF' },
+                ...staff
+                  .filter((member) => ['SALESMAN', 'ADMIN', 'OWNER'].includes(member.role))
+                  .map((member) => ({
+                    label: member.name,
+                    value: member.id,
+                    icon: 'person-outline' as const,
+                    color: member.role === 'SALESMAN' ? '#38BDF8' : '#F59E0B',
+                  })),
+              ]
+            : undefined
+        }
+        createdById={createdById}
+        onCreatedByIdChange={setCreatedById}
         status={statusFilter}
         onStatusChange={setStatusFilter}
         datePreset={dateFilter}

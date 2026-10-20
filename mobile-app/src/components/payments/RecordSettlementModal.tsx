@@ -135,7 +135,7 @@ export function RecordSettlementModal({
       setInvoiceId(initialInvoiceId || '');
       setInvoiceNo(initialInvoiceNo || '');
       if (editingPayment) {
-        setDirection('COLLECT');
+        setDirection(editingPayment.type === 'OUTFLOW' ? 'PAY' : 'COLLECT');
         setSelectedPartyId(editingPayment.partyId || editingPayment.party?.id || '');
         setAmount(String(editingPayment.amount));
         setSplits([{ mode: editingPayment.mode as any, amount: String(editingPayment.amount) }]);
@@ -233,6 +233,7 @@ export function RecordSettlementModal({
   };
 
   const handleSubmit = async () => {
+    if (submitting) return;
     const validSplits = splits.filter((s) => {
       const a = parseFloat(s.amount);
       return !isNaN(a) && a > 0;

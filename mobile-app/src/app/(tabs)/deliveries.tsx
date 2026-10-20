@@ -277,36 +277,6 @@ export default function DeliveriesScreen() {
     }
   };
 
-  // 1-Click Customer Counter Pickup
-  const handleCustomerPickedUp = async (deliveryId: string) => {
-    Alert.alert(
-      'Confirm Counter Pickup',
-      'Has the customer physically collected all order items directly from the showroom / counter?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Yes, Completed',
-          style: 'default',
-          onPress: async () => {
-            try {
-              await mobileApiRequest(`/delivery/${deliveryId}/status`, {
-                method: 'PATCH',
-                body: JSON.stringify({
-                  status: 'DELIVERED',
-                  notes: 'Customer Picked Up (Self-Pickup from Counter)',
-                }),
-              });
-              Alert.alert('Order Completed', 'Marked as Delivered. Driver dispatch permanently resolved.');
-              loadData(true);
-            } catch (err: any) {
-              Alert.alert('Update Failed', err.message || 'Could not complete delivery');
-            }
-          },
-        },
-      ],
-    );
-  };
-
   // Verify Driver Cash Handover
   const handleHandoverCash = async (deliveryId: string) => {
     setHandoverInProgress(deliveryId);
@@ -417,7 +387,6 @@ export default function DeliveriesScreen() {
               onOpenRunDetails={(d) => setActiveDeliveryModal(d)}
               onOpenPushModal={(d) => setPushModalDelivery(d)}
               onOpenCollectCash={(d) => setCollectCashDelivery(d)}
-              onCustomerPickedUp={handleCustomerPickedUp}
               onHandoverCash={handleHandoverCash}
               onUpdateStatus={handleUpdateStatus}
               onSupervisorConfirmPick={handleSupervisorConfirmPick}

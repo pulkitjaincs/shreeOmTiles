@@ -254,7 +254,7 @@ export class QuotationsService {
         : `Converted from Quotation #${quotation.quotationNo}`,
       items: quotation.items.map((it) => ({
         productId: it.productId,
-        qty: it.qty,
+        qty: Number(it.qty),
         unitPrice: Number(it.unitPrice),
         discount: Number(it.discount),
       })),
@@ -268,5 +268,132 @@ export class QuotationsService {
     });
 
     return invoice;
+  }
+
+  async update(id: string, data: CreateQuotationDto, userId: string) {
+    if (!data.items || data.items.length === 0) {
+      throw new BadRequestException(
+        'Quotation must contain at least one line item',
+      );
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const quotation = await tx.quotation.findUnique({
+        where: { id },
+        include: { items: true },
+      });
+      if (!quotation) throw new NotFoundException('Quotation not found');
+      if (quotation.status === QuotationStatus.CONVERTED) {
+        throw new BadRequestException(
+          'Cannot edit a quotation that has already been converted to an invoice',
+        );
+      }
+
+      const taxRate =
+        data.taxRate !== undefined
+          ? Math.max(0, data.taxRate)
+          : Number(quotation.taxRate || 18);
+      const transportCost = Math.max(0, data.transportCost || 0);
+      const transportGstRate = Math.max(0, data.transportGstRate || 0);
+
+      let subtotal = 0;
+      const itemsData: Prisma.QuotationItemUncheckedCreateWithoutQuotationInput[] =
+        [];
+      for (const item of data.items) {
+        const discount = item.discount || 0;
+        const lineTotal = item.qty * item.unitPrice - discount;
+        subtotal += lineTotal;
+        itemsData.push({
+          productId: item.productId,
+          qty: item.qty,
+          unitPrice: new Prisma.Decimal(item.unitPrice.toFixed(2)),
+          discount: new Prisma.Decimal(discount.toFixed(2)),
+          total: new Prisma.Decimal(lineTotal.toFixed(2)),
+        });
+      }
+
+      const itemsTax = Math.round(((subtotal * taxRate) / 100) * 100) / 100;
+      const transportTax =
+        Math.round(((transportCost * transportGstRate) / 100) * 100) / 100;
+      const tax = Math.round((itemsTax + transportTax) * 100) / 100;
+      const total = Math.round((subtotal + tax + transportCost) * 100) / 100;
+
+      await tx.quotationItem.deleteMany({ where: { quotationId: id } });
+
+      const updated = await tx.quotation.update({
+        where: { id },
+        data: {
+          partyId: data.partyId || null,
+          customerName: data.customerName || null,
+          customerPhone: data.customerPhone || null,
+          customerAddress: data.customerAddress || null,
+          subtotal: new Prisma.Decimal(subtotal.toFixed(2)),
+          taxRate: new Prisma.Decimal(taxRate.toFixed(2)),
+          tax: new Prisma.Decimal(tax.toFixed(2)),
+          transportCost: new Prisma.Decimal(transportCost.toFixed(2)),
+          transportGstRate: new Prisma.Decimal(transportGstRate.toFixed(2)),
+          total: new Prisma.Decimal(total.toFixed(2)),
+          notes: data.notes,
+          items: {
+            create: itemsData,
+          },
+        },
+        include: {
+          party: true,
+          items: { include: { product: true } },
+        },
+      });
+
+      await tx.auditLog.create({
+        data: {
+          actorId: userId,
+          action: 'EDIT_QUOTATION',
+          entity: 'Quotation',
+          entityId: id,
+          diff: {
+            quotationNo: quotation.quotationNo,
+            oldTotal: Number(quotation.total),
+            newTotal: total,
+          },
+        },
+      });
+
+      return updated;
+    });
+  }
+
+  async delete(id: string, userId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const quotation = await tx.quotation.findUnique({
+        where: { id },
+      });
+      if (!quotation) throw new NotFoundException('Quotation not found');
+      if (quotation.status === QuotationStatus.CONVERTED) {
+        throw new BadRequestException(
+          'Cannot delete a quotation that has already been converted to an invoice',
+        );
+      }
+
+      await tx.quotationItem.deleteMany({ where: { quotationId: id } });
+      await tx.quotation.delete({ where: { id } });
+
+      await tx.auditLog.create({
+        data: {
+          actorId: userId,
+          action: 'DELETE_QUOTATION',
+          entity: 'Quotation',
+          entityId: id,
+          diff: {
+            quotationNo: quotation.quotationNo,
+            total: Number(quotation.total),
+          },
+        },
+      });
+
+      return {
+        success: true,
+        message: `Quotation ${quotation.quotationNo} deleted successfully`,
+      };
+    });
   }
 }

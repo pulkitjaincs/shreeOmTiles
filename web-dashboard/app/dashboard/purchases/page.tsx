@@ -11,7 +11,8 @@ import {
   RotateCcw,
   Eye,
   Loader2,
-  Pencil
+  Pencil,
+  Trash2
 } from 'lucide-react';
 import { Product, Warehouse, Party } from '@/components/invoices/types';
 import { CreatePurchaseModal } from '@/components/purchases/create-purchase-modal';
@@ -63,6 +64,9 @@ interface PurchaseRecord {
 export default function PurchasesPage() {
   const { user } = useAuth();
   const isSupervisor = user?.role === 'SUPERVISOR';
+  const canManage = user?.role === 'OWNER' || user?.role === 'ADMIN';
+  const [deletingPurchase, setDeletingPurchase] = useState<PurchaseRecord | null>(null);
+  const [deletingSubmitting, setDeletingSubmitting] = useState(false);
 
   const [purchases, setPurchases] = useState<PurchaseRecord[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -454,6 +458,15 @@ export default function PurchasesPage() {
                               <RotateCcw className="h-4 w-4" />
                             </button>
                           )}
+                          {canManage && (
+                            <button
+                              onClick={() => setDeletingPurchase(p)}
+                              className="h-8 w-8 inline-flex items-center justify-center rounded-[0.5rem] text-rose-600 dark:text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition active:scale-95 shadow-2xs"
+                              title="Delete Purchase & Revert Inward Stock"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -723,6 +736,56 @@ export default function PurchasesPage() {
           </div>
         </div>
       )}
-    </div>
+    
+      {/* Delete Purchase Confirmation Dialog */}
+      {deletingPurchase && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
+          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4 text-foreground">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-600">
+                <Trash2 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-foreground">Delete Inward Purchase?</h3>
+                <p className="text-xs text-muted-foreground">Purchase #{deletingPurchase.purchaseNo}</p>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to delete this purchase? Inwarded stock will be deducted back from catalog stock, and linked payment/credit ledger entries will be removed.
+            </p>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={deletingSubmitting}
+                onClick={() => setDeletingPurchase(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={deletingSubmitting}
+                onClick={async () => {
+                  if (deletingSubmitting) return;
+                  setDeletingSubmitting(true);
+                  try {
+                    await apiRequest(`/purchases/${deletingPurchase.id}`, { method: 'DELETE' });
+                    setDeletingPurchase(null);
+                    await loadData(true);
+                  } catch (err: any) {
+                    alert(err.message || 'Failed to delete purchase');
+                  } finally {
+                    setDeletingSubmitting(false);
+                  }
+                }}
+              >
+                {deletingSubmitting ? 'Deleting...' : 'Delete Purchase'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+</div>
   );
 }

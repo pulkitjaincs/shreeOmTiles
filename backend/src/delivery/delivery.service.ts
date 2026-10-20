@@ -421,8 +421,70 @@ export class DeliveryService {
     return false;
   }
 
-  async updateStatus(id: string, status: DeliveryStatus, notes?: string) {
+  async updateStatus(
+    id: string,
+    status: DeliveryStatus,
+    notes?: string,
+    actor?: { id: string; role: Role; name?: string },
+  ) {
     const delivery = await this.findOne(id);
+
+    // Driver ownership verification
+    if (actor?.role === Role.DRIVER && delivery.driverId !== actor.id) {
+      throw new ForbiddenException(
+        'You can only update deliveries assigned to you.',
+      );
+    }
+
+    // Cancellation is disabled
+    if (status === DeliveryStatus.CANCELLED) {
+      throw new BadRequestException(
+        'Deliveries cannot be cancelled. Edit delivery or invoice instead.',
+      );
+    }
+
+    // Terminal state protection
+    if (delivery.status === DeliveryStatus.DELIVERED) {
+      throw new BadRequestException(
+        'Delivered orders are locked and cannot be modified.',
+      );
+    }
+
+    // State machine transition validation
+    if (delivery.status === DeliveryStatus.PENDING) {
+      if (
+        status !== DeliveryStatus.ASSIGNED &&
+        status !== DeliveryStatus.DELIVERED
+      ) {
+        throw new BadRequestException(
+          'Pending delivery must be assigned before dispatch.',
+        );
+      }
+    } else if (delivery.status === DeliveryStatus.ASSIGNED) {
+      if (
+        status !== DeliveryStatus.OUT_FOR_PICKUP &&
+        status !== DeliveryStatus.DELIVERED
+      ) {
+        throw new BadRequestException(
+          'Assigned delivery must move to Out For Pickup first.',
+        );
+      }
+    } else if (delivery.status === DeliveryStatus.OUT_FOR_PICKUP) {
+      if (
+        status !== DeliveryStatus.OUT_FOR_DELIVERY &&
+        status !== DeliveryStatus.DELIVERED
+      ) {
+        throw new BadRequestException(
+          'Out For Pickup delivery must move to Out For Delivery or Delivered.',
+        );
+      }
+    } else if (delivery.status === DeliveryStatus.OUT_FOR_DELIVERY) {
+      if (status !== DeliveryStatus.DELIVERED) {
+        throw new BadRequestException(
+          'Out For Delivery can only transition to Delivered.',
+        );
+      }
+    }
 
     const isMarkingCustomerPickup =
       Boolean(
@@ -451,9 +513,6 @@ export class DeliveryService {
           productId: it.productId,
           productName: it.product?.name || 'Product',
           qty: Number(it.qty),
-          batchNo: it.batchNo,
-          warehouseId: it.warehouseId,
-          warehouseName: it.warehouse?.name || 'Warehouse',
           pickedUp: true,
           pickedUpAt: new Date().toISOString(),
         }));
@@ -493,20 +552,6 @@ export class DeliveryService {
         `Invoice #${invoiceNo} for ${customerName} delivered (${byWhom}).`,
         {
           type: 'DELIVERY_COMPLETED',
-          deliveryId: id,
-          invoiceId: updated.invoiceId,
-        },
-      );
-    } else if (status === DeliveryStatus.CANCELLED) {
-      const customerName = updated.invoice?.party?.name || 'Customer';
-      const invoiceNo = updated.invoice?.invoiceNo || 'Order';
-      const reasonText = notes ? ` Reason: ${notes}` : '';
-
-      void this.notifications.notifyAdmins(
-        'Delivery Cancelled',
-        `Delivery for Invoice #${invoiceNo} (${customerName}) was cancelled.${reasonText}`,
-        {
-          type: 'DELIVERY_CANCELLED',
           deliveryId: id,
           invoiceId: updated.invoiceId,
         },
@@ -614,10 +659,6 @@ export class DeliveryService {
       productId: it.productId,
       productName: it.product?.name || 'Product',
       unit: it.product?.unit || 'unit',
-      warehouseId: it.warehouseId,
-      warehouseName: it.warehouse?.name || 'Warehouse',
-      warehouseAddress: it.warehouse?.address || '',
-      batchNo: it.batchNo,
       qty: it.qty,
       pickedUp: isCustomerPickup,
       pickedUpAt: isCustomerPickup ? new Date().toISOString() : undefined,
@@ -647,8 +688,8 @@ export class DeliveryService {
         });
       }
 
-      // If supervisors are provided, sync DeliverySupervisor records
-      if (!isCustomerPickup && dto.supervisorIds !== undefined) {
+      // If supervisors are provided, sync DeliverySupervisor records (for driver delivery & customer pickup)
+      if (dto.supervisorIds !== undefined) {
         await tx.deliverySupervisor.deleteMany({
           where: { deliveryId: id },
         });
@@ -727,9 +768,7 @@ export class DeliveryService {
         const rawItems = Array.isArray(d.items) ? d.items : [];
         const itemsList = rawItems as unknown as DeliveryItemPayload[];
         for (const item of itemsList) {
-          const key =
-            item.invoiceItemId ||
-            `${item.productId || ''}-${item.warehouseId || ''}-${item.batchNo || ''}`;
+          const key = item.invoiceItemId || item.productId || '';
           dispatchedQtyByItem[key] =
             (dispatchedQtyByItem[key] || 0) + Number(item.qty || 0);
         }
@@ -738,11 +777,10 @@ export class DeliveryService {
       const remainingItems: DeliveryItemPayload[] = [];
       for (const invItem of delivery.invoice.items) {
         const keyWithId = invItem.id;
-        const keyFallback = `${invItem.productId}-${invItem.warehouseId || ''}-${invItem.batchNo || ''}`;
+        const keyFallback = invItem.productId;
         const alreadyDispatched =
-          dispatchedQtyByItem[keyWithId] ||
-          0 ||
-          dispatchedQtyByItem[keyFallback] ||
+          dispatchedQtyByItem[keyWithId] ??
+          (keyFallback ? dispatchedQtyByItem[keyFallback] : undefined) ??
           0;
         const remainingQty = Number(invItem.qty) - alreadyDispatched;
 
@@ -752,10 +790,6 @@ export class DeliveryService {
             productId: invItem.productId,
             productName: invItem.product?.name || 'Product',
             unit: invItem.product?.unit || 'unit',
-            warehouseId: invItem.warehouseId,
-            warehouseName: invItem.warehouse?.name || 'Warehouse',
-            warehouseAddress: invItem.warehouse?.address || '',
-            batchNo: invItem.batchNo,
             qty: remainingQty,
             pickedUp: false,
           });
@@ -967,15 +1001,26 @@ export class DeliveryService {
     }
 
     // Determine actual cash received at office
+    const collectedNum =
+      delivery.cashCollected !== null && delivery.cashCollected !== undefined
+        ? Number(delivery.cashCollected)
+        : 0;
+
     const effectiveCash =
-      overrideAmount !== undefined
-        ? Number(overrideAmount)
-        : delivery.cashCollected !== null &&
-            delivery.cashCollected !== undefined
-          ? Number(delivery.cashCollected)
-          : 0;
+      overrideAmount !== undefined ? Number(overrideAmount) : collectedNum;
 
     const cashDecimal = new Prisma.Decimal(effectiveCash.toFixed(2));
+
+    let shortfallNote = '';
+    if (overrideAmount !== undefined && collectedNum > effectiveCash) {
+      const shortfall = collectedNum - effectiveCash;
+      shortfallNote = ` | [Shortfall: Driver collected ₹${collectedNum.toFixed(2)}, office received ₹${effectiveCash.toFixed(2)}. Shortfall ₹${shortfall.toFixed(2)} recorded by staff ${actorId || 'Office'}]`;
+      void this.notifications.notifyAdmins(
+        'Cash Handover Shortfall',
+        `Cash shortfall of ₹${shortfall.toFixed(2)} recorded on Invoice #${delivery.invoice?.invoiceNo} (Driver: ${delivery.driver?.name || 'Driver'}).`,
+        { type: 'CASH_SHORTFALL', deliveryId: id },
+      );
+    }
 
     // Execute delivery update, payment creation, invoice status recalc, and credit ledger settlement atomically
     const result = await this.prisma.$transaction(async (tx) => {
@@ -987,6 +1032,11 @@ export class DeliveryService {
           cashHandedOverAt: new Date(),
           cashHandedOverToId: actorId || null,
           cashCollected: cashDecimal,
+          notes: shortfallNote
+            ? delivery.notes
+              ? `${delivery.notes}${shortfallNote}`
+              : shortfallNote.replace(/^\s*\|\s*/, '')
+            : delivery.notes,
         },
         include: {
           invoice: {
@@ -1012,7 +1062,9 @@ export class DeliveryService {
             status: PaymentStatus.CONFIRMED,
             confirmedById: actorId || undefined,
             paidAt: new Date(),
-            notes: `Cash collected by driver ${delivery.driver?.name || ''} and handed over to office`,
+            notes: shortfallNote
+              ? `Cash collected by driver ${delivery.driver?.name || ''} and handed over to office (Shortfall ₹${(collectedNum - effectiveCash).toFixed(2)} noted)`
+              : `Cash collected by driver ${delivery.driver?.name || ''} and handed over to office`,
           },
         });
       }

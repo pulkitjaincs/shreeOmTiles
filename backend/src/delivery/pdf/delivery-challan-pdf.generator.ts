@@ -219,7 +219,6 @@ export async function generateDeliveryChallanPdf(
 
   const colSNo = leftMargin;
   const colName = leftMargin + 35;
-  const colBatch = leftMargin + 300;
   const colQty = leftMargin + 420;
 
   const thY = currentY - 15;
@@ -232,13 +231,6 @@ export async function generateDeliveryChallanPdf(
   });
   page.drawText('Product Description', {
     x: colName + 6,
-    y: thY,
-    size: 8,
-    font: fontBold,
-    color: black,
-  });
-  page.drawText('Batch / Shade #', {
-    x: colBatch + 6,
     y: thY,
     size: 8,
     font: fontBold,
@@ -280,7 +272,7 @@ export async function generateDeliveryChallanPdf(
       color: black,
     });
     page.drawText(
-      safePdfText((item.productName || 'Item').toUpperCase().slice(0, 48)),
+      safePdfText((item.productName || 'Item').toUpperCase().slice(0, 56)),
       {
         x: colName + 6,
         y: rY,
@@ -289,13 +281,6 @@ export async function generateDeliveryChallanPdf(
         color: black,
       },
     );
-    page.drawText(safePdfText(item.batchNo || 'Standard Lot'), {
-      x: colBatch + 6,
-      y: rY,
-      size: 8,
-      font: fontRegular,
-      color: darkGray,
-    });
     page.drawText(`${qty} ${item.unit || 'unit'}`, {
       x: colQty + 6,
       y: rY,

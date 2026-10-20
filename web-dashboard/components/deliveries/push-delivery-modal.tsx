@@ -208,6 +208,7 @@ ${itemsList}${supervisorSection}
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
 
     const itemsToDispatch: DispatchedItem[] = selectedItems
       .filter((it) => it.selected && it.dispatchQty > 0)
@@ -216,10 +217,6 @@ ${itemsList}${supervisorSection}
         productId: it.productId,
         productName: it.productName,
         unit: it.unit,
-        warehouseId: it.warehouseId,
-        warehouseName: it.warehouseName,
-        warehouseAddress: it.warehouseAddress,
-        batchNo: it.batchNo,
         qty: it.dispatchQty,
       }));
 
@@ -244,7 +241,7 @@ ${itemsList}${supervisorSection}
           driverId: isPickup ? null : selectedDriverId,
           isCustomerPickup: isPickup,
           amountToCollect: amountCollectNum,
-          supervisorIds: isPickup ? [] : selectedSupervisorIds,
+          supervisorIds: selectedSupervisorIds,
           vehicle: isPickup ? undefined : vehicle || undefined,
           notes: notes || (isPickup ? 'Customer self-pickup completed from showroom/counter' : undefined),
           items: itemsToDispatch,
@@ -424,8 +421,8 @@ ${itemsList}${supervisorSection}
               </div>
             </div>
           ) : (
-            /* Tab 2: Customer Pickup Notice */
-            <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 space-y-2">
+            /* Tab 2: Customer Pickup Notice & Supervisor Selection */
+            <div className="space-y-3 p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10">
               <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 font-bold text-xs">
                 <CheckCircle className="h-4 w-4" />
                 Customer Direct Counter Pickup
@@ -433,6 +430,31 @@ ${itemsList}${supervisorSection}
               <p className="text-xs text-emerald-900/80 dark:text-emerald-200/80 leading-relaxed">
                 The chosen items will be immediately marked as <strong>Delivered</strong> at the showroom/counter. No driver will be dispatched.
               </p>
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1 flex items-center gap-1.5">
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                  Assign Supervisor for Pickup Info (Optional)
+                </label>
+                {loadingSupervisors ? (
+                  <div className="text-xs text-muted-foreground italic py-1">Loading supervisors...</div>
+                ) : availableSupervisors.length === 0 ? (
+                  <div className="text-xs text-muted-foreground italic py-1">No supervisors registered</div>
+                ) : (
+                  <ThemedMultiSelect
+                    values={selectedSupervisorIds}
+                    onChange={setSelectedSupervisorIds}
+                    options={availableSupervisors.map((s) => ({
+                      value: s.id,
+                      label: s.name,
+                      subLabel: s.phone || 'Field Incharge',
+                      badge: 'Supervisor',
+                    }))}
+                    placeholder="Select supervisor to receive pickup info..."
+                    searchPlaceholder="Search supervisors..."
+                    showTags={true}
+                  />
+                )}
+              </div>
             </div>
           )}
 
@@ -492,12 +514,7 @@ ${itemsList}${supervisorSection}
                         {item.productName || 'Product'}
                       </div>
                       <div className="text-[11px] text-muted-foreground flex items-center gap-2">
-                        <span>Showroom / Warehouse: {item.warehouseName || 'Main'}</span>
-                        {item.batchNo && (
-                          <span className="font-mono text-[10px] px-1.5 py-0.2 bg-muted rounded">
-                            Lot: {item.batchNo}
-                          </span>
-                        )}
+                        <span>{item.dispatchQty} {item.unit || 'units'}</span>
                       </div>
                     </div>
                   </div>

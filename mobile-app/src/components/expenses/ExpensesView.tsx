@@ -1,7 +1,9 @@
+import { useAuth } from '@/lib/auth-context';
 import React, { useState, useEffect, useCallback, useMemo, useDeferredValue } from 'react';
 import {
   View,
   Text,
+  Alert,
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
@@ -10,7 +12,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
-import { cachedMobileApiRequest } from '@/lib/api';
+import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
 import { formatINR, formatDate } from '@/lib/formatters';
 import { CreateExpenseModal } from './CreateExpenseModal';
 
@@ -22,6 +24,30 @@ export function ExpensesView() {
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState<any | null>(null);
+  const { user } = useAuth();
+  const isDirectorOrAdmin = user?.role === 'OWNER' || (user?.role as any) === 'DIRECTOR' || user?.role === 'ADMIN';
+
+  const handleDeleteExpense = (item: any) => {
+    Alert.alert(
+      'Delete Expense',
+      `Are you sure you want to delete this expense of ${formatINR(item.amount)}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await mobileApiRequest(`/expenses/${item.id}`, { method: 'DELETE' });
+              loadExpenses(true);
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Failed to delete expense');
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const loadExpenses = useCallback(async (force = false) => {
     setLoading(true);
@@ -179,9 +205,16 @@ export function ExpensesView() {
                     {item.notes}
                   </Text>
                 ) : null}
-                <TouchableOpacity onPress={() => { setEditingExpense(item); setModalOpen(true); }}>
-                  <Text style={{ color: '#F59E0B', fontWeight: '700', fontSize: 12 }}>Edit</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                  <TouchableOpacity onPress={() => { setEditingExpense(item); setModalOpen(true); }}>
+                    <Text style={{ color: '#F59E0B', fontWeight: '700', fontSize: 12 }}>Edit</Text>
+                  </TouchableOpacity>
+                  {isDirectorOrAdmin && (
+                    <TouchableOpacity onPress={() => handleDeleteExpense(item)}>
+                      <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: 12 }}>Delete</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
             </Card>
           ))

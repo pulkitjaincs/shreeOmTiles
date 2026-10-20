@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -75,5 +76,11 @@ export class PurchasesController {
     @Request() req: RequestWithUser,
   ) {
     return this.purchasesService.createDebitNote(id, dto, req.user.id);
+  }
+
+  @Delete(':id')
+  @Roles(Role.OWNER, Role.ADMIN)
+  remove(@Param('id') id: string, @Request() req: RequestWithUser) {
+    return this.purchasesService.deletePurchase(id, req.user.id);
   }
 }

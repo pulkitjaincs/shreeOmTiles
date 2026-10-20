@@ -103,6 +103,8 @@ type TransactionListItem = PendingItem | PaymentRecord | CreditLedgerRecord | Da
 
 export default function TransactionsScreen() {
   const { user } = useAuth();
+  const isSalesman = user?.role === 'SALESMAN';
+  const isDirectorOrAdmin = user?.role === 'OWNER' || (user?.role as any) === 'DIRECTOR' || user?.role === 'ADMIN';
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
   const params = useLocalSearchParams<{ tab?: string }>();
@@ -417,6 +419,28 @@ export default function TransactionsScreen() {
   };
 
   // Confirm Pending Payment
+  const handleDeletePayment = (payment: PaymentRecord) => {
+    Alert.alert(
+      'Delete Payment Record',
+      `Are you sure you want to delete this payment of ${formatINR(Number(payment.amount))} (${payment.mode})? If tied to an invoice, the invoice paid balance, delivery amount to collect, and customer credit ledger will be recalculated.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await mobileApiRequest(`/payments/${payment.id}`, { method: 'DELETE' });
+              loadData(true);
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Failed to delete payment');
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const handleConfirmPayment = async (paymentId: string) => {
     setConfirmingId(paymentId);
     try {
@@ -981,12 +1005,21 @@ export default function TransactionsScreen() {
           }
 
           if (activeTab === 'all' || activeTab === 'inflows') {
+            const pay = item as PaymentRecord;
+            const canEdit =
+              pay.type !== 'OUTFLOW' &&
+              (!isSalesman ||
+                Boolean(pay.invoiceId && ownedInvoiceIds?.has(pay.invoiceId)) ||
+                (pay as any).recordedById === user?.id);
+
             return (
               <TransactionHistoryCard
-                payment={item as PaymentRecord}
+                payment={pay}
                 confirmingId={confirmingId}
+                canDelete={isDirectorOrAdmin}
                 onConfirm={handleConfirmPayment}
-                 onEdit={(payment) => setEditingPayment(payment)}
+                onEdit={canEdit ? (payment) => setEditingPayment(payment) : undefined}
+                onDelete={isDirectorOrAdmin ? handleDeletePayment : undefined}
               />
             );
           }

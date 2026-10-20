@@ -22,7 +22,7 @@ export interface PartyStatementPayload {
   party: {
     id: string;
     name: string;
-    phone: string;
+    phone?: string | null;
     address?: string | null;
     gstin?: string | null;
   };

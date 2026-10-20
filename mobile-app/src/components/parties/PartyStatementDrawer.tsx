@@ -15,10 +15,11 @@ import { StatusBadge } from '@/components/ui/StatusBadge';
 import type { ThemeColors } from '@/constants/theme';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { mobileApiRequest } from '@/lib/api';
-import { formatINR, formatDate, getWhatsAppUrl } from '@/lib/formatters';
+import { formatINR, formatDate } from '@/lib/formatters';
 import { Party, StatementInvoice, StatementCreditLedger } from './types';
 import { Ionicons } from '@expo/vector-icons';
 import { downloadAndSharePdf } from '@/lib/pdf';
+import { buildPartyStatementShareUrl } from '@/lib/whatsapp';
 
 interface PartyStatementDrawerProps {
   party: Party | null;
@@ -141,29 +142,16 @@ export function PartyStatementDrawer({
   const hasPendingLiability = isDue || isPayable;
 
   const handleShareStatement = () => {
-    const msg =
-      `*ACCOUNT STATEMENT — SHREE OM TILES*\n\n` +
-      `Customer: *${party.name}*\n` +
-      `Phone: ${party.phone}\n` +
-      (party.gstin ? `GSTIN: ${party.gstin}\n` : '') +
-      (party.address ? `Address: ${party.address}\n` : '') +
-      `\n*Financial Summary:*\n` +
-      `• Lifetime Billing: ${formatINR(lifetimeTotal)}\n` +
-      `• Total Received: ${formatINR(settledPayments)}\n` +
-      (isDue
-        ? `• *Current Balance Due: ${formatINR(totalDues)}*\n`
-        : isPayable
-        ? `• *Store Credit / Payable Available: ${formatINR(payableAmt)}*\n`
-        : `• *Account Balance: ₹0.00 (All Clear)*\n`) +
-      `• Total Orders: ${invoices.length}\n\n` +
-      (isDue
-        ? `Kindly arrange payment clearance of ${formatINR(totalDues)} at your earliest convenience.\n\n`
-        : isPayable
-        ? `You have an available store credit / payable balance of ${formatINR(payableAmt)} with Shree Om Tiles.\n\n`
-        : `All accounts are currently in clear standing!\n\n`) +
-      `Shree Om Tiles`;
-
-    const url = getWhatsAppUrl(party.phone, msg);
+    const url = buildPartyStatementShareUrl({
+      phone: party.phone,
+      name: party.name,
+      gstin: party.gstin,
+      address: party.address,
+      lifetimeTotal,
+      totalReceived: settledPayments,
+      totalDues,
+      totalOrders: invoices.length,
+    });
 
     Linking.openURL(url).catch(() => {
       Alert.alert('Error', 'Unable to open WhatsApp');
@@ -171,7 +159,7 @@ export function PartyStatementDrawer({
   };
 
   const handleDownloadPdf = async () => {
-    if (!party) return;
+    if (!party || downloadingPdf) return;
     setDownloadingPdf(true);
     try {
       const safeName = (party.name || 'Party').replace(/[^a-zA-Z0-9_-]/g, '_');

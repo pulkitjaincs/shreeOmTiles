@@ -121,8 +121,7 @@ export class InvoicesService {
       itemsSubtotal,
       Math.max(0, Number(data.discountAmount || 0)),
     );
-    const subtotal =
-      Math.round((itemsSubtotal - discountAmount) * 100) / 100;
+    const subtotal = Math.round((itemsSubtotal - discountAmount) * 100) / 100;
     const itemsTax = Math.round(((subtotal * taxRate) / 100) * 100) / 100;
     const transportTax =
       Math.round(((transportCost * transportGstRate) / 100) * 100) / 100;
@@ -1320,7 +1319,7 @@ export class InvoicesService {
       } else if (data.customerName?.trim() || data.customerPhone?.trim()) {
         const cPhone = data.customerPhone?.trim() || '';
         const cName = data.customerName?.trim() || 'Walk-in Customer';
-        let existingParty = null;
+        let existingParty: { id: string; name: string } | null = null;
         if (cPhone) {
           existingParty = await tx.party.findFirst({
             where: { phone: cPhone },
@@ -1822,15 +1821,6 @@ export class InvoicesService {
       );
     }
 
-    const hasDelivered = existing.deliveries?.some(
-      (d) => d.status === DeliveryStatus.DELIVERED,
-    );
-    if (hasDelivered) {
-      throw new BadRequestException(
-        'Order has already been delivered. Cannot edit line items.',
-      );
-    }
-
     const companyState = process.env.COMPANY_STATE_CODE || '07';
     const taxRate =
       data.taxRate !== undefined
@@ -1869,8 +1859,7 @@ export class InvoicesService {
           : Number(existing.discountAmount || 0),
       ),
     );
-    const subtotal =
-      Math.round((itemsSubtotal - discountAmount) * 100) / 100;
+    const subtotal = Math.round((itemsSubtotal - discountAmount) * 100) / 100;
     const itemsTax = Math.round(((subtotal * taxRate) / 100) * 100) / 100;
     const transportTax =
       Math.round(((transportCost * transportGstRate) / 100) * 100) / 100;
@@ -2163,32 +2152,12 @@ export class InvoicesService {
         0,
       );
 
-      // Determine new additional payment made during this edit
-      let newPaidNow = 0;
-      if (existingConfirmedPayments.length === 0) {
-        newPaidNow = submittedTotal;
-      } else if (submittedTotal > confirmedHistoricalPaid + 0.01) {
-        newPaidNow = Math.round((submittedTotal - confirmedHistoricalPaid) * 100) / 100;
-      }
-
-      // Preserve historical confirmed payments and update their partyId if party changed
-      if (party.id !== existing.partyId && existingConfirmedPayments.length > 0) {
-        await tx.payment.updateMany({
-          where: { invoiceId: id, status: PaymentStatus.CONFIRMED },
-          data: { partyId: party.id },
+      // When payment splits are provided on edit, synchronize invoice payments to match submitted splits
+      if (data.payments !== undefined || data.amountPaidNow !== undefined) {
+        await tx.payment.deleteMany({
+          where: { invoiceId: id },
         });
-      }
 
-      // Only delete non-confirmed payments (preserving confirmed receipts)
-      await tx.payment.deleteMany({
-        where: {
-          invoiceId: id,
-          status: { not: PaymentStatus.CONFIRMED },
-        },
-      });
-
-      // If there were no prior confirmed payments, create records for all submitted splits
-      if (existingConfirmedPayments.length === 0) {
         for (const split of submittedSplits) {
           if (split.amount <= 0) continue;
           await tx.payment.create({
@@ -2208,25 +2177,13 @@ export class InvoicesService {
             },
           });
         }
-      } else if (newPaidNow > 0) {
-        // Record the new additional payment made during invoice edit
-        const lastSplit = submittedSplits[submittedSplits.length - 1];
-        const newMode = lastSplit?.mode || PaymentMode.CASH;
-        await tx.payment.create({
-          data: {
-            invoiceId: id,
-            partyId: party.id,
-            mode: newMode,
-            amount: new Prisma.Decimal(newPaidNow.toFixed(2)),
-            status: PaymentStatus.CONFIRMED,
-            paidAt: new Date(),
-            confirmedById: actorId,
-            upiTxnRef: lastSplit?.upiTxnRef,
-            upiUtr: lastSplit?.upiUtr,
-            notes:
-              lastSplit?.notes ||
-              `Additional ${newMode} payment of ₹${newPaidNow.toFixed(2)} on invoice edit for ${existing.invoiceNo}`,
-          },
+      } else if (
+        party.id !== existing.partyId &&
+        existingConfirmedPayments.length > 0
+      ) {
+        await tx.payment.updateMany({
+          where: { invoiceId: id, status: PaymentStatus.CONFIRMED },
+          data: { partyId: party.id },
         });
       }
 
@@ -2240,16 +2197,16 @@ export class InvoicesService {
         (existing.creditLedgers && existing.creditLedgers[0]) ||
         (await tx.creditLedger.findFirst({ where: { invoiceId: id } }));
 
-      // Calculate how much was already settled or paid prior to this edit:
-      // Prior debt remaining was existingCredit.amountDue (or 0 if no credit ledger).
-      // So prior total settled/paid = oldInvoiceTotal - currentCreditDue.
-      const oldInvoiceTotal = Number(existing.total);
-      const currentCreditDue = existingCredit ? Number(existingCredit.amountDue || 0) : 0;
-      const priorSettledOrPaid = existingCredit
-        ? Math.max(0, oldInvoiceTotal - currentCreditDue)
-        : Math.max(0, confirmedHistoricalPaid);
-
-      const totalSettledOrPaid = priorSettledOrPaid + (newPaidNow > 0 ? newPaidNow : 0);
+      const allCurrentPayments = await tx.payment.findMany({
+        where: { invoiceId: id, status: PaymentStatus.CONFIRMED },
+      });
+      const totalSettledOrPaid = allCurrentPayments.reduce(
+        (sum, p) =>
+          p.type === PaymentType.OUTFLOW
+            ? sum - Number(p.amount)
+            : sum + Number(p.amount),
+        0,
+      );
       const netRemainingBalance = Math.max(
         0,
         Math.round((totalAmount - totalSettledOrPaid) * 100) / 100,
@@ -2267,10 +2224,10 @@ export class InvoicesService {
               netRemainingBalance <= 0
                 ? CreditStatus.SETTLED
                 : totalSettledOrPaid > 0
-                ? CreditStatus.PARTIAL
-                : existingCredit.status === CreditStatus.OVERDUE
-                ? CreditStatus.OVERDUE
-                : CreditStatus.UNPAID,
+                  ? CreditStatus.PARTIAL
+                  : existingCredit.status === CreditStatus.OVERDUE
+                    ? CreditStatus.OVERDUE
+                    : CreditStatus.UNPAID,
             notes: `Balance receivable for Invoice #${existing.invoiceNo} (Updated)`,
           },
         });
@@ -2289,7 +2246,10 @@ export class InvoicesService {
             invoiceId: id,
             amountDue: new Prisma.Decimal(balanceCredit.toFixed(2)),
             type: CreditType.RECEIVABLE,
-            status: totalSettledOrPaid > 0 ? CreditStatus.PARTIAL : CreditStatus.UNPAID,
+            status:
+              totalSettledOrPaid > 0
+                ? CreditStatus.PARTIAL
+                : CreditStatus.UNPAID,
             dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
             notes: `Balance receivable for Invoice #${existing.invoiceNo} (Updated)`,
           },
@@ -2309,7 +2269,8 @@ export class InvoicesService {
       } else if (existingConfirmedPayments.length > 1) {
         effectiveInvoicePaymentMode = PaymentMode.SPLIT;
       } else {
-        effectiveInvoicePaymentMode = existing.paymentMode || PaymentMode.CREDIT;
+        effectiveInvoicePaymentMode =
+          existing.paymentMode || PaymentMode.CREDIT;
       }
 
       let newStatus: InvoiceStatus;
@@ -2339,12 +2300,13 @@ export class InvoicesService {
               where: { id: existingDelivery.id },
             });
           }
-        } else if (existingDelivery.status !== DeliveryStatus.DELIVERED) {
+        } else {
           await tx.delivery.update({
             where: { id: existingDelivery.id },
             data: {
               amountToCollect: new Prisma.Decimal(balanceCredit.toFixed(2)),
-              notes: data.notes !== undefined ? data.notes : existingDelivery.notes,
+              notes:
+                data.notes !== undefined ? data.notes : existingDelivery.notes,
             },
           });
         }
@@ -2391,7 +2353,8 @@ export class InvoicesService {
         }
       } else if (
         data.previousBalance !== undefined &&
-        (existing.previousBalance === null || Number(existing.previousBalance) === 0)
+        (existing.previousBalance === null ||
+          Number(existing.previousBalance) === 0)
       ) {
         resolvedPreviousBalance = Number(data.previousBalance);
       }
@@ -2472,172 +2435,317 @@ export class InvoicesService {
    * Generates official GST-compliant Credit Note / Refund Voucher PDF
    */
   async updateReturn(
-      refundId: string,
-      data: ProcessReturnDto,
-      userId: string,
-    ) {
-      if (!data.items || data.items.length === 0) {
-        throw new BadRequestException('At least one returned item is required.');
-      }
+    refundId: string,
+    data: ProcessReturnDto,
+    userId: string,
+    userRole?: Role,
+  ) {
+    if (!data.items || data.items.length === 0) {
+      throw new BadRequestException('At least one returned item is required.');
+    }
 
-      return this.prisma.$transaction(async (tx) => {
-        const refund = await tx.refundInvoice.findUnique({
-          where: { id: refundId },
-          include: {
-            items: true,
-            payments: true,
-            creditLedgers: true,
-            originalInvoice: { include: { refundInvoices: true } },
-          },
-        });
-        if (!refund) throw new NotFoundException(`Refund ${refundId} not found`);
-        if (!refund.originalInvoiceId || !refund.originalInvoice) {
-          throw new BadRequestException(
-            'Standalone returns cannot be edited from an invoice.',
+    return this.prisma.$transaction(async (tx) => {
+      const refund = await tx.refundInvoice.findUnique({
+        where: { id: refundId },
+        include: {
+          items: true,
+          payments: true,
+          creditLedgers: true,
+          originalInvoice: { include: { refundInvoices: true } },
+        },
+      });
+      if (!refund) throw new NotFoundException(`Refund ${refundId} not found`);
+      if (userRole === Role.SALESMAN) {
+        const isOwner =
+          refund.createdById === userId ||
+          refund.originalInvoice?.salesmanId === userId;
+        if (!isOwner) {
+          throw new ForbiddenException(
+            'Salesmen can only edit returns created by them or for their invoices',
           );
         }
+      }
+      if (!refund.originalInvoiceId || !refund.originalInvoice) {
+        throw new BadRequestException(
+          'Standalone returns cannot be edited from an invoice.',
+        );
+      }
 
-        const oldByProduct = new Map<string, number>();
-        for (const item of refund.items) {
-          if (item.productId) {
-            oldByProduct.set(
-              item.productId,
-              (oldByProduct.get(item.productId) || 0) + Number(item.qty),
+      const oldByProduct = new Map<string, number>();
+      for (const item of refund.items) {
+        if (item.productId) {
+          oldByProduct.set(
+            item.productId,
+            (oldByProduct.get(item.productId) || 0) + Number(item.qty),
+          );
+        }
+      }
+      const newByProduct = new Map<string, number>();
+      for (const item of data.items) {
+        if (item.productId) {
+          newByProduct.set(
+            item.productId,
+            (newByProduct.get(item.productId) || 0) + item.qty,
+          );
+        }
+      }
+
+      for (const [productId, oldQty] of oldByProduct) {
+        const newQty = newByProduct.get(productId) || 0;
+        const delta = newQty - oldQty;
+        if (Math.abs(delta) < 0.001) continue;
+        const stock = await tx.stockLedger.findFirst({
+          where: { productId },
+          orderBy: { updatedAt: 'desc' },
+        });
+        if (delta < 0) {
+          if (!stock || Number(stock.quantity) < Math.abs(delta)) {
+            throw new BadRequestException(
+              'Insufficient stock to reduce this returned quantity.',
             );
           }
-        }
-        const newByProduct = new Map<string, number>();
-        for (const item of data.items) {
-          if (item.productId) {
-            newByProduct.set(
-              item.productId,
-              (newByProduct.get(item.productId) || 0) + item.qty,
-            );
-          }
-        }
-
-        for (const [productId, oldQty] of oldByProduct) {
-          const newQty = newByProduct.get(productId) || 0;
-          const delta = newQty - oldQty;
-          if (Math.abs(delta) < 0.001) continue;
-          const stock = await tx.stockLedger.findFirst({
-            where: { productId },
-            orderBy: { updatedAt: 'desc' },
+          await tx.stockLedger.update({
+            where: { id: stock.id },
+            data: {
+              quantity: {
+                decrement: new Prisma.Decimal(Math.abs(delta).toFixed(2)),
+              },
+            },
           });
-          if (delta < 0) {
-            if (!stock || Number(stock.quantity) < Math.abs(delta)) {
-              throw new BadRequestException(
-                'Insufficient stock to reduce this returned quantity.',
-              );
-            }
-            await tx.stockLedger.update({
-              where: { id: stock.id },
-              data: { quantity: { decrement: new Prisma.Decimal(Math.abs(delta).toFixed(2)) } },
-            });
-          } else if (stock) {
-            await tx.stockLedger.update({
-              where: { id: stock.id },
-              data: { quantity: { increment: new Prisma.Decimal(delta.toFixed(2)) } },
-            });
-          }
+        } else if (stock) {
+          await tx.stockLedger.update({
+            where: { id: stock.id },
+            data: {
+              quantity: { increment: new Prisma.Decimal(delta.toFixed(2)) },
+            },
+          });
         }
-        for (const [productId, newQty] of newByProduct) {
-          if (oldByProduct.has(productId)) continue;
+      }
+      for (const [productId, newQty] of newByProduct) {
+        if (oldByProduct.has(productId)) continue;
+        const stock = await tx.stockLedger.findFirst({
+          where: { productId },
+          orderBy: { updatedAt: 'desc' },
+        });
+        if (stock) {
+          await tx.stockLedger.update({
+            where: { id: stock.id },
+            data: {
+              quantity: { increment: new Prisma.Decimal(newQty.toFixed(2)) },
+            },
+          });
+        } else {
+          await tx.stockLedger.create({
+            data: {
+              productId,
+              warehouseId: null,
+              batchNo: null,
+              quantity: new Prisma.Decimal(newQty.toFixed(2)),
+            },
+          });
+        }
+      }
+
+      const taxRate = Math.max(0, data.taxRate ?? 0);
+      const subtotal = data.items.reduce(
+        (sum, item) => sum + item.qty * item.unitPrice,
+        0,
+      );
+      const tax = Math.round(((subtotal * taxRate) / 100) * 100) / 100;
+      const total = Math.round((subtotal + tax) * 100) / 100;
+
+      await tx.refundInvoiceItem.deleteMany({
+        where: { refundInvoiceId: refundId },
+      });
+      await tx.refundInvoiceItem.createMany({
+        data: data.items.map((item) => ({
+          refundInvoiceId: refundId,
+          productId: item.productId || null,
+          customItemName: item.customItemName || null,
+          warehouseId: item.warehouseId || null,
+          batchNo: item.batchNo || null,
+          qty: new Prisma.Decimal(item.qty.toFixed(2)),
+          unitPrice: new Prisma.Decimal(item.unitPrice.toFixed(2)),
+          taxRate: new Prisma.Decimal(taxRate.toFixed(2)),
+          total: new Prisma.Decimal(
+            (
+              item.qty * item.unitPrice +
+              (item.qty * item.unitPrice * taxRate) / 100
+            ).toFixed(2),
+          ),
+        })),
+      });
+
+      await tx.refundInvoice.update({
+        where: { id: refundId },
+        data: {
+          subtotal: new Prisma.Decimal(subtotal.toFixed(2)),
+          tax: new Prisma.Decimal(tax.toFixed(2)),
+          total: new Prisma.Decimal(total.toFixed(2)),
+          refundMode: data.refundMode,
+          reason: data.reason || refund.reason,
+          taxBreakup: {
+            rate: taxRate,
+            totalTax: tax,
+            cgst: tax / 2,
+            sgst: tax / 2,
+            igst: 0,
+          },
+        },
+      });
+      for (const payment of refund.payments) {
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: {
+            amount: new Prisma.Decimal(total.toFixed(2)),
+            mode: data.refundMode,
+          },
+        });
+      }
+      for (const ledger of refund.creditLedgers) {
+        await tx.creditLedger.update({
+          where: { id: ledger.id },
+          data: { amountDue: new Prisma.Decimal(total.toFixed(2)) },
+        });
+      }
+
+      const refunds = await tx.refundInvoice.findMany({
+        where: { originalInvoiceId: refund.originalInvoiceId },
+      });
+      const refundedTotal = refunds.reduce(
+        (sum, item) => sum + Number(item.total),
+        0,
+      );
+      await tx.invoice.update({
+        where: { id: refund.originalInvoiceId },
+        data: {
+          status:
+            refundedTotal >= Number(refund.originalInvoice.total) - 0.01
+              ? InvoiceStatus.CANCELLED
+              : InvoiceStatus.PARTIAL,
+        },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorId: userId,
+          action: 'EDIT_RETURN',
+          entity: 'RefundInvoice',
+          entityId: refundId,
+          diff: { oldTotal: Number(refund.total), newTotal: total },
+        },
+      });
+      return tx.refundInvoice.findUnique({
+        where: { id: refundId },
+        include: { items: { include: { product: true } } },
+      });
+    });
+  }
+
+  async deleteReturn(refundId: string, userId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const refund = await tx.refundInvoice.findUnique({
+        where: { id: refundId },
+        include: {
+          items: true,
+          payments: true,
+          creditLedgers: true,
+          originalInvoice: {
+            include: { payments: true, refundInvoices: true },
+          },
+        },
+      });
+      if (!refund) {
+        throw new NotFoundException(`Refund ${refundId} not found`);
+      }
+
+      for (const item of refund.items) {
+        if (item.productId) {
           const stock = await tx.stockLedger.findFirst({
-            where: { productId },
+            where: { productId: item.productId },
             orderBy: { updatedAt: 'desc' },
           });
           if (stock) {
+            const nextQty = Number(stock.quantity) - Number(item.qty);
             await tx.stockLedger.update({
               where: { id: stock.id },
-              data: { quantity: { increment: new Prisma.Decimal(newQty.toFixed(2)) } },
-            });
-          } else {
-            await tx.stockLedger.create({
               data: {
-                productId,
-                warehouseId: null,
-                batchNo: null,
-                quantity: new Prisma.Decimal(newQty.toFixed(2)),
+                quantity: new Prisma.Decimal(Math.max(0, nextQty).toFixed(2)),
               },
             });
           }
         }
+      }
 
-        const taxRate = Math.max(0, data.taxRate ?? 0);
-        const subtotal = data.items.reduce(
-          (sum, item) => sum + item.qty * item.unitPrice,
-          0,
-        );
-        const tax = Math.round((subtotal * taxRate) / 100 * 100) / 100;
-        const total = Math.round((subtotal + tax) * 100) / 100;
+      await tx.payment.deleteMany({ where: { refundInvoiceId: refundId } });
+      await tx.creditLedger.deleteMany({
+        where: { refundInvoiceId: refundId },
+      });
+      await tx.refundInvoiceItem.deleteMany({
+        where: { refundInvoiceId: refundId },
+      });
+      await tx.refundInvoice.delete({ where: { id: refundId } });
 
-        await tx.refundInvoiceItem.deleteMany({ where: { refundInvoiceId: refundId } });
-        await tx.refundInvoiceItem.createMany({
-          data: data.items.map((item) => ({
-            refundInvoiceId: refundId,
-            productId: item.productId || null,
-            customItemName: item.customItemName || null,
-            warehouseId: item.warehouseId || null,
-            batchNo: item.batchNo || null,
-            qty: new Prisma.Decimal(item.qty.toFixed(2)),
-            unitPrice: new Prisma.Decimal(item.unitPrice.toFixed(2)),
-            taxRate: new Prisma.Decimal(taxRate.toFixed(2)),
-            total: new Prisma.Decimal((item.qty * item.unitPrice + (item.qty * item.unitPrice * taxRate) / 100).toFixed(2)),
-          })),
-        });
-
-        await tx.refundInvoice.update({
-          where: { id: refundId },
-          data: {
-            subtotal: new Prisma.Decimal(subtotal.toFixed(2)),
-            tax: new Prisma.Decimal(tax.toFixed(2)),
-            total: new Prisma.Decimal(total.toFixed(2)),
-            refundMode: data.refundMode,
-            reason: data.reason || refund.reason,
-            taxBreakup: { rate: taxRate, totalTax: tax, cgst: tax / 2, sgst: tax / 2, igst: 0 },
-          },
-        });
-        for (const payment of refund.payments) {
-          await tx.payment.update({
-            where: { id: payment.id },
-            data: { amount: new Prisma.Decimal(total.toFixed(2)), mode: data.refundMode },
-          });
-        }
-        for (const ledger of refund.creditLedgers) {
-          await tx.creditLedger.update({
-            where: { id: ledger.id },
-            data: { amountDue: new Prisma.Decimal(total.toFixed(2)) },
-          });
-        }
-
-        const refunds = await tx.refundInvoice.findMany({
+      if (refund.originalInvoiceId && refund.originalInvoice) {
+        const remainingRefunds = await tx.refundInvoice.findMany({
           where: { originalInvoiceId: refund.originalInvoiceId },
         });
-        const refundedTotal = refunds.reduce((sum, item) => sum + Number(item.total), 0);
+        const remainingRefundTotal = remainingRefunds.reduce(
+          (sum, r) => sum + Number(r.total),
+          0,
+        );
+        const confirmedPayments = refund.originalInvoice.payments
+          .filter(
+            (p) =>
+              p.status === PaymentStatus.CONFIRMED &&
+              p.refundInvoiceId !== refundId,
+          )
+          .reduce(
+            (sum, p) =>
+              p.type === PaymentType.OUTFLOW
+                ? sum - Number(p.amount)
+                : sum + Number(p.amount),
+            0,
+          );
+        const invTotal = Number(refund.originalInvoice.total);
+
+        let newStatus = refund.originalInvoice.status;
+        if (remainingRefundTotal >= invTotal - 0.01) {
+          newStatus = InvoiceStatus.CANCELLED;
+        } else if (remainingRefundTotal > 0) {
+          newStatus = InvoiceStatus.PARTIAL;
+        } else if (confirmedPayments >= invTotal - 0.01) {
+          newStatus = InvoiceStatus.PAID;
+        } else if (confirmedPayments > 0) {
+          newStatus = InvoiceStatus.PARTIAL;
+        } else {
+          newStatus = InvoiceStatus.CREATED;
+        }
+
         await tx.invoice.update({
           where: { id: refund.originalInvoiceId },
-          data: {
-            status:
-              refundedTotal >= Number(refund.originalInvoice.total) - 0.01
-                ? InvoiceStatus.CANCELLED
-                : InvoiceStatus.PARTIAL,
+          data: { status: newStatus },
+        });
+      }
+
+      await tx.auditLog.create({
+        data: {
+          actorId: userId,
+          action: 'DELETE_RETURN',
+          entity: 'RefundInvoice',
+          entityId: refundId,
+          diff: {
+            refundNo: refund.refundNo,
+            total: Number(refund.total),
+            originalInvoiceId: refund.originalInvoiceId,
           },
-        });
-        await tx.auditLog.create({
-          data: {
-            actorId: userId,
-            action: 'EDIT_RETURN',
-            entity: 'RefundInvoice',
-            entityId: refundId,
-            diff: { oldTotal: Number(refund.total), newTotal: total },
-          },
-        });
-        return tx.refundInvoice.findUnique({
-          where: { id: refundId },
-          include: { items: { include: { product: true } } },
-        });
+        },
       });
+
+      return {
+        success: true,
+        message: `Refund ${refund.refundNo} deleted and stock adjusted.`,
+      };
+    });
   }
 
   async generateRefundPdf(refundId: string): Promise<GeneratedPdfResult> {

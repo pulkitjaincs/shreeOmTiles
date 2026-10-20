@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { apiRequest } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { ThemedSelect } from '@/components/ui/themed-select';
@@ -23,6 +23,7 @@ interface QuotationLineItem {
 
 interface CreateQuotationModalProps {
   isOpen: boolean;
+  quotationToEdit?: any | null;
   onClose: () => void;
   onSuccess: () => void;
   products: Product[];
@@ -31,6 +32,7 @@ interface CreateQuotationModalProps {
 
 export function CreateQuotationModal({
   isOpen,
+  quotationToEdit,
   onClose,
   onSuccess,
   products,
@@ -58,6 +60,51 @@ export function CreateQuotationModal({
 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
+  useEffect(() => {
+    if (quotationToEdit) {
+      if (quotationToEdit.partyId) {
+        setCustomerMode('EXISTING');
+        setPartyId(quotationToEdit.partyId);
+      } else {
+        setCustomerMode('CUSTOM');
+        setCustomerName(quotationToEdit.customerName || '');
+        setCustomerPhone(quotationToEdit.customerPhone || '');
+        setCustomerAddress(quotationToEdit.customerAddress || '');
+      }
+      setTaxRate(Number(quotationToEdit.taxRate || 0));
+      setTransportCost(Number(quotationToEdit.transportCost || 0));
+      setTransportGstRate(Number(quotationToEdit.transportGstRate || 0));
+      setNotes(quotationToEdit.notes || '');
+      if (quotationToEdit.items && quotationToEdit.items.length > 0) {
+        setItems(
+          quotationToEdit.items.map((it: any) => ({
+            productId: it.productId,
+            qty: Number(it.qty),
+            unitPrice: Number(it.unitPrice),
+            discount: Number(it.discount || 0),
+          })),
+        );
+      }
+    } else {
+      setCustomerMode('CUSTOM');
+      setCustomerName('');
+      setCustomerPhone('');
+      setCustomerAddress('');
+      setTaxRate(0);
+      setTransportCost(0);
+      setTransportGstRate(0);
+      setNotes('');
+      setItems([
+        {
+          productId: products[0]?.id || '',
+          qty: 1,
+          unitPrice: 0,
+          discount: 0,
+        },
+      ]);
+    }
+  }, [quotationToEdit, products]);
+
   const partyOptions = useMemo(
     () =>
       parties.map((party) => ({
@@ -130,6 +177,7 @@ export function CreateQuotationModal({
       return;
     }
 
+    if (submitting) return;
     setSubmitting(true);
     try {
       const payload: Record<string, unknown> = {
@@ -153,10 +201,17 @@ export function CreateQuotationModal({
         payload.customerAddress = customerAddress.trim() || undefined;
       }
 
-      await apiRequest('/quotations', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
+      if (quotationToEdit) {
+        await apiRequest(`/quotations/${quotationToEdit.id}`, {
+          method: 'PATCH',
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await apiRequest('/quotations', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+      }
 
       onSuccess();
       onClose();
@@ -178,7 +233,7 @@ export function CreateQuotationModal({
               <FileText className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="text-lg font-bold text-foreground">Create Price Estimate / Quotation</h2>
+              <h2 className="text-lg font-bold text-foreground">{quotationToEdit ? "Edit Price Estimate / Quotation" : "Create Price Estimate / Quotation"}</h2>
               <p className="text-xs text-muted-foreground">
                 Generate official quotation (EST-xxxx) with 1-click invoice conversion
               </p>

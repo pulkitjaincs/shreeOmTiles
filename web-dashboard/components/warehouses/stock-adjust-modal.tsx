@@ -34,6 +34,7 @@ export function StockAdjustModal({
 
   const handleAdjustStock = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     setSubmitting(true);
     setError('');
 
@@ -42,8 +43,6 @@ export function StockAdjustModal({
         method: 'POST',
         body: JSON.stringify({
           productId: stock.productId,
-          warehouseId: stock.warehouseId,
-          batchNo: stock.batchNo,
           quantity: Number(newQuantity),
           mode: 'SET',
         }),

@@ -112,6 +112,7 @@ export function RecordCreditModal({
   };
 
   const submit = async () => {
+    if (submitting) return;
     const numericAmount = Number(amount);
     if (!partyId || !Number.isFinite(numericAmount) || numericAmount <= 0) {
       Alert.alert('Required Fields', 'Select a party and enter an amount greater than zero.');

@@ -20,7 +20,7 @@ interface DeliveryCardProps {
   onOpenRunDetails: (delivery: Delivery) => void;
   onOpenPushModal: (delivery: Delivery) => void;
   onOpenCollectCash: (delivery: Delivery) => void;
-  onCustomerPickedUp: (deliveryId: string) => void;
+  onCustomerPickedUp?: (deliveryId: string) => void;
   onHandoverCash: (deliveryId: string) => void;
   onUpdateStatus: (deliveryId: string, status: string) => void;
   onSupervisorConfirmPick?: (deliveryId: string, itemIdx: number) => void;
@@ -51,8 +51,6 @@ export const DeliveryCard = React.memo(function DeliveryCard({
   const totalCount = itemsList.length;
 
   const cashCollectedNum = Number(delivery.cashCollected || 0);
-
-  const isDriverAssigned = Boolean(delivery.driverId);
   const isDelivered = delivery.status === 'DELIVERED';
   const isCancelled = delivery.status === 'CANCELLED';
   const isOutForPickup = delivery.status === 'OUT_FOR_PICKUP';
@@ -233,11 +231,11 @@ export const DeliveryCard = React.memo(function DeliveryCard({
         </View>
       ) : null}
 
-      {/* Warehouse Items Pickup Progress Bar */}
+      {/* Items Pickup Progress Bar */}
       {totalCount > 0 ? (
         <View style={styles.progressContainer}>
           <View style={styles.progressHeader}>
-            <Text style={styles.progressLabel}>Warehouse Pickups</Text>
+            <Text style={styles.progressLabel}>Items Picked Up</Text>
             <Text style={styles.progressCount}>
               {pickedCount} / {totalCount} items picked
             </Text>
@@ -254,19 +252,18 @@ export const DeliveryCard = React.memo(function DeliveryCard({
         </View>
       ) : null}
 
-      {/* Supervisor In-Line Warehouse Pickup Quick Actions */}
-      {isSupervisor && (isAssignedToDriver || isOutForPickup) && userWarehouseId ? (
+      {/* Supervisor In-Line Items Verification Quick Actions */}
+      {isSupervisor && (isAssignedToDriver || isOutForPickup) ? (
         <View style={styles.supervisorItemsBox}>
-          <Text style={styles.supervisorBoxTitle}>Warehouse Items Verification</Text>
+          <Text style={styles.supervisorBoxTitle}>Order Items Verification</Text>
           {(delivery.items || [])
             .map((it, idx) => ({ it, idx }))
-            .filter(({ it }) => it.warehouseId === userWarehouseId)
             .map(({ it, idx }) => (
               <View key={it.invoiceItemId || idx} style={styles.supervisorItemRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.supervisorItemName}>{it.productName}</Text>
                   <Text style={styles.supervisorItemSub}>
-                    {it.qty} {it.unit} {it.batchNo ? `• Lot: ${it.batchNo}` : ''}
+                    {it.qty} {it.unit}
                   </Text>
                 </View>
                 {it.pickedUp ? (
@@ -370,7 +367,7 @@ export const DeliveryCard = React.memo(function DeliveryCard({
         </>
       ) : null}
 
-      {/* Director: Push Dispatch & Counter Pickup Buttons */}
+      {/* Director: Push Dispatch */}
       {isOwnerOrAdmin && isPendingPush ? (
         <View style={styles.directorActionsRow}>
           <Button
@@ -379,18 +376,8 @@ export const DeliveryCard = React.memo(function DeliveryCard({
             variant="primary"
             size="sm"
             onPress={() => onOpenPushModal(delivery)}
-            style={{ flex: 1.2, height: 38, borderRadius: 10 }}
+            style={{ flex: 1, height: 38, borderRadius: 10 }}
           />
-          {!isDriverAssigned ? (
-            <Button
-              title="Counter Pickup"
-              icon="bag-check-outline"
-              variant="outline"
-              size="sm"
-              onPress={() => onCustomerPickedUp(delivery.id)}
-              style={{ flex: 1, height: 38, borderRadius: 10 }}
-            />
-          ) : null}
         </View>
       ) : null}
 

@@ -199,21 +199,26 @@ export async function generateRefundInvoicePdf(
     m === 'CARD'
       ? 'Card (POS Machine)'
       : m === 'BANK_TRANSFER' || m === 'BANK'
-      ? 'Bank Transfer'
-      : m === 'CASH'
-      ? 'Cash'
-      : m === 'UPI'
-      ? 'UPI'
-      : m === 'CREDIT'
-      ? 'Store Credit'
-      : m;
-  page.drawText(safePdfText(`Refund Settlement Mode: ${formatRefundMode(refund.refundMode)}`), {
-    x: rightBoxX + 10,
-    y: cardTopY - 28,
-    size: 8.5,
-    font: fontBold,
-    color: textColor,
-  });
+        ? 'Bank Transfer'
+        : m === 'CASH'
+          ? 'Cash'
+          : m === 'UPI'
+            ? 'UPI'
+            : m === 'CREDIT'
+              ? 'Store Credit'
+              : m;
+  page.drawText(
+    safePdfText(
+      `Refund Settlement Mode: ${formatRefundMode(refund.refundMode)}`,
+    ),
+    {
+      x: rightBoxX + 10,
+      y: cardTopY - 28,
+      size: 8.5,
+      font: fontBold,
+      color: textColor,
+    },
+  );
   page.drawText(
     safePdfText(
       `Processed By: ${refund.createdBy?.name || 'Authorized Staff'}`,
@@ -271,21 +276,7 @@ export async function generateRefundInvoicePdf(
     color: accentRed,
   });
   page.drawText('Returned Item', {
-    x: leftMargin + 25,
-    y: headerY,
-    size: 8,
-    font: fontBold,
-    color: accentRed,
-  });
-  page.drawText('Restocked Godown', {
-    x: leftMargin + 200,
-    y: headerY,
-    size: 8,
-    font: fontBold,
-    color: accentRed,
-  });
-  page.drawText('Batch Lot', {
-    x: leftMargin + 310,
+    x: leftMargin + 28,
     y: headerY,
     size: 8,
     font: fontBold,
@@ -295,7 +286,7 @@ export async function generateRefundInvoicePdf(
   const qtyHdr = 'Qty';
   const qtyHdrW = fontBold.widthOfTextAtSize(qtyHdr, 8);
   page.drawText(qtyHdr, {
-    x: leftMargin + 395 - qtyHdrW,
+    x: leftMargin + 355 - qtyHdrW,
     y: headerY,
     size: 8,
     font: fontBold,
@@ -305,7 +296,7 @@ export async function generateRefundInvoicePdf(
   const rateHdr = 'Rate (Rs.)';
   const rateHdrW = fontBold.widthOfTextAtSize(rateHdr, 8);
   page.drawText(rateHdr, {
-    x: leftMargin + 460 - rateHdrW,
+    x: leftMargin + 440 - rateHdrW,
     y: headerY,
     size: 8,
     font: fontBold,
@@ -333,9 +324,7 @@ export async function generateRefundInvoicePdf(
       item.product?.name ||
       item.customItemName ||
       'Item'
-    ).slice(0, 32);
-    const whName = (item.warehouse?.name || 'Showroom').slice(0, 22);
-    const batch = item.batchNo || 'Standard';
+    ).slice(0, 52);
     const qtyStr = `${Number(item.qty)} ${item.product?.unit || 'unit'}`;
     const rateStr = Number(item.unitPrice).toFixed(2);
     const lineTotalStr = Number(item.total).toFixed(2);
@@ -348,30 +337,16 @@ export async function generateRefundInvoicePdf(
       color: grayColor,
     });
     page.drawText(safePdfText(prodName), {
-      x: leftMargin + 25,
+      x: leftMargin + 28,
       y,
       size: 8.5,
       font: fontBold,
       color: textColor,
     });
-    page.drawText(safePdfText(whName), {
-      x: leftMargin + 200,
-      y,
-      size: 8,
-      font: fontRegular,
-      color: textColor,
-    });
-    page.drawText(safePdfText(batch), {
-      x: leftMargin + 310,
-      y,
-      size: 7.5,
-      font: fontRegular,
-      color: grayColor,
-    });
 
     const qw = fontRegular.widthOfTextAtSize(qtyStr, 8);
     page.drawText(safePdfText(qtyStr), {
-      x: leftMargin + 395 - qw,
+      x: leftMargin + 355 - qw,
       y,
       size: 8,
       font: fontRegular,
@@ -380,7 +355,7 @@ export async function generateRefundInvoicePdf(
 
     const rw = fontRegular.widthOfTextAtSize(rateStr, 8.5);
     page.drawText(safePdfText(rateStr), {
-      x: leftMargin + 460 - rw,
+      x: leftMargin + 440 - rw,
       y,
       size: 8.5,
       font: fontRegular,

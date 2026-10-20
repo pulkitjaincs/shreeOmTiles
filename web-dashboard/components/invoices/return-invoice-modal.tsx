@@ -161,7 +161,7 @@ export function ReturnInvoiceModal({
 
   // Handle Recorded Invoice Return Submit
   const handleProcessReturnSubmit = async () => {
-    if (!returnFoundInvoice) return;
+    if (!returnFoundInvoice || returnSubmitting) return;
     setReturnSubmitting(true);
     setReturnErrorMsg('');
     setReturnSuccessMsg('');

@@ -41,3 +41,25 @@ Thumbs.db
 **/.cache/
 *.tsbuildinfo
 
+# CodeGraph, Tokless & Indexing
+.codegraph/
+.tokless/
+tokless/
+*.codegraph
+*.tokless
+
+# Agent MCP & Project Memory
+.projectmem/
+.context-mode/
+**/context-mode/
+**/.github/context-mode/
+.ctx/
+
+# Antigravity & Agent workspace configs
+.antigravity/
+.antigravityignore
+.agents/
+GEMINI.md
+
+# Agent & workspace utility scripts
+scripts/

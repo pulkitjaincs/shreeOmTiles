@@ -33,6 +33,7 @@ interface InvoiceDetailsDrawerProps {
   onEdit?: (invoice: Invoice) => void;
   onOpenPartyStatement?: (party: Party) => void;
   onEditRefund?: (invoice: Invoice, refund: RefundInvoiceDetail) => void;
+  onDeleteRefund?: (invoice: Invoice, refund: RefundInvoiceDetail) => void;
   canDelete?: boolean;
   sharingId: string | null;
   downloadingId: string | null;
@@ -49,15 +50,18 @@ export function InvoiceDetailsDrawer({
   onEdit,
   onOpenPartyStatement,
   onEditRefund,
+  onDeleteRefund,
   canDelete = false,
   sharingId,
   downloadingId,
   downloadingRefundId,
 }: InvoiceDetailsDrawerProps) {
   const { user } = useAuth();
-  const isSupervisor = user?.role === 'SUPERVISOR';
-
   if (!invoice) return null;
+
+  const isSupervisor = user?.role === 'SUPERVISOR';
+  const isSalesman = user?.role === 'SALESMAN';
+  const canEditInvoice = !isSupervisor && Boolean(onEdit) && (!isSalesman || invoice.salesmanId === user?.id || (invoice.createdBy as any)?.id === user?.id);
 
   const totalRefunded =
     invoice.refundInvoices?.reduce((sum, r) => sum + Number(r.total || 0), 0) || 0;
@@ -128,10 +132,10 @@ export function InvoiceDetailsDrawer({
 
           {/* Header Actions */}
           <div className="flex items-center gap-2">
-            {!isSupervisor && onEdit && (
+            {canEditInvoice && (
               <button
                 type="button"
-                onClick={() => onEdit(invoice)}
+                onClick={() => onEdit && onEdit(invoice)}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-[0.625rem] text-[0.75rem] font-semibold text-amber-700 dark:text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 transition shadow-2xs active:scale-98"
                 title="Edit bill details, quantities, pricing, address"
               >
@@ -575,13 +579,23 @@ export function InvoiceDetailsDrawer({
                           <span className="text-[0.75rem] font-bold text-rose-700 dark:text-rose-300">
                             Refund Amount: {formatINR(refund.total)}
                           </span>
-                          {onEditRefund && (
+                          {(!isSupervisor && onEditRefund && (!isSalesman || invoice.salesmanId === user?.id || refund.createdById === user?.id)) && (
                             <button
                               type="button"
                               onClick={() => onEditRefund(invoice, refund)}
                               className="inline-flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[0.6875rem] font-semibold text-amber-700 dark:text-amber-300"
                             >
                               <Pencil className="h-3 w-3" /> Edit
+                            </button>
+                          )}
+                          {!isSupervisor && canDelete && onDeleteRefund && (
+                            <button
+                              type="button"
+                              onClick={() => onDeleteRefund(invoice, refund)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2 py-1 text-[0.6875rem] font-semibold text-rose-600 dark:text-rose-400"
+                              title="Delete Return & Revert Restocked Qty"
+                            >
+                              <Trash2 className="h-3 w-3" /> Delete
                             </button>
                           )}
                           <button

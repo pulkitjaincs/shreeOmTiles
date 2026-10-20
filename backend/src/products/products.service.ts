@@ -32,12 +32,11 @@ export class ProductsService {
       });
 
       if (data.initialQuantity && data.initialQuantity > 0) {
-        const batchNo = data.initialBatchNo?.trim() || null;
         const stockLedger = await tx.stockLedger.create({
           data: {
             productId: product.id,
             warehouseId: null,
-            batchNo,
+            batchNo: null,
             quantity: data.initialQuantity,
           },
         });
@@ -52,7 +51,6 @@ export class ProductsService {
               productId: product.id,
               productName: product.name,
               quantity: data.initialQuantity,
-              batchNo,
             },
           },
         });
@@ -254,7 +252,8 @@ export class ProductsService {
       if (!product) throw new NotFoundException(`Product ${id} not found`);
 
       const activeStock =
-        product.stockLedgers?.reduce((sum, s) => sum + s.quantity, 0) ?? 0;
+        product.stockLedgers?.reduce((sum, s) => sum + Number(s.quantity), 0) ??
+        0;
       if (activeStock > 0) {
         throw new BadRequestException(
           `Cannot delete product '${product.name}' because it still has ${activeStock} ${product.unit} of inventory across warehouses. Stock quantity must be 0 before deleting.`,

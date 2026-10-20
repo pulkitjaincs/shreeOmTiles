@@ -34,6 +34,7 @@ export function PushDeliveryModal({
   drivers,
 }: PushDeliveryModalProps) {
   const styles = useThemedStyles(createStyles);
+  const [activeTab, setActiveTab] = useState<'DELIVERY' | 'PICKUP'>('DELIVERY');
   const [selectedDriverId, setSelectedDriverId] = useState('');
   const [supervisors, setSupervisors] = useState<SupervisorUser[]>([]);
   const [selectedSupervisorIds, setSelectedSupervisorIds] = useState<string[]>([]);
@@ -46,6 +47,7 @@ export function PushDeliveryModal({
 
   useEffect(() => {
     if (visible && delivery) {
+      setActiveTab('DELIVERY');
       setSelectedDriverId('');
       setVehicle('');
       setDispatchAmountToCollect(String(delivery.amountToCollect || 0));
@@ -92,7 +94,9 @@ export function PushDeliveryModal({
   if (!delivery) return null;
 
   const handlePushDelivery = async () => {
-    if (!selectedDriverId) {
+    if (submittingPush) return;
+
+    if (activeTab === 'DELIVERY' && !selectedDriverId) {
       Alert.alert('Required', 'Please select a driver for dispatch');
       return;
     }
@@ -104,9 +108,6 @@ export function PushDeliveryModal({
         productId: i.productId,
         productName: i.productName,
         unit: i.unit,
-        warehouseName: i.warehouseName,
-        warehouseAddress: i.warehouseAddress,
-        batchNo: i.batchNo,
         qty: i.dispatchQty,
       }));
 
@@ -117,6 +118,33 @@ export function PushDeliveryModal({
 
     setSubmittingPush(true);
     try {
+      if (activeTab === 'PICKUP') {
+        await mobileApiRequest(`/delivery/${delivery.id}/push`, {
+          method: 'POST',
+          body: JSON.stringify({
+            driverId: null,
+            isCustomerPickup: true,
+            supervisorIds: selectedSupervisorIds,
+            amountToCollect: 0,
+            notes: dispatchNotes.trim() || 'Customer Picked Up (Self-Pickup from Counter)',
+            items: itemsToDispatch,
+          }),
+        });
+
+        onClose();
+        onSuccess({
+          invoiceNo: delivery.invoice?.invoiceNo || '',
+          driverName: 'Counter Pickup',
+          driverPhone: '',
+          itemsCount: itemsToDispatch.length,
+          amountToCollect: 0,
+          transportCost: 0,
+          hasRemaining: itemsToDispatch.length < dispatchItems.length,
+          waUrl: '',
+        });
+        return;
+      }
+
       const toCollectNum = dispatchAmountToCollect ? Number(dispatchAmountToCollect) : Number(delivery.amountToCollect || 0);
 
       await mobileApiRequest(`/delivery/${delivery.id}/push`, {
@@ -163,33 +191,82 @@ export function PushDeliveryModal({
     <BottomSheetModal
       visible={visible}
       onClose={onClose}
-      title="Dispatch Order to Driver"
+      title={activeTab === 'PICKUP' ? 'Counter Customer Pickup' : 'Dispatch Order to Driver'}
       subtitle={`Invoice #${delivery.invoice?.invoiceNo} • ${delivery.invoice?.party?.name}`}
       maxHeightPercent={0.92}
     >
       <View>
-        <Select
-          label="Select Available Driver"
-          placeholder="Choose driver..."
-          value={selectedDriverId}
-          onChange={setSelectedDriverId}
-          searchable
-          searchPlaceholder="Search driver name or phone..."
-          icon="car-outline"
-          options={drivers.map((dr) => ({
-            value: dr.id,
-            label: dr.name,
-            subLabel: dr.phone ? `Phone: ${dr.phone}` : undefined,
-          }))}
-        />
+        {/* Mode Selector */}
+        <View style={styles.tabToggleRow}>
+          <TouchableOpacity
+            style={[styles.tabToggleBtn, activeTab === 'DELIVERY' && styles.tabToggleBtnActive]}
+            onPress={() => setActiveTab('DELIVERY')}
+          >
+            <Ionicons
+              name="car-outline"
+              size={15}
+              color={activeTab === 'DELIVERY' ? '#FFFFFF' : '#64748B'}
+            />
+            <Text
+              style={[
+                styles.tabToggleText,
+                activeTab === 'DELIVERY' && styles.tabToggleTextActive,
+              ]}
+            >
+              Driver Dispatch
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tabToggleBtn, activeTab === 'PICKUP' && styles.tabToggleBtnActivePickup]}
+            onPress={() => setActiveTab('PICKUP')}
+          >
+            <Ionicons
+              name="bag-check-outline"
+              size={15}
+              color={activeTab === 'PICKUP' ? '#FFFFFF' : '#64748B'}
+            />
+            <Text
+              style={[
+                styles.tabToggleText,
+                activeTab === 'PICKUP' && styles.tabToggleTextActive,
+              ]}
+            >
+              Counter Pickup
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {activeTab === 'PICKUP' ? (
+          <View style={styles.pickupBanner}>
+            <Ionicons name="information-circle" size={18} color="#10B981" />
+            <Text style={styles.pickupBannerText}>
+              Items will be marked Delivered at the counter. Select supervisor(s) below to receive order details.
+            </Text>
+          </View>
+        ) : (
+          <Select
+            label="Select Available Driver"
+            placeholder="Choose driver..."
+            value={selectedDriverId}
+            onChange={setSelectedDriverId}
+            searchable
+            searchPlaceholder="Search driver name or phone..."
+            icon="car-outline"
+            options={drivers.map((dr) => ({
+              value: dr.id,
+              label: dr.name,
+              subLabel: dr.phone ? `Phone: ${dr.phone}` : undefined,
+            }))}
+          />
+        )}
 
         {/* Supervisor Assignment Section */}
         <View style={styles.supervisorSection}>
           <Text style={styles.supervisorSectionTitle}>
-            Assigned Dispatch Supervisor(s)
+            {activeTab === 'PICKUP' ? 'Assign Supervisor for Customer Pickup' : 'Assigned Dispatch Supervisor(s)'}
           </Text>
           <Text style={styles.supervisorSectionSub}>
-            Select supervisor(s) to inspect & coordinate this pickup:
+            Select supervisor(s) to inspect & coordinate this order:
           </Text>
           {loadingSupervisors ? (
             <Text style={styles.supervisorLoadingText}>Loading supervisors...</Text>
@@ -261,9 +338,6 @@ export function PushDeliveryModal({
                     >
                       {item.productName}
                     </Text>
-                    <Text style={styles.dispatchItemSub} numberOfLines={1}>
-                      {item.batchNo ? `Batch Lot: ${item.batchNo}` : 'Standard Lot'}
-                    </Text>
                     <Text style={styles.dispatchItemMax}>
                       Max Available: {item.maxQty} {item.unit}
                     </Text>
@@ -307,20 +381,24 @@ export function PushDeliveryModal({
           );
         })}
 
-        <Input
-          label="Vehicle Number / Transport Type"
-          placeholder="e.g. Tata Ace (DL 1L A 1234)"
-          value={vehicle}
-          onChangeText={setVehicle}
-        />
+        {activeTab === 'DELIVERY' ? (
+          <>
+            <Input
+              label="Vehicle Number / Transport Type"
+              placeholder="e.g. Tata Ace (DL 1L A 1234)"
+              value={vehicle}
+              onChangeText={setVehicle}
+            />
 
-        <Input
-          label="Amount to Collect from Customer (₹)"
-          placeholder="0"
-          value={dispatchAmountToCollect}
-          onChangeText={setDispatchAmountToCollect}
-          keyboardType="numeric"
-        />
+            <Input
+              label="Amount to Collect from Customer (₹)"
+              placeholder="0"
+              value={dispatchAmountToCollect}
+              onChangeText={setDispatchAmountToCollect}
+              keyboardType="numeric"
+            />
+          </>
+        ) : null}
 
         <Input
           label="Dispatch Notes / Instructions"
@@ -330,7 +408,15 @@ export function PushDeliveryModal({
         />
 
         <Button
-          title={submittingPush ? 'Pushing Dispatch...' : 'Confirm Driver Dispatch'}
+          title={
+            activeTab === 'PICKUP'
+              ? submittingPush
+                ? 'Completing Pickup...'
+                : 'Confirm Counter Pickup'
+              : submittingPush
+                ? 'Pushing Dispatch...'
+                : 'Confirm Driver Dispatch'
+          }
           onPress={handlePushDelivery}
           loading={submittingPush}
           variant="primary"
@@ -528,5 +614,54 @@ const createStyles = (colors: any) =>
     supervisorChipTextActive: {
       color: '#10B981',
       fontWeight: '700',
+    },
+    tabToggleRow: {
+      flexDirection: 'row',
+      backgroundColor: colors.secondary,
+      borderRadius: 12,
+      padding: 4,
+      marginBottom: 14,
+      gap: 6,
+    },
+    tabToggleBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: 9,
+      borderRadius: 9,
+    },
+    tabToggleBtnActive: {
+      backgroundColor: colors.primary,
+    },
+    tabToggleBtnActivePickup: {
+      backgroundColor: '#10B981',
+    },
+    tabToggleText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.textSecondary,
+    },
+    tabToggleTextActive: {
+      color: '#FFFFFF',
+      fontWeight: '700',
+    },
+    pickupBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      padding: 12,
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+      marginBottom: 14,
+    },
+    pickupBannerText: {
+      flex: 1,
+      fontSize: 12,
+      color: colors.text,
+      lineHeight: 17,
     },
   });

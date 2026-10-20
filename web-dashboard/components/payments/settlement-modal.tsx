@@ -213,6 +213,7 @@ export function SettlementModal({
 
   const handleSubmitCollectPayment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (collectSubmitting) return;
     const validSplits = splits.filter((s) => {
       const a = parseFloat(s.amount);
       return !isNaN(a) && a > 0;

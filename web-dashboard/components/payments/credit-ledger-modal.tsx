@@ -34,6 +34,7 @@ export function CreditLedgerModal({
 
   const handleSubmitRecordCredit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (creditSubmitting) return;
     const amtNum = parseFloat(creditAmount);
     if (isNaN(amtNum) || amtNum <= 0) {
       setCreditError('Please enter a valid amount greater than ₹0');

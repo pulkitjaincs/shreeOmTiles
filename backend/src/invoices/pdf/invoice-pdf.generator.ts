@@ -582,14 +582,14 @@ export async function generateInvoicePdf(
     m === 'CARD'
       ? 'Card (POS Machine)'
       : m === 'BANK_TRANSFER' || m === 'BANK'
-      ? 'Bank Transfer'
-      : m === 'CASH'
-      ? 'Cash in Hand'
-      : m === 'UPI'
-      ? 'UPI'
-      : m === 'CREDIT'
-      ? 'Credit'
-      : m;
+        ? 'Bank Transfer'
+        : m === 'CASH'
+          ? 'Cash in Hand'
+          : m === 'UPI'
+            ? 'UPI'
+            : m === 'CREDIT'
+              ? 'Credit'
+              : m;
 
   const validPayments = (
     Array.isArray(invoice.payments) ? invoice.payments : []
@@ -605,7 +605,9 @@ export async function generateInvoicePdf(
       if (linesRendered >= maxLines) break;
       const amtStr = `Rs. ${Math.round(Number(p.amount)).toLocaleString('en-IN')}`;
       const utrStr = p.upiUtr ? ` (UTR: ${p.upiUtr})` : '';
-      const text = safePdfText(`• ${formatModeLabel(p.mode)}: ${amtStr}${utrStr}`);
+      const text = safePdfText(
+        `• ${formatModeLabel(p.mode)}: ${amtStr}${utrStr}`,
+      );
 
       page.drawText(text, {
         x: wordsLeftX,

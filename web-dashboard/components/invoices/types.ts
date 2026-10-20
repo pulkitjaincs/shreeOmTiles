@@ -105,6 +105,7 @@ export interface RefundInvoiceItemDetail {
 
 export interface RefundInvoiceDetail {
   id: string;
+  createdById?: string;
   refundNo: string;
   originalInvoiceId?: string | null;
   total: number | string;
@@ -127,7 +128,10 @@ export interface Invoice {
   invoiceNo: string;
   party: Party;
   partyId?: string;
-  salesman: { name: string };
+  salesman?: { id?: string; name: string };
+  salesmanId?: string;
+  createdBy?: { id?: string; name?: string };
+  createdById?: string;
   total: number | string;
   subtotal: number | string;
   tax: number | string;

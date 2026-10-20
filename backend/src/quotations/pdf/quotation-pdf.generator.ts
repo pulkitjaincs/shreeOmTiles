@@ -11,7 +11,7 @@ export interface QuotationPdfPayload {
   customerAddress?: string | null;
   party?: {
     name?: string;
-    phone?: string;
+    phone?: string | null;
     address?: string | null;
     gstin?: string | null;
   } | null;
@@ -30,7 +30,7 @@ export interface QuotationPdfPayload {
       name?: string;
       unit?: string;
     } | null;
-    qty: number;
+    qty: any;
     unitPrice: any;
     discount?: any;
     total: any;

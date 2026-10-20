@@ -33,9 +33,7 @@ export function AddProductModal({
   const [prodFinish, setProdFinish] = useState('');
   const [sellingPrice, setSellingPrice] = useState('');
   const [purchasePrice, setPurchasePrice] = useState('');
-  const [initialWarehouseId, setInitialWarehouseId] = useState('');
   const [initialQuantity, setInitialQuantity] = useState('');
-  const [initialBatchNo, setInitialBatchNo] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -50,9 +48,7 @@ export function AddProductModal({
         setProdFinish(String(attrs.finish || ''));
         setSellingPrice(attrs.price == null ? '' : String(attrs.price));
         setPurchasePrice(attrs.purchasePrice == null ? '' : String(attrs.purchasePrice));
-        setInitialWarehouseId('');
         setInitialQuantity('');
-        setInitialBatchNo('');
       } else {
         setProdName('');
         setProdCategory('');
@@ -62,19 +58,17 @@ export function AddProductModal({
         setProdFinish('');
         setSellingPrice('');
         setPurchasePrice('');
-        setInitialWarehouseId(warehouses[0]?.id || '');
         setInitialQuantity('');
-        setInitialBatchNo('');
       }
     }
-  }, [visible, product, warehouses]);
+  }, [visible, product]);
 
   const handleSave = async () => {
+    if (submitting) return;
     if (!prodName.trim() || !prodCategory.trim()) {
       Alert.alert('Required Fields', 'Product name and category are required');
       return;
     }
-    const whId = initialWarehouseId || warehouses[0]?.id || '';
     if (initialQuantity.trim() && (!Number.isInteger(Number(initialQuantity)) || Number(initialQuantity) < 0)) {
       Alert.alert('Invalid Opening Stock', 'Enter a whole quantity of zero or more.');
       return;
@@ -115,9 +109,7 @@ export function AddProductModal({
               price: sellingPrice.trim() ? Number(sellingPrice) : undefined,
               purchasePrice: purchasePrice.trim() ? Number(purchasePrice) : undefined,
             },
-            initialWarehouseId: whId || undefined,
             initialQuantity: initialQuantity.trim() ? Number(initialQuantity) : undefined,
-            initialBatchNo: initialBatchNo.trim() || undefined,
           }),
         });
         Alert.alert('Success', 'New product added to catalog!');
@@ -159,10 +151,9 @@ export function AddProductModal({
         <Input label="Selling Price (₹)" placeholder="0" value={sellingPrice} onChangeText={setSellingPrice} keyboardType="numeric" />
         <Input label="Purchase Price (₹)" placeholder="0" value={purchasePrice} onChangeText={setPurchasePrice} keyboardType="numeric" />
 
-        {!product && <>
+        {!product && (
           <Input label="Initial Inward Quantity" placeholder="0" value={initialQuantity} onChangeText={setInitialQuantity} keyboardType="numeric" />
-          <Input label="Initial Batch Number (Optional)" placeholder="e.g. BATCH-001" value={initialBatchNo} onChangeText={setInitialBatchNo} />
-        </>}
+        )}
 
         <Text style={styles.fieldLabel}>Unit of Measure</Text>
         <View style={styles.unitRow}>

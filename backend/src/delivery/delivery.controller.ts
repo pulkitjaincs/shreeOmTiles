@@ -117,8 +117,18 @@ export class DeliveryController {
   }
 
   @Patch(':id/status')
-  updateStatus(@Param('id') id: string, @Body() dto: UpdateDeliveryStatusDto) {
-    return this.deliveryService.updateStatus(id, dto.status, dto.notes);
+  @Roles(Role.OWNER, Role.ADMIN, Role.DRIVER, Role.SUPERVISOR)
+  updateStatus(
+    @Param('id') id: string,
+    @Body() dto: UpdateDeliveryStatusDto,
+    @Request() req: RequestWithUser,
+  ) {
+    return this.deliveryService.updateStatus(
+      id,
+      dto.status,
+      dto.notes,
+      req.user,
+    );
   }
 
   @Patch(':id/assign')
@@ -164,7 +174,7 @@ export class DeliveryController {
   }
 
   @Patch(':id/handover-cash')
-  @Roles(Role.OWNER, Role.ADMIN, Role.ACCOUNTANT)
+  @Roles(Role.OWNER, Role.ADMIN, Role.ACCOUNTANT, Role.SALESMAN)
   handoverCash(
     @Param('id') id: string,
     @Body() dto: HandoverCashDto,

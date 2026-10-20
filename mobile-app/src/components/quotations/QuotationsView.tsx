@@ -17,6 +17,7 @@ import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
 import { formatINR, formatDate } from '@/lib/formatters';
 import { downloadAndSharePdf } from '@/lib/pdf';
 import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@/lib/auth-context';
 import { CreateQuotationModal } from './CreateQuotationModal';
 import { Party, Product } from '@/components/invoices/types';
 
@@ -30,6 +31,31 @@ export function QuotationsView() {
   const [search, setSearch] = useState('');
   const [convertingId, setConvertingId] = useState<string | null>(null);
   const [createModalVisible, setCreateModalVisible] = useState(false);
+  const { user } = useAuth();
+  const isDirectorOrAdmin = user?.role === 'OWNER' || (user?.role as any) === 'DIRECTOR' || user?.role === 'ADMIN';
+  const [editingQuotation, setEditingQuotation] = useState<any | null>(null);
+
+  const handleDeleteQuotation = (item: any) => {
+    Alert.alert(
+      'Delete Quotation',
+      `Are you sure you want to delete Estimate #${item.quotationNo || item.estimateNo}? This action is permanent.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await mobileApiRequest(`/quotations/${item.id}`, { method: 'DELETE' });
+              loadQuotations(true);
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Failed to delete quotation');
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const loadQuotations = useCallback(async (force = false) => {
     setLoading(true);
@@ -250,15 +276,57 @@ export function QuotationsView() {
                   style={styles.actionBtn}
                 />
                 {item.status !== 'CONVERTED' ? (
-                  <Button
-                    title="Convert to Invoice"
-                    icon="receipt-outline"
-                    variant="primary"
-                    size="sm"
-                    loading={convertingId === item.id}
-                    onPress={() => handleConvert(item)}
-                    style={[styles.actionBtn, styles.convertBtn]}
-                  />
+                  <>
+                    <TouchableOpacity
+                      onPress={() => {
+                        void loadModalData();
+                        setEditingQuotation(item);
+                        setCreateModalVisible(true);
+                      }}
+                      style={{
+                        paddingHorizontal: 10,
+                        height: 32,
+                        borderRadius: 8,
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        borderWidth: 1,
+                        borderColor: 'rgba(245, 158, 11, 0.3)',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                      accessibilityLabel="Edit Quotation"
+                    >
+                      <Ionicons name="create-outline" size={15} color="#F59E0B" />
+                    </TouchableOpacity>
+
+                    {isDirectorOrAdmin && (
+                      <TouchableOpacity
+                        onPress={() => handleDeleteQuotation(item)}
+                        style={{
+                          paddingHorizontal: 10,
+                          height: 32,
+                          borderRadius: 8,
+                          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                          borderWidth: 1,
+                          borderColor: 'rgba(239, 68, 68, 0.3)',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                        accessibilityLabel="Delete Quotation"
+                      >
+                        <Ionicons name="trash-outline" size={15} color="#EF4444" />
+                      </TouchableOpacity>
+                    )}
+
+                    <Button
+                      title="Convert to Invoice"
+                      icon="receipt-outline"
+                      variant="primary"
+                      size="sm"
+                      loading={convertingId === item.id}
+                      onPress={() => handleConvert(item)}
+                      style={[styles.actionBtn, styles.convertBtn]}
+                    />
+                  </>
                 ) : (
                   <View style={styles.convertedPill}>
                     <Ionicons name="checkmark-done" size={13} color="#10B981" />
@@ -302,10 +370,15 @@ export function QuotationsView() {
       {/* Create Quotation Modal */}
       <CreateQuotationModal
         visible={createModalVisible}
-        onClose={() => setCreateModalVisible(false)}
+        quotationToEdit={editingQuotation}
+        onClose={() => {
+          setCreateModalVisible(false);
+          setEditingQuotation(null);
+        }}
         initialParties={parties}
         initialProducts={products}
         onSuccess={() => {
+          setEditingQuotation(null);
           loadQuotations(true);
         }}
       />

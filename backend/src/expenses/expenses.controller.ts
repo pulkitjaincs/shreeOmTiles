@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -63,5 +64,11 @@ export class ExpensesController {
     @Request() req: RequestWithUser,
   ) {
     return this.expensesService.update(id, dto, req.user.id);
+  }
+
+  @Delete(':id')
+  @Roles(Role.OWNER, Role.ADMIN)
+  remove(@Param('id') id: string, @Request() req: RequestWithUser) {
+    return this.expensesService.delete(id, req.user.id);
   }
 }

@@ -62,7 +62,7 @@ export const WarehouseStockCard = React.memo(function WarehouseStockCard({
         <View style={[styles.metaItem, { flex: 1 }]}>
           <Ionicons name="checkmark-circle-outline" size={13} color="#10B981" />
           <Text style={styles.metaText} numberOfLines={1}>
-            Stock Status: <Text style={styles.metaBatchVal}>{item.batchNo ? `Batch: ${item.batchNo}` : 'Unified Stock'}</Text>
+            Stock Status: <Text style={styles.metaBatchVal}>Unified Catalog Stock</Text>
           </Text>
         </View>
       </View>

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useDeferredValue } fr
 import {
   View,
   Text,
+  Alert,
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
@@ -12,7 +13,7 @@ import { SearchBar } from '@/components/ui/SearchBar';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import { Colors, ThemeColors } from '@/constants/theme';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
-import { invalidateMobileApiCache, cachedMobileApiRequest } from '@/lib/api';
+import { mobileApiRequest, invalidateMobileApiCache, cachedMobileApiRequest } from '@/lib/api';
 import { formatINR, formatDate } from '@/lib/formatters';
 import { useAuth } from '@/lib/auth-context';
 import { Warehouse } from '@/components/stock/types';
@@ -82,6 +83,28 @@ export function PurchasesView({
   const [search, setSearch] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editingPurchase, setEditingPurchase] = useState<any | null>(null);
+
+  const handleDeletePurchase = (item: any) => {
+    Alert.alert(
+      'Delete Inward Purchase',
+      `Are you sure you want to delete Purchase #${item.purchaseNo}? Inwarded items will be deducted from catalog stock, and linked payments/ledgers removed.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await mobileApiRequest(`/purchases/${item.id}`, { method: 'DELETE' });
+              loadPurchases(true);
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Failed to delete purchase');
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const loadPurchases = useCallback(async (force = false) => {
     setLoading(true);
@@ -320,15 +343,23 @@ export function PurchasesView({
                   )}
                 </View>
                 {canRecordPurchase ? (
-                  <TouchableOpacity
-                    onPress={() => {
-                      setEditingPurchase(item);
-                      setCreateModalOpen(true);
-                    }}
-                    style={{ alignSelf: 'flex-end', marginTop: 8 }}
-                  >
-                    <Text style={{ color: '#F59E0B', fontWeight: '700', fontSize: 12 }}>Edit Purchase</Text>
-                  </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', gap: 12, alignSelf: 'flex-end', marginTop: 8 }}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setEditingPurchase(item);
+                        setCreateModalOpen(true);
+                      }}
+                    >
+                      <Text style={{ color: '#F59E0B', fontWeight: '700', fontSize: 12 }}>Edit Purchase</Text>
+                    </TouchableOpacity>
+                    {isDirectorOrAdmin && (
+                      <TouchableOpacity
+                        onPress={() => handleDeletePurchase(item)}
+                      >
+                        <Text style={{ color: '#EF4444', fontWeight: '700', fontSize: 12 }}>Delete</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 ) : null}
               </Card>
             );

@@ -255,7 +255,10 @@ export class AnalyticsService {
       select: { mode: true, amount: true, invoiceId: true },
     });
 
-    const splitMap = new Map<string, { value: number; invoiceIds: Set<string> }>();
+    const splitMap = new Map<
+      string,
+      { value: number; invoiceIds: Set<string> }
+    >();
     for (const payment of payments) {
       const current = splitMap.get(payment.mode) || {
         value: 0,
@@ -1106,7 +1109,10 @@ export class AnalyticsService {
           upiIn,
           bankIn,
           cardIn,
-          totalDigital: Math.max(0, upiIn + bankIn + cardIn - (upiOut + bankOut + cardOut)),
+          totalDigital: Math.max(
+            0,
+            upiIn + bankIn + cardIn - (upiOut + bankOut + cardOut),
+          ),
         },
       },
       transactions: {

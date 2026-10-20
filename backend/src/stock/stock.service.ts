@@ -324,7 +324,7 @@ export class StockService {
         where: { id: sourceStock.id },
       });
 
-      if (!lockedSource || lockedSource.quantity < dto.quantity) {
+      if (!lockedSource || Number(lockedSource.quantity) < dto.quantity) {
         throw new BadRequestException(
           `Insufficient stock in source warehouse. Available: ${Number(lockedSource?.quantity ?? 0)}, Requested: ${dto.quantity}`,
         );

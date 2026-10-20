@@ -15,7 +15,7 @@ interface InwardStockModalProps {
   onClose: () => void;
   onSuccess: () => void;
   products: Product[];
-  warehouses: Warehouse[];
+  warehouses?: Warehouse[];
   stocks?: StockItem[];
   initialProductId?: string;
   initialWarehouseId?: string;
@@ -27,42 +27,34 @@ export function InwardStockModal({
   onClose,
   onSuccess,
   products,
-  warehouses,
   stocks = [],
   initialProductId,
-  initialWarehouseId,
-  initialBatchNo,
 }: InwardStockModalProps) {
   const { colors, isDark } = useTheme();
   const styles = useThemedStyles(createStyles);
   const [selectedProductId, setSelectedProductId] = useState('');
-  const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
-  const [batchNo, setBatchNo] = useState('');
   const [quantity, setQuantity] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (visible) {
       setSelectedProductId(initialProductId || '');
-      setSelectedWarehouseId(initialWarehouseId || '');
-      setBatchNo(initialBatchNo || '');
       setQuantity('');
     }
-  }, [visible, initialProductId, initialWarehouseId, initialBatchNo]);
+  }, [visible, initialProductId]);
 
   const selectedProduct = products.find((p) => p.id === selectedProductId);
 
-  // Current stock of selected product matching batch
-  const currentMatchingStock = stocks.find(
-    (s) =>
-      s.productId === selectedProductId &&
-      (batchNo ? s.batchNo === batchNo.trim() : !s.batchNo),
-  );
-  const currentQty = currentMatchingStock?.quantity || 0;
+  // Current stock of selected product
+  const currentMatchingStock = stocks
+    .filter((s) => s.productId === selectedProductId)
+    .reduce((sum, s) => sum + Number(s.quantity || 0), 0) || Number(selectedProduct?.availableQuantity || 0);
+  const currentQty = currentMatchingStock;
   const incomingNum = parseFloat(quantity) || 0;
   const projectedQty = currentQty + incomingNum;
 
   const handleInward = async () => {
+    if (submitting) return;
     if (!selectedProductId || !quantity) {
       Alert.alert('Required Fields', 'Please select product and quantity');
       return;
@@ -79,8 +71,6 @@ export function InwardStockModal({
         method: 'POST',
         body: JSON.stringify({
           productId: selectedProductId,
-          warehouseId: selectedWarehouseId || undefined,
-          batchNo: batchNo.trim() || undefined,
           quantity: qtyNum,
           mode: 'ADD',
         }),
@@ -138,14 +128,6 @@ export function InwardStockModal({
             </View>
           </View>
         ) : null}
-
-        {/* Batch / Lot */}
-        <Input
-          label="Batch / Lot Number"
-          placeholder="e.g. LOT-2026-10"
-          value={batchNo}
-          onChangeText={setBatchNo}
-        />
 
         {/* Incoming Quantity */}
         <Input

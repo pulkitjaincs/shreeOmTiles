@@ -11,7 +11,7 @@ interface ProductFormModalProps {
   onClose: () => void;
   onSuccess: () => Promise<void>;
   product?: Product | null;
-  warehouses: Warehouse[];
+  warehouses?: Warehouse[];
 }
 
 export function ProductFormModal({
@@ -19,7 +19,6 @@ export function ProductFormModal({
   onClose,
   onSuccess,
   product,
-  warehouses,
 }: ProductFormModalProps) {
   const isEditing = Boolean(product);
 
@@ -37,7 +36,6 @@ export function ProductFormModal({
 
   // Initial Stock Inward (Add mode only)
   const [initialQuantity, setInitialQuantity] = useState<number | ''>('');
-  const [initialBatchNo, setInitialBatchNo] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -68,7 +66,6 @@ export function ProductFormModal({
         setPurchasePrice('');
         setMinStockAlert(10);
         setInitialQuantity('');
-        setInitialBatchNo('');
       }
       setError('');
     }
@@ -78,6 +75,7 @@ export function ProductFormModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     if (!name.trim()) {
       setError('Product name is required.');
       return;
@@ -128,7 +126,6 @@ export function ProductFormModal({
               purchasePrice: purchasePrice !== '' ? Number(purchasePrice) : undefined,
             },
             initialQuantity: initialQuantity ? Number(initialQuantity) : undefined,
-            initialBatchNo: initialBatchNo.trim() || undefined,
           }),
         });
       }
@@ -334,33 +331,18 @@ export function ProductFormModal({
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 animate-in fade-in">
-                <div>
-                  <label className="block text-xs font-medium text-foreground mb-1">
-                    Initial Quantity ({unit})
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    placeholder="e.g. 50"
-                    className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                    value={initialQuantity}
-                    onChange={(e) => setInitialQuantity(e.target.value === '' ? '' : Number(e.target.value))}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-foreground mb-1">
-                    Batch / Lot No
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. BATCH-2024-01"
-                    className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                    value={initialBatchNo}
-                    onChange={(e) => setInitialBatchNo(e.target.value)}
-                  />
-                </div>
+              <div className="animate-in fade-in">
+                <label className="block text-xs font-medium text-foreground mb-1">
+                  Initial Quantity ({unit})
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="e.g. 50"
+                  className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={initialQuantity}
+                  onChange={(e) => setInitialQuantity(e.target.value === '' ? '' : Number(e.target.value))}
+                />
               </div>
             </div>
           )}

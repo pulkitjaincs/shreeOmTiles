@@ -19,6 +19,9 @@ interface InvoiceListFiltersProps {
   onDateToChange: (value: string) => void;
   paymentMode: string;
   onPaymentModeChange: (value: string) => void;
+  staffOptions?: Array<{ label: string; value: string; icon?: any; color?: string }>;
+  createdById?: string;
+  onCreatedByIdChange?: (value: string) => void;
   invoiceCount: number;
   resultCount: number;
   onClear: () => void;
@@ -37,12 +40,15 @@ export function InvoiceListFilters({
   onDateToChange,
   paymentMode,
   onPaymentModeChange,
+  staffOptions,
+  createdById,
+  onCreatedByIdChange,
   invoiceCount,
   resultCount,
   onClear,
 }: InvoiceListFiltersProps) {
   const styles = useThemedStyles(createStyles);
-  const hasActiveFilters = Boolean(search.trim()) || status !== 'ALL' || paymentMode !== 'ALL' || datePreset !== 'ALL' || Boolean(dateFrom || dateTo);
+  const hasActiveFilters = Boolean(search.trim()) || status !== 'ALL' || paymentMode !== 'ALL' || (createdById && createdById !== 'ALL') || datePreset !== 'ALL' || Boolean(dateFrom || dateTo);
 
   return (
     <>
@@ -51,6 +57,19 @@ export function InvoiceListFilters({
         onChangeText={onSearchChange}
         placeholder="Search invoice #, customer name, phone..."
       />
+
+      {staffOptions && staffOptions.length > 0 && onCreatedByIdChange ? (
+        <View style={styles.createdByRow}>
+          <FilterDropdown
+            label="Created By"
+            value={createdById || 'ALL'}
+            options={staffOptions}
+            onSelect={onCreatedByIdChange}
+            hideLabelPrefix
+            showCountOnTrigger
+          />
+        </View>
+      ) : null}
 
       {/* Line 1: Status Dropdown & Payment Mode Dropdown in one line */}
       <View style={styles.dropdownsRow}>
@@ -125,6 +144,10 @@ export function InvoiceListFilters({
 
 const createStyles = (colors: any) =>
   StyleSheet.create({
+    createdByRow: {
+      paddingHorizontal: 16,
+      marginBottom: 6,
+    },
     dropdownsRow: {
       flexDirection: 'row',
       gap: 10,

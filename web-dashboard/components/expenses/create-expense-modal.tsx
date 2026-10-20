@@ -56,6 +56,7 @@ export function CreateExpenseModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     if (!amount || Number(amount) <= 0) {
       setError('Please enter a valid expense amount.');
       return;

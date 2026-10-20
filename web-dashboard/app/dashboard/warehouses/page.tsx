@@ -83,10 +83,9 @@ export default function WarehousesPage() {
   }, [loadData]);
 
   // Open Inward Modal
-  const openInwardModal = (productId?: string, batchNo?: string) => {
+  const openInwardModal = (productId?: string) => {
     setInwardConfig({
       productId: productId || products[0]?.id || '',
-      batchNo: batchNo || `LOT-${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`,
     });
     setShowInwardModal(true);
   };
@@ -218,10 +217,10 @@ export default function WarehousesPage() {
             </div>
             <div>
               <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground block">
-                Tracked Stock Lots
+                In-Stock Products
               </span>
               <span className="text-xl font-bold text-foreground">
-                {activeBatchCount} Batches / Lots
+                {uniqueSkusWithStock} of {products.length} Items
               </span>
             </div>
           </div>
@@ -278,7 +277,6 @@ export default function WarehousesPage() {
               <tr>
                 <th className="py-3 px-4">Product / Design</th>
                 <th className="py-3 px-4">Category</th>
-                <th className="py-3 px-4">Batch / Lot No</th>
                 <th className="py-3 px-4">Available Quantity</th>
                 <th className="py-3 px-4 text-right">Actions</th>
               </tr>
@@ -286,13 +284,13 @@ export default function WarehousesPage() {
             <tbody className="divide-y divide-border/60">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-10 text-muted-foreground text-xs">
+                  <td colSpan={4} className="text-center py-10 text-muted-foreground text-xs">
                     Loading stock levels...
                   </td>
                 </tr>
               ) : filteredStocks.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-12 text-muted-foreground space-y-3">
+                  <td colSpan={4} className="text-center py-12 text-muted-foreground space-y-3">
                     <p className="text-xs">No inventory found for the current search or category filter.</p>
                     {canManage && (
                       <Button
@@ -316,9 +314,6 @@ export default function WarehousesPage() {
                         {stock.product?.category}
                       </span>
                     </td>
-                    <td className="py-3.5 px-4 font-mono text-xs text-muted-foreground">
-                      {stock.batchNo || 'Default Batch'}
-                    </td>
                     <td className="py-3.5 px-4">
                       <span
                         className={`font-bold font-mono ${
@@ -336,7 +331,7 @@ export default function WarehousesPage() {
                       {canManage ? (
                         <>
                           <button
-                            onClick={() => openInwardModal(stock.productId, stock.batchNo)}
+                            onClick={() => openInwardModal(stock.productId)}
                             title="Add more stock to this item"
                             className="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 px-2 py-1 rounded-lg hover:bg-emerald-500/10 transition inline-flex items-center gap-1"
                           >

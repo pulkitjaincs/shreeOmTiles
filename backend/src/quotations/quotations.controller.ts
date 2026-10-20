@@ -2,6 +2,8 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -99,5 +101,21 @@ export class QuotationsController {
       body.amountPaidNow,
       body.payments,
     );
+  }
+
+  @Patch(':id')
+  @Roles(Role.OWNER, Role.ADMIN, Role.ACCOUNTANT)
+  update(
+    @Param('id') id: string,
+    @Body() dto: CreateQuotationDto,
+    @Request() req: RequestWithUser,
+  ) {
+    return this.quotationsService.update(id, dto, req.user.id);
+  }
+
+  @Delete(':id')
+  @Roles(Role.OWNER, Role.ADMIN)
+  remove(@Param('id') id: string, @Request() req: RequestWithUser) {
+    return this.quotationsService.delete(id, req.user.id);
   }
 }
