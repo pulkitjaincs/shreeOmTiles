@@ -551,7 +551,7 @@ export function CreateInvoiceModal({
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden animate-in fade-in">
-        <div className="fixed inset-0 bg-black/65 backdrop-blur-xs -z-10" />
+        <div className="fixed inset-0 bg-black/65 -z-10" />
         <div className="w-full max-w-4xl rounded-[1.5rem] border border-border bg-background shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-foreground">
           <div className="shrink-0 flex items-center justify-between border-b border-border p-6">
             <div>
@@ -1279,7 +1279,7 @@ export function CreateInvoiceModal({
       {/* COUNTER SCREEN: LIVE UPI QR PAYMENT COLLECTION MODAL */}
       {showUpiCheckoutModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in">
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs -z-10" />
+          <div className="fixed inset-0 bg-black/60 -z-10" />
           <div className="w-full max-w-md rounded-[1.5rem] border border-border bg-background p-[clamp(1.25rem,2vw,1.75rem)] shadow-2xl space-y-6 text-center text-foreground">
             <div className="flex items-center justify-between border-b border-border pb-3 text-left">
               <div>

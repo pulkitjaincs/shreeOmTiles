@@ -154,7 +154,7 @@ export function PartyStatementDrawer({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto animate-in fade-in">
-      <div className="fixed inset-0 bg-black/65 backdrop-blur-xs -z-10" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/65 -z-10" onClick={onClose} />
       <div className="w-full max-w-4xl max-h-[88dvh] flex flex-col rounded-2xl border border-border bg-background shadow-2xl overflow-hidden">
         {/* Modal Header */}
         <div className="p-6 border-b border-border/60 bg-background flex flex-col sm:flex-row sm:items-center justify-between gap-4">

@@ -30,7 +30,7 @@ export function ShareInvoiceModal({
   if (!invoice) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
       <div className="w-full max-w-md rounded-[1.5rem] border border-border bg-card p-[clamp(1.25rem,2.5vw,1.75rem)] shadow-2xl space-y-6 text-center text-foreground">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-xs">
           <CheckCircle2 className="h-7 w-7" />

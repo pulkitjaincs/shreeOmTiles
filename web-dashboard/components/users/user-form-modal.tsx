@@ -111,8 +111,8 @@ export function UserFormModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-      <div className="w-full max-w-md max-h-[88dvh] flex flex-col bg-card/95 border border-border/80 rounded-2xl shadow-2xl overflow-hidden space-y-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
+      <div className="w-full max-w-md max-h-[88dvh] flex flex-col bg-card border border-border/80 rounded-2xl shadow-2xl overflow-hidden space-y-4">
         {/* Header */}
         <div className="px-6 py-4 border-b border-border/60 flex justify-between items-center">
           <div className="flex items-center gap-2.5">

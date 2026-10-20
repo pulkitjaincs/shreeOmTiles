@@ -52,7 +52,7 @@ export function DeleteInvoiceModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
       <div className="w-full max-w-lg rounded-[1.5rem] border border-rose-500/30 bg-card p-6 shadow-2xl space-y-5 text-foreground">
         {/* Header */}
         <div className="flex items-start justify-between border-b border-border pb-3">

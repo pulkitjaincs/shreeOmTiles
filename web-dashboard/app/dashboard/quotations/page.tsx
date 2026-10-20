@@ -426,7 +426,7 @@ export default function QuotationsPage() {
 
       {/* Quotation Details Drawer */}
       {viewingQuotation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
           <div className="w-full max-w-2xl rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-5 text-foreground max-h-[88vh] overflow-y-auto">
             <div className="flex items-start justify-between border-b border-border pb-3">
               <div>
@@ -545,7 +545,7 @@ export default function QuotationsPage() {
 
       {/* Convert to Invoice Modal */}
       {convertTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
           <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4 text-foreground">
             <div className="flex items-start justify-between border-b border-border pb-3">
               <div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { ThemedSelect } from '@/components/ui/themed-select';
@@ -31,6 +31,7 @@ interface CreatePurchaseModalProps {
   products: Product[];
   warehouses?: Warehouse[];
   parties: Party[];
+  purchaseToEdit?: any | null;
 }
 
 export function CreatePurchaseModal({
@@ -39,6 +40,7 @@ export function CreatePurchaseModal({
   onSuccess,
   products,
   parties,
+  purchaseToEdit = null,
 }: CreatePurchaseModalProps) {
   const [vendorBillNo, setVendorBillNo] = useState('');
   const [partyId, setPartyId] = useState(parties[0]?.id || '');
@@ -65,6 +67,28 @@ export function CreatePurchaseModal({
 
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
+  useEffect(() => {
+    if (!isOpen || !purchaseToEdit) return;
+    setVendorBillNo(purchaseToEdit.vendorBillNo || '');
+    setPartyId(purchaseToEdit.partyId || purchaseToEdit.party?.id || '');
+    setTaxRate(Number(purchaseToEdit.taxRate || 0));
+    setTransportCost(Number(purchaseToEdit.transportCost || 0));
+    setNotes(purchaseToEdit.notes || '');
+    setItems((purchaseToEdit.items || []).map((item: any) => ({
+      productId: item.productId,
+      warehouseId: item.warehouseId || undefined,
+      batchNo: item.batchNo || '',
+      qty: Number(item.qty),
+      unitPrice: Number(item.unitPrice),
+      discount: Number(item.discount || 0),
+    })));
+    setPaymentSplits((purchaseToEdit.payments || []).map((payment: any) => ({
+      mode: payment.mode,
+      amount: String(payment.amount),
+      upiUtr: payment.upiUtr,
+      notes: payment.notes,
+    })));
+  }, [isOpen, purchaseToEdit]);
   const partyOptions = useMemo(
     () =>
       parties.map((party) => ({
@@ -208,8 +232,8 @@ export function CreatePurchaseModal({
         payload.partyId = partyId;
       }
 
-      await apiRequest('/purchases', {
-        method: 'POST',
+      await apiRequest(purchaseToEdit ? `/purchases/${purchaseToEdit.id}` : '/purchases', {
+        method: purchaseToEdit ? 'PATCH' : 'POST',
         body: JSON.stringify(payload),
       });
 
@@ -224,7 +248,7 @@ export function CreatePurchaseModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden animate-in fade-in">
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-xs -z-10" />
+      <div className="fixed inset-0 bg-black/60 -z-10" />
       <div className="w-full max-w-4xl rounded-[1.5rem] border border-border bg-background shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-foreground">
         {/* Header */}
         <div className="shrink-0 flex items-center justify-between border-b border-border p-6">

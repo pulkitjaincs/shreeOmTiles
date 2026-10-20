@@ -46,8 +46,8 @@ export function DeliveryDetailsModal({
     Boolean(delivery.notes && /customer\s*picked\s*up|self-pickup|counter\s*pickup/i.test(delivery.notes));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-200">
-      <div className="w-full max-w-2xl rounded-2xl border border-border/80 bg-card/95 backdrop-blur-xl p-6 shadow-2xl space-y-5 my-8 max-h-[90dvh] flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto animate-in fade-in duration-200">
+      <div className="w-full max-w-2xl rounded-2xl border border-border/80 bg-card p-6 shadow-2xl space-y-5 my-8 max-h-[90dvh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border/60 pb-3 shrink-0">
           <div className="flex items-center gap-2.5">

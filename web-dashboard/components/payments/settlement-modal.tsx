@@ -268,8 +268,8 @@ export function SettlementModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-hidden animate-in fade-in">
-      <div className="w-full max-w-lg rounded-[1.25rem] border border-border/70 bg-card/95 backdrop-blur-xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-foreground">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-hidden animate-in fade-in">
+      <div className="w-full max-w-lg rounded-[1.25rem] border border-border/70 bg-card shadow-2xl flex flex-col max-h-[90vh] overflow-hidden text-foreground">
         <div className="shrink-0 flex items-center justify-between border-b border-border/60 p-5">
           <div>
             <h2 className="text-lg font-bold text-foreground flex items-center gap-2">

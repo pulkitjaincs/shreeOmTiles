@@ -293,15 +293,15 @@ export function OwnerSettingsModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 bg-black/60 transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />
 
       {/* Dialog Card */}
-      <div className="relative w-full max-w-xl max-h-[88dvh] rounded-2xl border border-border/80 bg-card/95 backdrop-blur-xl shadow-2xl z-10 overflow-hidden flex flex-col my-auto animate-in fade-in zoom-in-95 duration-150">
+      <div className="relative w-full max-w-xl max-h-[88dvh] rounded-2xl border border-border/80 bg-card shadow-2xl z-10 overflow-hidden flex flex-col my-auto animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-border/60 flex items-center justify-between bg-card/90">
+        <div className="px-5 py-4 border-b border-border/60 flex items-center justify-between bg-card">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-primary/10 border border-primary/20 text-primary">
               <ShieldCheck className="h-5 w-5" />

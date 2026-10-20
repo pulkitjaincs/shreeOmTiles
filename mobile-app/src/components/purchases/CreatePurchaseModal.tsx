@@ -38,6 +38,7 @@ export interface CreatePurchaseModalProps {
   products?: Product[];
   warehouses?: Warehouse[];
   parties?: Party[];
+  purchaseToEdit?: any | null;
 }
 
 const TAX_RATES = [0, 5, 12, 18, 28];
@@ -71,6 +72,7 @@ export function CreatePurchaseModal({
   products: initialProducts,
   warehouses: initialWarehouses,
   parties: initialParties,
+  purchaseToEdit = null,
 }: CreatePurchaseModalProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -163,11 +165,16 @@ export function CreatePurchaseModal({
     wasVisible.current = true;
 
     loadPrerequisites();
-    setVendorBillNo('');
-    setNotes('');
-    setPaymentSplits([{ mode: 'BANK_TRANSFER', amount: '0' }]);
-    setTaxRate(0);
-    setTransportCost('0');
+    setVendorBillNo(purchaseToEdit?.vendorBillNo || '');
+    setNotes(purchaseToEdit?.notes || '');
+    setPaymentSplits(purchaseToEdit?.payments?.map((p: any) => ({
+      mode: p.mode,
+      amount: String(p.amount),
+      upiUtr: p.upiUtr,
+      notes: p.notes,
+    })) || [{ mode: 'BANK_TRANSFER', amount: '0' }]);
+    setTaxRate(Number(purchaseToEdit?.taxRate || 0));
+    setTransportCost(String(purchaseToEdit?.transportCost || 0));
     setNewPartyName('');
     setNewPartyPhone('');
     setNewPartyAddress('');
@@ -176,9 +183,17 @@ export function CreatePurchaseModal({
 
     const initialWh = initialWarehouses?.[0]?.id || warehouses[0]?.id || destinationWarehouseId || '';
     setDestinationWarehouseId(initialWh);
-    setSelectedPartyId('');
+    setSelectedPartyId(purchaseToEdit?.partyId || '');
 
-    setItems([
+    setItems(purchaseToEdit?.items?.length ? purchaseToEdit.items.map((item: any) => ({
+      id: item.id,
+      productId: item.productId,
+      warehouseId: item.warehouseId || initialWh,
+      qty: String(item.qty),
+      unitPrice: String(item.unitPrice),
+      batchNo: item.batchNo || '',
+      discount: String(item.discount || 0),
+    })) : [
       {
         id: `item-${Date.now()}-1`,
         productId: '',
@@ -190,7 +205,7 @@ export function CreatePurchaseModal({
       },
     ]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
+  }, [visible, purchaseToEdit]);
 
   // Keep destination warehouse in sync when warehouses load
   useEffect(() => {
@@ -401,8 +416,8 @@ export function CreatePurchaseModal({
         payload.partyId = selectedPartyId;
       }
 
-      const res = await mobileApiRequest<any>('/purchases', {
-        method: 'POST',
+      const res = await mobileApiRequest<any>(purchaseToEdit ? `/purchases/${purchaseToEdit.id}` : '/purchases', {
+        method: purchaseToEdit ? 'PATCH' : 'POST',
         body: JSON.stringify(payload),
       });
 

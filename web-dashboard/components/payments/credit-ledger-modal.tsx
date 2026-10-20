@@ -71,8 +71,8 @@ export function CreditLedgerModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="w-full max-w-md rounded-[1.25rem] border border-border/70 bg-card/95 backdrop-blur-xl p-6 shadow-2xl space-y-4 my-8 max-h-[88dvh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto">
+      <div className="w-full max-w-md rounded-[1.25rem] border border-border/70 bg-card p-6 shadow-2xl space-y-4 my-8 max-h-[88dvh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-border/60 pb-3">
           <div>
             <h2 className="text-base font-bold text-foreground flex items-center gap-2">

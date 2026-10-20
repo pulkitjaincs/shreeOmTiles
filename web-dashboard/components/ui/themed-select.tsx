@@ -130,10 +130,10 @@ export function ThemedSelect({
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 right-0 top-full mt-1.5 z-50 rounded-[0.875rem] border border-border bg-card/98 backdrop-blur-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 flex flex-col max-h-64">
+        <div className="absolute left-0 right-0 top-full mt-1.5 z-50 rounded-[0.875rem] border border-border bg-card shadow-xl overflow-hidden animate-in fade-in zoom-in-95 flex flex-col max-h-64">
           {/* Integrated Search Box */}
           {isSearchActive && (
-            <div className="p-1.5 border-b border-border/60 bg-card/95 backdrop-blur-md shrink-0">
+            <div className="p-1.5 border-b border-border/60 bg-card shrink-0">
               <div className="relative">
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                 <input

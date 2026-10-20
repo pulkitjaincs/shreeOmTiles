@@ -44,8 +44,8 @@ export function DeleteUserModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-      <div className="w-full max-w-md bg-card/95 border border-rose-500/30 rounded-2xl shadow-2xl p-6 space-y-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
+      <div className="w-full max-w-md bg-card border border-rose-500/30 rounded-2xl shadow-2xl p-6 space-y-4">
         <div className="flex items-center gap-3 border-b border-border/60 pb-3">
           <div className="p-2.5 rounded-2xl bg-rose-500/10 text-rose-600 dark:text-rose-400">
             <Trash2 className="h-5 w-5" />

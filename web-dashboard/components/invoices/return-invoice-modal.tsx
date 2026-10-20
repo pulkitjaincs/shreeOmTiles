@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { apiRequest } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import {
@@ -38,6 +38,7 @@ interface ReturnInvoiceModalProps {
   downloadingId?: string | null;
   onDownloadRefundPdf?: (refundId: string, refundNo: string) => void;
   downloadingRefundId?: string | null;
+  editingRefund?: RefundInvoiceDetail | null;
 }
 
 export function ReturnInvoiceModal({
@@ -50,6 +51,7 @@ export function ReturnInvoiceModal({
   downloadingId,
   onDownloadRefundPdf,
   downloadingRefundId,
+  editingRefund = null,
 }: ReturnInvoiceModalProps) {
   const [activeTab, setActiveTab] = useState<'RECORDED' | 'STANDALONE'>('RECORDED');
 
@@ -93,6 +95,29 @@ export function ReturnInvoiceModal({
       unitPrice: products[0]?.price ? Number(products[0].price) : 0,
     },
   ]);
+
+  useEffect(() => {
+    if (!isOpen || !editingRefund) return;
+    setReturnRefundMode((editingRefund.refundMode || 'CASH') as typeof returnRefundMode);
+    setReturnReason(editingRefund.reason || 'Customer Return');
+    setReturnTaxRate(Number((editingRefund as any).taxBreakup?.rate || 0));
+    if (editingRefund.originalInvoiceId) {
+      void apiRequest<Invoice>(`/invoices/lookup/${encodeURIComponent(editingRefund.originalInvoiceId)}`)
+        .then((invoice) => {
+          setReturnFoundInvoice(invoice);
+          const quantities: Record<string, { qty: number; batchNo?: string }> = {};
+          invoice.items.forEach((item) => {
+            const matchingQty = (editingRefund.items || [])
+              .filter((returned) => returned.productId === item.productId)
+              .reduce((sum, returned) => sum + Number(returned.qty || 0), 0);
+            quantities[item.id] = { qty: matchingQty, batchNo: item.batchNo || undefined };
+          });
+          setReturnItemAllocations(quantities);
+          setActiveTab('RECORDED');
+        })
+        .catch((error) => setReturnErrorMsg((error as Error).message));
+    }
+  }, [isOpen, editingRefund]);
 
   if (!isOpen) return null;
 
@@ -177,8 +202,8 @@ export function ReturnInvoiceModal({
         tax: number;
         refundMode: string;
         restockedItems: string[];
-      }>(`/invoices/${returnFoundInvoice.id}/return`, {
-        method: 'POST',
+      }>(editingRefund ? `/invoices/refund/${editingRefund.id}` : `/invoices/${returnFoundInvoice.id}/return`, {
+        method: editingRefund ? 'PATCH' : 'POST',
         body: JSON.stringify({
           items: itemsToReturn,
           refundMode: returnRefundMode,
@@ -387,7 +412,7 @@ export function ReturnInvoiceModal({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 overflow-hidden animate-in fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-hidden animate-in fade-in">
       <div className="w-full max-w-3xl rounded-[1.5rem] border border-border bg-card shadow-2xl flex flex-col max-h-[92vh] overflow-hidden text-foreground">
         {/* Header */}
         <div className="shrink-0 flex items-center justify-between border-b border-border p-5 sm:p-6">

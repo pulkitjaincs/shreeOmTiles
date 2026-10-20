@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { apiRequest } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { ThemedSelect } from '@/components/ui/themed-select';
@@ -11,12 +11,22 @@ interface CreateExpenseModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  expenseToEdit?: {
+    id: string;
+    category: string;
+    amount: number;
+    paymentMode: string;
+    paidTo?: string;
+    notes?: string;
+    expenseDate: string;
+  } | null;
 }
 
 export function CreateExpenseModal({
   isOpen,
   onClose,
   onSuccess,
+  expenseToEdit = null,
 }: CreateExpenseModalProps) {
   const [category, setCategory] = useState('PANTRY_REFRESHMENTS');
   const [amount, setAmount] = useState<number | ''>('');
@@ -31,6 +41,16 @@ export function CreateExpenseModal({
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!expenseToEdit) return;
+    setCategory(expenseToEdit.category);
+    setAmount(Number(expenseToEdit.amount));
+    setPaymentMode(expenseToEdit.paymentMode as PaymentMethodType);
+    setPaidTo(expenseToEdit.paidTo || '');
+    setNotes(expenseToEdit.notes || '');
+    setExpenseDate(new Date(expenseToEdit.expenseDate).toISOString().split('T')[0]);
+  }, [expenseToEdit]);
 
   if (!isOpen) return null;
 
@@ -62,8 +82,8 @@ export function CreateExpenseModal({
     setError('');
 
     try {
-      await apiRequest('/expenses', {
-        method: 'POST',
+      await apiRequest(expenseToEdit ? `/expenses/${expenseToEdit.id}` : '/expenses', {
+        method: expenseToEdit ? 'PATCH' : 'POST',
         body: JSON.stringify({
           category,
           amount: Number(amount),
@@ -96,7 +116,7 @@ export function CreateExpenseModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
       <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4 text-foreground">
         <div className="flex items-start justify-between border-b border-border pb-3">
           <div className="flex items-center gap-2.5">

@@ -41,8 +41,8 @@ export function DeleteProductModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-      <div className="w-full max-w-sm rounded-[1.25rem] border border-rose-500/30 bg-card/95 backdrop-blur-xl p-6 shadow-2xl space-y-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
+      <div className="w-full max-w-sm rounded-[1.25rem] border border-rose-500/30 bg-card p-6 shadow-2xl space-y-4">
         <div className="flex items-center justify-between border-b border-border/60 pb-3">
           <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
             <AlertCircle className="h-5 w-5" />
@@ -135,8 +135,8 @@ export function ZeroOutStockModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
-      <div className="w-full max-w-sm rounded-[1.25rem] border border-amber-500/30 bg-card/95 backdrop-blur-xl p-6 shadow-2xl space-y-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
+      <div className="w-full max-w-sm rounded-[1.25rem] border border-amber-500/30 bg-card p-6 shadow-2xl space-y-4">
         <div className="flex items-center justify-between border-b border-border/60 pb-3">
           <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400">
             <RotateCcw className="h-5 w-5" />

@@ -50,14 +50,14 @@ export function ModalDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3.5 sm:p-4 overflow-y-auto">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/40 dark:bg-black/75 backdrop-blur-md transition-opacity"
+        className="fixed inset-0 bg-black/50 dark:bg-black/75 transition-opacity"
         onClick={onClose}
         aria-hidden="true"
       />
 
       {/* Dialog Card */}
       <div
-        className={`relative w-full ${maxWidthMap[maxWidth]} rounded-3xl border border-border/80 bg-card/95 shadow-2xl z-10 overflow-hidden flex flex-col max-h-[88dvh] my-auto backdrop-blur-2xl animate-in fade-in zoom-in-95 duration-150`}
+        className={`relative w-full ${maxWidthMap[maxWidth]} rounded-3xl border border-border/80 bg-card shadow-2xl z-10 overflow-hidden flex flex-col max-h-[88dvh] my-auto animate-in fade-in zoom-in-95 duration-150`}
         role="dialog"
         aria-modal="true"
       >

@@ -831,7 +831,7 @@ export default function DriverDashboard({ userName }: { userName?: string }) {
 
       {/* COLLECT CASH MODAL */}
       {collectCashDelivery && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
           <div className="w-full max-w-[28rem] max-h-[88dvh] overflow-y-auto rounded-[1.5rem] border border-border bg-card p-[clamp(1.25rem,2vw,1.75rem)] shadow-2xl space-y-5 text-foreground">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-border pb-3">

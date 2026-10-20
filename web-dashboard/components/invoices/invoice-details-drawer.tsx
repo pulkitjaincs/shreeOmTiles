@@ -19,7 +19,7 @@ import {
   Pencil,
   ExternalLink,
 } from 'lucide-react';
-import { Invoice, Party } from './types';
+import { Invoice, Party, RefundInvoiceDetail } from './types';
 import { formatINR, formatDateTime, formatDate } from '@/lib/formatters';
 import { useAuth } from '@/components/auth-provider';
 
@@ -32,6 +32,7 @@ interface InvoiceDetailsDrawerProps {
   onDelete?: (invoice: Invoice) => void;
   onEdit?: (invoice: Invoice) => void;
   onOpenPartyStatement?: (party: Party) => void;
+  onEditRefund?: (invoice: Invoice, refund: RefundInvoiceDetail) => void;
   canDelete?: boolean;
   sharingId: string | null;
   downloadingId: string | null;
@@ -47,6 +48,7 @@ export function InvoiceDetailsDrawer({
   onDelete,
   onEdit,
   onOpenPartyStatement,
+  onEditRefund,
   canDelete = false,
   sharingId,
   downloadingId,
@@ -413,7 +415,7 @@ export function InvoiceDetailsDrawer({
             </h3>
           </div>
 
-          <div className="rounded-[0.875rem] border border-border overflow-hidden bg-background/50">
+          <div className="rounded-[0.875rem] border border-border overflow-hidden bg-background">
             <table className="w-full text-left text-[0.75rem]">
               <thead className="bg-muted/50 text-muted-foreground uppercase tracking-wider border-b border-border text-[0.6875rem]">
                 <tr>
@@ -573,6 +575,15 @@ export function InvoiceDetailsDrawer({
                           <span className="text-[0.75rem] font-bold text-rose-700 dark:text-rose-300">
                             Refund Amount: {formatINR(refund.total)}
                           </span>
+                          {onEditRefund && (
+                            <button
+                              type="button"
+                              onClick={() => onEditRefund(invoice, refund)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[0.6875rem] font-semibold text-amber-700 dark:text-amber-300"
+                            >
+                              <Pencil className="h-3 w-3" /> Edit
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={() => onDownloadPdf(invoice.id, invoice.invoiceNo)}

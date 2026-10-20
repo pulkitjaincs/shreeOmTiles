@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Body,
   Param,
   Query,
@@ -54,6 +55,16 @@ export class PurchasesController {
   @Roles(Role.OWNER, Role.ADMIN, Role.ACCOUNTANT, Role.SUPERVISOR)
   findOne(@Param('id') id: string, @Request() req: RequestWithUser) {
     return this.purchasesService.findOne(id, req.user);
+  }
+
+  @Patch(':id')
+  @Roles(Role.OWNER, Role.ADMIN, Role.ACCOUNTANT)
+  update(
+    @Param('id') id: string,
+    @Body() dto: CreatePurchaseDto,
+    @Request() req: RequestWithUser,
+  ) {
+    return this.purchasesService.update(id, dto, req.user.id);
   }
 
   @Post(':id/debit-note')

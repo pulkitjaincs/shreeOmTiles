@@ -71,6 +71,7 @@ export default function InvoicesPage() {
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
   const [deletingInvoice, setDeletingInvoice] = useState<Invoice | null>(null);
   const [createdInvoiceSuccess, setCreatedInvoiceSuccess] = useState<Invoice | null>(null);
+  const [editingRefund, setEditingRefund] = useState<any | null>(null);
   const [statementParty, setStatementParty] = useState<Party | null>(null);
 
   // Loading & Feedback
@@ -289,7 +290,12 @@ export default function InvoicesPage() {
       }
 
       // Status
-      if (statusFilter !== 'ALL' && inv.status !== statusFilter) return false;
+      if (
+        statusFilter !== 'ALL' &&
+        (statusFilter === 'REFUNDED'
+          ? inv.status !== 'REFUNDED' && !(inv.refundInvoices && inv.refundInvoices.length > 0)
+          : inv.status !== statusFilter)
+      ) return false;
 
       // Mode
       if (modeFilter !== 'ALL') {
@@ -421,6 +427,7 @@ export default function InvoicesPage() {
                   { value: 'PAID', label: 'Paid', badge: 'Full' },
                   { value: 'PARTIAL', label: 'Partial', badge: 'Part' },
                   { value: 'CREATED', label: 'Unpaid / Created' },
+                  { value: 'REFUNDED', label: 'Returns / Refunded' },
                 ]}
               />
             </div>
@@ -763,7 +770,11 @@ export default function InvoicesPage() {
 
       <ReturnInvoiceModal
         isOpen={showReturnModal}
-        onClose={() => setShowReturnModal(false)}
+        editingRefund={editingRefund}
+        onClose={() => {
+          setShowReturnModal(false);
+          setEditingRefund(null);
+        }}
         onSuccess={loadInitialData}
         products={products}
         parties={parties}
@@ -787,6 +798,11 @@ export default function InvoicesPage() {
         onEdit={(inv) => {
           setViewingInvoice(null);
           setEditingInvoice(inv);
+        }}
+        onEditRefund={(inv, refund) => {
+          setViewingInvoice(null);
+          setEditingRefund({ ...refund, originalInvoiceId: inv.id });
+          setShowReturnModal(true);
         }}
         onOpenPartyStatement={(party) => setStatementParty(party)}
         sharingId={sharingId}

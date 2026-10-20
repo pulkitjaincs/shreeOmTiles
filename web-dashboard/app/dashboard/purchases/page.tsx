@@ -10,7 +10,8 @@ import {
   X,
   RotateCcw,
   Eye,
-  Loader2
+  Loader2,
+  Pencil
 } from 'lucide-react';
 import { Product, Warehouse, Party } from '@/components/invoices/types';
 import { CreatePurchaseModal } from '@/components/purchases/create-purchase-modal';
@@ -73,6 +74,7 @@ export default function PurchasesPage() {
   const [search, setSearch] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [viewingPurchase, setViewingPurchase] = useState<PurchaseRecord | null>(null);
+  const [editingPurchase, setEditingPurchase] = useState<PurchaseRecord | null>(null);
 
   // Debit Note Modal State
   const [debitNoteTarget, setDebitNoteTarget] = useState<PurchaseRecord | null>(null);
@@ -428,6 +430,19 @@ export default function PurchasesPage() {
                           {!isSupervisor && (
                             <button
                               onClick={() => {
+                                void loadModalData();
+                                setEditingPurchase(p);
+                                setShowCreateModal(true);
+                              }}
+                              className="h-8 w-8 inline-flex items-center justify-center rounded-[0.5rem] text-amber-700 dark:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 transition active:scale-95 shadow-2xs"
+                              title="Edit Purchase"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                          )}
+                          {!isSupervisor && (
+                            <button
+                              onClick={() => {
                                 setDebitNoteTarget(p);
                                 setDebitNoteAmount('');
                                 setDebitNoteReason('');
@@ -460,7 +475,11 @@ export default function PurchasesPage() {
       {/* Create Inward Purchase Modal */}
       <CreatePurchaseModal
         isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
+        purchaseToEdit={editingPurchase}
+        onClose={() => {
+          setShowCreateModal(false);
+          setEditingPurchase(null);
+        }}
         onSuccess={() => loadData(true)}
         products={products}
         warehouses={warehouses}
@@ -469,7 +488,7 @@ export default function PurchasesPage() {
 
       {/* Purchase Details Drawer */}
       {viewingPurchase && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
           <div className="w-full max-w-3xl rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-5 text-foreground max-h-[88vh] overflow-y-auto">
             <div className="flex items-start justify-between border-b border-border pb-3">
               <div>
@@ -621,7 +640,7 @@ export default function PurchasesPage() {
 
       {/* Record Debit Note Modal */}
       {debitNoteTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in">
           <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4 text-foreground">
             <div className="flex items-start justify-between border-b border-border pb-3">
               <div>

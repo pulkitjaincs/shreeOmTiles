@@ -34,12 +34,143 @@ export class PurchasesService {
     return `${sStr}${eStr}`;
   }
 
+  async update(id: string, data: CreatePurchaseDto, userId: string) {
+    if (!data.items?.length) {
+      throw new BadRequestException('Purchase must contain at least one line item');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.purchase.findUnique({
+        where: { id },
+        include: { items: true },
+      });
+      if (!existing) throw new NotFoundException('Purchase not found');
+
+      const partyId = data.partyId || existing.partyId;
+      const party = await tx.party.findUnique({ where: { id: partyId } });
+      if (!party) throw new NotFoundException('Selected supplier does not exist');
+
+      const oldByProduct = new Map<string, number>();
+      for (const item of existing.items) {
+        oldByProduct.set(item.productId, (oldByProduct.get(item.productId) || 0) + Number(item.qty));
+      }
+      const newByProduct = new Map<string, number>();
+      for (const item of data.items) {
+        newByProduct.set(item.productId, (newByProduct.get(item.productId) || 0) + Number(item.qty));
+      }
+      const productIds = new Set([...oldByProduct.keys(), ...newByProduct.keys()]);
+      for (const productId of productIds) {
+        const delta = (newByProduct.get(productId) || 0) - (oldByProduct.get(productId) || 0);
+        if (!delta) continue;
+        const stock = await tx.stockLedger.findFirst({
+          where: { productId },
+          orderBy: { updatedAt: 'desc' },
+        });
+        if (!stock) {
+          if (delta < 0) throw new BadRequestException('Stock ledger missing for a removed purchase item');
+          await tx.stockLedger.create({
+            data: { productId, warehouseId: null, batchNo: null, quantity: new Prisma.Decimal(delta) },
+          });
+        } else {
+          const next = Number(stock.quantity) + delta;
+          if (next < 0) throw new BadRequestException('Purchase edit would make stock negative');
+          await tx.stockLedger.update({
+            where: { id: stock.id },
+            data: { quantity: new Prisma.Decimal(next.toFixed(2)) },
+          });
+        }
+      }
+
+      const taxRate = Math.max(0, data.taxRate ?? Number(existing.taxRate));
+      const transportCost = Math.max(0, data.transportCost || 0);
+      const calculatedItems = data.items.map((item) => {
+        const discount = item.discount || 0;
+        return { ...item, discount, total: item.qty * item.unitPrice - discount };
+      });
+      const subtotal = calculatedItems.reduce((sum, item) => sum + item.total, 0);
+      const tax = Math.round((subtotal * taxRate) / 100 * 100) / 100;
+      const total = Math.round((subtotal + tax + transportCost) * 100) / 100;
+      const paymentSplits = (data.payments || []).filter((p) => Number(p.amount) > 0);
+      const paid = Math.min(total, paymentSplits.reduce((sum, p) => sum + Number(p.amount), 0));
+      const mode = paymentSplits.length > 1
+        ? PaymentMode.SPLIT
+        : paymentSplits[0]?.mode || PaymentMode.CREDIT;
+
+      await tx.purchaseItem.deleteMany({ where: { purchaseId: id } });
+      await tx.payment.deleteMany({ where: { purchaseId: id } });
+      await tx.creditLedger.deleteMany({ where: { purchaseId: id } });
+      const updated = await tx.purchase.update({
+        where: { id },
+        data: {
+          vendorBillNo: data.vendorBillNo,
+          partyId,
+          taxRate: new Prisma.Decimal(taxRate.toFixed(2)),
+          subtotal: new Prisma.Decimal(subtotal.toFixed(2)),
+          tax: new Prisma.Decimal(tax.toFixed(2)),
+          transportCost: new Prisma.Decimal(transportCost.toFixed(2)),
+          total: new Prisma.Decimal(total.toFixed(2)),
+          paymentMode: mode,
+          notes: data.notes,
+          items: {
+            create: calculatedItems.map((item) => ({
+              productId: item.productId,
+              warehouseId: item.warehouseId,
+              batchNo: item.batchNo,
+              qty: new Prisma.Decimal(item.qty.toFixed(2)),
+              unitPrice: new Prisma.Decimal(item.unitPrice.toFixed(2)),
+              discount: new Prisma.Decimal(item.discount.toFixed(2)),
+              total: new Prisma.Decimal(item.total.toFixed(2)),
+            })),
+          },
+        },
+        include: {
+          items: { include: { product: true, warehouse: true } },
+          party: true,
+          payments: true,
+          creditLedgers: true,
+        },
+      });
+      for (const split of paymentSplits) {
+        await tx.payment.create({
+          data: {
+            purchaseId: id,
+            partyId,
+            mode: split.mode,
+            amount: new Prisma.Decimal(Number(split.amount).toFixed(2)),
+            status: PaymentStatus.CONFIRMED,
+            type: PaymentType.OUTFLOW,
+            paidAt: new Date(),
+            confirmedById: userId,
+            upiTxnRef: split.upiTxnRef,
+            upiUtr: split.upiUtr,
+            notes: split.notes,
+          },
+        });
+      }
+      if (total - paid > 0) {
+        await tx.creditLedger.create({
+          data: {
+            purchaseId: id,
+            partyId,
+            amountDue: new Prisma.Decimal((total - paid).toFixed(2)),
+            type: CreditType.PAYABLE,
+            status: paid > 0 ? CreditStatus.PARTIAL : CreditStatus.UNPAID,
+            dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            notes: `Balance payable to supplier for Purchase #${existing.purchaseNo}`,
+          },
+        });
+      }
+      return updated;
+    });
+  }
+
   async create(data: CreatePurchaseDto, userId: string) {
     if (!data.items || data.items.length === 0) {
       throw new BadRequestException(
         'Purchase must contain at least one line item',
       );
     }
+
     if (!data.partyId && !data.newParty) {
       throw new BadRequestException('Supplier / vendor details are required');
     }
@@ -73,11 +204,11 @@ export class PurchasesService {
       } else if (data.newParty) {
         party = await tx.party.create({
           data: {
-            name: data.newParty.name,
-            phone: data.newParty.phone,
-            address: data.newParty.address,
-            gstin: data.newParty.gstin,
-            isSaved: true,
+            name: data.newParty.name?.trim() || 'Walk-in Supplier',
+            phone: data.newParty.phone?.trim() || '',
+            address: data.newParty.address || null,
+            gstin: data.newParty.gstin || null,
+            isSaved: data.newParty.isSaved ?? true,
           },
         });
       }

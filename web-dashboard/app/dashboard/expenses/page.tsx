@@ -9,6 +9,7 @@ import {
   Search, 
   Tag, 
   X,
+  Pencil,
 } from 'lucide-react';
 import { CreateExpenseModal } from '@/components/expenses/create-expense-modal';
 import { formatINR, formatDate } from '@/lib/formatters';
@@ -54,6 +55,7 @@ export default function ExpensesPage() {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<ExpenseRecord | null>(null);
 
   const loadExpenses = useCallback(async (force = false) => {
     try {
@@ -254,19 +256,20 @@ export default function ExpensesPage() {
                 <th className="py-3 px-4">Payment Mode</th>
                 <th className="py-3 px-4">Date</th>
                 <th className="py-3 px-4">Notes</th>
-                <th className="py-3 px-4 text-right">Recorded By</th>
+                <th className="py-3 px-4">Recorded By</th>
+                <th className="py-3 px-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-muted-foreground">
+                  <td colSpan={8} className="text-center py-12 text-muted-foreground">
                     Loading expenses...
                   </td>
                 </tr>
               ) : filteredExpenses.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-12 text-muted-foreground">
+                  <td colSpan={8} className="text-center py-12 text-muted-foreground">
                     No expense records found.
                   </td>
                 </tr>
@@ -296,8 +299,21 @@ export default function ExpensesPage() {
                     <td className="py-3 px-4 text-muted-foreground max-w-xs truncate">
                       {exp.notes || '—'}
                     </td>
-                    <td className="py-3 px-4 text-right text-muted-foreground">
+                    <td className="py-3 px-4 text-muted-foreground">
                       {exp.user?.name || 'Staff'}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingExpense(exp);
+                          setShowCreateModal(true);
+                        }}
+                        className="inline-flex items-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[0.6875rem] font-semibold text-amber-700 dark:text-amber-300"
+                      >
+                        <Pencil className="h-3 w-3" />
+                        Edit
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -317,7 +333,11 @@ export default function ExpensesPage() {
       {/* Create Modal */}
       <CreateExpenseModal
         isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
+        expenseToEdit={editingExpense}
+        onClose={() => {
+          setShowCreateModal(false);
+          setEditingExpense(null);
+        }}
         onSuccess={() => loadExpenses(true)}
       />
     </div>

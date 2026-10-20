@@ -143,8 +143,8 @@ export function ProductFormModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in overflow-y-auto">
-      <div className="w-full max-w-lg rounded-[1.25rem] border border-border/70 bg-card/95 backdrop-blur-xl p-6 shadow-2xl space-y-4 my-8 max-h-[88dvh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in overflow-y-auto">
+      <div className="w-full max-w-lg rounded-[1.25rem] border border-border/70 bg-card p-6 shadow-2xl space-y-4 my-8 max-h-[88dvh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-border/60 pb-3">
           <div className="flex items-center gap-2">
             <div className="p-2 rounded-[0.75rem] bg-primary/10 text-primary">

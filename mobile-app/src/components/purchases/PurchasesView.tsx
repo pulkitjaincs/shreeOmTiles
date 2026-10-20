@@ -81,6 +81,7 @@ export function PurchasesView({
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [editingPurchase, setEditingPurchase] = useState<any | null>(null);
 
   const loadPurchases = useCallback(async (force = false) => {
     setLoading(true);
@@ -318,6 +319,17 @@ export function PurchasesView({
                     </Text>
                   )}
                 </View>
+                {canRecordPurchase ? (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setEditingPurchase(item);
+                      setCreateModalOpen(true);
+                    }}
+                    style={{ alignSelf: 'flex-end', marginTop: 8 }}
+                  >
+                    <Text style={{ color: '#F59E0B', fontWeight: '700', fontSize: 12 }}>Edit Purchase</Text>
+                  </TouchableOpacity>
+                ) : null}
               </Card>
             );
           })
@@ -354,7 +366,11 @@ export function PurchasesView({
 
       <CreatePurchaseModal
         visible={createModalOpen}
-        onClose={() => setCreateModalOpen(false)}
+        purchaseToEdit={editingPurchase}
+        onClose={() => {
+          setCreateModalOpen(false);
+          setEditingPurchase(null);
+        }}
         onSuccess={handlePurchaseSuccess}
         warehouses={warehouses}
         parties={parties}
