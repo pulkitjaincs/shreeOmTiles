@@ -66,15 +66,18 @@ export async function generateInvoicePdf(
   const transportGstRate = Number(invoice.transportGstRate || 0);
   const transportTax = Number(invoice.transportTax || 0);
   const subtotal = Number(invoice.subtotal || 0);
+  const discountAmount = Number(invoice.discountAmount || 0);
   const totalAmount = Number(invoice.total || 0);
   const taxRate = Number(invoice.taxRate || 0);
+  const roundOffEnabled = Boolean(invoice.roundOffEnabled);
+  const roundOffAmount = Number(invoice.roundOffAmount || 0);
 
   const taxBreakup = (invoice.taxBreakup as unknown as TaxBreakupData) || {};
   const isInterState = Boolean(taxBreakup.isInterState);
 
   // If both items tax and transport tax are 0, it's Bill of Supply, and NO tax labels/rows appear.
   const hasTax = itemsTax > 0 || transportTax > 0;
-  const docTitle = hasTax ? 'Tax Invoice' : 'Bill of Supply';
+  const docTitle = 'Invoice';
 
   const hasReturns = totalReturns > 0;
   const netPayable = Math.max(0, totalAmount - totalReturns);
@@ -715,7 +718,18 @@ export async function generateInvoicePdf(
     amtY -= amtLineHeight;
   }
 
-  drawAmountLine('Sub Total', `Rs. ${subtotal.toLocaleString('en-IN')}`);
+  if (discountAmount > 0) {
+    drawAmountLine(
+      'Sub Total',
+      `Rs. ${(subtotal + discountAmount).toLocaleString('en-IN')}`,
+    );
+    drawAmountLine(
+      'Bill Discount',
+      `- Rs. ${discountAmount.toLocaleString('en-IN')}`,
+    );
+  } else {
+    drawAmountLine('Sub Total', `Rs. ${subtotal.toLocaleString('en-IN')}`);
+  }
 
   if (transportCost > 0) {
     drawAmountLine('CARTAGE:', `Rs. ${transportCost.toLocaleString('en-IN')}`);
@@ -746,6 +760,13 @@ export async function generateInvoicePdf(
     drawAmountLine(
       `Cartage GST (${transportGstRate}%):`,
       `Rs. ${transportTax.toLocaleString('en-IN')}`,
+    );
+  }
+
+  if (roundOffEnabled && Math.abs(roundOffAmount) > 0.001) {
+    drawAmountLine(
+      'Round-off:',
+      `${roundOffAmount >= 0 ? '+' : '-'} Rs. ${Math.abs(roundOffAmount).toLocaleString('en-IN')}`,
     );
   }
 

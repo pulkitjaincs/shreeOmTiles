@@ -75,7 +75,7 @@ export function buildInvoiceShareUrl(
   balanceDue: number,
 ): string {
   const msg =
-    `🧾 *TAX INVOICE #${invoiceNo}*\n\n` +
+    `🧾 *INVOICE #${invoiceNo}*\n\n` +
     `Dear ${customerName || 'Customer'},\n` +
     `Thank you for your purchase with *Shree Om Tiles*!\n\n` +
     `• *Invoice No:* ${invoiceNo}\n` +
@@ -85,6 +85,78 @@ export function buildInvoiceShareUrl(
     `For any queries or delivery assistance, please reach out to us.`;
 
   const cleanPhone = cleanPhoneNumber(customerPhone);
+  return cleanPhone
+    ? `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(msg)}`
+    : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+}
+
+export function buildFullInvoiceMessage(invoice: any): string {
+  const partyName = invoice.party?.name || invoice.partyName || 'Customer';
+  const invDate = invoice.createdAt
+    ? new Date(invoice.createdAt).toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+      })
+    : 'Today';
+  const itemsList = (invoice.items || [])
+    .map((item: any, index: number) => {
+      const name = item.product?.name || item.productName || `Item #${index + 1}`;
+      const qty = Number(item.qty || 1);
+      const unit = item.product?.unit || 'units';
+      const rate = Number(item.unitPrice || 0);
+      const total = Number(item.total ?? qty * rate);
+      return `  ${index + 1}. *${name}*\n     ${qty} ${unit} × ₹${rate.toFixed(2)} = *₹${total.toFixed(2)}*`;
+    })
+    .join('\n');
+  const total = Number(invoice.total || 0);
+  const explicitPaid = Number(invoice.paidAmount ?? invoice.amountPaid);
+  const paid = Number.isFinite(explicitPaid)
+    ? Math.max(0, explicitPaid)
+    : (invoice.payments || [])
+        .filter((payment: any) => payment.status === 'CONFIRMED' && payment.mode !== 'OUTFLOW')
+        .reduce((sum: number, payment: any) => sum + Number(payment.amount || 0), 0);
+  const subtotal = Number(invoice.subtotal || 0);
+  const discount = Number(invoice.discountAmount || 0);
+  const transport = Number(invoice.transportCost || 0);
+  const transportTax = Number(invoice.transportTax || 0);
+  const tax = Number(invoice.tax ?? invoice.taxAmount ?? 0);
+  const itemTax = Math.max(0, tax - transportTax);
+  const hasTax = tax > 0.005;
+  const taxRate = Number(invoice.taxRate ?? invoice.taxBreakup?.rate ?? 0);
+  const due = Math.max(0, total - paid);
+
+  return [
+    `*SHREE OM TILES*`,
+    `📍Order Confirmation`,
+    `----------------------------------------`,
+    `📄 *Invoice No:* #${invoice.invoiceNo}`,
+    `📅 *Date:* ${invDate}`,
+    `👤 *Customer:* ${partyName}`,
+    invoice.party?.phone ? `📞 *Phone:* ${invoice.party.phone}` : '',
+    invoice.party?.address ? `🏠 *Address:* ${invoice.party.address}` : '',
+    `----------------------------------------`,
+    `📦 *ORDER ITEMS:*`,
+    itemsList || `  • Standard Order (${formatINR(total)})`,
+    `----------------------------------------`,
+    subtotal > 0 ? `Items Subtotal: ₹${subtotal.toFixed(2)}` : '',
+    discount > 0 ? `Bill Discount: -₹${discount.toFixed(2)}` : '',
+    discount > 0 ? `Taxable Amount: ₹${Math.max(0, subtotal - discount).toFixed(2)}` : '',
+    transport > 0 ? `Transport / Cartage: ₹${transport.toFixed(2)}` : '',
+    hasTax && itemTax > 0 ? `GST on Taxable Bill (${taxRate}%): ₹${itemTax.toFixed(2)}` : '',
+    hasTax && transportTax > 0 ? `Transport GST: ₹${transportTax.toFixed(2)}` : '',
+    `*Grand Total: ₹${total.toFixed(2)}*`,
+    `Paid: ₹${paid.toFixed(2)}`,
+    due > 0 ? `*Balance Due: ₹${due.toFixed(2)}*` : `*Status: Fully Paid (✓)*`,
+    invoice.notes ? `\n📝 Note: ${invoice.notes}` : '',
+    `----------------------------------------`,
+    `Thank you for your business! 🙏`,
+  ].filter(Boolean).join('\n');
+}
+
+export function buildFullInvoiceShareUrl(invoice: any): string {
+  const msg = buildFullInvoiceMessage(invoice);
+  const cleanPhone = cleanPhoneNumber(invoice.party?.phone || invoice.partyPhone);
   return cleanPhone
     ? `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(msg)}`
     : `https://wa.me/?text=${encodeURIComponent(msg)}`;

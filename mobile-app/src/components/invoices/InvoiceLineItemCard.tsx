@@ -17,7 +17,6 @@ interface InvoiceLineItemCardProps {
   onProductChange: (newProductId: string) => void;
   onQtyChange: (qty: number) => void;
   onUnitPriceChange: (price: number) => void;
-  onDiscountChange: (discount: number) => void;
   onRemove: () => void;
 }
 
@@ -30,7 +29,6 @@ export function InvoiceLineItemCard({
   onProductChange,
   onQtyChange,
   onUnitPriceChange,
-  onDiscountChange,
   onRemove,
 }: InvoiceLineItemCardProps) {
   const styles = useThemedStyles(createStyles);
@@ -43,10 +41,7 @@ export function InvoiceLineItemCard({
         : (selectedProduct.availableQuantity ?? selectedProduct.totalStock ?? 0))
     : 0;
 
-  const lineTotal = Math.max(
-    0,
-    (Number(item.qty) || 0) * (Number(item.unitPrice) || 0) - (Number(item.discount) || 0),
-  );
+  const lineTotal = Math.max(0, (Number(item.qty) || 0) * (Number(item.unitPrice) || 0));
 
   return (
     <Card style={styles.itemCard}>
@@ -109,7 +104,7 @@ export function InvoiceLineItemCard({
         </View>
       ) : null}
 
-      {/* Qty, Unit Price & Discount */}
+      {/* Qty & Unit Price */}
       <View style={styles.numFieldsRow}>
         <View style={{ flex: 1 }}>
           <Input
@@ -126,15 +121,6 @@ export function InvoiceLineItemCard({
             placeholder="0"
             value={item.unitPrice ? String(item.unitPrice) : ''}
             onChangeText={(t) => onUnitPriceChange(parseFloat(t) || 0)}
-            keyboardType="numeric"
-          />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Input
-            label="Disc (₹)"
-            placeholder="0"
-            value={item.discount ? String(item.discount) : ''}
-            onChangeText={(t) => onDiscountChange(parseFloat(t) || 0)}
             keyboardType="numeric"
           />
         </View>

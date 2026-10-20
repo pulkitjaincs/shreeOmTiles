@@ -22,6 +22,7 @@ interface ReturnInvoiceModalProps {
   parties?: Party[];
   onDownloadRefundPdf?: (refundId: string, refundNo: string) => Promise<void> | void;
   onDownloadPdf?: (id: string, invoiceNo: string) => Promise<void> | void;
+  editingRefund?: any | null;
 }
 
 type ReturnAllocation = { qty: number };
@@ -45,6 +46,7 @@ export function ReturnInvoiceModal({
   parties = [],
   onDownloadRefundPdf,
   onDownloadPdf,
+  editingRefund = null,
 }: ReturnInvoiceModalProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -112,6 +114,16 @@ export function ReturnInvoiceModal({
         setActiveInvoice(found);
         setReturnSearch(found.invoiceNo || lookup);
         initializeAllocations(found);
+        if (editingRefund) {
+          const quantities: Record<string, ReturnAllocation> = {};
+          (found.items || []).forEach((item: any) => {
+            const matching = (editingRefund.items || [])
+              .filter((returned: any) => returned.productId === item.productId)
+              .reduce((sum: number, returned: any) => sum + Number(returned.qty || 0), 0);
+            quantities[item.id] = { qty: matching };
+          });
+          setAllocations(quantities);
+        }
       } catch (err: any) {
         if (seed?.items) {
           setActiveInvoice(seed);
@@ -127,7 +139,7 @@ export function ReturnInvoiceModal({
         setLoadingInvoice(false);
       }
     },
-    [initializeAllocations],
+    [initializeAllocations, editingRefund],
   );
 
   useEffect(() => {
@@ -136,6 +148,11 @@ export function ReturnInvoiceModal({
     setSuccess(null);
     setReturnMode('CASH');
     setReturnReason('Customer Return');
+    if (editingRefund) {
+      setReturnMode(editingRefund.refundMode || 'CASH');
+      setReturnReason(editingRefund.reason || 'Customer Return');
+      setReturnTaxRate(Number(editingRefund.taxBreakup?.rate ?? 0));
+    }
     if (invoice?.lookupOnly) {
       setActiveInvoice(null);
       setReturnSearch('');
@@ -146,7 +163,7 @@ export function ReturnInvoiceModal({
       initializeAllocations(invoice);
       void lookupInvoice(invoice.invoiceNo || invoice.id, invoice);
     }
-  }, [visible, invoice, lookupInvoice, initializeAllocations]);
+  }, [visible, invoice, lookupInvoice, initializeAllocations, editingRefund]);
 
   const estimated = useMemo(() => {
     if (!activeInvoice) return { subtotal: 0, tax: 0, total: 0 };
@@ -187,19 +204,22 @@ export function ReturnInvoiceModal({
     setError('');
     setSuccess(null);
     try {
-      const result = await mobileApiRequest<any>(`/invoices/${activeInvoice.id}/return`, {
-        method: 'POST',
+      const result = await mobileApiRequest<any>(
+        editingRefund ? `/invoices/refund/${editingRefund.id}` : `/invoices/${activeInvoice.id}/return`,
+        {
+        method: editingRefund ? 'PATCH' : 'POST',
         body: JSON.stringify({
           refundMode: returnMode,
           reason: returnReason.trim() || undefined,
           taxRate: returnTaxRate,
           items: itemsToReturn,
         }),
-      });
+        },
+      );
       setSuccess({
         id: result.refundInvoice?.id,
-        refundNo: result.refundNo || result.refundInvoice?.refundNo,
-        total: Number(result.totalRefund ?? result.refundInvoice?.total ?? estimated.total),
+        refundNo: result.refundNo || result.refundInvoice?.refundNo || editingRefund?.refundNo,
+        total: Number(result.totalRefund ?? result.total ?? result.refundInvoice?.total ?? estimated.total),
         mode: result.refundMode || returnMode,
         invoiceId: activeInvoice.id,
         invoiceNo: activeInvoice.invoiceNo || result.invoiceNo,
@@ -393,7 +413,7 @@ export function ReturnInvoiceModal({
 
         {success ? (
           <Card style={styles.successCard}>
-            <Text style={styles.successTitle}>Credit note #{success.refundNo} created</Text>
+            <Text style={styles.successTitle}>Credit note #{success.refundNo} {editingRefund ? 'updated' : 'created'}</Text>
             <Text style={styles.successText}>
               {formatINR(success.total)} refunded via {success.mode}. Catalog items restocked immediately. (Never pushed to delivery)
             </Text>
@@ -525,7 +545,7 @@ export function ReturnInvoiceModal({
                 />
 
                 <Button
-                  title={submitting ? 'Processing Return...' : 'Accept Return & Restock Items'}
+                  title={submitting ? 'Processing Return...' : editingRefund ? 'Update Return & Restock Items' : 'Accept Return & Restock Items'}
                   onPress={handleCreateReturn}
                   loading={submitting}
                   disabled={submitting || estimated.total <= 0}

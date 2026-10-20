@@ -39,7 +39,8 @@ import { ShareInvoiceModal } from '@/components/invoices/share-invoice-modal';
 import { DeleteInvoiceModal } from '@/components/invoices/delete-invoice-modal';
 import { PartyStatementDrawer } from '@/components/parties/party-statement-drawer';
 import type { Party as DrawerParty } from '@/components/parties/types';
-import { formatINR, formatDate, cleanPhoneNumber } from '@/lib/formatters';
+import { formatINR, formatDate } from '@/lib/formatters';
+import { buildFullInvoiceMessage, buildFullInvoiceShareUrl } from '@/lib/whatsapp';
 
 export default function InvoicesPage() {
   const { user } = useAuth();
@@ -140,13 +141,11 @@ export default function InvoicesPage() {
     try {
       setSharingId(inv.id);
       const blob = await apiRequest<Blob>(`/invoices/${inv.id}/pdf`);
+      const fullInvoice = await apiRequest<Invoice>(`/invoices/${inv.id}`);
       const fileName = `Invoice-${inv.invoiceNo}.pdf`;
       const file = new File([blob], fileName, { type: 'application/pdf' });
 
-      const cleanPhone = cleanPhoneNumber(inv.party?.phone);
-      const partyName = inv.party?.name || 'Customer';
-      const total = Number(inv.total).toLocaleString('en-IN', { maximumFractionDigits: 2 });
-      const msg = `Hi ${partyName}, please find attached your Tax Invoice #${inv.invoiceNo} from SHREE OM TILES. Total Amount: Rs. ${total}. Thank you for your business!`;
+      const msg = buildFullInvoiceMessage({ ...inv, ...fullInvoice });
 
       const isMobileDevice =
         typeof navigator !== 'undefined' &&
@@ -177,9 +176,7 @@ export default function InvoicesPage() {
       a.remove();
       setTimeout(() => window.URL.revokeObjectURL(url), 1000);
 
-      const targetUrl = cleanPhone
-        ? `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(msg)}`
-        : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+      const targetUrl = buildFullInvoiceShareUrl({ ...inv, ...fullInvoice });
       window.open(targetUrl, '_blank', 'noopener,noreferrer');
 
       setToastMsg(`✓ PDF generated & downloaded (${fileName})! Ready to attach to WhatsApp.`);

@@ -21,6 +21,7 @@ export function ExpensesView() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<any | null>(null);
 
   const loadExpenses = useCallback(async (force = false) => {
     setLoading(true);
@@ -109,7 +110,10 @@ export function ExpensesView() {
           icon="add-circle-outline"
           variant="primary"
           size="sm"
-          onPress={() => setModalOpen(true)}
+          onPress={() => {
+            setEditingExpense(null);
+            setModalOpen(true);
+          }}
           style={styles.recordBtn}
         />
       </View>
@@ -175,6 +179,9 @@ export function ExpensesView() {
                     {item.notes}
                   </Text>
                 ) : null}
+                <TouchableOpacity onPress={() => { setEditingExpense(item); setModalOpen(true); }}>
+                  <Text style={{ color: '#F59E0B', fontWeight: '700', fontSize: 12 }}>Edit</Text>
+                </TouchableOpacity>
               </View>
             </Card>
           ))
@@ -213,6 +220,7 @@ export function ExpensesView() {
         visible={modalOpen}
         onClose={() => setModalOpen(false)}
         onSuccess={() => loadExpenses(true)}
+        expenseToEdit={editingExpense}
       />
     </View>
   );

@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Body,
   Param,
   Query,
@@ -9,7 +10,7 @@ import {
   Request,
 } from '@nestjs/common';
 import { ExpensesService } from './expenses.service';
-import { CreateExpenseDto } from './dto/create-expense.dto';
+import { CreateExpenseDto, UpdateExpenseDto } from './dto/create-expense.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -52,5 +53,15 @@ export class ExpensesController {
   @Roles(Role.OWNER, Role.ADMIN, Role.ACCOUNTANT)
   findOne(@Param('id') id: string) {
     return this.expensesService.findOne(id);
+  }
+
+  @Patch(':id')
+  @Roles(Role.OWNER, Role.ADMIN, Role.ACCOUNTANT)
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdateExpenseDto,
+    @Request() req: RequestWithUser,
+  ) {
+    return this.expensesService.update(id, dto, req.user.id);
   }
 }

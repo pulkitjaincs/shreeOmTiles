@@ -14,12 +14,14 @@ interface TransactionHistoryCardProps {
   payment: PaymentRecord;
   confirmingId: string | null;
   onConfirm: (paymentId: string) => void;
+  onEdit?: (payment: PaymentRecord) => void;
 }
 
 export function TransactionHistoryCard({
   payment,
   confirmingId,
   onConfirm,
+  onEdit,
 }: TransactionHistoryCardProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -177,6 +179,16 @@ export function TransactionHistoryCard({
 
       {/* Action Row */}
       <View style={styles.actionRow}>
+        {isInflow && onEdit ? (
+          <TouchableOpacity
+            style={styles.shareReceiptBtn}
+            onPress={() => onEdit(payment)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="create-outline" size={13} color="#F59E0B" />
+            <Text style={[styles.shareReceiptText, { color: '#F59E0B' }]}>Edit Payment</Text>
+          </TouchableOpacity>
+        ) : null}
         {isInflow && (
           <TouchableOpacity
             style={styles.shareReceiptBtn}

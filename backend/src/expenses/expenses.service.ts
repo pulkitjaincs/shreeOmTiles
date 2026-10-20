@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateExpenseDto } from './dto/create-expense.dto';
+import { CreateExpenseDto, UpdateExpenseDto } from './dto/create-expense.dto';
 import { ExpenseCategory, Prisma } from '@prisma/client';
 import { PaginationParams } from '../common/interfaces/pagination.interface';
 
@@ -187,5 +187,41 @@ export class ExpensesService {
     }
 
     return expense;
+  }
+
+  async update(id: string, data: UpdateExpenseDto, userId: string) {
+    const existing = await this.prisma.expense.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException(`Expense with ID ${id} not found`);
+    const amount = Number(data.amount || 0);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new BadRequestException('Expense amount must be greater than zero');
+    }
+    const expDate = data.expenseDate ? new Date(data.expenseDate) : existing.expenseDate;
+    const title = data.title?.trim();
+    const notes = data.notes?.trim();
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.expense.update({
+        where: { id },
+        data: {
+          category: data.category,
+          amount: new Prisma.Decimal(amount.toFixed(2)),
+          paymentMode: data.paymentMode || existing.paymentMode,
+          paidTo: data.paidTo?.trim() || null,
+          notes: title ? (notes ? `${title} - ${notes}` : title) : notes || null,
+          expenseDate: expDate,
+        },
+        include: { createdBy: { select: { id: true, name: true, phone: true } } },
+      });
+      await tx.auditLog.create({
+        data: {
+          actorId: userId,
+          action: 'EDIT_EXPENSE',
+          entity: 'Expense',
+          entityId: id,
+          diff: { oldAmount: Number(existing.amount), newAmount: amount },
+        },
+      });
+      return updated;
+    });
   }
 }

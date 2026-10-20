@@ -97,3 +97,27 @@ export function getWhatsAppUrl(phone?: string | null, text?: string): string {
   // International phone number with country code already included
   return `https://wa.me/${digits}${msg ? `?text=${msg}` : ''}`;
 }
+
+export function getInvoicePaidAmount(invoice?: {
+  paidAmount?: number | string | null;
+  paid?: number | string | null;
+  payments?: {
+    amount?: number | string | null;
+    status?: string | null;
+    type?: string | null;
+  }[] | null;
+} | null): number {
+  if (!invoice) return 0;
+
+  const explicitPaid = invoice.paidAmount ?? invoice.paid;
+  if (explicitPaid !== undefined && explicitPaid !== null && explicitPaid !== '') {
+    return Math.max(0, Number(explicitPaid) || 0);
+  }
+
+  return (invoice.payments || [])
+    .filter(
+      (payment) =>
+        payment.status === 'CONFIRMED' && payment.type !== 'OUTFLOW',
+    )
+    .reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+}

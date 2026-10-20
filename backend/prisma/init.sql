@@ -117,8 +117,11 @@ CREATE TABLE "Invoice" (
     "status" "InvoiceStatus" NOT NULL DEFAULT 'CREATED',
     "taxBreakup" JSONB NOT NULL DEFAULT '{}',
     "subtotal" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "discountAmount" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "tax" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "total" DECIMAL(12,2) NOT NULL DEFAULT 0,
+    "roundOffEnabled" BOOLEAN NOT NULL DEFAULT false,
+    "roundOffAmount" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "paymentMode" "PaymentMode",
     "notes" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -527,4 +530,3 @@ CREATE UNIQUE INDEX "ExpenseSequence_financialYear_key" ON "ExpenseSequence"("fi
 
 -- CreateIndex
 CREATE UNIQUE INDEX "DebitNoteSequence_financialYear_key" ON "DebitNoteSequence"("financialYear");
-

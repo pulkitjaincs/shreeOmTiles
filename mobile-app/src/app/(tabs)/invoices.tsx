@@ -138,7 +138,7 @@ export default function InvoicesScreen() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [modeFilter, setModeFilter] = useState('ALL');
   const [createdById, setCreatedById] = useState('ALL');
-  const [staff, setStaff] = useState<Array<{ id: string; name: string; role: string }>>([]);
+  const [staff, setStaff] = useState<{ id: string; name: string; role: string }[]>([]);
   const [dateFilter, setDateFilter] = useState('TODAY');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -147,6 +147,7 @@ export default function InvoicesScreen() {
   const [editingInvoice, setEditingInvoice] = useState<any>(null);
   const [detailsInvoice, setDetailsInvoice] = useState<any>(null);
   const [returnInvoice, setReturnInvoice] = useState<any>(null);
+  const [editingRefund, setEditingRefund] = useState<any>(null);
   const [deleteInvoiceTarget, setDeleteInvoiceTarget] = useState<any>(null);
   const [createdInvoiceSuccess, setCreatedInvoiceSuccess] = useState<Invoice | null>(null);
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -180,7 +181,7 @@ export default function InvoicesScreen() {
           onRevalidate: (fresh) => setStockList(fresh || []),
         }).catch(() => []),
         isOwnerOrAdmin
-          ? cachedMobileApiRequest<Array<{ id: string; name: string; role: string }>>('/users', {
+          ? cachedMobileApiRequest<{ id: string; name: string; role: string }[]>('/users', {
               forceRefresh: force,
             }).catch(() => [])
           : Promise.resolve([]),
@@ -255,16 +256,15 @@ export default function InvoicesScreen() {
   const handleShareWhatsApp = async (invoice: any) => {
     try {
       let fullInv = invoice;
-      // If line items are not populated on the list card, fetch full invoice
-      if (!invoice.items || invoice.items.length === 0) {
-        try {
-          const res = await mobileApiRequest<any>(`/invoices/${invoice.id}`);
-          if (res && res.id) {
-            fullInv = res;
-          }
-        } catch {
-          // fallback to invoice
+      // Invoice creation responses contain items but not the payment relation.
+      // Always load the detail record so paid and due amounts are accurate.
+      try {
+        const res = await mobileApiRequest<any>(`/invoices/${invoice.id}`);
+        if (res && res.id === invoice.id) {
+          fullInv = res;
         }
+      } catch (error: any) {
+        console.warn('Failed to load full invoice before WhatsApp share:', error?.message);
       }
 
       const url = buildFullInvoiceShareUrl(fullInv);
@@ -536,6 +536,11 @@ export default function InvoicesScreen() {
         onShareWhatsApp={handleShareWhatsApp}
         onDownloadRefundPdf={handleDownloadRefundPdf}
         onInitiateReturn={canReturn ? (inv) => setReturnInvoice(inv) : undefined}
+        onEditRefund={!isSupervisor ? (inv, refund) => {
+          setDetailsInvoice(null);
+          setEditingRefund({ ...refund, originalInvoice: inv });
+          setReturnInvoice(inv);
+        } : undefined}
         onEdit={!isSupervisor ? (inv) => { setDetailsInvoice(null); void handleOpenEditInvoice(inv); } : undefined}
         canDelete={isOwnerOrAdmin}
         onDeleteInvoice={(inv) => setDeleteInvoiceTarget(inv)}
@@ -552,13 +557,14 @@ export default function InvoicesScreen() {
       <ReturnInvoiceModal
         invoice={returnInvoice}
         visible={Boolean(returnInvoice)}
-        onClose={() => setReturnInvoice(null)}
+        onClose={() => { setReturnInvoice(null); setEditingRefund(null); }}
+        editingRefund={editingRefund}
         warehouses={warehouses}
         products={products}
         parties={parties}
         onDownloadRefundPdf={handleDownloadRefundPdf}
         onDownloadPdf={handleDownloadInvoicePdf}
-        onSuccess={() => loadData(true)}
+        onSuccess={() => { setEditingRefund(null); loadData(true); }}
       />
 
       <ShareInvoiceModal

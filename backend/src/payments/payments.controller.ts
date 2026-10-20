@@ -11,7 +11,11 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
-import { CreatePaymentDto, CreateCreditDto } from './dto/create-payment.dto';
+import {
+  CreatePaymentDto,
+  CreateCreditDto,
+  UpdatePaymentDto,
+} from './dto/create-payment.dto';
 import { PreviewUpiQrDto } from '../invoices/dto/preview-upi-qr.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
@@ -84,6 +88,16 @@ export class PaymentsController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.paymentsService.findOne(id);
+  }
+
+  @Patch(':id')
+  @Roles(Role.OWNER, Role.ADMIN, Role.ACCOUNTANT)
+  update(
+    @Param('id') id: string,
+    @Body() dto: UpdatePaymentDto,
+    @Request() req: RequestWithUser,
+  ) {
+    return this.paymentsService.updateReceivedPayment(id, dto, req.user.id);
   }
 
   @Patch(':id/confirm')

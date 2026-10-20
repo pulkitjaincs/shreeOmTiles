@@ -61,8 +61,10 @@ export function CreateInvoiceModal({
     { mode: 'UPI', amount: '' },
   ]);
   const [taxRate, setTaxRate] = useState<number | ''>(18);
+  const [discountAmount, setDiscountAmount] = useState('0');
   const [transportCost, setTransportCost] = useState<number | ''>('');
   const [transportGstRate, setTransportGstRate] = useState<number>(0);
+  const [roundOffEnabled, setRoundOffEnabled] = useState(false);
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<FormLineItem[]>([]);
   const [openProductDropdownIdx, setOpenProductDropdownIdx] = useState<number | null>(null);
@@ -162,12 +164,14 @@ export function CreateInvoiceModal({
             ? Number(invoiceToEdit.taxRate)
             : invoiceToEdit.taxBreakup?.rate ?? 18,
         );
+        setDiscountAmount(String(invoiceToEdit.discountAmount ?? 0));
         setTransportCost(
           invoiceToEdit.transportCost !== undefined && invoiceToEdit.transportCost !== null
             ? Number(invoiceToEdit.transportCost)
             : '',
         );
         setTransportGstRate(Number(invoiceToEdit.transportGstRate || 0));
+        setRoundOffEnabled(Boolean(invoiceToEdit.roundOffEnabled));
         setNotes(invoiceToEdit.notes || '');
         if (invoiceToEdit.payments && invoiceToEdit.payments.length > 0) {
           const nonCreditPayments = invoiceToEdit.payments.filter((p) => p.mode !== 'CREDIT' && Number(p.amount) > 0);
@@ -207,6 +211,8 @@ export function CreateInvoiceModal({
         setOpenProductDropdownIdx(null);
         setNewParty({ name: '', phone: '', address: '' });
         setNotes('');
+        setDiscountAmount('0');
+        setRoundOffEnabled(false);
         setProductSearchTerms({});
         setShowUpiCheckoutModal(false);
         setPreviewUpiData(null);
@@ -318,21 +324,19 @@ export function CreateInvoiceModal({
     setItems(newItems);
   };
 
-  const handleDiscountChange = (index: number, val: number) => {
-    const newItems = [...items];
-    newItems[index] = { ...newItems[index], discount: Math.max(0, val) };
-    setItems(newItems);
-  };
-
   // Calculations
-  const subtotal = items.reduce((sum, item) => {
-    return sum + (item.qty * item.unitPrice - (item.discount || 0));
-  }, 0);
+  const itemsSubtotal = items.reduce((sum, item) => sum + item.qty * item.unitPrice, 0);
+  const discount = Math.min(itemsSubtotal, Math.max(0, Number(discountAmount) || 0));
+  const subtotal = Math.max(0, itemsSubtotal - discount);
   const activeTaxRate = taxRate === '' ? 0 : Number(taxRate);
   const itemsTax = (subtotal * activeTaxRate) / 100;
   const numTransportCost = transportCost === '' ? 0 : Number(transportCost);
   const transportTax = (numTransportCost * transportGstRate) / 100;
-  const grandTotal = subtotal + itemsTax + numTransportCost + transportTax;
+  const calculatedTotal = subtotal + itemsTax + numTransportCost + transportTax;
+  const roundOffAmount = roundOffEnabled
+    ? Math.round(calculatedTotal) - calculatedTotal
+    : 0;
+  const grandTotal = Math.max(0, Number((calculatedTotal + roundOffAmount).toFixed(2)));
 
   // Upfront Payment & Credit Calculations
   const calculatedGrandTotal = Math.max(0, Number(grandTotal.toFixed(2)));
@@ -416,7 +420,7 @@ export function CreateInvoiceModal({
       productId: item.productId,
       qty: Number(item.qty),
       unitPrice: Number(item.unitPrice),
-      discount: Number(item.discount || 0),
+      discount: 0,
     }));
 
     const validPayments = paymentSplits
@@ -464,6 +468,9 @@ export function CreateInvoiceModal({
       taxRate: activeTaxRate,
       transportCost: numTransportCost,
       transportGstRate: transportGstRate,
+      discountAmount: discount,
+      roundOffEnabled,
+      roundOffAmount,
       notes: notes || undefined,
       items: invoicePayloadItems,
     };
@@ -549,7 +556,7 @@ export function CreateInvoiceModal({
           <div className="shrink-0 flex items-center justify-between border-b border-border p-6">
             <div>
               <h2 className="text-[1.25rem] font-bold text-foreground">
-                {invoiceToEdit ? `Edit Invoice #${invoiceToEdit.invoiceNo}` : 'Create Tax Invoice'}
+                {invoiceToEdit ? `Edit Invoice #${invoiceToEdit.invoiceNo}` : 'Create Invoice'}
               </h2>
               <p className="text-[0.75rem] text-muted-foreground mt-0.5">
                 {invoiceToEdit
@@ -849,7 +856,7 @@ export function CreateInvoiceModal({
                 {items.map((item, idx) => {
                   const selectedProd = productById.get(item.productId);
                   const availableStock = getProductAvailableStock(item.productId);
-                  const lineSubtotal = item.qty * item.unitPrice - (item.discount || 0);
+                  const lineSubtotal = item.qty * item.unitPrice;
 
                   return (
                     <div key={idx} className="p-4 rounded-[1rem] border border-border bg-muted/20 space-y-3">
@@ -1030,20 +1037,6 @@ export function CreateInvoiceModal({
                           />
                         </div>
 
-                        <div className="col-span-6 sm:col-span-2">
-                          <label className="text-[0.6875rem] font-medium text-foreground block mb-1">
-                            Discount (Rs.)
-                          </label>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={item.discount === 0 ? '' : item.discount}
-                            placeholder="0.00"
-                            onChange={(e) => handleDiscountChange(idx, Number(e.target.value))}
-                            className="w-full rounded-[0.5rem] border border-input bg-background px-3 py-2 text-[0.75rem] text-foreground focus:border-primary focus:outline-none"
-                          />
-                        </div>
 
                         <div className="col-span-4 sm:col-span-1 text-right">
                           <span className="text-[0.625rem] text-muted-foreground block mb-0.5">Line Total</span>
@@ -1084,7 +1077,7 @@ export function CreateInvoiceModal({
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-muted/30 p-4 rounded-[1rem] border border-border">
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-[0.75rem] font-medium text-foreground">Items GST (%)</label>
+                  <label className="text-[0.75rem] font-medium text-foreground">GST on Taxable Bill (%)</label>
                   <span className="text-[0.625rem] text-muted-foreground">{activeTaxRate}%</span>
                 </div>
                 <input
@@ -1095,6 +1088,19 @@ export function CreateInvoiceModal({
                   placeholder="18"
                   value={taxRate === '' ? '' : taxRate}
                   onChange={(e) => setTaxRate(e.target.value === '' ? '' : (parseFloat(e.target.value) || 0))}
+                  className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-[0.8125rem] text-foreground font-mono focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[0.75rem] font-medium text-foreground mb-1">Bill Discount Before GST (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0"
+                  value={discountAmount}
+                  onChange={(e) => setDiscountAmount(e.target.value)}
                   className="w-full rounded-[0.75rem] border border-input bg-background px-3 py-2 text-[0.8125rem] text-foreground font-mono focus:border-primary focus:outline-none"
                 />
               </div>
@@ -1126,6 +1132,20 @@ export function CreateInvoiceModal({
                 />
               </div>
 
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  onClick={() => setRoundOffEnabled((enabled) => !enabled)}
+                  className={`w-full rounded-[0.75rem] border px-3 py-2 text-[0.75rem] font-semibold transition ${
+                    roundOffEnabled
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-input bg-background text-muted-foreground'
+                  }`}
+                >
+                  {roundOffEnabled ? '✓ Round off enabled' : 'Round off total'}
+                </button>
+              </div>
+
               <div>
                 <label className="block text-[0.75rem] font-medium text-foreground mb-1">Invoice Notes</label>
                 <input
@@ -1142,11 +1162,23 @@ export function CreateInvoiceModal({
             <div className="bg-muted/40 p-4 rounded-[1rem] space-y-2 border border-border text-foreground">
               <div className="flex justify-between text-[0.75rem] text-muted-foreground">
                 <span>Items Subtotal:</span>
-                <span>₹{subtotal.toFixed(2)}</span>
+                <span>₹{itemsSubtotal.toFixed(2)}</span>
               </div>
+              {discount > 0 && (
+                <>
+                  <div className="flex justify-between text-[0.75rem] text-muted-foreground">
+                    <span>Bill Discount:</span>
+                    <span>−₹{discount.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-[0.75rem] text-muted-foreground">
+                    <span>Taxable Amount:</span>
+                    <span>₹{subtotal.toFixed(2)}</span>
+                  </div>
+                </>
+              )}
               {activeTaxRate > 0 && (
                 <div className="flex justify-between text-[0.75rem] text-muted-foreground">
-                  <span>Items GST ({activeTaxRate}%):</span>
+                  <span>GST on Taxable Bill ({activeTaxRate}%):</span>
                   <span>₹{itemsTax.toFixed(2)}</span>
                 </div>
               )}
@@ -1162,6 +1194,18 @@ export function CreateInvoiceModal({
                       <span>₹{transportTax.toFixed(2)}</span>
                     </div>
                   )}
+                </>
+              )}
+              {roundOffEnabled && (
+                <>
+                  <div className="flex justify-between text-[0.75rem] text-muted-foreground">
+                    <span>Before Round-off:</span>
+                    <span>₹{calculatedTotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-[0.75rem] text-muted-foreground">
+                    <span>Round-off:</span>
+                    <span>{roundOffAmount >= 0 ? '+' : '−'}₹{Math.abs(roundOffAmount).toFixed(2)}</span>
+                  </div>
                 </>
               )}
               <div className="flex justify-between text-[1rem] font-bold text-foreground border-t border-border pt-2">

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { StatusBadge } from '@/components/ui/StatusBadge';
 import type { ThemeColors } from '@/constants/theme';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
-import { formatINR, formatDate } from '@/lib/formatters';
+import { formatINR, formatDate, getInvoicePaidAmount } from '@/lib/formatters';
 import { downloadAndSharePdf } from '@/lib/pdf';
 
 interface InvoiceDetailsModalProps {
@@ -16,6 +16,7 @@ interface InvoiceDetailsModalProps {
   onShareWhatsApp: (invoice: any) => void;
   onDownloadRefundPdf?: (refundId: string, refundNo: string) => Promise<void> | void;
   onInitiateReturn?: (invoice: any) => void;
+  onEditRefund?: (invoice: any, refund: any) => void;
   onEdit?: (invoice: any) => void;
   canDelete?: boolean;
   onDeleteInvoice?: (invoice: any) => void;
@@ -29,6 +30,7 @@ export function InvoiceDetailsModal({
   onShareWhatsApp,
   onDownloadRefundPdf,
   onInitiateReturn,
+  onEditRefund,
   onEdit,
   canDelete,
   onDeleteInvoice,
@@ -55,9 +57,10 @@ export function InvoiceDetailsModal({
   const subtotal = Number(invoice.subtotal || 0);
   const tax = Number(invoice.tax ?? invoice.taxAmount ?? 0);
   const taxRate = invoice.taxBreakup?.rate ?? (subtotal > 0 ? Math.round((tax / subtotal) * 100) : 18);
-  const paid = Number(invoice.paidAmount ?? invoice.paid ?? (invoice.payments || [])
-    .filter((payment: any) => payment.status === 'CONFIRMED' && payment.type !== 'OUTFLOW')
-    .reduce((sum: number, payment: any) => sum + Number(payment.amount || 0), 0));
+  const paid = getInvoicePaidAmount(invoice);
+  const transportCost = Number(invoice.transportCost || 0);
+  const transportTax = Number(invoice.transportTax || 0);
+  const itemTax = Math.max(0, tax - transportTax);
 
   return (
     <BottomSheetModal
@@ -146,27 +149,57 @@ export function InvoiceDetailsModal({
           <Card elevated style={styles.financialCard}>
             <Text style={styles.financialTitle}>Invoice Summary</Text>
             <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Subtotal</Text><Text style={styles.summaryVal}>{formatINR(subtotal)}</Text></View>
+            {Number((invoice as any).discountAmount || 0) > 0 ? (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Bill Discount</Text>
+                <Text style={styles.summaryVal}>−{formatINR(Number((invoice as any).discountAmount))}</Text>
+              </View>
+            ) : null}
+            {transportCost > 0 ? (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Transport / Cartage</Text>
+                <Text style={styles.summaryVal}>{formatINR(transportCost)}</Text>
+              </View>
+            ) : null}
             {invoice.taxBreakup ? (
               invoice.taxBreakup.isInterState ? (
                 <View style={styles.summaryRow}>
                   <Text style={styles.summaryLabel}>IGST ({invoice.taxBreakup.rate || taxRate}%)</Text>
-                  <Text style={styles.summaryVal}>{formatINR(invoice.taxBreakup.igst ?? tax)}</Text>
+                  <Text style={styles.summaryVal}>{formatINR(invoice.taxBreakup.items?.igst ?? itemTax)}</Text>
                 </View>
               ) : (
                 <>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>CGST ({((invoice.taxBreakup.rate || taxRate) / 2).toFixed(1)}%)</Text>
-                    <Text style={styles.summaryVal}>{formatINR(invoice.taxBreakup.cgst ?? tax / 2)}</Text>
+                    <Text style={styles.summaryVal}>{formatINR(invoice.taxBreakup.items?.cgst ?? itemTax / 2)}</Text>
                   </View>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>SGST ({((invoice.taxBreakup.rate || taxRate) / 2).toFixed(1)}%)</Text>
-                    <Text style={styles.summaryVal}>{formatINR(invoice.taxBreakup.sgst ?? tax / 2)}</Text>
+                    <Text style={styles.summaryVal}>{formatINR(invoice.taxBreakup.items?.sgst ?? itemTax / 2)}</Text>
                   </View>
                 </>
               )
-            ) : (
-              <View style={styles.summaryRow}><Text style={styles.summaryLabel}>GST ({taxRate}%)</Text><Text style={styles.summaryVal}>{formatINR(tax)}</Text></View>
-            )}
+            ) : itemTax > 0 ? (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>GST on Taxable Bill ({taxRate}%)</Text>
+                <Text style={styles.summaryVal}>{formatINR(itemTax)}</Text>
+              </View>
+            ) : null}
+            {transportTax > 0 ? (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Transport GST</Text>
+                <Text style={styles.summaryVal}>{formatINR(transportTax)}</Text>
+              </View>
+            ) : null}
+            {invoice.roundOffEnabled ? (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Round-off</Text>
+                <Text style={styles.summaryVal}>
+                  {Number(invoice.roundOffAmount || 0) >= 0 ? '+' : '−'}
+                  {formatINR(Math.abs(Number(invoice.roundOffAmount || 0)))}
+                </Text>
+              </View>
+            ) : null}
             <View style={styles.summaryRow}><Text style={styles.summaryLabel}>Original total</Text><Text style={styles.summaryVal}>{formatINR(invoice.total)}</Text></View>
             {refundedTotal > 0 ? <View style={styles.summaryRow}><Text style={styles.refundAmountLabel}>Total refunded</Text><Text style={styles.refundAmountLabel}>−{formatINR(refundedTotal)}</Text></View> : null}
             <View style={[styles.summaryRow, styles.netTotalRow]}><Text style={styles.netTotalLabel}>Net payable total</Text><Text style={styles.netTotalValue}>{formatINR(netTotal)}</Text></View>
@@ -263,6 +296,15 @@ export function InvoiceDetailsModal({
                     disabled={downloading}
                     onPress={handleDownloadPdf}
                   />
+                  {onEditRefund ? (
+                    <Button
+                      title="Edit"
+                      icon="create-outline"
+                      size="sm"
+                      variant="outline"
+                      onPress={() => onEditRefund(invoice, refund)}
+                    />
+                  ) : null}
                 </View>
                 {refund.reason ? (
                   <Text style={styles.itemDetailSub}>

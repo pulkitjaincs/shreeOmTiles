@@ -64,8 +64,10 @@ export function CreateInvoiceModal({
   ]);
 
   const [taxRate, setTaxRate] = useState<number>(18);
+  const [discountAmount, setDiscountAmount] = useState<string>('0');
   const [transportCost, setTransportCost] = useState<string>('0');
   const [transportGstRate, setTransportGstRate] = useState<number>(0);
+  const [roundOffEnabled, setRoundOffEnabled] = useState(false);
   const [paymentSplits, setPaymentSplits] = useState<PaymentSplitItem[]>([
     { mode: 'UPI', amount: '' },
   ]);
@@ -127,8 +129,10 @@ export function CreateInvoiceModal({
       },
     ]);
     setTaxRate(18);
+    setDiscountAmount('0');
     setTransportCost('0');
     setTransportGstRate(0);
+    setRoundOffEnabled(false);
     setPaymentSplits([{ mode: 'UPI', amount: '' }]);
     setNotes('');
     setUpiPreviewData(null);
@@ -187,8 +191,10 @@ export function CreateInvoiceModal({
       setBillAddress(invoiceToEdit.address || invoiceToEdit.party?.address || '');
       setNewPartyAddress(invoiceToEdit.address || invoiceToEdit.party?.address || '');
       setTaxRate(Number(invoiceToEdit.taxRate ?? (invoiceToEdit.taxBreakup?.rate ?? 18)));
+      setDiscountAmount(String((invoiceToEdit as any).discountAmount ?? '0'));
       setTransportCost(String((invoiceToEdit as any).transportCost ?? '0'));
       setTransportGstRate(Number((invoiceToEdit as any).transportGstRate ?? 0));
+      setRoundOffEnabled(Boolean((invoiceToEdit as any).roundOffEnabled));
       setNotes(invoiceToEdit.notes || '');
 
       if (invoiceToEdit.items && invoiceToEdit.items.length > 0) {
@@ -197,7 +203,7 @@ export function CreateInvoiceModal({
             productId: it.productId,
             qty: Number(it.qty || 1),
             unitPrice: Number(it.unitPrice || 0),
-            discount: Number(it.discount || 0),
+            discount: 0,
           })),
         );
       }
@@ -351,23 +357,28 @@ export function CreateInvoiceModal({
     );
   };
 
-  const { subtotal, itemsTax, numTransportCost, transportTax, grandTotal } = useMemo(() => {
-    const rawSub = items.reduce((acc, it) => {
-      const lineTotal =
-        (Number(it.qty) || 0) * (Number(it.unitPrice) || 0) - (Number(it.discount) || 0);
-      return acc + Math.max(0, lineTotal);
-    }, 0);
-    const tax = Math.round(rawSub * (taxRate / 100) * 100) / 100;
+  const { itemsSubtotal, discount, subtotal, itemsTax, numTransportCost, transportTax, calculatedTotal, roundOffAmount, grandTotal } = useMemo(() => {
+    const rawSub = items.reduce((acc, it) => acc + Math.max(0, (Number(it.qty) || 0) * (Number(it.unitPrice) || 0)), 0);
+    const requestedDiscount = Math.max(0, Number(discountAmount) || 0);
+    const appliedDiscount = Math.min(rawSub, requestedDiscount);
+    const taxableSubtotal = Math.round((rawSub - appliedDiscount) * 100) / 100;
+    const tax = Math.round(taxableSubtotal * (taxRate / 100) * 100) / 100;
     const tCost = Math.max(0, Number(transportCost) || 0);
     const tTax = Math.round(tCost * (transportGstRate / 100) * 100) / 100;
+    const beforeRound = Math.round((taxableSubtotal + tax + tCost + tTax) * 100) / 100;
+    const adjustment = roundOffEnabled ? Math.round(beforeRound) - beforeRound : 0;
     return {
-      subtotal: rawSub,
+      itemsSubtotal: rawSub,
+      discount: appliedDiscount,
+      subtotal: taxableSubtotal,
       itemsTax: tax,
       numTransportCost: tCost,
       transportTax: tTax,
-      grandTotal: rawSub + tax + tCost + tTax,
+      calculatedTotal: beforeRound,
+      roundOffAmount: adjustment,
+      grandTotal: Math.round((beforeRound + adjustment) * 100) / 100,
     };
-  }, [items, taxRate, transportCost, transportGstRate]);
+  }, [items, taxRate, discountAmount, transportCost, transportGstRate, roundOffEnabled]);
 
   const validSplits = useMemo(() => {
     return paymentSplits.filter((s) => {
@@ -467,6 +478,9 @@ export function CreateInvoiceModal({
     try {
       const payload: any = {
         taxRate,
+        discountAmount: discount,
+        roundOffEnabled,
+        roundOffAmount,
         transportCost: numTransportCost,
         transportGstRate,
         paymentMode: resolvedMode,
@@ -475,7 +489,7 @@ export function CreateInvoiceModal({
           productId: it.productId,
           qty: Number(it.qty),
           unitPrice: Number(it.unitPrice),
-          discount: Number(it.discount || 0),
+          discount: 0,
         })),
         amountPaidNow: effectivePaidNow,
         payments: validSplits.map((s) => ({
@@ -541,7 +555,7 @@ export function CreateInvoiceModal({
     <BottomSheetModal
       visible={visible}
       onClose={onClose}
-      title={invoiceToEdit ? `Edit Invoice #${invoiceToEdit.invoiceNo}` : 'Create New Tax Invoice'}
+      title={invoiceToEdit ? `Edit Invoice #${invoiceToEdit.invoiceNo}` : 'Create New Invoice'}
       subtitle={
         invoiceToEdit
           ? 'Update line items, pricing, address, or payment splits'
@@ -587,7 +601,6 @@ export function CreateInvoiceModal({
             onProductChange={(newProductId) => handleProductChange(idx, newProductId)}
             onQtyChange={(qty) => handleQtyChange(idx, qty)}
             onUnitPriceChange={(price) => handleUpdateItem(idx, 'unitPrice', price)}
-            onDiscountChange={(discount) => handleUpdateItem(idx, 'discount', discount)}
             onRemove={() => handleRemoveItem(idx)}
           />
         ))}
@@ -611,6 +624,14 @@ export function CreateInvoiceModal({
             const num = Number.parseFloat(value);
             setTaxRate(isNaN(num) ? 0 : Math.min(100, Math.max(0, num)));
           }}
+          keyboardType="decimal-pad"
+        />
+
+        <Input
+          label="Bill Discount Before GST (₹)"
+          placeholder="0.00"
+          value={discountAmount}
+          onChangeText={setDiscountAmount}
           keyboardType="decimal-pad"
         />
 
@@ -644,8 +665,20 @@ export function CreateInvoiceModal({
         <Card elevated style={styles.summaryBox}>
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Items Subtotal</Text>
-            <Text style={styles.summaryVal}>{formatINR(subtotal)}</Text>
+            <Text style={styles.summaryVal}>{formatINR(itemsSubtotal)}</Text>
           </View>
+          {discount > 0 && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Bill Discount</Text>
+              <Text style={styles.summaryVal}>−{formatINR(discount)}</Text>
+            </View>
+          )}
+          {discount > 0 && (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Taxable Amount</Text>
+              <Text style={styles.summaryVal}>{formatINR(subtotal)}</Text>
+            </View>
+          )}
           {taxRate > 0 && (
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Items GST ({taxRate}%)</Text>
@@ -666,10 +699,29 @@ export function CreateInvoiceModal({
               )}
             </>
           )}
+          {roundOffEnabled && (
+            <>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Before round-off</Text>
+              <Text style={styles.summaryVal}>{formatINR(calculatedTotal)}</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Round-off</Text>
+              <Text style={styles.summaryVal}>{roundOffAmount >= 0 ? '+' : '−'}{formatINR(Math.abs(roundOffAmount))}</Text>
+            </View>
+            </>
+          )}
           <View style={[styles.summaryRow, styles.grandTotalRow]}>
             <Text style={styles.grandTotalLabel}>Grand Total</Text>
             <Text style={styles.grandTotalVal}>{formatINR(grandTotal)}</Text>
           </View>
+          <Button
+            title={roundOffEnabled ? '✓ Round off enabled' : 'Round off total amount'}
+            size="sm"
+            variant="outline"
+            onPress={() => setRoundOffEnabled((enabled) => !enabled)}
+            style={{ marginTop: 8 }}
+          />
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Amount Paid Upfront</Text>
             <Text style={[styles.summaryVal, { color: colors.statusPaid }]}>

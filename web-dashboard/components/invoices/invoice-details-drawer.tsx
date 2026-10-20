@@ -60,6 +60,13 @@ export function InvoiceDetailsDrawer({
   const totalRefunded =
     invoice.refundInvoices?.reduce((sum, r) => sum + Number(r.total || 0), 0) || 0;
   const netAdjustedTotal = Math.max(0, Number(invoice.total) - totalRefunded);
+  const invoiceTax = Number(invoice.tax || 0);
+  const transportTax = Number(invoice.transportTax || 0);
+  const itemTax = Math.max(0, invoiceTax - transportTax);
+  const paidAmount = (invoice.payments || [])
+    .filter((payment) => payment.status === 'CONFIRMED' && payment.mode !== 'OUTFLOW')
+    .reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
+  const balanceDue = Math.max(0, netAdjustedTotal - paidAmount);
 
   const isCashSaleParty = Boolean(
     invoice.isCashSale ||
@@ -354,16 +361,43 @@ export function InvoiceDetailsDrawer({
                   <span className="text-muted-foreground">Subtotal:</span>
                   <span>{formatINR(invoice.subtotal)}</span>
                 </div>
+                {Number(invoice.discountAmount || 0) > 0 && (
+                  <div className="flex justify-between text-[0.6875rem]">
+                    <span className="text-muted-foreground">Bill Discount:</span>
+                    <span>-{formatINR(invoice.discountAmount)}</span>
+                  </div>
+                )}
+                {itemTax > 0 && (
+                  <div className="flex justify-between text-[0.6875rem]">
+                    <span className="text-muted-foreground">GST on Taxable Bill:</span>
+                    <span className="font-semibold text-foreground">{formatINR(itemTax)}</span>
+                  </div>
+                )}
+                {Number(invoice.transportCost || 0) > 0 && (
+                  <div className="flex justify-between text-[0.6875rem]">
+                    <span className="text-muted-foreground">Transport / Cartage:</span>
+                    <span>{formatINR(invoice.transportCost)}</span>
+                  </div>
+                )}
+                {transportTax > 0 && (
+                  <div className="flex justify-between text-[0.6875rem]">
+                    <span className="text-muted-foreground">Transport GST:</span>
+                    <span>{formatINR(transportTax)}</span>
+                  </div>
+                )}
+                {invoice.roundOffEnabled && (
+                  <div className="flex justify-between text-[0.6875rem]">
+                    <span className="text-muted-foreground">Round-off:</span>
+                    <span>{Number(invoice.roundOffAmount || 0) >= 0 ? '+' : '-'}{formatINR(Math.abs(Number(invoice.roundOffAmount || 0)))}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-[0.6875rem]">
-                  <span className="text-muted-foreground">
-                    Tax (
-                    {(invoice.taxBreakup as { rate?: number })?.rate ??
-                      (Number(invoice.subtotal) > 0
-                        ? Math.round((Number(invoice.tax) / Number(invoice.subtotal)) * 100)
-                        : 18)}
-                    %):
-                  </span>
-                  <span className="font-semibold text-foreground">{formatINR(invoice.tax)}</span>
+                  <span className="text-muted-foreground">Paid:</span>
+                  <span>{formatINR(paidAmount)}</span>
+                </div>
+                <div className="flex justify-between text-[0.6875rem] font-semibold">
+                  <span className="text-muted-foreground">Balance Due:</span>
+                  <span>{formatINR(balanceDue)}</span>
                 </div>
               </div>
             </div>
@@ -389,7 +423,6 @@ export function InvoiceDetailsDrawer({
                   {!isSupervisor && (
                     <>
                       <th className="py-2.5 px-3 text-right">Rate</th>
-                      <th className="py-2.5 px-3 text-right">Discount</th>
                       <th className="py-2.5 px-3 text-right">Total</th>
                     </>
                   )}
@@ -398,7 +431,7 @@ export function InvoiceDetailsDrawer({
               <tbody className="divide-y divide-border/60">
                 {!invoice.items || invoice.items.length === 0 ? (
                   <tr>
-                    <td colSpan={isSupervisor ? 3 : 6} className="py-6 text-center text-muted-foreground">
+                    <td colSpan={isSupervisor ? 3 : 5} className="py-6 text-center text-muted-foreground">
                       No line items found for this invoice.
                     </td>
                   </tr>
@@ -418,9 +451,6 @@ export function InvoiceDetailsDrawer({
                         <>
                           <td className="py-2.5 px-3 text-right text-foreground">
                             {formatINR(item.unitPrice)}
-                          </td>
-                          <td className="py-2.5 px-3 text-right text-muted-foreground">
-                            {Number(item.discount) > 0 ? formatINR(item.discount) : '—'}
                           </td>
                           <td className="py-2.5 px-3 text-right font-bold text-emerald-600 dark:text-emerald-400">
                             {formatINR(item.total)}

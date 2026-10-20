@@ -15,7 +15,7 @@ import { useTheme, useThemedStyles, ThemeColors } from '@/lib/theme-context';
 import { Header } from '@/components/ui/Header';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { FilterPills } from '@/components/ui/FilterPills';
-import { FilterDropdown } from '@/components/ui/FilterDropdown';
+import { FilterDropdown, FilterDropdownOption } from '@/components/ui/FilterDropdown';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Card } from '@/components/ui/Card';
 import { formatINR } from '@/lib/formatters';
@@ -158,6 +158,7 @@ export default function TransactionsScreen() {
   const [settleInvoiceId, setSettleInvoiceId] = useState('');
   const [settleInvoiceNo, setSettleInvoiceNo] = useState('');
   const [settlementSuccessData, setSettlementSuccessData] = useState<SettlementSuccessData | null>(null);
+  const [editingPayment, setEditingPayment] = useState<PaymentRecord | null>(null);
 
   const [creditModalOpen, setCreditModalOpen] = useState(false);
   const [creditPartyId, setCreditPartyId] = useState('');
@@ -166,16 +167,29 @@ export default function TransactionsScreen() {
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [ownedInvoiceIds, setOwnedInvoiceIds] = useState<Set<string> | null>(null);
 
+  useEffect(() => {
+    if (
+      user?.role === 'SALESMAN' &&
+      (activeTab === 'daybook' || activeTab === 'payables' || activeTab === 'credits')
+    ) {
+      setActiveTab('all');
+      setDateFilterMode('all');
+    }
+  }, [activeTab, user?.role]);
+
   // Load all data matching web-dashboard loadData()
   const loadData = useCallback(async (force = false) => {
     try {
       const [paymentsData, statsData, pendingData, creditsData, partiesData, invoicesData] = await Promise.all([
         cachedMobileApiRequest<PaymentRecord[]>('/payments', {
           forceRefresh: force,
-          onRevalidate: (fresh) => {
-            const list = Array.isArray(fresh) ? fresh : (fresh as any)?.data || [];
-            setPayments(list);
-          },
+          onRevalidate:
+            user?.role === 'SALESMAN'
+              ? undefined
+              : (fresh) => {
+                  const list = Array.isArray(fresh) ? fresh : (fresh as any)?.data || [];
+                  setPayments(list);
+                },
         }).catch(() => []),
         cachedMobileApiRequest<FinancialStats>('/payments/stats', {
           forceRefresh: force,
@@ -195,50 +209,6 @@ export default function TransactionsScreen() {
           '/payments/pending',
           {
             forceRefresh: force,
-            onRevalidate: (fresh) => {
-              if (fresh) {
-                const updated: PendingItem[] = [
-                  ...(fresh.invoices || []).map((inv) => ({
-                    id: inv.id,
-                    invoiceNo: inv.invoiceNo,
-                    partyId: inv.partyId,
-                    partyName: inv.partyName,
-                    partyPhone: inv.partyPhone,
-                    total: inv.total,
-                    paid: inv.paid,
-                    remainingDue: inv.remainingDue,
-                    createdAt: inv.createdAt,
-                    status: inv.status,
-                    isCreditLedger: false,
-                    creditType: 'RECEIVABLE' as const,
-                  })),
-                  ...(fresh.ledgers || [])
-                    .filter(
-                      (cl) =>
-                        cl.type === 'PAYABLE' ||
-                        (!cl.invoiceId &&
-                          !(fresh.invoices || []).some(
-                            (inv) => inv.id === cl.invoiceId || (cl.invoiceNo && inv.invoiceNo === cl.invoiceNo),
-                          )),
-                    )
-                    .map((cl) => ({
-                      id: cl.id,
-                      invoiceNo: cl.invoiceNo || (cl.type === 'PAYABLE' ? 'Store Payable' : 'Direct Party Credit'),
-                      partyId: cl.partyId,
-                      partyName: cl.partyName || 'Party',
-                      partyPhone: cl.partyPhone || '',
-                      total: cl.amountDue,
-                      paid: 0,
-                      remainingDue: cl.amountDue,
-                      createdAt: cl.createdAt,
-                      status: cl.status,
-                      isCreditLedger: true,
-                      creditType: cl.type as 'RECEIVABLE' | 'PAYABLE',
-                    })),
-                ];
-                setPendingItems(updated);
-              }
-            },
           },
         ).catch(() => ({
           invoices: [],
@@ -673,7 +643,7 @@ export default function TransactionsScreen() {
             </View>
 
             {/* Daily Till Drawer Summary Card */}
-            {(dateFilterMode === 'specific' || activeTab === 'daybook') && (
+            {user?.role !== 'SALESMAN' && (dateFilterMode === 'specific' || activeTab === 'daybook') && (
               <Card elevated style={styles.tillCard}>
                 <View style={styles.tillHeader}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -741,11 +711,13 @@ export default function TransactionsScreen() {
             )}
 
             {/* Financial KPI Summary Cards (6 Cards matching PaymentStatsGrid) */}
-            <PaymentStatsRow
-              stats={stats}
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
-            />
+            {user?.role !== 'SALESMAN' ? (
+              <PaymentStatsRow
+                stats={stats}
+                activeTab={activeTab}
+                onTabChange={setActiveTab}
+              />
+            ) : null}
 
             {/* View Selector Dropdown & + Record Credit Row */}
             <View style={styles.viewSelectorRow}>
@@ -753,7 +725,7 @@ export default function TransactionsScreen() {
                 label="View"
                 value={activeTab}
                 onSelect={(val) => setActiveTab(val as ActiveTabType)}
-                options={[
+                options={([
                   {
                     label: 'Till & Day Book',
                     value: 'daybook',
@@ -796,7 +768,13 @@ export default function TransactionsScreen() {
                     icon: 'book-outline',
                     color: '#F59E0B',
                   },
-                ]}
+                ] as FilterDropdownOption[]).filter(
+                  (option) =>
+                    user?.role !== 'SALESMAN' ||
+                    option.value === 'all' ||
+                    option.value === 'dues' ||
+                    option.value === 'inflows',
+                )}
                 hideLabelPrefix
                 showCountOnTrigger
                 containerStyle={{ flex: 1 }}
@@ -822,14 +800,16 @@ export default function TransactionsScreen() {
                 </TouchableOpacity>
               ) : null}
 
-              <TouchableOpacity
-                style={styles.recordCreditBtn}
-                onPress={() => handleOpenRecordCredit()}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="add-circle" size={14} color="#A78BFA" />
-                <Text style={styles.recordCreditBtnText}>Credit</Text>
-              </TouchableOpacity>
+              {user?.role !== 'SALESMAN' ? (
+                <TouchableOpacity
+                  style={styles.recordCreditBtn}
+                  onPress={() => handleOpenRecordCredit()}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="add-circle" size={14} color="#A78BFA" />
+                  <Text style={styles.recordCreditBtnText}>Credit</Text>
+                </TouchableOpacity>
+              ) : null}
             </View>
 
             {/* Search Input */}
@@ -1006,6 +986,7 @@ export default function TransactionsScreen() {
                 payment={item as PaymentRecord}
                 confirmingId={confirmingId}
                 onConfirm={handleConfirmPayment}
+                 onEdit={(payment) => setEditingPayment(payment)}
               />
             );
           }
@@ -1021,10 +1002,15 @@ export default function TransactionsScreen() {
 
       {/* Settlement / Disbursement Modal (Inflow & Outflow) */}
       <RecordSettlementModal
-        visible={settleModalOpen}
-        onClose={() => setSettleModalOpen(false)}
+        visible={settleModalOpen || Boolean(editingPayment)}
+        editingPayment={editingPayment}
+        onClose={() => {
+          setSettleModalOpen(false);
+          setEditingPayment(null);
+        }}
         onSuccess={(data) => {
           setSettleModalOpen(false);
+          setEditingPayment(null);
           loadData(true);
           if (data) {
             setSettlementSuccessData(data);

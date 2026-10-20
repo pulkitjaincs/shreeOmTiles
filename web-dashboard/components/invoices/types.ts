@@ -131,7 +131,10 @@ export interface Invoice {
   total: number | string;
   subtotal: number | string;
   tax: number | string;
+  discountAmount?: number | string;
   taxRate?: number | string;
+  roundOffEnabled?: boolean;
+  roundOffAmount?: number | string;
   transportCost?: number | string;
   transportGstRate?: number | string;
   transportTax?: number | string;

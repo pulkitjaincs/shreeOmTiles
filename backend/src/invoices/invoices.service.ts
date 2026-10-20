@@ -44,10 +44,13 @@ interface ExtendedInvoice {
   tax: Prisma.Decimal;
   taxRate: Prisma.Decimal;
   transportCost: Prisma.Decimal;
+  discountAmount: Prisma.Decimal;
   transportGstRate: Prisma.Decimal;
   transportTax: Prisma.Decimal;
   itemsTax: Prisma.Decimal;
   total: Prisma.Decimal;
+  roundOffEnabled: boolean;
+  roundOffAmount: Prisma.Decimal;
   paymentMode: PaymentMode | null;
   notes: string | null;
   address?: string | null;
@@ -100,27 +103,38 @@ export class InvoicesService {
     const taxRate = data.taxRate !== undefined ? Math.max(0, data.taxRate) : 18;
     const transportCost = Math.max(0, data.transportCost || 0);
     const transportGstRate = Math.max(0, data.transportGstRate || 0);
+    const roundOffEnabled = Boolean(data.roundOffEnabled);
 
-    // Pre-calculate line items and subtotal
-    let subtotal = 0;
+    // Calculate one bill-level discount before GST and transport.
+    let itemsSubtotal = 0;
     const calculatedItems = data.items.map((item) => {
-      const discount = item.discount || 0;
-      const lineTotal = item.qty * item.unitPrice - discount;
-      subtotal += lineTotal;
+      const lineTotal = item.qty * item.unitPrice;
+      itemsSubtotal += lineTotal;
       return {
         ...item,
-        discount,
+        discount: 0,
         total: lineTotal,
       };
     });
 
+    const discountAmount = Math.min(
+      itemsSubtotal,
+      Math.max(0, Number(data.discountAmount || 0)),
+    );
+    const subtotal =
+      Math.round((itemsSubtotal - discountAmount) * 100) / 100;
     const itemsTax = Math.round(((subtotal * taxRate) / 100) * 100) / 100;
     const transportTax =
       Math.round(((transportCost * transportGstRate) / 100) * 100) / 100;
     const taxAmount = Math.round((itemsTax + transportTax) * 100) / 100;
-    const totalAmount =
+    const calculatedTotal =
       Math.round((subtotal + itemsTax + transportCost + transportTax) * 100) /
       100;
+    const roundOffAmount = roundOffEnabled
+      ? Math.round(calculatedTotal) - calculatedTotal
+      : 0;
+    const totalAmount =
+      Math.round((calculatedTotal + roundOffAmount) * 100) / 100;
 
     const fy = this.getFinancialYear();
     let resolvedPartyName = 'Customer';
@@ -444,6 +458,7 @@ export class InvoicesService {
         isCashSale: Boolean(data.isCashSale),
         quotationId: data.quotationId || null,
         subtotal: new Prisma.Decimal(subtotal.toFixed(2)),
+        discountAmount: new Prisma.Decimal(discountAmount.toFixed(2)),
         tax: new Prisma.Decimal(taxAmount.toFixed(2)),
         taxRate: new Prisma.Decimal(taxRate.toFixed(2)),
         transportCost: new Prisma.Decimal(transportCost.toFixed(2)),
@@ -451,6 +466,8 @@ export class InvoicesService {
         transportTax: new Prisma.Decimal(transportTax.toFixed(2)),
         itemsTax: new Prisma.Decimal(itemsTax.toFixed(2)),
         total: new Prisma.Decimal(totalAmount.toFixed(2)),
+        roundOffEnabled,
+        roundOffAmount: new Prisma.Decimal(roundOffAmount.toFixed(2)),
         taxBreakup: taxBreakup,
         items: {
           create: allocatedInvoiceItems,
@@ -824,7 +841,7 @@ export class InvoicesService {
     });
 
     // Customer caption - strictly direct message without any external links
-    const customerMessage = `Hi ${customerName}, please find attached your Tax Invoice #${invoice.invoiceNo} from ${companyName}. Total Amount: Rs. ${total}. Thank you for your business!`;
+    const customerMessage = `Hi ${customerName}, please find attached your Invoice #${invoice.invoiceNo} from ${companyName}. Total Amount: Rs. ${total}. Thank you for your business!`;
     const cleanPhone = customerPhone
       ? customerPhone.replace(/[^0-9]/g, '')
       : '';
@@ -1827,26 +1844,45 @@ export class InvoicesService {
       data.transportGstRate !== undefined
         ? Math.max(0, data.transportGstRate)
         : Number(existing.transportGstRate || 0);
+    const roundOffEnabled =
+      data.roundOffEnabled !== undefined
+        ? Boolean(data.roundOffEnabled)
+        : Boolean(existing.roundOffEnabled);
 
-    let subtotal = 0;
+    let itemsSubtotal = 0;
     const calculatedItems = data.items.map((item) => {
-      const discount = item.discount || 0;
-      const lineTotal = item.qty * item.unitPrice - discount;
-      subtotal += lineTotal;
+      const lineTotal = item.qty * item.unitPrice;
+      itemsSubtotal += lineTotal;
       return {
         ...item,
-        discount,
+        discount: 0,
         total: lineTotal,
       };
     });
 
+    const discountAmount = Math.min(
+      itemsSubtotal,
+      Math.max(
+        0,
+        data.discountAmount !== undefined
+          ? Number(data.discountAmount)
+          : Number(existing.discountAmount || 0),
+      ),
+    );
+    const subtotal =
+      Math.round((itemsSubtotal - discountAmount) * 100) / 100;
     const itemsTax = Math.round(((subtotal * taxRate) / 100) * 100) / 100;
     const transportTax =
       Math.round(((transportCost * transportGstRate) / 100) * 100) / 100;
     const taxAmount = Math.round((itemsTax + transportTax) * 100) / 100;
-    const totalAmount =
+    const calculatedTotal =
       Math.round((subtotal + itemsTax + transportCost + transportTax) * 100) /
       100;
+    const roundOffAmount = roundOffEnabled
+      ? Math.round(calculatedTotal) - calculatedTotal
+      : 0;
+    const totalAmount =
+      Math.round((calculatedTotal + roundOffAmount) * 100) / 100;
 
     return this.prisma.$transaction(async (tx) => {
       // 1. Resolve Party
@@ -2376,6 +2412,7 @@ export class InvoicesService {
             ? data.quotationId
             : existing.quotationId,
         subtotal: new Prisma.Decimal(subtotal.toFixed(2)),
+        discountAmount: new Prisma.Decimal(discountAmount.toFixed(2)),
         tax: new Prisma.Decimal(taxAmount.toFixed(2)),
         taxRate: new Prisma.Decimal(taxRate.toFixed(2)),
         transportCost: new Prisma.Decimal(transportCost.toFixed(2)),
@@ -2383,6 +2420,8 @@ export class InvoicesService {
         transportTax: new Prisma.Decimal(transportTax.toFixed(2)),
         itemsTax: new Prisma.Decimal(itemsTax.toFixed(2)),
         total: new Prisma.Decimal(totalAmount.toFixed(2)),
+        roundOffEnabled,
+        roundOffAmount: new Prisma.Decimal(roundOffAmount.toFixed(2)),
         taxBreakup,
         items: {
           create: allocatedInvoiceItems,
@@ -2432,6 +2471,175 @@ export class InvoicesService {
   /**
    * Generates official GST-compliant Credit Note / Refund Voucher PDF
    */
+  async updateReturn(
+      refundId: string,
+      data: ProcessReturnDto,
+      userId: string,
+    ) {
+      if (!data.items || data.items.length === 0) {
+        throw new BadRequestException('At least one returned item is required.');
+      }
+
+      return this.prisma.$transaction(async (tx) => {
+        const refund = await tx.refundInvoice.findUnique({
+          where: { id: refundId },
+          include: {
+            items: true,
+            payments: true,
+            creditLedgers: true,
+            originalInvoice: { include: { refundInvoices: true } },
+          },
+        });
+        if (!refund) throw new NotFoundException(`Refund ${refundId} not found`);
+        if (!refund.originalInvoiceId || !refund.originalInvoice) {
+          throw new BadRequestException(
+            'Standalone returns cannot be edited from an invoice.',
+          );
+        }
+
+        const oldByProduct = new Map<string, number>();
+        for (const item of refund.items) {
+          if (item.productId) {
+            oldByProduct.set(
+              item.productId,
+              (oldByProduct.get(item.productId) || 0) + Number(item.qty),
+            );
+          }
+        }
+        const newByProduct = new Map<string, number>();
+        for (const item of data.items) {
+          if (item.productId) {
+            newByProduct.set(
+              item.productId,
+              (newByProduct.get(item.productId) || 0) + item.qty,
+            );
+          }
+        }
+
+        for (const [productId, oldQty] of oldByProduct) {
+          const newQty = newByProduct.get(productId) || 0;
+          const delta = newQty - oldQty;
+          if (Math.abs(delta) < 0.001) continue;
+          const stock = await tx.stockLedger.findFirst({
+            where: { productId },
+            orderBy: { updatedAt: 'desc' },
+          });
+          if (delta < 0) {
+            if (!stock || Number(stock.quantity) < Math.abs(delta)) {
+              throw new BadRequestException(
+                'Insufficient stock to reduce this returned quantity.',
+              );
+            }
+            await tx.stockLedger.update({
+              where: { id: stock.id },
+              data: { quantity: { decrement: new Prisma.Decimal(Math.abs(delta).toFixed(2)) } },
+            });
+          } else if (stock) {
+            await tx.stockLedger.update({
+              where: { id: stock.id },
+              data: { quantity: { increment: new Prisma.Decimal(delta.toFixed(2)) } },
+            });
+          }
+        }
+        for (const [productId, newQty] of newByProduct) {
+          if (oldByProduct.has(productId)) continue;
+          const stock = await tx.stockLedger.findFirst({
+            where: { productId },
+            orderBy: { updatedAt: 'desc' },
+          });
+          if (stock) {
+            await tx.stockLedger.update({
+              where: { id: stock.id },
+              data: { quantity: { increment: new Prisma.Decimal(newQty.toFixed(2)) } },
+            });
+          } else {
+            await tx.stockLedger.create({
+              data: {
+                productId,
+                warehouseId: null,
+                batchNo: null,
+                quantity: new Prisma.Decimal(newQty.toFixed(2)),
+              },
+            });
+          }
+        }
+
+        const taxRate = Math.max(0, data.taxRate ?? 0);
+        const subtotal = data.items.reduce(
+          (sum, item) => sum + item.qty * item.unitPrice,
+          0,
+        );
+        const tax = Math.round((subtotal * taxRate) / 100 * 100) / 100;
+        const total = Math.round((subtotal + tax) * 100) / 100;
+
+        await tx.refundInvoiceItem.deleteMany({ where: { refundInvoiceId: refundId } });
+        await tx.refundInvoiceItem.createMany({
+          data: data.items.map((item) => ({
+            refundInvoiceId: refundId,
+            productId: item.productId || null,
+            customItemName: item.customItemName || null,
+            warehouseId: item.warehouseId || null,
+            batchNo: item.batchNo || null,
+            qty: new Prisma.Decimal(item.qty.toFixed(2)),
+            unitPrice: new Prisma.Decimal(item.unitPrice.toFixed(2)),
+            taxRate: new Prisma.Decimal(taxRate.toFixed(2)),
+            total: new Prisma.Decimal((item.qty * item.unitPrice + (item.qty * item.unitPrice * taxRate) / 100).toFixed(2)),
+          })),
+        });
+
+        await tx.refundInvoice.update({
+          where: { id: refundId },
+          data: {
+            subtotal: new Prisma.Decimal(subtotal.toFixed(2)),
+            tax: new Prisma.Decimal(tax.toFixed(2)),
+            total: new Prisma.Decimal(total.toFixed(2)),
+            refundMode: data.refundMode,
+            reason: data.reason || refund.reason,
+            taxBreakup: { rate: taxRate, totalTax: tax, cgst: tax / 2, sgst: tax / 2, igst: 0 },
+          },
+        });
+        for (const payment of refund.payments) {
+          await tx.payment.update({
+            where: { id: payment.id },
+            data: { amount: new Prisma.Decimal(total.toFixed(2)), mode: data.refundMode },
+          });
+        }
+        for (const ledger of refund.creditLedgers) {
+          await tx.creditLedger.update({
+            where: { id: ledger.id },
+            data: { amountDue: new Prisma.Decimal(total.toFixed(2)) },
+          });
+        }
+
+        const refunds = await tx.refundInvoice.findMany({
+          where: { originalInvoiceId: refund.originalInvoiceId },
+        });
+        const refundedTotal = refunds.reduce((sum, item) => sum + Number(item.total), 0);
+        await tx.invoice.update({
+          where: { id: refund.originalInvoiceId },
+          data: {
+            status:
+              refundedTotal >= Number(refund.originalInvoice.total) - 0.01
+                ? InvoiceStatus.CANCELLED
+                : InvoiceStatus.PARTIAL,
+          },
+        });
+        await tx.auditLog.create({
+          data: {
+            actorId: userId,
+            action: 'EDIT_RETURN',
+            entity: 'RefundInvoice',
+            entityId: refundId,
+            diff: { oldTotal: Number(refund.total), newTotal: total },
+          },
+        });
+        return tx.refundInvoice.findUnique({
+          where: { id: refundId },
+          include: { items: { include: { product: true } } },
+        });
+      });
+  }
+
   async generateRefundPdf(refundId: string): Promise<GeneratedPdfResult> {
     const refund = await this.prisma.refundInvoice.findUnique({
       where: { id: refundId },

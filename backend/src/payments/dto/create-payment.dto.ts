@@ -79,3 +79,26 @@ export class CreateCreditDto {
   @IsOptional()
   notes?: string;
 }
+
+export class UpdatePaymentDto {
+  @IsEnum(PaymentMode)
+  @IsOptional()
+  mode?: PaymentMode;
+
+  @IsNumber()
+  @Min(0.01)
+  @IsOptional()
+  amount?: number;
+
+  @IsString()
+  @IsOptional()
+  upiTxnRef?: string;
+
+  @IsString()
+  @IsOptional()
+  upiUtr?: string;
+
+  @IsString()
+  @IsOptional()
+  notes?: string;
+}

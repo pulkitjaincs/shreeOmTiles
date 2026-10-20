@@ -34,12 +34,14 @@ interface CreateExpenseModalProps {
   visible: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  expenseToEdit?: any | null;
 }
 
 export function CreateExpenseModal({
   visible,
   onClose,
   onSuccess,
+  expenseToEdit = null,
 }: CreateExpenseModalProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -54,6 +56,25 @@ export function CreateExpenseModal({
   const [paidTo, setPaidTo] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  React.useEffect(() => {
+    if (!visible) return;
+    if (expenseToEdit) {
+      setTitle(expenseToEdit.title || expenseToEdit.notes || '');
+      setAmount(String(expenseToEdit.amount || ''));
+      setCategory(expenseToEdit.category || 'MISC');
+      setPaymentMode(expenseToEdit.paymentMode || 'CASH');
+      setPaidTo(expenseToEdit.paidTo || '');
+      setNotes('');
+    } else {
+      setTitle('');
+      setAmount('');
+      setCategory('MISC');
+      setPaymentMode('CASH');
+      setPaidTo('');
+      setNotes('');
+    }
+  }, [visible, expenseToEdit]);
 
   const handleSubmit = async () => {
     const numAmt = parseFloat(amount);
@@ -116,11 +137,11 @@ export function CreateExpenseModal({
         }));
       }
 
-      await mobileApiRequest('/expenses', {
-        method: 'POST',
+      await mobileApiRequest(expenseToEdit ? `/expenses/${expenseToEdit.id}` : '/expenses', {
+        method: expenseToEdit ? 'PATCH' : 'POST',
         body: JSON.stringify(payload),
       });
-      Alert.alert('Success', 'Expense recorded successfully');
+      Alert.alert('Success', expenseToEdit ? 'Expense updated successfully' : 'Expense recorded successfully');
       setTitle('');
       setAmount('');
       setPaidTo('');

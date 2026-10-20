@@ -1,4 +1,4 @@
-import { cleanPhoneNumber, formatINR } from './formatters';
+import { cleanPhoneNumber, formatINR, getInvoicePaidAmount } from './formatters';
 
 export interface DispatchItemInfo {
   productName: string;
@@ -107,7 +107,7 @@ export function buildInvoiceShareUrl(
   balanceDue: number,
 ): string {
   const msg =
-    `🧾 *TAX INVOICE #${invoiceNo}*\n\n` +
+    `🧾 *INVOICE #${invoiceNo}*\n\n` +
     `Dear *${customerName || 'Customer'}*,\n` +
     `Thank you for your purchase with *Shree Om Tiles*!\n\n` +
     `• *Invoice No:* ${invoiceNo}\n` +
@@ -151,14 +151,23 @@ export function buildFullInvoiceShareUrl(invoice: any): string {
     .join('\n');
 
   const totalVal = Number(invoice.total || 0).toFixed(2);
-  const paidVal = Number(invoice.paidAmount ?? invoice.paid ?? 0).toFixed(2);
+  const paidVal = getInvoicePaidAmount(invoice).toFixed(2);
   const dueVal = Math.max(0, Number(invoice.total || 0) - Number(paidVal)).toFixed(2);
   const subtotalVal = Number(invoice.subtotal || 0).toFixed(2);
-  const taxRateVal = invoice.taxRate !== undefined ? `${invoice.taxRate}%` : invoice.taxBreakup?.rate ? `${invoice.taxBreakup.rate}%` : 'GST';
+  const transportCostVal = Number(invoice.transportCost || 0).toFixed(2);
+  const transportTaxVal = Number(invoice.transportTax || 0).toFixed(2);
+  const itemTaxVal = Math.max(
+    0,
+    Number(invoice.tax ?? invoice.taxAmount ?? 0) - Number(transportTaxVal),
+  ).toFixed(2);
+  const totalTax = Number(invoice.tax ?? invoice.taxAmount ?? 0);
+  const taxRateNumber = Number(invoice.taxRate ?? invoice.taxBreakup?.rate ?? 0);
+  const hasTax = totalTax > 0.005;
+  const taxRateVal = `${taxRateNumber}%`;
 
   const msg = [
     `*SHREE OM TILES*`,
-    `📍 Tax Invoice & Order Confirmation`,
+    `📍Order Confirmation`,
     `----------------------------------------`,
     `📄 *Invoice No:* #${invoice.invoiceNo}`,
     `📅 *Date:* ${invDate}`,
@@ -170,7 +179,9 @@ export function buildFullInvoiceShareUrl(invoice: any): string {
     itemsList || `  • Standard Order (${formatINR(invoice.total)})`,
     `----------------------------------------`,
     Number(subtotalVal) > 0 ? `Subtotal: ₹${subtotalVal}` : '',
-    `Tax (${taxRateVal}): ₹${Number(invoice.tax ?? invoice.taxAmount ?? 0).toFixed(2)}`,
+    Number(transportCostVal) > 0 ? `Transport / Cartage: ₹${transportCostVal}` : '',
+    hasTax && Number(itemTaxVal) > 0 ? `GST on Taxable Bill (${taxRateVal}): ₹${itemTaxVal}` : '',
+    hasTax && Number(transportTaxVal) > 0 ? `Transport GST: ₹${transportTaxVal}` : '',
     `*Grand Total: ₹${totalVal}*`,
     `Paid: ₹${paidVal}`,
     Number(dueVal) > 0 ? `*Balance Due: ₹${dueVal}*` : `*Status: Fully Paid (✓)*`,
@@ -274,4 +285,3 @@ export function buildFullDeliveryManifestShareUrl(delivery: any): string {
     ? `https://wa.me/91${cleanPhone}?text=${encodeURIComponent(msg)}`
     : `https://wa.me/?text=${encodeURIComponent(msg)}`;
 }
-

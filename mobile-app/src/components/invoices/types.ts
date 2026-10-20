@@ -107,6 +107,7 @@ export interface RefundInvoiceDetail {
   originalInvoiceId?: string;
   total: number | string;
   subtotal?: number | string;
+  discountAmount?: number | string;
   tax?: number | string;
   refundMode: string;
   reason?: string;
@@ -126,6 +127,18 @@ export interface InvoiceTaxBreakup {
   cgst?: number;
   sgst?: number;
   igst?: number;
+}
+
+export interface InvoicePayment {
+  id?: string;
+  amount: number | string;
+  mode?: string;
+  status?: string;
+  type?: string;
+  paidAt?: string;
+  createdAt?: string;
+  upiUtr?: string;
+  notes?: string;
 }
 
 export interface Invoice {
@@ -148,9 +161,14 @@ export interface Invoice {
   address?: string;
   previousBalance?: number | string;
   isCashSale?: boolean;
+  roundOffEnabled?: boolean;
+  roundOffAmount?: number | string;
+  transportCost?: number | string;
+  transportGstRate?: number | string;
+  transportTax?: number | string;
   items?: InvoiceItemDetail[];
   refundInvoices?: RefundInvoiceDetail[];
-  payments?: any[];
+  payments?: InvoicePayment[];
   [key: string]: any;
 }
 

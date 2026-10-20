@@ -256,7 +256,7 @@ export default function TransactionsPage() {
       const [paymentsData, statsData, pendingData, creditsData, partiesData, invoicesData] = await Promise.all([
         cachedApiRequest<PaymentRecord[]>('/payments', {
           forceRefresh: force,
-          onRevalidate: (fresh) => setPayments(fresh),
+          onRevalidate: user?.role === 'SALESMAN' ? undefined : (fresh) => setPayments(fresh),
         }).catch(() => []),
         cachedApiRequest<FinancialStats>('/payments/stats', {
           forceRefresh: force,
@@ -274,7 +274,8 @@ export default function TransactionsPage() {
         })),
         cachedApiRequest<{ invoices: PendingItem[]; ledgers: PendingCreditLedger[] }>('/payments/pending', {
           forceRefresh: force,
-          onRevalidate: (fresh) => setPendingItems(formatPendingList(fresh)),
+          onRevalidate:
+            user?.role === 'SALESMAN' ? undefined : (fresh) => setPendingItems(formatPendingList(fresh)),
         }).catch(() => ({
           invoices: [],
           ledgers: [],

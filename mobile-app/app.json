@@ -2,7 +2,7 @@
   "expo": {
     "name": "Shree Om Tiles ERP",
     "slug": "shree-om-tiles-erp",
-    "version": "1.0.1",
+    "version": "1.5.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "shreeomtiles",
@@ -77,7 +77,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "7a84db34-9091-4aeb-b253-fd5636418ecb"
+        "projectId": "d6160d8b-3c20-45b3-88af-26382f339f5d"
       }
     },
     "runtimeVersion": {
@@ -87,6 +87,7 @@
       "url": "https://u.expo.dev/7a84db34-9091-4aeb-b253-fd5636418ecb",
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 5000
-    }
+    },
+    "owner": "shreeomtiles"
   }
 }

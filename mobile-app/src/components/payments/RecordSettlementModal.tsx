@@ -17,7 +17,7 @@ import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { mobileApiRequest, cachedMobileApiRequest } from '@/lib/api';
 import { formatINR } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
-import { Party, UpiAccount, UpiPreviewData } from './types';
+import { Party, UpiAccount, UpiPreviewData, PaymentRecord } from './types';
 import { PaymentSplitItem } from '@/components/invoices/types';
 import { MultiPaymentSplitSelector } from '@/components/ui/MultiPaymentSplitSelector';
 import { SettlementSuccessData } from './SettlementSuccessModal';
@@ -34,6 +34,7 @@ interface RecordSettlementModalProps {
   initialInvoiceId?: string;
   initialInvoiceNo?: string;
   initialNotes?: string;
+  editingPayment?: PaymentRecord | null;
 }
 
 export function RecordSettlementModal({
@@ -48,6 +49,7 @@ export function RecordSettlementModal({
   initialInvoiceId,
   initialInvoiceNo = '',
   initialNotes = '',
+  editingPayment = null,
 }: RecordSettlementModalProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
@@ -132,6 +134,16 @@ export function RecordSettlementModal({
       setNotes(initialNotes || '');
       setInvoiceId(initialInvoiceId || '');
       setInvoiceNo(initialInvoiceNo || '');
+      if (editingPayment) {
+        setDirection('COLLECT');
+        setSelectedPartyId(editingPayment.partyId || editingPayment.party?.id || '');
+        setAmount(String(editingPayment.amount));
+        setSplits([{ mode: editingPayment.mode as any, amount: String(editingPayment.amount) }]);
+        setUtr(editingPayment.upiUtr || editingPayment.upiTxnRef || '');
+        setNotes(editingPayment.notes || '');
+        setInvoiceId(editingPayment.invoiceId || '');
+        setInvoiceNo(editingPayment.invoice?.invoiceNo || '');
+      }
       setUpiPreview(null);
       setUpiLoading(false);
       setIsCreatingPartyOnSpot(false);
@@ -165,7 +177,7 @@ export function RecordSettlementModal({
       setUpiPreview(null);
       setUpiLoading(false);
     }
-  }, [visible, initialDirection, initialPartyId, initialAmount, initialNotes, initialInvoiceId, initialInvoiceNo, parties, generateUpiQr]);
+  }, [visible, initialDirection, initialPartyId, initialAmount, initialNotes, initialInvoiceId, initialInvoiceNo, parties, generateUpiQr, editingPayment]);
 
   const handleAmountChange = (val: string) => {
     setAmount(val);
@@ -241,9 +253,17 @@ export function RecordSettlementModal({
 
       const primaryUtr = validSplits.find((s) => s.mode === 'UPI' && s.upiUtr)?.upiUtr || utr.trim() || undefined;
 
-      await mobileApiRequest('/payments', {
-        method: 'POST',
+      await mobileApiRequest(editingPayment ? `/payments/${editingPayment.id}` : '/payments', {
+        method: editingPayment ? 'PATCH' : 'POST',
         body: JSON.stringify({
+          ...(editingPayment
+            ? {
+                mode: validSplits[0]?.mode,
+                amount: totalSplitAmount,
+                upiUtr: primaryUtr,
+                notes: notes.trim() || defaultNote,
+              }
+            : {
           partyId: selectedPartyId,
           invoiceId: invoiceId || undefined,
           type: direction === 'COLLECT' ? 'INFLOW' : 'OUTFLOW',
@@ -259,6 +279,7 @@ export function RecordSettlementModal({
             upiUtr: s.upiUtr?.trim() || (s.mode === 'UPI' ? utr.trim() || undefined : undefined),
             notes: s.notes?.trim() || undefined,
           })),
+            }),
         }),
       });
 

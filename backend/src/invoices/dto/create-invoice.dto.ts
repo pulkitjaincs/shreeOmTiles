@@ -113,6 +113,18 @@ export class CreateInvoiceDto {
   @Min(0)
   transportGstRate?: number;
 
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  discountAmount?: number;
+
+  @IsOptional()
+  roundOffEnabled?: boolean;
+
+  @IsNumber()
+  @IsOptional()
+  roundOffAmount?: number;
+
   @IsString()
   @IsOptional()
   quotationId?: string;

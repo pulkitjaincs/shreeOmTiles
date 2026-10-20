@@ -216,6 +216,7 @@ model Invoice {
   status           InvoiceStatus  @default(CREATED)
   taxBreakup       Json           @default("{}") // { cgst: 0, sgst: 0, igst: 0, rate: 18 }
   subtotal         Decimal        @default(0) @db.Decimal(12, 2)
+  discountAmount   Decimal        @default(0) @db.Decimal(12, 2)
   tax              Decimal        @default(0) @db.Decimal(12, 2)
   taxRate          Decimal        @default(0) @db.Decimal(5, 2)
   transportCost    Decimal        @default(0) @db.Decimal(12, 2)
@@ -223,6 +224,8 @@ model Invoice {
   transportTax     Decimal        @default(0) @db.Decimal(12, 2)
   itemsTax         Decimal        @default(0) @db.Decimal(12, 2)
   total            Decimal        @default(0) @db.Decimal(12, 2)
+  roundOffEnabled  Boolean        @default(false)
+  roundOffAmount   Decimal        @default(0) @db.Decimal(12, 2)
   paymentMode      PaymentMode?
   notes            String?
   address          String?        @db.Text
@@ -613,4 +616,3 @@ model DebitNote {
   @@index([purchaseId])
   @@index([partyId])
 }
-

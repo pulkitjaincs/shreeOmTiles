@@ -48,3 +48,5 @@ export class CreateExpenseDto {
   @IsOptional()
   expenseDate?: string; // ISO date string
 }
+
+export class UpdateExpenseDto extends CreateExpenseDto {}

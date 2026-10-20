@@ -72,6 +72,20 @@ export class InvoicesController {
     );
   }
 
+  @Patch('refund/:refundId')
+  @Roles(Role.OWNER, Role.ADMIN, Role.ACCOUNTANT)
+  updateRefund(
+    @Param('refundId') refundId: string,
+    @Body() returnData: ProcessReturnDto,
+    @Request() req: RequestWithUser,
+  ) {
+    return this.invoicesService.updateReturn(
+      refundId,
+      returnData,
+      req.user.id,
+    );
+  }
+
   @Get()
   findAll(
     @Request() req: RequestWithUser,

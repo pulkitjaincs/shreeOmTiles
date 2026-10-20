@@ -4,7 +4,11 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreatePaymentDto, CreateCreditDto } from './dto/create-payment.dto';
+import {
+  CreatePaymentDto,
+  CreateCreditDto,
+  UpdatePaymentDto,
+} from './dto/create-payment.dto';
 import {
   InvoiceStatus,
   PaymentStatus,
@@ -32,6 +36,110 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
   ) {}
+
+  async updateReceivedPayment(
+    id: string,
+    data: UpdatePaymentDto,
+    actorId: string,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const payment = await tx.payment.findUnique({
+        where: { id },
+        include: { invoice: true },
+      });
+      if (!payment) throw new NotFoundException(`Payment ${id} not found`);
+      if (payment.type === PaymentType.OUTFLOW) {
+        throw new BadRequestException('Only received payments can be edited');
+      }
+
+      const updated = await tx.payment.update({
+        where: { id },
+        data: {
+          mode: data.mode ?? payment.mode,
+          amount:
+            data.amount !== undefined
+              ? new Prisma.Decimal(Number(data.amount).toFixed(2))
+              : undefined,
+          upiTxnRef: data.upiTxnRef,
+          upiUtr: data.upiUtr,
+          notes: data.notes,
+        },
+        include: {
+          invoice: { include: { party: true } },
+          party: true,
+          confirmedBy: { select: { id: true, name: true } },
+        },
+      });
+
+      if (payment.invoiceId && payment.invoice) {
+        const confirmed = await tx.payment.findMany({
+          where: {
+            invoiceId: payment.invoiceId,
+            status: PaymentStatus.CONFIRMED,
+          },
+        });
+        const totalPaid = Math.max(
+          0,
+          confirmed.reduce(
+            (sum, item) =>
+              item.type === PaymentType.OUTFLOW
+                ? sum - Number(item.amount)
+                : sum + Number(item.amount),
+            0,
+          ),
+        );
+        const total = Number(payment.invoice.total);
+        await tx.invoice.update({
+          where: { id: payment.invoiceId },
+          data: {
+            status:
+              totalPaid >= total
+                ? InvoiceStatus.PAID
+                : totalPaid > 0
+                ? InvoiceStatus.PARTIAL
+                : InvoiceStatus.CREATED,
+          },
+        });
+        const ledger = await tx.creditLedger.findFirst({
+          where: { invoiceId: payment.invoiceId, type: CreditType.RECEIVABLE },
+        });
+        if (ledger) {
+          const due = Math.max(0, total - totalPaid);
+          await tx.creditLedger.update({
+            where: { id: ledger.id },
+            data: {
+              amountDue: new Prisma.Decimal(due.toFixed(2)),
+              status: due === 0 ? 'SETTLED' : totalPaid > 0 ? 'PARTIAL' : 'UNPAID',
+            },
+          });
+        }
+        await tx.delivery.updateMany({
+          where: { invoiceId: payment.invoiceId, status: { not: DeliveryStatus.DELIVERED } },
+          data: { amountToCollect: new Prisma.Decimal(Math.max(0, total - totalPaid).toFixed(2)) },
+        });
+      } else if (payment.partyId) {
+        throw new BadRequestException(
+          'Standalone received payments cannot be edited yet',
+        );
+      }
+
+      await tx.auditLog.create({
+        data: {
+          actorId,
+          action: 'EDIT_PAYMENT',
+          entity: 'Payment',
+          entityId: id,
+          diff: {
+            oldAmount: Number(payment.amount),
+            newAmount: Number(updated.amount),
+            oldMode: payment.mode,
+            newMode: updated.mode,
+          },
+        },
+      });
+      return updated;
+    });
+  }
 
   async create(data: CreatePaymentDto, userId?: string) {
     let partyId = data.partyId;
