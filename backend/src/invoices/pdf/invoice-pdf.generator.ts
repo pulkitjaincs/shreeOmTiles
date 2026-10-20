@@ -75,7 +75,7 @@ export async function generateInvoicePdf(
   const taxBreakup = (invoice.taxBreakup as unknown as TaxBreakupData) || {};
   const isInterState = Boolean(taxBreakup.isInterState);
 
-  const docTitle = 'Invoice';
+  const docTitle = 'BILL OF SUPPLY';
 
   const hasReturns = totalReturns > 0;
   const netPayable = Math.max(0, totalAmount - totalReturns);
