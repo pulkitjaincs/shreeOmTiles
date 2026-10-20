@@ -215,10 +215,11 @@ export class QuotationsService {
         where: { productId: item.productId },
         _sum: { quantity: true },
       });
-      const available = stockSum._sum.quantity || 0;
-      if (available < item.qty) {
+      const available = Number(stockSum._sum.quantity || 0);
+      const required = Number(item.qty);
+      if (available < required) {
         throw new BadRequestException(
-          `Insufficient stock for "${item.product?.name || item.productId}". Required: ${item.qty}, Available: ${available}`,
+          `Insufficient stock for "${item.product?.name || item.productId}". Required: ${required}, Available: ${available}`,
         );
       }
     }

@@ -36,7 +36,9 @@ export class StockService {
     return this.cacheService.wrap(cacheKey, 1800, async () => {
       const isSupervisor = user?.role === Role.SUPERVISOR;
 
-      const sanitizeProduct = <T extends Record<string, unknown>>(prod: T): T => {
+      const sanitizeProduct = <T extends Record<string, unknown>>(
+        prod: T,
+      ): T => {
         if (!prod) return prod;
         let cleanAttrs = prod.attributes;
         if (cleanAttrs && typeof cleanAttrs === 'object') {
@@ -124,11 +126,7 @@ export class StockService {
     });
   }
 
-  async adjustStock(
-    dto: AdjustStockDto,
-    actorId?: string,
-    _user?: { id: string; role: Role; scope?: string | null },
-  ): Promise<any> {
+  async adjustStock(dto: AdjustStockDto, actorId?: string): Promise<any> {
     const product = await this.prisma.product.findUnique({
       where: { id: dto.productId },
     });
@@ -239,7 +237,6 @@ export class StockService {
   async zeroOutStock(
     query: { productId?: string; warehouseId?: string },
     actorId?: string,
-    _user?: { id: string; role: Role; scope?: string | null },
   ) {
     if (!query.productId && !query.warehouseId) {
       throw new BadRequestException(

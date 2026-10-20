@@ -57,6 +57,7 @@ export function QuotationsView() {
     );
   };
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const loadQuotations = useCallback(async (force = false) => {
     setLoading(true);
     try {

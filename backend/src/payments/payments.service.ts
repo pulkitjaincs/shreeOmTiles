@@ -460,7 +460,9 @@ export class PaymentsService {
     const cacheKey = `payments:list:${user?.role || 'ALL'}:${user?.id || 'ALL'}:${pagination?.page || 1}:${pagination?.limit || 'all'}`;
     return this.cacheService.wrap(cacheKey, 1800, async () => {
       const where: Prisma.PaymentWhereInput =
-        user?.role === Role.SALESMAN ? { invoice: { salesmanId: user.id } } : {};
+        user?.role === Role.SALESMAN
+          ? { invoice: { salesmanId: user.id } }
+          : {};
 
       const includeRelations = {
         invoice: {
@@ -779,7 +781,9 @@ export class PaymentsService {
     const cacheKey = `payments:credits:${user?.role || 'ALL'}:${user?.id || 'ALL'}`;
     return this.cacheService.wrap(cacheKey, 1800, async () => {
       const where: Prisma.CreditLedgerWhereInput =
-        user?.role === Role.SALESMAN ? { invoice: { salesmanId: user.id } } : {};
+        user?.role === Role.SALESMAN
+          ? { invoice: { salesmanId: user.id } }
+          : {};
 
       return this.prisma.creditLedger.findMany({
         where,
@@ -893,7 +897,8 @@ export class PaymentsService {
 
       const totalCollected = Math.max(
         0,
-        Number(inflowAgg._sum.amount || 0) - Number(outflowAgg._sum.amount || 0),
+        Number(inflowAgg._sum.amount || 0) -
+          Number(outflowAgg._sum.amount || 0),
       );
 
       return {

@@ -582,111 +582,111 @@ export class InvoicesService {
         where.salesmanId = pagination.createdById;
       }
 
-    const includeRelations = {
-      party: {
-        select: {
-          id: true,
-          name: true,
-          phone: true,
-          address: true,
-          gstin: true,
-        },
-      },
-      salesman: {
-        select: {
-          id: true,
-          name: true,
-          phone: true,
-          role: true,
-        },
-      },
-      items: {
-        select: {
-          id: true,
-          productId: true,
-          warehouseId: true,
-          batchNo: true,
-          qty: true,
-          unitPrice: true,
-          discount: true,
-          total: true,
-          product: {
-            select: {
-              id: true,
-              name: true,
-              unit: true,
-            },
-          },
-          warehouse: {
-            select: {
-              id: true,
-              name: true,
-            },
+      const includeRelations = {
+        party: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            address: true,
+            gstin: true,
           },
         },
-      },
-      refundInvoices: {
-        select: {
-          id: true,
-          refundNo: true,
-          total: true,
-          refundMode: true,
-          createdAt: true,
+        salesman: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            role: true,
+          },
         },
-        orderBy: { createdAt: 'desc' as const },
-      },
-      payments: {
-        select: {
-          id: true,
-          mode: true,
-          amount: true,
-          status: true,
-          paidAt: true,
-          upiUtr: true,
+        items: {
+          select: {
+            id: true,
+            productId: true,
+            warehouseId: true,
+            batchNo: true,
+            qty: true,
+            unitPrice: true,
+            discount: true,
+            total: true,
+            product: {
+              select: {
+                id: true,
+                name: true,
+                unit: true,
+              },
+            },
+            warehouse: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
         },
-      },
-    };
-
-    if (pagination?.page !== undefined || pagination?.limit !== undefined) {
-      const page = Math.max(1, pagination?.page || 1);
-      const limit = Math.min(Math.max(1, pagination?.limit || 25), 100);
-      const skip = (page - 1) * limit;
-
-      const [data, total] = await Promise.all([
-        this.prisma.invoice.findMany({
-          where,
-          include: includeRelations,
-          orderBy: { createdAt: 'desc' },
-          skip,
-          take: limit,
-        }),
-        this.prisma.invoice.count({ where }),
-      ]);
-
-      const sanitizedData =
-        user.role === Role.SUPERVISOR
-          ? data.map((inv) => this.sanitizeInvoiceForSupervisor(inv))
-          : data;
-
-      return {
-        data: sanitizedData,
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
+        refundInvoices: {
+          select: {
+            id: true,
+            refundNo: true,
+            total: true,
+            refundMode: true,
+            createdAt: true,
+          },
+          orderBy: { createdAt: 'desc' as const },
+        },
+        payments: {
+          select: {
+            id: true,
+            mode: true,
+            amount: true,
+            status: true,
+            paidAt: true,
+            upiUtr: true,
+          },
+        },
       };
-    }
 
-    const invoices = await this.prisma.invoice.findMany({
-      where,
-      include: includeRelations,
-      orderBy: { createdAt: 'desc' },
-      take: 100,
-    });
+      if (pagination?.page !== undefined || pagination?.limit !== undefined) {
+        const page = Math.max(1, pagination?.page || 1);
+        const limit = Math.min(Math.max(1, pagination?.limit || 25), 100);
+        const skip = (page - 1) * limit;
 
-    return user.role === Role.SUPERVISOR
-      ? invoices.map((inv) => this.sanitizeInvoiceForSupervisor(inv))
-      : invoices;
+        const [data, total] = await Promise.all([
+          this.prisma.invoice.findMany({
+            where,
+            include: includeRelations,
+            orderBy: { createdAt: 'desc' },
+            skip,
+            take: limit,
+          }),
+          this.prisma.invoice.count({ where }),
+        ]);
+
+        const sanitizedData =
+          user.role === Role.SUPERVISOR
+            ? data.map((inv) => this.sanitizeInvoiceForSupervisor(inv))
+            : data;
+
+        return {
+          data: sanitizedData,
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        };
+      }
+
+      const invoices = await this.prisma.invoice.findMany({
+        where,
+        include: includeRelations,
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      });
+
+      return user.role === Role.SUPERVISOR
+        ? invoices.map((inv) => this.sanitizeInvoiceForSupervisor(inv))
+        : invoices;
     });
   }
 
@@ -2126,13 +2126,6 @@ export class InvoicesService {
       const existingConfirmedPayments = (existing.payments || []).filter(
         (p) => p.status === PaymentStatus.CONFIRMED,
       );
-      const confirmedHistoricalPaid = existingConfirmedPayments.reduce(
-        (sum, p) =>
-          p.type === PaymentType.OUTFLOW
-            ? sum - Number(p.amount)
-            : sum + Number(p.amount),
-        0,
-      );
 
       let submittedSplits: Array<{
         mode: PaymentMode;
@@ -2165,11 +2158,6 @@ export class InvoicesService {
           },
         ];
       }
-
-      const submittedTotal = submittedSplits.reduce(
-        (sum, p) => sum + Number(p.amount),
-        0,
-      );
 
       // When payment splits are provided on edit, synchronize invoice payments to match submitted splits
       if (data.payments !== undefined || data.amountPaidNow !== undefined) {

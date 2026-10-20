@@ -61,7 +61,7 @@ export class StockController {
   @Post('adjust')
   @Roles(Role.OWNER, Role.ADMIN, Role.SUPERVISOR)
   adjustStock(@Request() req: RequestWithUser, @Body() dto: AdjustStockDto) {
-    return this.stockService.adjustStock(dto, req.user.id, req.user);
+    return this.stockService.adjustStock(dto, req.user.id);
   }
 
   @Post('transfer')
@@ -76,6 +76,6 @@ export class StockController {
   @Post('zero-out')
   @Roles(Role.OWNER, Role.ADMIN, Role.SUPERVISOR)
   zeroOutStock(@Request() req: RequestWithUser, @Body() dto: ZeroOutStockDto) {
-    return this.stockService.zeroOutStock(dto, req.user.id, req.user);
+    return this.stockService.zeroOutStock(dto, req.user.id);
   }
 }

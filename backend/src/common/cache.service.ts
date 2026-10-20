@@ -32,8 +32,8 @@ export class CacheService {
   set<T>(key: string, value: T, ttlSeconds: number): void {
     // Evict oldest entries if map grows beyond safety threshold
     if (this.store.size >= this.MAX_ENTRIES) {
-      const oldestKey = this.store.keys().next().value;
-      if (oldestKey) {
+      const oldestKey = this.store.keys().next().value as string | undefined;
+      if (typeof oldestKey === 'string') {
         this.store.delete(oldestKey);
       }
     }

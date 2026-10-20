@@ -63,89 +63,89 @@ export class PartiesService {
     return this.cacheService.wrap(cacheKey, 7200, async () => {
       const andConditions: Prisma.PartyWhereInput[] = [];
 
-    if (!includeUnsaved) {
-      // Show permanent saved directory parties OR any walk-in / unregistered debtor who owes unsettled dues
-      andConditions.push({
-        OR: [
-          { isSaved: true },
-          {
-            creditLedgers: {
-              some: {
-                status: { not: CreditStatus.SETTLED },
+      if (!includeUnsaved) {
+        // Show permanent saved directory parties OR any walk-in / unregistered debtor who owes unsettled dues
+        andConditions.push({
+          OR: [
+            { isSaved: true },
+            {
+              creditLedgers: {
+                some: {
+                  status: { not: CreditStatus.SETTLED },
+                },
               },
             },
+          ],
+        });
+      }
+
+      if (search && search.trim()) {
+        const q = search.trim();
+        andConditions.push({
+          OR: [
+            { name: { contains: q, mode: 'insensitive' } },
+            { phone: { contains: q, mode: 'insensitive' } },
+            { gstin: { contains: q, mode: 'insensitive' } },
+          ],
+        });
+      }
+
+      const where: Prisma.PartyWhereInput =
+        andConditions.length > 0 ? { AND: andConditions } : {};
+
+      // Performance optimization: Only fetch un-settled credit ledgers and selective fields
+      // Full chronological ledger history is retrieved on-demand via findOne(:id)
+      const includeRelations = {
+        creditLedgers: {
+          where: {
+            status: { not: CreditStatus.SETTLED },
           },
-        ],
-      });
-    }
-
-    if (search && search.trim()) {
-      const q = search.trim();
-      andConditions.push({
-        OR: [
-          { name: { contains: q, mode: 'insensitive' } },
-          { phone: { contains: q, mode: 'insensitive' } },
-          { gstin: { contains: q, mode: 'insensitive' } },
-        ],
-      });
-    }
-
-    const where: Prisma.PartyWhereInput =
-      andConditions.length > 0 ? { AND: andConditions } : {};
-
-    // Performance optimization: Only fetch un-settled credit ledgers and selective fields
-    // Full chronological ledger history is retrieved on-demand via findOne(:id)
-    const includeRelations = {
-      creditLedgers: {
-        where: {
-          status: { not: CreditStatus.SETTLED },
+          select: {
+            id: true,
+            amountDue: true,
+            type: true,
+            status: true,
+            dueDate: true,
+            invoiceId: true,
+            purchaseId: true,
+          },
         },
-        select: {
-          id: true,
-          amountDue: true,
-          type: true,
-          status: true,
-          dueDate: true,
-          invoiceId: true,
-          purchaseId: true,
+        _count: {
+          select: { invoices: true },
         },
-      },
-      _count: {
-        select: { invoices: true },
-      },
-    };
-
-    if (pagination?.page !== undefined || pagination?.limit !== undefined) {
-      const page = Math.max(1, pagination?.page || 1);
-      const limit = Math.min(Math.max(1, pagination?.limit || 25), 500);
-      const skip = (page - 1) * limit;
-
-      const [data, total] = await Promise.all([
-        this.prisma.party.findMany({
-          where,
-          include: includeRelations,
-          orderBy: { name: 'asc' },
-          skip,
-          take: limit,
-        }),
-        this.prisma.party.count({ where }),
-      ]);
-
-      return {
-        data,
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
       };
-    }
 
-    // Return all matching parties with no artificial 200-party cut-off
-    return this.prisma.party.findMany({
-      where,
-      include: includeRelations,
-      orderBy: { name: 'asc' },
-    });
+      if (pagination?.page !== undefined || pagination?.limit !== undefined) {
+        const page = Math.max(1, pagination?.page || 1);
+        const limit = Math.min(Math.max(1, pagination?.limit || 25), 500);
+        const skip = (page - 1) * limit;
+
+        const [data, total] = await Promise.all([
+          this.prisma.party.findMany({
+            where,
+            include: includeRelations,
+            orderBy: { name: 'asc' },
+            skip,
+            take: limit,
+          }),
+          this.prisma.party.count({ where }),
+        ]);
+
+        return {
+          data,
+          total,
+          page,
+          limit,
+          totalPages: Math.ceil(total / limit),
+        };
+      }
+
+      // Return all matching parties with no artificial 200-party cut-off
+      return this.prisma.party.findMany({
+        where,
+        include: includeRelations,
+        orderBy: { name: 'asc' },
+      });
     });
   }
 

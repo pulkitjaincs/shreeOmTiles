@@ -110,18 +110,26 @@ export class ProductsService {
 
       const isSupervisor = user?.role === Role.SUPERVISOR;
 
-      const formatProduct = (p: any) => {
+      type ProductWithStock = Prisma.ProductGetPayload<{
+        include: {
+          stockLedgers: { select: { id: true; quantity: true; batchNo: true } };
+        };
+      }>;
+
+      const formatProduct = (p: ProductWithStock) => {
         const stockLedgers = p.stockLedgers || [];
         const totalStock = stockLedgers.reduce(
-          (sum: number, s: any) => sum + Number(s.quantity || 0),
+          (sum: number, s) => sum + Number(s.quantity || 0),
           0,
         );
-        const sanitized = isSupervisor ? this.sanitizeProductForSupervisor(p) : p;
+        const sanitized = isSupervisor
+          ? this.sanitizeProductForSupervisor(p)
+          : p;
         return {
           ...sanitized,
           availableQuantity: Number(totalStock.toFixed(2)),
           totalStock: Number(totalStock.toFixed(2)),
-          stockLedgers: stockLedgers.map((s: any) => ({
+          stockLedgers: stockLedgers.map((s) => ({
             id: s.id,
             quantity: Number(s.quantity || 0),
             batchNo: s.batchNo || null,

@@ -41,7 +41,13 @@ export class ExpensesService {
         const splits = data.splits.filter((s) => Number(s.amount) > 0);
         if (splits.length > 1) {
           const totalAmt = splits.reduce((sum, s) => sum + Number(s.amount), 0);
-          const createdList: any[] = [];
+          const createdList: Array<
+            Prisma.ExpenseGetPayload<{
+              include: {
+                createdBy: { select: { id: true; name: true; phone: true } };
+              };
+            }>
+          > = [];
           for (let i = 0; i < splits.length; i++) {
             const split = splits[i];
             const seq = await tx.expenseSequence.upsert({

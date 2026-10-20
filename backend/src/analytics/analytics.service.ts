@@ -51,7 +51,7 @@ interface RecentPaymentItem {
 
 interface ReceivableLedgerItem {
   partyId: string;
-  party: { id: string; name: string; phone: string };
+  party: { id: string; name: string; phone: string | null };
   amountDue: Prisma.Decimal | number;
   dueDate: Date | null;
   invoice?: { invoiceNo: string } | null;
@@ -332,15 +332,65 @@ export class AnalyticsService {
     return this.cacheService.wrap(cacheKey, 1800, async () => {
       const isSalesman = user?.role === Role.SALESMAN;
       const salesmanId = user?.id;
-      const salesmanScope = isSalesman && salesmanId ? { salesmanId } : undefined;
+      const salesmanScope =
+        isSalesman && salesmanId ? { salesmanId } : undefined;
 
       const now = new Date();
       let startDate: Date | undefined;
       let endDate: Date | undefined;
       const preset = query.preset || (query.from ? 'custom' : 'all');
 
-    if (preset === 'today') {
-      startDate = new Date(
+      if (preset === 'today') {
+        startDate = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+          0,
+          0,
+          0,
+          0,
+        );
+        endDate = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+          23,
+          59,
+          59,
+          999,
+        );
+      } else if (preset === '7d') {
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        endDate = now;
+      } else if (preset === '30d') {
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        endDate = now;
+      } else if (preset === 'month') {
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+        endDate = now;
+      } else if (query.from && query.to) {
+        startDate = new Date(query.from);
+        endDate = new Date(query.to);
+        endDate.setHours(23, 59, 59, 999);
+      }
+
+      const dateFilter =
+        startDate && endDate ? { gte: startDate, lte: endDate } : undefined;
+
+      // Previous period for delta calculation if date range is bounded
+      let prevStartDate: Date | undefined;
+      let prevEndDate: Date | undefined;
+      if (startDate && endDate) {
+        const spanMs = endDate.getTime() - startDate.getTime();
+        prevEndDate = new Date(startDate.getTime() - 1);
+        prevStartDate = new Date(prevEndDate.getTime() - spanMs);
+      }
+      const prevDateFilter =
+        prevStartDate && prevEndDate
+          ? { gte: prevStartDate, lte: prevEndDate }
+          : undefined;
+
+      const todayStart = new Date(
         now.getFullYear(),
         now.getMonth(),
         now.getDate(),
@@ -349,296 +399,260 @@ export class AnalyticsService {
         0,
         0,
       );
-      endDate = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate(),
-        23,
-        59,
-        59,
-        999,
-      );
-    } else if (preset === '7d') {
-      startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      endDate = now;
-    } else if (preset === '30d') {
-      startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      endDate = now;
-    } else if (preset === 'month') {
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-      endDate = now;
-    } else if (query.from && query.to) {
-      startDate = new Date(query.from);
-      endDate = new Date(query.to);
-      endDate.setHours(23, 59, 59, 999);
-    }
 
-    const dateFilter =
-      startDate && endDate ? { gte: startDate, lte: endDate } : undefined;
+      // Trend bounds: for 'all' or long spans, default to last 14 days
+      const trendDays =
+        preset === 'today'
+          ? 1
+          : preset === '7d'
+            ? 7
+            : preset === '30d'
+              ? 30
+              : 14;
+      const trendStart =
+        startDate || new Date(now.getTime() - trendDays * 24 * 60 * 60 * 1000);
+      const trendEnd = endDate || now;
 
-    // Previous period for delta calculation if date range is bounded
-    let prevStartDate: Date | undefined;
-    let prevEndDate: Date | undefined;
-    if (startDate && endDate) {
-      const spanMs = endDate.getTime() - startDate.getTime();
-      prevEndDate = new Date(startDate.getTime() - 1);
-      prevStartDate = new Date(prevEndDate.getTime() - spanMs);
-    }
-    const prevDateFilter =
-      prevStartDate && prevEndDate
-        ? { gte: prevStartDate, lte: prevEndDate }
-        : undefined;
+      // Dynamic SQL conditions for PostgreSQL query plan optimization (avoids $1 IS NULL index invalidation)
+      const salesmanSalesConditions: Prisma.Sql[] = [];
+      if (startDate) {
+        salesmanSalesConditions.push(Prisma.sql`"createdAt" >= ${startDate}`);
+      }
+      if (endDate) {
+        salesmanSalesConditions.push(Prisma.sql`"createdAt" <= ${endDate}`);
+      }
+      const salesmanSalesWhere =
+        salesmanSalesConditions.length > 0
+          ? Prisma.sql`WHERE ${Prisma.join(salesmanSalesConditions, ' AND ')}`
+          : Prisma.empty;
 
-    const todayStart = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-      0,
-      0,
-      0,
-      0,
-    );
+      const categorySplitConditions: Prisma.Sql[] = [];
+      if (startDate) {
+        categorySplitConditions.push(
+          Prisma.sql`inv."createdAt" >= ${startDate}`,
+        );
+      }
+      if (endDate) {
+        categorySplitConditions.push(Prisma.sql`inv."createdAt" <= ${endDate}`);
+      }
+      if (salesmanScope?.salesmanId) {
+        categorySplitConditions.push(
+          Prisma.sql`inv."salesmanId" = ${salesmanScope.salesmanId}`,
+        );
+      }
+      const categorySplitWhere =
+        categorySplitConditions.length > 0
+          ? Prisma.sql`WHERE ${Prisma.join(categorySplitConditions, ' AND ')}`
+          : Prisma.empty;
 
-    // Trend bounds: for 'all' or long spans, default to last 14 days
-    const trendDays =
-      preset === 'today' ? 1 : preset === '7d' ? 7 : preset === '30d' ? 30 : 14;
-    const trendStart =
-      startDate || new Date(now.getTime() - trendDays * 24 * 60 * 60 * 1000);
-    const trendEnd = endDate || now;
+      const trendInvoicesConditions: Prisma.Sql[] = [
+        Prisma.sql`"createdAt" >= ${trendStart}`,
+        Prisma.sql`"createdAt" <= ${trendEnd}`,
+        Prisma.sql`status NOT IN ('CANCELLED', 'DRAFT')`,
+      ];
+      if (salesmanScope?.salesmanId) {
+        trendInvoicesConditions.push(
+          Prisma.sql`"salesmanId" = ${salesmanScope.salesmanId}`,
+        );
+      }
+      const trendInvoicesWhere = Prisma.sql`WHERE ${Prisma.join(trendInvoicesConditions, ' AND ')}`;
 
-    // Dynamic SQL conditions for PostgreSQL query plan optimization (avoids $1 IS NULL index invalidation)
-    const salesmanSalesConditions: Prisma.Sql[] = [];
-    if (startDate) {
-      salesmanSalesConditions.push(Prisma.sql`"createdAt" >= ${startDate}`);
-    }
-    if (endDate) {
-      salesmanSalesConditions.push(Prisma.sql`"createdAt" <= ${endDate}`);
-    }
-    const salesmanSalesWhere =
-      salesmanSalesConditions.length > 0
-        ? Prisma.sql`WHERE ${Prisma.join(salesmanSalesConditions, ' AND ')}`
-        : Prisma.empty;
-
-    const categorySplitConditions: Prisma.Sql[] = [];
-    if (startDate) {
-      categorySplitConditions.push(Prisma.sql`inv."createdAt" >= ${startDate}`);
-    }
-    if (endDate) {
-      categorySplitConditions.push(Prisma.sql`inv."createdAt" <= ${endDate}`);
-    }
-    if (salesmanScope?.salesmanId) {
-      categorySplitConditions.push(
-        Prisma.sql`inv."salesmanId" = ${salesmanScope.salesmanId}`,
-      );
-    }
-    const categorySplitWhere =
-      categorySplitConditions.length > 0
-        ? Prisma.sql`WHERE ${Prisma.join(categorySplitConditions, ' AND ')}`
-        : Prisma.empty;
-
-    const trendInvoicesConditions: Prisma.Sql[] = [
-      Prisma.sql`"createdAt" >= ${trendStart}`,
-      Prisma.sql`"createdAt" <= ${trendEnd}`,
-      Prisma.sql`status NOT IN ('CANCELLED', 'DRAFT')`,
-    ];
-    if (salesmanScope?.salesmanId) {
-      trendInvoicesConditions.push(
-        Prisma.sql`"salesmanId" = ${salesmanScope.salesmanId}`,
-      );
-    }
-    const trendInvoicesWhere = Prisma.sql`WHERE ${Prisma.join(trendInvoicesConditions, ' AND ')}`;
-
-    const [
-      revenueAgg,
-      prevRevenueAgg,
-      periodRefundAgg,
-      todayInvoicesCount,
-      totalInvoicesCount,
-      confirmedInflowsAgg,
-      confirmedOutflowsAgg,
-      receivablesAgg,
-      payablesAgg,
-      pendingUpiAgg,
-      driverCashDeliveries,
-      productCount,
-      partyCount,
-      salesmanSalesRaw,
-      allSalesStaff,
-      paymentSplitPayments,
-      categorySplitRaw,
-      recentPayments,
-      topReceivablesLedgers,
-      creditStatusRaw,
-      trendInvoicesRaw,
-      trendPaymentsRaw,
-      trendCreditsRaw,
-      salesmanRecentInvoices,
-    ] = await Promise.all([
-      // Current Period Invoiced Revenue & Count
-      this.prisma.invoice.aggregate({
-        where: {
-          status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
-          ...(salesmanScope || {}),
-          ...(dateFilter ? { createdAt: dateFilter } : {}),
-        },
-        _sum: { total: true },
-        _count: { id: true },
-      }),
-      // Previous Period Revenue & Count (for delta)
-      prevDateFilter
-        ? this.prisma.invoice.aggregate({
-            where: {
-              status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
-              ...(salesmanScope || {}),
-              createdAt: prevDateFilter,
-            },
-            _sum: { total: true },
-            _count: { id: true },
-          })
-        : Promise.resolve({ _sum: { total: null }, _count: { id: 0 } }),
-      // Period Refunds (Credit Notes)
-      this.prisma.refundInvoice.aggregate({
-        where: {
-          ...(dateFilter ? { createdAt: dateFilter } : {}),
-        },
-        _sum: { total: true },
-      }),
-      // Invoices Created Today
-      this.prisma.invoice.count({
-        where: {
-          status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
-          ...(salesmanScope || {}),
-          createdAt: { gte: todayStart },
-        },
-      }),
-      // All-Time Invoices Count
-      this.prisma.invoice.count({
-        where: {
-          status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
-          ...(salesmanScope || {}),
-        },
-      }),
-      // Confirmed Inflow Collections
-      isSalesman
-        ? Promise.resolve({ _sum: { amount: null }, _count: { id: 0 } })
-        : this.prisma.payment.aggregate({
-            where: {
-              status: PaymentStatus.CONFIRMED,
-              type: PaymentType.INFLOW,
-              ...(dateFilter ? { paidAt: dateFilter } : {}),
-            },
-            _sum: { amount: true },
-            _count: { id: true },
-          }),
-      // Confirmed Outflow Collections (Refunds / Payouts)
-      isSalesman
-        ? Promise.resolve({ _sum: { amount: null } })
-        : this.prisma.payment.aggregate({
-            where: {
-              status: PaymentStatus.CONFIRMED,
-              type: PaymentType.OUTFLOW,
-              ...(dateFilter ? { paidAt: dateFilter } : {}),
-            },
-            _sum: { amount: true },
-          }),
-      // Customer Receivables (Dues to Store) - only for Owner/Admin
-      isSalesman
-        ? Promise.resolve({ _sum: { amountDue: null }, _count: { id: 0 } })
-        : this.prisma.creditLedger.aggregate({
-            where: {
-              type: CreditType.RECEIVABLE,
-              status: {
-                in: [
-                  CreditStatus.UNPAID,
-                  CreditStatus.PARTIAL,
-                  CreditStatus.OVERDUE,
-                ],
+      const [
+        revenueAgg,
+        prevRevenueAgg,
+        periodRefundAgg,
+        todayInvoicesCount,
+        totalInvoicesCount,
+        confirmedInflowsAgg,
+        confirmedOutflowsAgg,
+        receivablesAgg,
+        payablesAgg,
+        pendingUpiAgg,
+        driverCashDeliveries,
+        productCount,
+        partyCount,
+        salesmanSalesRaw,
+        allSalesStaff,
+        paymentSplitPayments,
+        categorySplitRaw,
+        recentPayments,
+        topReceivablesLedgers,
+        creditStatusRaw,
+        trendInvoicesRaw,
+        trendPaymentsRaw,
+        trendCreditsRaw,
+        salesmanRecentInvoices,
+      ] = await Promise.all([
+        // Current Period Invoiced Revenue & Count
+        this.prisma.invoice.aggregate({
+          where: {
+            status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
+            ...(salesmanScope || {}),
+            ...(dateFilter ? { createdAt: dateFilter } : {}),
+          },
+          _sum: { total: true },
+          _count: { id: true },
+        }),
+        // Previous Period Revenue & Count (for delta)
+        prevDateFilter
+          ? this.prisma.invoice.aggregate({
+              where: {
+                status: {
+                  notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT],
+                },
+                ...(salesmanScope || {}),
+                createdAt: prevDateFilter,
               },
-            },
-            _sum: { amountDue: true },
-            _count: { id: true },
-          }),
-      // Store Payables (Dues we owe to Parties) - only for Owner/Admin
-      isSalesman
-        ? Promise.resolve({ _sum: { amountDue: null }, _count: { id: 0 } })
-        : this.prisma.creditLedger.aggregate({
-            where: {
-              type: CreditType.PAYABLE,
-              status: {
-                in: [
-                  CreditStatus.UNPAID,
-                  CreditStatus.PARTIAL,
-                  CreditStatus.OVERDUE,
-                ],
+              _sum: { total: true },
+              _count: { id: true },
+            })
+          : Promise.resolve({ _sum: { total: null }, _count: { id: 0 } }),
+        // Period Refunds (Credit Notes)
+        this.prisma.refundInvoice.aggregate({
+          where: {
+            ...(dateFilter ? { createdAt: dateFilter } : {}),
+          },
+          _sum: { total: true },
+        }),
+        // Invoices Created Today
+        this.prisma.invoice.count({
+          where: {
+            status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
+            ...(salesmanScope || {}),
+            createdAt: { gte: todayStart },
+          },
+        }),
+        // All-Time Invoices Count
+        this.prisma.invoice.count({
+          where: {
+            status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
+            ...(salesmanScope || {}),
+          },
+        }),
+        // Confirmed Inflow Collections
+        isSalesman
+          ? Promise.resolve({ _sum: { amount: null }, _count: { id: 0 } })
+          : this.prisma.payment.aggregate({
+              where: {
+                status: PaymentStatus.CONFIRMED,
+                type: PaymentType.INFLOW,
+                ...(dateFilter ? { paidAt: dateFilter } : {}),
               },
-            },
-            _sum: { amountDue: true },
-            _count: { id: true },
-          }),
-      // Pending UPI payments
-      isSalesman
-        ? Promise.resolve({ _sum: { amount: null } })
-        : this.prisma.payment.aggregate({
-            where: { mode: PaymentMode.UPI, status: PaymentStatus.PENDING },
-            _sum: { amount: true },
-          }),
-      // Real-time Cash with drivers - only for Owner/Admin
-      isSalesman
-        ? Promise.resolve<DriverCashDeliveryItem[]>([])
-        : this.prisma.delivery.findMany({
-            where: {
-              cashHandedOver: false,
-              cashCollected: { gt: 0 },
-            },
-            include: {
-              driver: { select: { id: true, name: true, phone: true } },
-              invoice: {
-                select: { invoiceNo: true, party: { select: { name: true } } },
+              _sum: { amount: true },
+              _count: { id: true },
+            }),
+        // Confirmed Outflow Collections (Refunds / Payouts)
+        isSalesman
+          ? Promise.resolve({ _sum: { amount: null } })
+          : this.prisma.payment.aggregate({
+              where: {
+                status: PaymentStatus.CONFIRMED,
+                type: PaymentType.OUTFLOW,
+                ...(dateFilter ? { paidAt: dateFilter } : {}),
               },
-            },
-          }),
-      // Product & Party directory count
-      this.prisma.product.count(),
-      this.prisma.party.count(),
-      // Salesman breakdown via SQL GROUP BY (Zero in-memory array allocation)
-      isSalesman
-        ? Promise.resolve<
-            Array<{ salesmanId: string; count: number; total: number }>
-          >([])
-        : this.prisma.$queryRaw<
-            Array<{ salesmanId: string; count: number; total: number }>
-          >`
+              _sum: { amount: true },
+            }),
+        // Customer Receivables (Dues to Store) - only for Owner/Admin
+        isSalesman
+          ? Promise.resolve({ _sum: { amountDue: null }, _count: { id: 0 } })
+          : this.prisma.creditLedger.aggregate({
+              where: {
+                type: CreditType.RECEIVABLE,
+                status: {
+                  in: [
+                    CreditStatus.UNPAID,
+                    CreditStatus.PARTIAL,
+                    CreditStatus.OVERDUE,
+                  ],
+                },
+              },
+              _sum: { amountDue: true },
+              _count: { id: true },
+            }),
+        // Store Payables (Dues we owe to Parties) - only for Owner/Admin
+        isSalesman
+          ? Promise.resolve({ _sum: { amountDue: null }, _count: { id: 0 } })
+          : this.prisma.creditLedger.aggregate({
+              where: {
+                type: CreditType.PAYABLE,
+                status: {
+                  in: [
+                    CreditStatus.UNPAID,
+                    CreditStatus.PARTIAL,
+                    CreditStatus.OVERDUE,
+                  ],
+                },
+              },
+              _sum: { amountDue: true },
+              _count: { id: true },
+            }),
+        // Pending UPI payments
+        isSalesman
+          ? Promise.resolve({ _sum: { amount: null } })
+          : this.prisma.payment.aggregate({
+              where: { mode: PaymentMode.UPI, status: PaymentStatus.PENDING },
+              _sum: { amount: true },
+            }),
+        // Real-time Cash with drivers - only for Owner/Admin
+        isSalesman
+          ? Promise.resolve<DriverCashDeliveryItem[]>([])
+          : this.prisma.delivery.findMany({
+              where: {
+                cashHandedOver: false,
+                cashCollected: { gt: 0 },
+              },
+              include: {
+                driver: { select: { id: true, name: true, phone: true } },
+                invoice: {
+                  select: {
+                    invoiceNo: true,
+                    party: { select: { name: true } },
+                  },
+                },
+              },
+            }),
+        // Product & Party directory count
+        this.prisma.product.count(),
+        this.prisma.party.count(),
+        // Salesman breakdown via SQL GROUP BY (Zero in-memory array allocation)
+        isSalesman
+          ? Promise.resolve<
+              Array<{ salesmanId: string; count: number; total: number }>
+            >([])
+          : this.prisma.$queryRaw<
+              Array<{ salesmanId: string; count: number; total: number }>
+            >`
             SELECT "salesmanId", COUNT(id)::int AS count, ROUND(COALESCE(SUM(total), 0))::int AS total
             FROM "Invoice"
             ${salesmanSalesWhere}
             GROUP BY "salesmanId"
           `,
-      // All sales staff (Salesman, Admin, Owner)
-      isSalesman
-        ? Promise.resolve<SalesStaffItem[]>([])
-        : this.prisma.user.findMany({
-            where: {
-              role: { in: [Role.SALESMAN, Role.ADMIN, Role.OWNER] },
-              isActive: true,
-            },
-            select: { id: true, name: true, phone: true, role: true },
-            orderBy: { name: 'asc' },
-          }),
-      // Payment mode split
-      this.prisma.payment.findMany({
-        where: {
-          status: PaymentStatus.CONFIRMED,
-          type: PaymentType.INFLOW,
-          ...(dateFilter ? { paidAt: dateFilter } : {}),
-          ...(salesmanScope
-            ? { invoice: { salesmanId: salesmanScope.salesmanId } }
-            : {}),
-        },
-        select: { mode: true, amount: true, invoiceId: true },
-        take: 500,
-      }),
-      // Category split via SQL GROUP BY (Zero full table scan)
-      this.prisma.$queryRaw<Array<{ name: string; value: number }>>`
+        // All sales staff (Salesman, Admin, Owner)
+        isSalesman
+          ? Promise.resolve<SalesStaffItem[]>([])
+          : this.prisma.user.findMany({
+              where: {
+                role: { in: [Role.SALESMAN, Role.ADMIN, Role.OWNER] },
+                isActive: true,
+              },
+              select: { id: true, name: true, phone: true, role: true },
+              orderBy: { name: 'asc' },
+            }),
+        // Payment mode split
+        this.prisma.payment.findMany({
+          where: {
+            status: PaymentStatus.CONFIRMED,
+            type: PaymentType.INFLOW,
+            ...(dateFilter ? { paidAt: dateFilter } : {}),
+            ...(salesmanScope
+              ? { invoice: { salesmanId: salesmanScope.salesmanId } }
+              : {}),
+          },
+          select: { mode: true, amount: true, invoiceId: true },
+          take: 500,
+        }),
+        // Category split via SQL GROUP BY (Zero full table scan)
+        this.prisma.$queryRaw<Array<{ name: string; value: number }>>`
         SELECT 
           COALESCE(p.category, 'General') AS name, 
           ROUND(COALESCE(SUM(ii.total), 0))::int AS value
@@ -649,63 +663,63 @@ export class AnalyticsService {
         GROUP BY COALESCE(p.category, 'General')
         ORDER BY value DESC
       `,
-      // Recent confirmed payments - only for Owner/Admin
-      isSalesman
-        ? Promise.resolve<RecentPaymentItem[]>([])
-        : this.prisma.payment.findMany({
-            where: { status: PaymentStatus.CONFIRMED },
-            orderBy: { paidAt: 'desc' },
-            take: 12,
-            include: {
-              invoice: {
-                include: {
-                  party: true,
-                  deliveries: {
-                    where: { cashHandedOver: true },
-                    include: { driver: { select: { id: true, name: true } } },
+        // Recent confirmed payments - only for Owner/Admin
+        isSalesman
+          ? Promise.resolve<RecentPaymentItem[]>([])
+          : this.prisma.payment.findMany({
+              where: { status: PaymentStatus.CONFIRMED },
+              orderBy: { paidAt: 'desc' },
+              take: 12,
+              include: {
+                invoice: {
+                  include: {
+                    party: true,
+                    deliveries: {
+                      where: { cashHandedOver: true },
+                      include: { driver: { select: { id: true, name: true } } },
+                    },
                   },
                 },
+                party: true,
+                confirmedBy: { select: { id: true, name: true } },
               },
-              party: true,
-              confirmedBy: { select: { id: true, name: true } },
-            },
-          }),
-      // Top pending receivables - only for Owner/Admin
-      isSalesman
-        ? Promise.resolve<ReceivableLedgerItem[]>([])
-        : this.prisma.creditLedger.findMany({
-            where: {
-              type: CreditType.RECEIVABLE,
-              status: {
-                in: [
-                  CreditStatus.UNPAID,
-                  CreditStatus.PARTIAL,
-                  CreditStatus.OVERDUE,
-                ],
+            }),
+        // Top pending receivables - only for Owner/Admin
+        isSalesman
+          ? Promise.resolve<ReceivableLedgerItem[]>([])
+          : this.prisma.creditLedger.findMany({
+              where: {
+                type: CreditType.RECEIVABLE,
+                status: {
+                  in: [
+                    CreditStatus.UNPAID,
+                    CreditStatus.PARTIAL,
+                    CreditStatus.OVERDUE,
+                  ],
+                },
               },
-            },
-            orderBy: { amountDue: 'desc' },
-            take: 6,
-            include: {
-              party: { select: { id: true, name: true, phone: true } },
-              invoice: { select: { invoiceNo: true } },
-            },
-          }),
-      // Credit status breakdown combined into 1 SQL GROUP BY query (Replaces 3 individual queries)
-      isSalesman
-        ? Promise.resolve<
-            Array<{ status: string; count: number; total: number }>
-          >([])
-        : this.prisma.$queryRaw<
-            Array<{ status: string; count: number; total: number }>
-          >`
+              orderBy: { amountDue: 'desc' },
+              take: 6,
+              include: {
+                party: { select: { id: true, name: true, phone: true } },
+                invoice: { select: { invoiceNo: true } },
+              },
+            }),
+        // Credit status breakdown combined into 1 SQL GROUP BY query (Replaces 3 individual queries)
+        isSalesman
+          ? Promise.resolve<
+              Array<{ status: string; count: number; total: number }>
+            >([])
+          : this.prisma.$queryRaw<
+              Array<{ status: string; count: number; total: number }>
+            >`
             SELECT status, COUNT(id)::int AS count, ROUND(COALESCE(SUM("amountDue"), 0))::int AS total
             FROM "CreditLedger"
             WHERE type = 'RECEIVABLE' AND status IN ('UNPAID', 'PARTIAL', 'OVERDUE')
             GROUP BY status
           `,
-      // Trend: Invoices in trend window aggregated by day (Zero in-memory array loops)
-      this.prisma.$queryRaw<Array<{ day: string; total: number }>>`
+        // Trend: Invoices in trend window aggregated by day (Zero in-memory array loops)
+        this.prisma.$queryRaw<Array<{ day: string; total: number }>>`
         SELECT 
           TO_CHAR("createdAt", 'YYYY-MM-DD') AS day,
           ROUND(COALESCE(SUM(total), 0))::int AS total
@@ -713,10 +727,10 @@ export class AnalyticsService {
         ${trendInvoicesWhere}
         GROUP BY TO_CHAR("createdAt", 'YYYY-MM-DD')
       `,
-      // Trend: Confirmed Net Payments in trend window aggregated by day
-      isSalesman
-        ? Promise.resolve<Array<{ day: string; amount: number }>>([])
-        : this.prisma.$queryRaw<Array<{ day: string; amount: number }>>`
+        // Trend: Confirmed Net Payments in trend window aggregated by day
+        isSalesman
+          ? Promise.resolve<Array<{ day: string; amount: number }>>([])
+          : this.prisma.$queryRaw<Array<{ day: string; amount: number }>>`
             SELECT 
               TO_CHAR("paidAt", 'YYYY-MM-DD') AS day,
               ROUND(COALESCE(SUM(CASE WHEN type = 'INFLOW' THEN amount ELSE -amount END), 0))::int AS amount
@@ -725,10 +739,10 @@ export class AnalyticsService {
               AND "paidAt" >= ${trendStart} AND "paidAt" <= ${trendEnd}
             GROUP BY TO_CHAR("paidAt", 'YYYY-MM-DD')
           `,
-      // Trend: Credits given in trend window aggregated by day
-      isSalesman
-        ? Promise.resolve<Array<{ day: string; amountDue: number }>>([])
-        : this.prisma.$queryRaw<Array<{ day: string; amountDue: number }>>`
+        // Trend: Credits given in trend window aggregated by day
+        isSalesman
+          ? Promise.resolve<Array<{ day: string; amountDue: number }>>([])
+          : this.prisma.$queryRaw<Array<{ day: string; amountDue: number }>>`
             SELECT 
               TO_CHAR("createdAt", 'YYYY-MM-DD') AS day,
               ROUND(COALESCE(SUM("amountDue"), 0))::int AS "amountDue"
@@ -737,430 +751,441 @@ export class AnalyticsService {
               AND "createdAt" >= ${trendStart} AND "createdAt" <= ${trendEnd}
             GROUP BY TO_CHAR("createdAt", 'YYYY-MM-DD')
           `,
-      // Salesman's recent invoices
-      isSalesman && salesmanId
-        ? (this.prisma.invoice.findMany({
-            where: { salesmanId },
-            orderBy: { createdAt: 'desc' },
-            take: 10,
-            include: { party: { select: { name: true, phone: true } } },
-          }) as unknown as Promise<SalesmanRecentInvoiceItem[]>)
-        : Promise.resolve<SalesmanRecentInvoiceItem[]>([]),
-    ]);
+        // Salesman's recent invoices
+        isSalesman && salesmanId
+          ? (this.prisma.invoice.findMany({
+              where: { salesmanId },
+              orderBy: { createdAt: 'desc' },
+              take: 10,
+              include: { party: { select: { name: true, phone: true } } },
+            }) as unknown as Promise<SalesmanRecentInvoiceItem[]>)
+          : Promise.resolve<SalesmanRecentInvoiceItem[]>([]),
+      ]);
 
-    // Extract consolidated counts
-    const periodInvoicesCount: number = Number(revenueAgg?._count?.id ?? 0);
-    const prevInvoicesCount: number = Number(prevRevenueAgg?._count?.id ?? 0);
-    const receivablesCount: number = Number(receivablesAgg?._count?.id ?? 0);
-    const payablesCount: number = Number(payablesAgg?._count?.id ?? 0);
+      // Extract consolidated counts
+      const periodInvoicesCount: number = Number(revenueAgg?._count?.id ?? 0);
+      const prevInvoicesCount: number = Number(prevRevenueAgg?._count?.id ?? 0);
+      const receivablesCount: number = Number(receivablesAgg?._count?.id ?? 0);
+      const payablesCount: number = Number(payablesAgg?._count?.id ?? 0);
 
-    // Format driver cash
-    const cashToBeCollectedFromDrivers = driverCashDeliveries.reduce(
-      (sum: number, d) => sum + Number(d.cashCollected || 0),
-      0,
-    );
-
-    // Salesmen sales computation using direct SQL aggregated counts & totals
-    const salesmanSalesMap = new Map<
-      string,
-      { count: number; total: number }
-    >();
-    for (const stat of salesmanSalesRaw) {
-      salesmanSalesMap.set(stat.salesmanId, {
-        count: stat.count,
-        total: stat.total,
-      });
-    }
-
-    const salesmenPerformance = allSalesStaff
-      .map((u) => {
-        const stats = salesmanSalesMap.get(u.id) || { count: 0, total: 0 };
-        return {
-          id: u.id,
-          name: u.name,
-          phone: u.phone,
-          role: u.role,
-          invoiceCount: stats.count,
-          totalSales: Math.round(stats.total),
-          avgOrderValue:
-            stats.count > 0 ? Math.round(stats.total / stats.count) : 0,
-        };
-      })
-      .filter((u) => u.invoiceCount > 0 || u.role === Role.SALESMAN);
-
-    // Calculate deltas
-    const currentRevenue = Math.max(
-      0,
-      Number(revenueAgg._sum.total || 0) -
-        Number(periodRefundAgg?._sum?.total || 0),
-    );
-    const prevRevenue = Number(prevRevenueAgg._sum.total || 0);
-    let deltaRevenue: number | null = null;
-    if (prevDateFilter && prevRevenue > 0) {
-      deltaRevenue = Math.round(
-        ((currentRevenue - prevRevenue) / prevRevenue) * 100,
+      // Format driver cash
+      const cashToBeCollectedFromDrivers = driverCashDeliveries.reduce(
+        (sum: number, d) => sum + Number(d.cashCollected || 0),
+        0,
       );
-    }
 
-    let deltaInvoices: number | null = null;
-    if (prevDateFilter && prevInvoicesCount > 0) {
-      deltaInvoices = Math.round(
-        ((periodInvoicesCount - prevInvoicesCount) / prevInvoicesCount) * 100,
+      // Salesmen sales computation using direct SQL aggregated counts & totals
+      const salesmanSalesMap = new Map<
+        string,
+        { count: number; total: number }
+      >();
+      for (const stat of salesmanSalesRaw) {
+        salesmanSalesMap.set(stat.salesmanId, {
+          count: stat.count,
+          total: stat.total,
+        });
+      }
+
+      const salesmenPerformance = allSalesStaff
+        .map((u) => {
+          const stats = salesmanSalesMap.get(u.id) || { count: 0, total: 0 };
+          return {
+            id: u.id,
+            name: u.name,
+            phone: u.phone,
+            role: u.role,
+            invoiceCount: stats.count,
+            totalSales: Math.round(stats.total),
+            avgOrderValue:
+              stats.count > 0 ? Math.round(stats.total / stats.count) : 0,
+          };
+        })
+        .filter((u) => u.invoiceCount > 0 || u.role === Role.SALESMAN);
+
+      // Calculate deltas
+      const currentRevenue = Math.max(
+        0,
+        Number(revenueAgg._sum.total || 0) -
+          Number(periodRefundAgg?._sum?.total || 0),
       );
-    }
-
-    // Category breakdown directly from SQL query
-    const categorySplit = categorySplitRaw;
-
-    // Payment split
-    const paymentSplitMap = new Map<
-      string,
-      { value: number; invoiceIds: Set<string> }
-    >();
-    for (const payment of paymentSplitPayments) {
-      const current = paymentSplitMap.get(payment.mode) || {
-        value: 0,
-        invoiceIds: new Set<string>(),
-      };
-      current.value += Number(payment.amount);
-      if (payment.invoiceId) current.invoiceIds.add(payment.invoiceId);
-      paymentSplitMap.set(payment.mode, current);
-    }
-    const paymentSplit = Array.from(paymentSplitMap.entries()).map(
-      ([name, data]) => ({
-        name,
-        value: Math.round(data.value),
-        count: data.invoiceIds.size,
-      }),
-    );
-
-    // Credit status breakdown map from consolidated query
-    const creditStatusMap = new Map<string, { count: number; total: number }>();
-    for (const c of creditStatusRaw) {
-      creditStatusMap.set(c.status, { count: c.count, total: c.total });
-    }
-
-    // Revenue Trend daily buckets (populated via direct O(1) key lookups)
-    const bucketMap = new Map<
-      string,
-      {
-        date: string;
-        label: string;
-        invoiced: number;
-        collected: number;
-        credit: number;
-      }
-    >();
-    const curCursor = new Date(trendStart);
-    curCursor.setHours(0, 0, 0, 0);
-    const endCursor = new Date(trendEnd);
-    endCursor.setHours(23, 59, 59, 999);
-
-    while (curCursor <= endCursor) {
-      const key = curCursor.toISOString().slice(0, 10);
-      const label = curCursor.toLocaleDateString('en-IN', {
-        day: 'numeric',
-        month: 'short',
-      });
-      bucketMap.set(key, {
-        date: key,
-        label,
-        invoiced: 0,
-        collected: 0,
-        credit: 0,
-      });
-      curCursor.setDate(curCursor.getDate() + 1);
-    }
-
-    for (const inv of trendInvoicesRaw) {
-      const bucket = bucketMap.get(inv.day);
-      if (bucket) {
-        bucket.invoiced = inv.total;
-      }
-    }
-
-    for (const p of trendPaymentsRaw) {
-      const bucket = bucketMap.get(p.day);
-      if (bucket) {
-        bucket.collected = p.amount;
-      }
-    }
-
-    for (const c of trendCreditsRaw) {
-      const bucket = bucketMap.get(c.day);
-      if (bucket) {
-        bucket.credit = c.amountDue;
-      }
-    }
-
-    const revenueTrend = Array.from(bucketMap.values());
-
-    return {
-      role: user?.role || Role.OWNER,
-      filter: {
-        preset,
-        from: startDate?.toISOString() || null,
-        to: endDate?.toISOString() || null,
-      },
-      kpi: {
-        totalRevenue: currentRevenue,
-        deltaRevenue,
-        periodInvoices: periodInvoicesCount,
-        deltaInvoices,
-        todayInvoices: todayInvoicesCount,
-        totalInvoices: totalInvoicesCount,
-        totalCollected: Math.max(
-          0,
-          Number(confirmedInflowsAgg._sum?.amount || 0) -
-            Number(confirmedOutflowsAgg?._sum?.amount || 0),
-        ),
-        totalCollectedCount: confirmedInflowsAgg._count?.id || 0,
-        cashToBeCollectedFromDrivers,
-        pendingDriverDeliveriesCount: driverCashDeliveries.length,
-        receivablesTotal: Number(receivablesAgg._sum?.amountDue || 0),
-        receivablesCount,
-        payablesTotal: Number(payablesAgg._sum?.amountDue || 0),
-        payablesCount,
-        pendingUpi: Number(pendingUpiAgg._sum?.amount || 0),
-        productCount,
-        partyCount,
-      },
-      pendingDriverDeliveries: driverCashDeliveries.map((d) => ({
-        id: d.id,
-        invoiceNo: d.invoice?.invoiceNo || 'N/A',
-        partyName: d.invoice?.party?.name || 'Customer',
-        driverName: d.driver?.name || 'Driver',
-        amount: Number(d.cashCollected || 0),
-        cashCollectedAt: d.cashCollectedAt,
-      })),
-      revenueTrend,
-      paymentSplit,
-      categorySplit,
-      salesmenPerformance,
-      receivablesHealth: {
-        unpaid: creditStatusMap.get('UNPAID') || { count: 0, total: 0 },
-        partial: creditStatusMap.get('PARTIAL') || { count: 0, total: 0 },
-        overdue: creditStatusMap.get('OVERDUE') || { count: 0, total: 0 },
-        topPending: topReceivablesLedgers.map((l) => ({
-          partyId: l.partyId,
-          partyName: l.party.name,
-          phone: l.party.phone,
-          amountDue: Number(l.amountDue),
-          dueDate: l.dueDate,
-          invoiceNo: l.invoice?.invoiceNo || null,
-          status: l.status,
-        })),
-      },
-      recentTransactions: recentPayments.map((p) => {
-        const deliveryWithDriver = p.invoice?.deliveries?.find(
-          (d) => d.cashHandedOver,
+      const prevRevenue = Number(prevRevenueAgg._sum.total || 0);
+      let deltaRevenue: number | null = null;
+      if (prevDateFilter && prevRevenue > 0) {
+        deltaRevenue = Math.round(
+          ((currentRevenue - prevRevenue) / prevRevenue) * 100,
         );
-        return {
-          id: p.id,
-          invoiceId: p.invoiceId,
-          invoiceNo: p.invoice?.invoiceNo || 'Direct',
-          partyName:
-            p.invoice?.party?.name || p.party?.name || 'Party / Vendor',
-          mode: p.mode,
-          type: p.type,
-          amount: Number(p.amount),
-          status: p.status,
-          paidAt: p.paidAt || p.createdAt,
-          driverName: deliveryWithDriver?.driver?.name || null,
-          confirmedByName: p.confirmedBy?.name || 'Director / Cashier',
+      }
+
+      let deltaInvoices: number | null = null;
+      if (prevDateFilter && prevInvoicesCount > 0) {
+        deltaInvoices = Math.round(
+          ((periodInvoicesCount - prevInvoicesCount) / prevInvoicesCount) * 100,
+        );
+      }
+
+      // Category breakdown directly from SQL query
+      const categorySplit = categorySplitRaw;
+
+      // Payment split
+      const paymentSplitMap = new Map<
+        string,
+        { value: number; invoiceIds: Set<string> }
+      >();
+      for (const payment of paymentSplitPayments) {
+        const current = paymentSplitMap.get(payment.mode) || {
+          value: 0,
+          invoiceIds: new Set<string>(),
         };
-      }),
-      salesmanRecentInvoices: salesmanRecentInvoices.map((inv) => ({
-        id: inv.id,
-        invoiceNo: inv.invoiceNo,
-        partyName: inv.party.name,
-        partyPhone: inv.party.phone,
-        total: Number(inv.total),
-        status: inv.status,
-        paymentMode: inv.paymentMode,
-        createdAt: inv.createdAt,
-      })),
-    };
+        current.value += Number(payment.amount);
+        if (payment.invoiceId) current.invoiceIds.add(payment.invoiceId);
+        paymentSplitMap.set(payment.mode, current);
+      }
+      const paymentSplit = Array.from(paymentSplitMap.entries()).map(
+        ([name, data]) => ({
+          name,
+          value: Math.round(data.value),
+          count: data.invoiceIds.size,
+        }),
+      );
+
+      // Credit status breakdown map from consolidated query
+      const creditStatusMap = new Map<
+        string,
+        { count: number; total: number }
+      >();
+      for (const c of creditStatusRaw) {
+        creditStatusMap.set(c.status, { count: c.count, total: c.total });
+      }
+
+      // Revenue Trend daily buckets (populated via direct O(1) key lookups)
+      const bucketMap = new Map<
+        string,
+        {
+          date: string;
+          label: string;
+          invoiced: number;
+          collected: number;
+          credit: number;
+        }
+      >();
+      const curCursor = new Date(trendStart);
+      curCursor.setHours(0, 0, 0, 0);
+      const endCursor = new Date(trendEnd);
+      endCursor.setHours(23, 59, 59, 999);
+
+      while (curCursor <= endCursor) {
+        const key = curCursor.toISOString().slice(0, 10);
+        const label = curCursor.toLocaleDateString('en-IN', {
+          day: 'numeric',
+          month: 'short',
+        });
+        bucketMap.set(key, {
+          date: key,
+          label,
+          invoiced: 0,
+          collected: 0,
+          credit: 0,
+        });
+        curCursor.setDate(curCursor.getDate() + 1);
+      }
+
+      for (const inv of trendInvoicesRaw) {
+        const bucket = bucketMap.get(inv.day);
+        if (bucket) {
+          bucket.invoiced = inv.total;
+        }
+      }
+
+      for (const p of trendPaymentsRaw) {
+        const bucket = bucketMap.get(p.day);
+        if (bucket) {
+          bucket.collected = p.amount;
+        }
+      }
+
+      for (const c of trendCreditsRaw) {
+        const bucket = bucketMap.get(c.day);
+        if (bucket) {
+          bucket.credit = c.amountDue;
+        }
+      }
+
+      const revenueTrend = Array.from(bucketMap.values());
+
+      return {
+        role: user?.role || Role.OWNER,
+        filter: {
+          preset,
+          from: startDate?.toISOString() || null,
+          to: endDate?.toISOString() || null,
+        },
+        kpi: {
+          totalRevenue: currentRevenue,
+          deltaRevenue,
+          periodInvoices: periodInvoicesCount,
+          deltaInvoices,
+          todayInvoices: todayInvoicesCount,
+          totalInvoices: totalInvoicesCount,
+          totalCollected: Math.max(
+            0,
+            Number(confirmedInflowsAgg._sum?.amount || 0) -
+              Number(confirmedOutflowsAgg?._sum?.amount || 0),
+          ),
+          totalCollectedCount: confirmedInflowsAgg._count?.id || 0,
+          cashToBeCollectedFromDrivers,
+          pendingDriverDeliveriesCount: driverCashDeliveries.length,
+          receivablesTotal: Number(receivablesAgg._sum?.amountDue || 0),
+          receivablesCount,
+          payablesTotal: Number(payablesAgg._sum?.amountDue || 0),
+          payablesCount,
+          pendingUpi: Number(pendingUpiAgg._sum?.amount || 0),
+          productCount,
+          partyCount,
+        },
+        pendingDriverDeliveries: driverCashDeliveries.map((d) => ({
+          id: d.id,
+          invoiceNo: d.invoice?.invoiceNo || 'N/A',
+          partyName: d.invoice?.party?.name || 'Customer',
+          driverName: d.driver?.name || 'Driver',
+          amount: Number(d.cashCollected || 0),
+          cashCollectedAt: d.cashCollectedAt,
+        })),
+        revenueTrend,
+        paymentSplit,
+        categorySplit,
+        salesmenPerformance,
+        receivablesHealth: {
+          unpaid: creditStatusMap.get('UNPAID') || { count: 0, total: 0 },
+          partial: creditStatusMap.get('PARTIAL') || { count: 0, total: 0 },
+          overdue: creditStatusMap.get('OVERDUE') || { count: 0, total: 0 },
+          topPending: topReceivablesLedgers.map((l: ReceivableLedgerItem) => ({
+            partyId: l.partyId,
+            partyName: l.party.name,
+            phone: l.party.phone,
+            amountDue: Number(l.amountDue),
+            dueDate: l.dueDate,
+            invoiceNo: l.invoice?.invoiceNo || null,
+            status: l.status,
+          })),
+        },
+        recentTransactions: recentPayments.map((p) => {
+          const deliveryWithDriver = p.invoice?.deliveries?.find(
+            (d) => d.cashHandedOver,
+          );
+          return {
+            id: p.id,
+            invoiceId: p.invoiceId,
+            invoiceNo: p.invoice?.invoiceNo || 'Direct',
+            partyName:
+              p.invoice?.party?.name || p.party?.name || 'Party / Vendor',
+            mode: p.mode,
+            type: p.type,
+            amount: Number(p.amount),
+            status: p.status,
+            paidAt: p.paidAt || p.createdAt,
+            driverName: deliveryWithDriver?.driver?.name || null,
+            confirmedByName: p.confirmedBy?.name || 'Director / Cashier',
+          };
+        }),
+        salesmanRecentInvoices: salesmanRecentInvoices.map((inv) => ({
+          id: inv.id,
+          invoiceNo: inv.invoiceNo,
+          partyName: inv.party.name,
+          partyPhone: inv.party.phone,
+          total: Number(inv.total),
+          status: inv.status,
+          paymentMode: inv.paymentMode,
+          createdAt: inv.createdAt,
+        })),
+      };
     });
   }
 
   async getDayBook(dateStr?: string) {
     // Day Book cache: 30 minutes (1800 seconds)
-    return this.cacheService.wrap(`analytics:day-book:${dateStr || 'today'}`, 1800, async () => {
-      const targetDate = dateStr ? new Date(dateStr) : new Date();
-      const startOfDay = new Date(targetDate);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(targetDate);
-      endOfDay.setHours(23, 59, 59, 999);
+    return this.cacheService.wrap(
+      `analytics:day-book:${dateStr || 'today'}`,
+      1800,
+      async () => {
+        const targetDate = dateStr ? new Date(dateStr) : new Date();
+        const startOfDay = new Date(targetDate);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(targetDate);
+        endOfDay.setHours(23, 59, 59, 999);
 
-    // 1. Calculate opening cash in hand before this day
-    const [prevCashIn, prevCashOut, prevExpenses] = await Promise.all([
-      this.prisma.payment.aggregate({
-        where: {
-          mode: PaymentMode.CASH,
-          status: PaymentStatus.CONFIRMED,
-          type: PaymentType.INFLOW,
-          OR: [
-            { paidAt: { lt: startOfDay } },
-            { paidAt: null, createdAt: { lt: startOfDay } },
-          ],
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.payment.aggregate({
-        where: {
-          mode: PaymentMode.CASH,
-          status: PaymentStatus.CONFIRMED,
-          type: PaymentType.OUTFLOW,
-          OR: [
-            { paidAt: { lt: startOfDay } },
-            { paidAt: null, createdAt: { lt: startOfDay } },
-          ],
-        },
-        _sum: { amount: true },
-      }),
-      this.prisma.expense.aggregate({
-        where: {
-          paymentMode: PaymentMode.CASH,
-          expenseDate: { lt: startOfDay },
-        },
-        _sum: { amount: true },
-      }),
-    ]);
+        // 1. Calculate opening cash in hand before this day
+        const [prevCashIn, prevCashOut, prevExpenses] = await Promise.all([
+          this.prisma.payment.aggregate({
+            where: {
+              mode: PaymentMode.CASH,
+              status: PaymentStatus.CONFIRMED,
+              type: PaymentType.INFLOW,
+              OR: [
+                { paidAt: { lt: startOfDay } },
+                { paidAt: null, createdAt: { lt: startOfDay } },
+              ],
+            },
+            _sum: { amount: true },
+          }),
+          this.prisma.payment.aggregate({
+            where: {
+              mode: PaymentMode.CASH,
+              status: PaymentStatus.CONFIRMED,
+              type: PaymentType.OUTFLOW,
+              OR: [
+                { paidAt: { lt: startOfDay } },
+                { paidAt: null, createdAt: { lt: startOfDay } },
+              ],
+            },
+            _sum: { amount: true },
+          }),
+          this.prisma.expense.aggregate({
+            where: {
+              paymentMode: PaymentMode.CASH,
+              expenseDate: { lt: startOfDay },
+            },
+            _sum: { amount: true },
+          }),
+        ]);
 
-    const openingCash =
-      Number(prevCashIn._sum.amount || 0) -
-      Number(prevCashOut._sum.amount || 0) -
-      Number(prevExpenses._sum.amount || 0);
+        const openingCash =
+          Number(prevCashIn._sum.amount || 0) -
+          Number(prevCashOut._sum.amount || 0) -
+          Number(prevExpenses._sum.amount || 0);
 
-    // 2. Today's Transactions
-    const [todayPayments, todayExpenses, todayPurchases] = await Promise.all([
-      this.prisma.payment.findMany({
-        where: {
-          status: PaymentStatus.CONFIRMED,
-          OR: [
-            { paidAt: { gte: startOfDay, lte: endOfDay } },
-            { paidAt: null, createdAt: { gte: startOfDay, lte: endOfDay } },
-          ],
-        },
-        include: {
-          invoice: { include: { party: true } },
-          party: true,
-          confirmedBy: { select: { id: true, name: true } },
-        },
-        orderBy: { createdAt: 'asc' },
-      }),
-      this.prisma.expense.findMany({
-        where: {
-          expenseDate: { gte: startOfDay, lte: endOfDay },
-        },
-        include: {
-          createdBy: { select: { id: true, name: true } },
-        },
-        orderBy: { expenseDate: 'asc' },
-      }),
-      this.prisma.purchase.findMany({
-        where: {
-          createdAt: { gte: startOfDay, lte: endOfDay },
-        },
-        include: {
-          party: true,
-        },
-        orderBy: { createdAt: 'asc' },
-      }),
-    ]);
+        // 2. Today's Transactions
+        const [todayPayments, todayExpenses, todayPurchases] =
+          await Promise.all([
+            this.prisma.payment.findMany({
+              where: {
+                status: PaymentStatus.CONFIRMED,
+                OR: [
+                  { paidAt: { gte: startOfDay, lte: endOfDay } },
+                  {
+                    paidAt: null,
+                    createdAt: { gte: startOfDay, lte: endOfDay },
+                  },
+                ],
+              },
+              include: {
+                invoice: { include: { party: true } },
+                party: true,
+                confirmedBy: { select: { id: true, name: true } },
+              },
+              orderBy: { createdAt: 'asc' },
+            }),
+            this.prisma.expense.findMany({
+              where: {
+                expenseDate: { gte: startOfDay, lte: endOfDay },
+              },
+              include: {
+                createdBy: { select: { id: true, name: true } },
+              },
+              orderBy: { expenseDate: 'asc' },
+            }),
+            this.prisma.purchase.findMany({
+              where: {
+                createdAt: { gte: startOfDay, lte: endOfDay },
+              },
+              include: {
+                party: true,
+              },
+              orderBy: { createdAt: 'asc' },
+            }),
+          ]);
 
-    let cashIn = 0;
-    let cashOut = 0;
-    let upiIn = 0;
-    let upiOut = 0;
-    let bankIn = 0;
-    let bankOut = 0;
-    let cardIn = 0;
-    let cardOut = 0;
-    let expenseCash = 0;
+        let cashIn = 0;
+        let cashOut = 0;
+        let upiIn = 0;
+        let upiOut = 0;
+        let bankIn = 0;
+        let bankOut = 0;
+        let cardIn = 0;
+        let cardOut = 0;
+        let expenseCash = 0;
 
-    for (const p of todayPayments) {
-      const amt = Number(p.amount);
-      if (p.mode === PaymentMode.CASH) {
-        if (p.type === PaymentType.INFLOW) {
-          cashIn += amt;
-        } else {
-          cashOut += amt;
+        for (const p of todayPayments) {
+          const amt = Number(p.amount);
+          if (p.mode === PaymentMode.CASH) {
+            if (p.type === PaymentType.INFLOW) {
+              cashIn += amt;
+            } else {
+              cashOut += amt;
+            }
+          } else if (p.mode === PaymentMode.UPI) {
+            if (p.type === PaymentType.INFLOW) upiIn += amt;
+            else upiOut += amt;
+          } else if (p.mode === PaymentMode.BANK_TRANSFER) {
+            if (p.type === PaymentType.INFLOW) bankIn += amt;
+            else bankOut += amt;
+          } else if (p.mode === PaymentMode.CARD) {
+            if (p.type === PaymentType.INFLOW) cardIn += amt;
+            else cardOut += amt;
+          }
         }
-      } else if (p.mode === PaymentMode.UPI) {
-        if (p.type === PaymentType.INFLOW) upiIn += amt;
-        else upiOut += amt;
-      } else if (p.mode === PaymentMode.BANK_TRANSFER) {
-        if (p.type === PaymentType.INFLOW) bankIn += amt;
-        else bankOut += amt;
-      } else if (p.mode === PaymentMode.CARD) {
-        if (p.type === PaymentType.INFLOW) cardIn += amt;
-        else cardOut += amt;
-      }
-    }
 
-    for (const exp of todayExpenses) {
-      const amt = Number(exp.amount);
-      if (exp.paymentMode === PaymentMode.CASH) {
-        expenseCash += amt;
-      }
-    }
+        for (const exp of todayExpenses) {
+          const amt = Number(exp.amount);
+          if (exp.paymentMode === PaymentMode.CASH) {
+            expenseCash += amt;
+          }
+        }
 
-    const netCashFlow = cashIn - (cashOut + expenseCash);
-    const closingCash = openingCash + netCashFlow;
+        const netCashFlow = cashIn - (cashOut + expenseCash);
+        const closingCash = openingCash + netCashFlow;
 
-    return {
-      date: startOfDay.toISOString().slice(0, 10),
-      summary: {
-        openingCash,
-        cashIn,
-        cashOut,
-        expenseCash,
-        netCashFlow,
-        closingCash,
-        digital: {
-          upiIn,
-          bankIn,
-          cardIn,
-          totalDigital: Math.max(
-            0,
-            upiIn + bankIn + cardIn - (upiOut + bankOut + cardOut),
-          ),
-        },
+        return {
+          date: startOfDay.toISOString().slice(0, 10),
+          summary: {
+            openingCash,
+            cashIn,
+            cashOut,
+            expenseCash,
+            netCashFlow,
+            closingCash,
+            digital: {
+              upiIn,
+              bankIn,
+              cardIn,
+              totalDigital: Math.max(
+                0,
+                upiIn + bankIn + cardIn - (upiOut + bankOut + cardOut),
+              ),
+            },
+          },
+          transactions: {
+            payments: todayPayments.map((p) => ({
+              id: p.id,
+              type: p.type,
+              mode: p.mode,
+              amount: Number(p.amount),
+              partyName: p.invoice?.party?.name || p.party?.name || 'Customer',
+              refNo: p.invoice?.invoiceNo || p.upiTxnRef || 'Direct',
+              time: p.paidAt || p.createdAt,
+              notes: p.notes,
+            })),
+            expenses: todayExpenses.map((e) => ({
+              id: e.id,
+              expenseNo: e.expenseNo,
+              category: e.category,
+              amount: Number(e.amount),
+              paymentMode: e.paymentMode,
+              paidTo: e.paidTo,
+              time: e.expenseDate,
+              notes: e.notes,
+            })),
+            purchases: todayPurchases.map((pu) => ({
+              id: pu.id,
+              purchaseNo: pu.purchaseNo,
+              supplierName: pu.party?.name,
+              amount: Number(pu.total),
+              paymentMode: pu.paymentMode,
+              time: pu.createdAt,
+            })),
+          },
+        };
       },
-      transactions: {
-        payments: todayPayments.map((p) => ({
-          id: p.id,
-          type: p.type,
-          mode: p.mode,
-          amount: Number(p.amount),
-          partyName: p.invoice?.party?.name || p.party?.name || 'Customer',
-          refNo: p.invoice?.invoiceNo || p.upiTxnRef || 'Direct',
-          time: p.paidAt || p.createdAt,
-          notes: p.notes,
-        })),
-        expenses: todayExpenses.map((e) => ({
-          id: e.id,
-          expenseNo: e.expenseNo,
-          category: e.category,
-          amount: Number(e.amount),
-          paymentMode: e.paymentMode,
-          paidTo: e.paidTo,
-          time: e.expenseDate,
-          notes: e.notes,
-        })),
-        purchases: todayPurchases.map((pu) => ({
-          id: pu.id,
-          purchaseNo: pu.purchaseNo,
-          supplierName: pu.party?.name,
-          amount: Number(pu.total),
-          paymentMode: pu.paymentMode,
-          time: pu.createdAt,
-        })),
-      },
-    };
-    });
+    );
   }
 
   async getGstReports(month?: number, year?: number) {

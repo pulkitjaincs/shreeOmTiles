@@ -75,8 +75,6 @@ export async function generateInvoicePdf(
   const taxBreakup = (invoice.taxBreakup as unknown as TaxBreakupData) || {};
   const isInterState = Boolean(taxBreakup.isInterState);
 
-  // If both items tax and transport tax are 0, it's Bill of Supply, and NO tax labels/rows appear.
-  const hasTax = itemsTax > 0 || transportTax > 0;
   const docTitle = 'Invoice';
 
   const hasReturns = totalReturns > 0;
@@ -591,9 +589,9 @@ export async function generateInvoicePdf(
               ? 'Credit'
               : m;
 
-  const validPayments = (
-    Array.isArray(invoice.payments) ? invoice.payments : []
-  ).filter((p: any) => Number(p.amount) > 0);
+  const validPayments = (invoice.payments || []).filter(
+    (p) => Number(p.amount) > 0,
+  );
 
   let payLineY = currentY - 69;
   const payLineHeight = 10;
@@ -601,7 +599,7 @@ export async function generateInvoicePdf(
   let linesRendered = 0;
 
   if (validPayments.length > 0) {
-    for (const p of validPayments as any[]) {
+    for (const p of validPayments) {
       if (linesRendered >= maxLines) break;
       const amtStr = `Rs. ${Math.round(Number(p.amount)).toLocaleString('en-IN')}`;
       const utrStr = p.upiUtr ? ` (UTR: ${p.upiUtr})` : '';
