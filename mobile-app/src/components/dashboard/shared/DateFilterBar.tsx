@@ -1,10 +1,10 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { FilterPills } from '@/components/ui/FilterPills';
-import { Input } from '@/components/ui/Input';
+import { CalendarModal } from '@/components/ui/CalendarModal';
 import { Ionicons } from '@expo/vector-icons';
 import { DatePreset } from '../types';
 
@@ -18,6 +18,17 @@ interface DateFilterBarProps {
   onApplyDateRange: () => void;
 }
 
+function formatPretty(dateStr: string): string {
+  if (!dateStr) return 'Not set';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const d = parseInt(parts[2], 10);
+  const m = parseInt(parts[1], 10);
+  const y = parts[0];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${d} ${months[m - 1] || ''} ${y}`;
+}
+
 export function DateFilterBar({
   preset,
   setPreset,
@@ -29,6 +40,13 @@ export function DateFilterBar({
 }: DateFilterBarProps) {
   const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+
+  const handleCalendarApply = (from: string, to: string) => {
+    setDateFrom(from);
+    setDateTo(to);
+    onApplyDateRange();
+  };
 
   return (
     <View style={styles.container}>
@@ -43,43 +61,68 @@ export function DateFilterBar({
             { label: 'Custom', value: 'custom' },
           ]}
           selected={preset}
-          onSelect={(val) => setPreset(val)}
+          onSelect={(val) => {
+            setPreset(val);
+            if (val === 'custom' && (!dateFrom || !dateTo)) {
+              setCalendarOpen(true);
+            }
+          }}
         />
       </View>
 
       {preset === 'custom' && (
         <Card style={styles.customDateCard}>
           <View style={styles.customDateHeader}>
-            <Ionicons name="calendar-outline" size={15} color={colors.textSecondary} />
-            <Text style={styles.customDateTitle}>Select Custom Date Range</Text>
+            <Ionicons name="calendar" size={15} color={colors.primary} />
+            <Text style={styles.customDateTitle}>Custom Date Range</Text>
           </View>
-          <View style={styles.customDateInputsRow}>
-            <View style={{ flex: 1 }}>
-              <Input
-                label="From (YYYY-MM-DD)"
-                value={dateFrom}
-                onChangeText={setDateFrom}
-                placeholder="2026-01-01"
-              />
+
+          <TouchableOpacity
+            style={styles.dateSelectorTrigger}
+            onPress={() => setCalendarOpen(true)}
+            activeOpacity={0.7}
+          >
+            <View style={styles.dateCol}>
+              <Text style={styles.dateColLabel}>FROM</Text>
+              <Text style={styles.dateColValue}>{formatPretty(dateFrom)}</Text>
             </View>
-            <View style={{ flex: 1 }}>
-              <Input
-                label="To (YYYY-MM-DD)"
-                value={dateTo}
-                onChangeText={setDateTo}
-                placeholder="2026-01-31"
-              />
+            <Ionicons name="arrow-forward" size={16} color={colors.textSecondary} />
+            <View style={styles.dateCol}>
+              <Text style={styles.dateColLabel}>TO</Text>
+              <Text style={styles.dateColValue}>{formatPretty(dateTo)}</Text>
             </View>
+            <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+          </TouchableOpacity>
+
+          <View style={styles.actionsRow}>
+            <Button
+              title="Pick Dates"
+              size="sm"
+              variant="secondary"
+              onPress={() => setCalendarOpen(true)}
+              style={{ flex: 1 }}
+            />
+            <Button
+              title="Apply Range"
+              size="sm"
+              variant="primary"
+              disabled={!dateFrom || !dateTo}
+              onPress={onApplyDateRange}
+              style={{ flex: 1.2 }}
+            />
           </View>
-          <Button
-            title="Apply Range"
-            size="sm"
-            variant="primary"
-            onPress={onApplyDateRange}
-            style={{ marginTop: 8 }}
-          />
         </Card>
       )}
+
+      <CalendarModal
+        visible={calendarOpen}
+        onClose={() => setCalendarOpen(false)}
+        initialFrom={dateFrom}
+        initialTo={dateTo}
+        onApply={handleCalendarApply}
+        title="Select Dashboard Date Range"
+        mode="range"
+      />
     </View>
   );
 }
@@ -110,8 +153,35 @@ const createStyles = (colors: any) =>
       fontWeight: '700',
       color: colors.text,
     },
-    customDateInputsRow: {
+    dateSelectorTrigger: {
       flexDirection: 'row',
-      gap: 10,
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.borderMedium,
+      borderRadius: 10,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      marginBottom: 10,
+    },
+    dateCol: {
+      flex: 1,
+    },
+    dateColLabel: {
+      fontSize: 9,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      letterSpacing: 0.5,
+      marginBottom: 2,
+    },
+    dateColValue: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    actionsRow: {
+      flexDirection: 'row',
+      gap: 8,
     },
   });

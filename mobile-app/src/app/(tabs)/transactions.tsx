@@ -18,6 +18,7 @@ import { FilterPills } from '@/components/ui/FilterPills';
 import { FilterDropdown, FilterDropdownOption } from '@/components/ui/FilterDropdown';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Card } from '@/components/ui/Card';
+import { CalendarModal } from '@/components/ui/CalendarModal';
 import { formatINR } from '@/lib/formatters';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -119,6 +120,11 @@ export default function TransactionsScreen() {
   });
   const [selectedDate, setSelectedDate] = useState(() => todayStr);
   const [dateFilterMode, setDateFilterMode] = useState<'all' | 'specific'>('specific');
+  const [txnDatePreset, setTxnDatePreset] = useState('ALL');
+  const [txnDateFrom, setTxnDateFrom] = useState('');
+  const [txnDateTo, setTxnDateTo] = useState('');
+  const [calendarModalOpen, setCalendarModalOpen] = useState(false);
+  const [calendarModalMode, setCalendarModalMode] = useState<'range' | 'single'>('range');
 
   useEffect(() => {
     if (params.tab === 'daybook') {
@@ -182,8 +188,20 @@ export default function TransactionsScreen() {
   // Load all data matching web-dashboard loadData()
   const loadData = useCallback(async (force = false) => {
     try {
+      const paymentsParams = new URLSearchParams();
+      if (txnDatePreset && txnDatePreset !== 'ALL') {
+        if (txnDatePreset === 'CUSTOM') {
+          if (txnDateFrom) paymentsParams.set('from', txnDateFrom);
+          if (txnDateTo) paymentsParams.set('to', txnDateTo);
+        } else {
+          paymentsParams.set('preset', txnDatePreset);
+        }
+      }
+      const paymentsQueryStr = paymentsParams.toString();
+      const paymentsUrl = `/payments${paymentsQueryStr ? `?${paymentsQueryStr}` : ''}`;
+
       const [paymentsData, statsData, pendingData, creditsData, partiesData, invoicesData] = await Promise.all([
-        cachedMobileApiRequest<PaymentRecord[]>('/payments', {
+        cachedMobileApiRequest<PaymentRecord[]>(paymentsUrl, {
           forceRefresh: force,
           onRevalidate:
             user?.role === 'SALESMAN'
@@ -308,7 +326,7 @@ export default function TransactionsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user]);
+  }, [user, txnDatePreset, txnDateFrom, txnDateTo]);
 
   useFocusEffect(
     useCallback(() => {
@@ -635,7 +653,17 @@ export default function TransactionsScreen() {
                 <TouchableOpacity onPress={() => handleShiftDay(-1)} style={styles.dateArrowBtn}>
                   <Ionicons name="chevron-back" size={16} color={colors.text} />
                 </TouchableOpacity>
-                <Text style={styles.selectedDateText}>{selectedDate}</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setCalendarModalMode('single');
+                    setCalendarModalOpen(true);
+                  }}
+                  activeOpacity={0.7}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginHorizontal: 4 }}
+                >
+                  <Ionicons name="calendar-outline" size={13} color={colors.primary} />
+                  <Text style={styles.selectedDateText}>{selectedDate}</Text>
+                </TouchableOpacity>
                 <TouchableOpacity onPress={() => handleShiftDay(1)} style={styles.dateArrowBtn}>
                   <Ionicons name="chevron-forward" size={16} color={colors.text} />
                 </TouchableOpacity>
@@ -852,6 +880,61 @@ export default function TransactionsScreen() {
                 }
               />
             </View>
+
+            {/* Date Preset Filter Pills on All Transactions */}
+            {activeTab === 'all' ? (
+              <View style={styles.filterPillsContainer}>
+                <FilterPills
+                  options={[
+                    { label: 'All Time', value: 'ALL' },
+                    { label: 'Today', value: 'TODAY' },
+                    { label: 'Yesterday', value: 'YESTERDAY' },
+                    { label: 'This Week', value: 'THIS_WEEK' },
+                    { label: 'This Month', value: 'THIS_MONTH' },
+                    { label: 'Custom Range', value: 'CUSTOM' },
+                  ]}
+                  selected={txnDatePreset}
+                  onSelect={(val) => {
+                    setTxnDatePreset(val);
+                    if (val === 'CUSTOM' && (!txnDateFrom || !txnDateTo)) {
+                      setCalendarModalMode('range');
+                      setCalendarModalOpen(true);
+                    }
+                  }}
+                />
+              </View>
+            ) : null}
+
+            {activeTab === 'all' && txnDatePreset === 'CUSTOM' ? (
+              <View style={styles.customDateBar}>
+                <TouchableOpacity
+                  style={styles.customDateTrigger}
+                  onPress={() => {
+                    setCalendarModalMode('range');
+                    setCalendarModalOpen(true);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="calendar-outline" size={16} color={colors.primary} />
+                  <Text style={styles.customDateLabel}>
+                    {txnDateFrom || 'From'}
+                  </Text>
+                  <Ionicons name="arrow-forward" size={13} color={colors.textSecondary} />
+                  <Text style={styles.customDateLabel}>
+                    {txnDateTo || 'To'}
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.applyButton, (!txnDateFrom || !txnDateTo) && styles.applyButtonDisabled]}
+                  onPress={() => void loadData(true)}
+                  disabled={!txnDateFrom || !txnDateTo}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.applyButtonText}>Apply</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
 
             {/* Mode Filter Pills (Only on All Transactions tab) */}
             {activeTab === 'all' ? (
@@ -1078,6 +1161,25 @@ export default function TransactionsScreen() {
         data={settlementSuccessData}
         onClose={() => setSettlementSuccessData(null)}
       />
+
+      <CalendarModal
+        visible={calendarModalOpen}
+        onClose={() => setCalendarModalOpen(false)}
+        initialFrom={calendarModalMode === 'single' ? selectedDate : txnDateFrom}
+        initialTo={calendarModalMode === 'single' ? selectedDate : txnDateTo}
+        onApply={(from, to) => {
+          if (calendarModalMode === 'single') {
+            setSelectedDate(from);
+            setDateFilterMode('specific');
+          } else {
+            setTxnDateFrom(from);
+            setTxnDateTo(to);
+            void loadData(true);
+          }
+        }}
+        title={calendarModalMode === 'single' ? 'Select Day for Day Book' : 'Select Transaction Date Range'}
+        mode={calendarModalMode}
+      />
     </View>
   );
 }
@@ -1160,6 +1262,47 @@ const createStyles = (colors: ThemeColors, isDark: boolean) =>
     filterPillsContainer: {
       paddingHorizontal: 16,
       marginBottom: 8,
+    },
+    customDateBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      gap: 8,
+      marginTop: -2,
+      marginBottom: 8,
+    },
+    customDateTrigger: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.borderMedium,
+      borderRadius: 9,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    customDateLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    applyButton: {
+      backgroundColor: colors.primary,
+      paddingHorizontal: 16,
+      paddingVertical: 9,
+      borderRadius: 9,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    applyButtonDisabled: {
+      opacity: 0.5,
+    },
+    applyButtonText: {
+      color: colors.primaryForeground,
+      fontSize: 12,
+      fontWeight: '800',
     },
     duesHeaderBanner: {
       flexDirection: 'row',

@@ -11,3 +11,4 @@ export * from './Select';
 export * from './FilterDropdown';
 export * from './MultiPaymentSplitSelector';
 export * from './MultiSelect';
+export * from './CalendarModal';

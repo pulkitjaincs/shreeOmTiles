@@ -456,6 +456,11 @@ export default function InvoicesScreen() {
         onDateFromChange={setDateFrom}
         dateTo={dateTo}
         onDateToChange={setDateTo}
+        onApplyCustomDates={(from, to) => {
+          setDateFrom(from);
+          setDateTo(to);
+          void loadData(true);
+        }}
         paymentMode={modeFilter}
         onPaymentModeChange={setModeFilter}
         invoiceCount={invoices.length}

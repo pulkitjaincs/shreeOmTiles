@@ -139,6 +139,11 @@ export default function TransactionsPage() {
     return new Date().toISOString().slice(0, 10);
   });
   const [dateFilterMode, setDateFilterMode] = useState<'all' | 'specific'>('specific');
+  const [datePreset, setDatePreset] = useState<'ALL' | 'TODAY' | 'YESTERDAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'CUSTOM'>('ALL');
+  const [customFromDate, setCustomFromDate] = useState('');
+  const [customToDate, setCustomToDate] = useState('');
+  const [appliedFromDate, setAppliedFromDate] = useState('');
+  const [appliedToDate, setAppliedToDate] = useState('');
   const [dayBookData, setDayBookData] = useState<DayBookResponse | null>(null);
   const [dayBookLoading, setDayBookLoading] = useState(false);
   const [ownedInvoiceIds, setOwnedInvoiceIds] = useState<Set<string> | null>(null);
@@ -267,8 +272,20 @@ export default function TransactionsPage() {
   // Load All Data
   const loadData = useCallback(async (force = false) => {
     try {
+      const paymentsParams = new URLSearchParams();
+      if (datePreset && datePreset !== 'ALL') {
+        if (datePreset === 'CUSTOM') {
+          if (appliedFromDate) paymentsParams.set('from', appliedFromDate);
+          if (appliedToDate) paymentsParams.set('to', appliedToDate);
+        } else {
+          paymentsParams.set('preset', datePreset);
+        }
+      }
+      const paymentsQueryStr = paymentsParams.toString();
+      const paymentsUrl = `/payments${paymentsQueryStr ? `?${paymentsQueryStr}` : ''}`;
+
       const [paymentsData, statsData, pendingData, creditsData, partiesData, invoicesData] = await Promise.all([
-        cachedApiRequest<PaymentRecord[]>('/payments', {
+        cachedApiRequest<PaymentRecord[]>(paymentsUrl, {
           forceRefresh: force,
           onRevalidate: user?.role === 'SALESMAN' ? undefined : (fresh) => setPayments(fresh),
         }).catch(() => []),
@@ -331,7 +348,7 @@ export default function TransactionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [formatPendingList, user]);
+  }, [formatPendingList, user, datePreset, appliedFromDate, appliedToDate]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -557,7 +574,7 @@ export default function TransactionsPage() {
     let base = ownedInvoiceIds
       ? payments.filter((payment) => Boolean(payment.invoiceId && ownedInvoiceIds.has(payment.invoiceId)))
       : payments;
-    if (dateFilterMode === 'specific' && selectedDate) {
+    if (activeTab === 'daybook' && dateFilterMode === 'specific' && selectedDate) {
       base = base.filter((p) => {
         const pDate = p.paidAt || p.createdAt;
         return pDate && pDate.slice(0, 10) === selectedDate;
@@ -571,7 +588,7 @@ export default function TransactionsPage() {
       const utr = p.upiUtr || '';
       return partyName.toLowerCase().includes(q) || invNo.toLowerCase().includes(q) || utr.toLowerCase().includes(q);
     });
-  }, [payments, dateFilterMode, selectedDate, deferredSearch, ownedInvoiceIds]);
+  }, [payments, activeTab, dateFilterMode, selectedDate, deferredSearch, ownedInvoiceIds]);
 
   const filteredCredits = useMemo(() => {
     const q = deferredSearch.toLowerCase().trim();
@@ -590,7 +607,7 @@ export default function TransactionsPage() {
   // Pagination
   const [pageSize, setPageSize] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
-  const filterKey = `${activeTab}_${deferredSearch}_${dateFilterMode}_${selectedDate}`;
+  const filterKey = `${activeTab}_${deferredSearch}_${dateFilterMode}_${selectedDate}_${datePreset}_${appliedFromDate}_${appliedToDate}`;
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
   if (filterKey !== prevFilterKey) {
     setPrevFilterKey(filterKey);
@@ -675,81 +692,145 @@ export default function TransactionsPage() {
 
       {/* Date-wise Navigation Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-card/80 p-2.5 rounded-2xl border border-border/80 shadow-2xs">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5 ml-1">
-            <Calendar className="h-4 w-4 text-primary" />
-            Date Filter:
-          </span>
+        {activeTab === 'daybook' ? (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5 ml-1">
+              <Calendar className="h-4 w-4 text-primary" />
+              Day Book Date:
+            </span>
 
-          <div className="flex items-center gap-1.5 bg-muted/40 border border-border/60 p-1 rounded-xl">
-            <button
-              type="button"
-              onClick={() => handleShiftDay(-1)}
-              className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition"
-              title="Previous Day"
+            <div className="flex items-center gap-1.5 bg-muted/40 border border-border/60 p-1 rounded-xl">
+              <button
+                type="button"
+                onClick={() => handleShiftDay(-1)}
+                className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition"
+                title="Previous Day"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" />
+              </button>
+
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => {
+                  setSelectedDate(e.target.value);
+                  setDateFilterMode('specific');
+                }}
+                className="bg-transparent border-none text-xs font-semibold text-foreground focus:outline-none cursor-pointer px-1"
+              />
+
+              <button
+                type="button"
+                onClick={() => handleShiftDay(1)}
+                className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition"
+                title="Next Day"
+              >
+                <ArrowRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleYesterday}
+              className={`text-xs h-7 px-2.5 rounded-xl ${
+                dateFilterMode === 'specific' &&
+                selectedDate === yesterdayStr
+                  ? 'bg-muted font-bold text-foreground'
+                  : 'text-muted-foreground'
+              }`}
             >
-              <ArrowLeft className="h-3.5 w-3.5" />
-            </button>
+              Yesterday
+            </Button>
 
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => {
-                setSelectedDate(e.target.value);
-                setDateFilterMode('specific');
-              }}
-              className="bg-transparent border-none text-xs font-semibold text-foreground focus:outline-none cursor-pointer px-1"
-            />
-
-            <button
-              type="button"
-              onClick={() => handleShiftDay(1)}
-              className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition"
-              title="Next Day"
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleToday}
+              className={`text-xs h-7 px-2.5 rounded-xl ${
+                dateFilterMode === 'specific' &&
+                selectedDate === todayStr
+                  ? 'bg-primary/10 text-primary font-bold border-primary/30'
+                  : 'text-muted-foreground'
+              }`}
             >
-              <ArrowRight className="h-3.5 w-3.5" />
-            </button>
+              Today
+            </Button>
           </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5 ml-1 mr-1">
+              <Calendar className="h-4 w-4 text-primary" />
+              Date Filter:
+            </span>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleYesterday}
-            className={`text-xs h-7 px-2.5 rounded-xl ${
-              dateFilterMode === 'specific' &&
-              selectedDate === yesterdayStr
-                ? 'bg-muted font-bold text-foreground'
-                : 'text-muted-foreground'
-            }`}
-          >
-            Yesterday
-          </Button>
+            {(['ALL', 'TODAY', 'YESTERDAY', 'THIS_WEEK', 'THIS_MONTH', 'CUSTOM'] as const).map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => {
+                  setDatePreset(preset);
+                  if (preset !== 'CUSTOM') {
+                    setAppliedFromDate('');
+                    setAppliedToDate('');
+                  }
+                }}
+                className={`px-2.5 py-1 rounded-[0.5rem] text-[0.75rem] font-semibold transition ${
+                  datePreset === preset
+                    ? 'bg-primary text-primary-foreground shadow-2xs'
+                    : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
+                }`}
+              >
+                {preset === 'ALL'
+                  ? 'All Time'
+                  : preset === 'TODAY'
+                  ? 'Today'
+                  : preset === 'YESTERDAY'
+                  ? 'Yesterday'
+                  : preset === 'THIS_WEEK'
+                  ? 'This Week'
+                  : preset === 'THIS_MONTH'
+                  ? 'This Month'
+                  : 'Custom'}
+              </button>
+            ))}
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleToday}
-            className={`text-xs h-7 px-2.5 rounded-xl ${
-              dateFilterMode === 'specific' &&
-              selectedDate === todayStr
-                ? 'bg-primary/10 text-primary font-bold border-primary/30'
-                : 'text-muted-foreground'
-            }`}
-          >
-            Today
-          </Button>
-        </div>
+            {datePreset === 'CUSTOM' && (
+              <div className="flex items-center gap-1.5 ml-2">
+                <input
+                  type="date"
+                  value={customFromDate}
+                  onChange={(e) => setCustomFromDate(e.target.value)}
+                  className="rounded-[0.5rem] border border-input bg-background px-2 py-0.5 text-[0.75rem] text-foreground focus:outline-none focus:border-primary"
+                  title="From date"
+                />
+                <span className="text-[0.75rem] text-muted-foreground">to</span>
+                <input
+                  type="date"
+                  value={customToDate}
+                  onChange={(e) => setCustomToDate(e.target.value)}
+                  className="rounded-[0.5rem] border border-input bg-background px-2 py-0.5 text-[0.75rem] text-foreground focus:outline-none focus:border-primary"
+                  title="To date"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (customFromDate && customToDate) {
+                      setAppliedFromDate(customFromDate);
+                      setAppliedToDate(customToDate);
+                    }
+                  }}
+                  disabled={!customFromDate || !customToDate}
+                  className="px-2.5 py-0.5 rounded-[0.5rem] bg-primary text-primary-foreground text-[0.75rem] font-bold disabled:opacity-50 hover:bg-primary/90 transition shadow-2xs"
+                >
+                  Apply
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="flex items-center gap-2">
-          <Button
-            variant={dateFilterMode === 'all' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={handleAllTime}
-            className="text-xs h-7 px-3 rounded-xl"
-          >
-            All Dates (Overall)
-          </Button>
-
           <Button
             variant={activeTab === 'daybook' ? 'default' : 'outline'}
             size="sm"

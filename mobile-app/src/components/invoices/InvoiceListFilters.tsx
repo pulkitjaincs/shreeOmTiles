@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { FilterPills } from '@/components/ui/FilterPills';
-import { Input } from '@/components/ui/Input';
-import { useThemedStyles } from '@/lib/theme-context';
+import { CalendarModal } from '@/components/ui/CalendarModal';
+import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { FilterDropdown } from '@/components/ui/FilterDropdown';
+import { Ionicons } from '@expo/vector-icons';
 
 interface InvoiceListFiltersProps {
   search: string;
@@ -17,6 +18,7 @@ interface InvoiceListFiltersProps {
   onDateFromChange: (value: string) => void;
   dateTo: string;
   onDateToChange: (value: string) => void;
+  onApplyCustomDates?: (from: string, to: string) => void;
   paymentMode: string;
   onPaymentModeChange: (value: string) => void;
   staffOptions?: Array<{ label: string; value: string; icon?: any; color?: string }>;
@@ -25,6 +27,17 @@ interface InvoiceListFiltersProps {
   invoiceCount: number;
   resultCount: number;
   onClear: () => void;
+}
+
+function formatPrettyDate(dateStr: string): string {
+  if (!dateStr) return 'Select';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  const d = parseInt(parts[2], 10);
+  const m = parseInt(parts[1], 10);
+  const y = parts[0];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${d} ${months[m - 1] || ''} ${y}`;
 }
 
 export function InvoiceListFilters({
@@ -38,6 +51,7 @@ export function InvoiceListFilters({
   onDateFromChange,
   dateTo,
   onDateToChange,
+  onApplyCustomDates,
   paymentMode,
   onPaymentModeChange,
   staffOptions,
@@ -47,8 +61,24 @@ export function InvoiceListFilters({
   resultCount,
   onClear,
 }: InvoiceListFiltersProps) {
+  const { colors } = useTheme();
   const styles = useThemedStyles(createStyles);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const hasActiveFilters = Boolean(search.trim()) || status !== 'ALL' || paymentMode !== 'ALL' || (createdById && createdById !== 'ALL') || datePreset !== 'ALL' || Boolean(dateFrom || dateTo);
+
+  const handleCalendarApply = (from: string, to: string) => {
+    onDateFromChange(from);
+    onDateToChange(to);
+    if (onApplyCustomDates) {
+      onApplyCustomDates(from, to);
+    }
+  };
+
+  const handleManualApply = () => {
+    if (onApplyCustomDates && dateFrom && dateTo) {
+      onApplyCustomDates(dateFrom, dateTo);
+    }
+  };
 
   return (
     <>
@@ -115,20 +145,52 @@ export function InvoiceListFilters({
             { label: 'Custom Range', value: 'CUSTOM' },
           ]}
           selected={datePreset}
-          onSelect={onDatePresetChange}
+          onSelect={(val) => {
+            onDatePresetChange(val);
+            if (val === 'CUSTOM' && (!dateFrom || !dateTo)) {
+              setCalendarOpen(true);
+            }
+          }}
         />
       </View>
 
       {datePreset === 'CUSTOM' ? (
-        <View style={styles.customDateRow}>
-          <View style={{ flex: 1 }}>
-            <Input label="From (YYYY-MM-DD)" placeholder="2026-01-01" value={dateFrom} onChangeText={onDateFromChange} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Input label="To (YYYY-MM-DD)" placeholder="2026-01-31" value={dateTo} onChangeText={onDateToChange} />
-          </View>
+        <View style={styles.customDateBar}>
+          <TouchableOpacity
+            style={styles.customDateTrigger}
+            onPress={() => setCalendarOpen(true)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="calendar-outline" size={16} color={colors.primary} />
+            <Text style={styles.customDateLabel}>
+              {dateFrom ? formatPrettyDate(dateFrom) : 'From'}
+            </Text>
+            <Ionicons name="arrow-forward" size={13} color={colors.textSecondary} />
+            <Text style={styles.customDateLabel}>
+              {dateTo ? formatPrettyDate(dateTo) : 'To'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.applyButton, (!dateFrom || !dateTo) && styles.applyButtonDisabled]}
+            onPress={handleManualApply}
+            disabled={!dateFrom || !dateTo}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.applyButtonText}>Apply</Text>
+          </TouchableOpacity>
         </View>
       ) : null}
+
+      <CalendarModal
+        visible={calendarOpen}
+        onClose={() => setCalendarOpen(false)}
+        initialFrom={dateFrom}
+        initialTo={dateTo}
+        onApply={handleCalendarApply}
+        title="Select Invoices Date Range"
+        mode="range"
+      />
 
       <View style={styles.resultsRow}>
         <Text style={styles.resultsText}>Showing {resultCount} of {invoiceCount} invoices</Text>
@@ -159,12 +221,46 @@ const createStyles = (colors: any) =>
       marginTop: -4,
       marginBottom: -4,
     },
-    customDateRow: {
+    customDateBar: {
       flexDirection: 'row',
+      alignItems: 'center',
       paddingHorizontal: 16,
       gap: 8,
-      marginTop: 6,
+      marginTop: 4,
       marginBottom: 6,
+    },
+    customDateTrigger: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.borderMedium,
+      borderRadius: 9,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+    },
+    customDateLabel: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    applyButton: {
+      backgroundColor: colors.primary,
+      paddingHorizontal: 16,
+      paddingVertical: 9,
+      borderRadius: 9,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    applyButtonDisabled: {
+      opacity: 0.5,
+    },
+    applyButtonText: {
+      color: colors.primaryForeground,
+      fontSize: 12,
+      fontWeight: '800',
     },
     resultsRow: {
       minHeight: 30,
