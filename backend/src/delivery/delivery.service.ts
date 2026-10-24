@@ -21,7 +21,7 @@ import {
   PaymentType,
   Role,
 } from '@prisma/client';
-import { PaginationParams } from '../common/interfaces/pagination.interface';
+import { PaginationParams, DateRangeFilter, buildDateRange } from '../common/interfaces/pagination.interface';
 
 import { NotificationsService } from '../notifications/notifications.service';
 import {
@@ -133,7 +133,7 @@ export class DeliveryService {
   async findAll(
     driverId?: string,
     isDriverRole: boolean = false,
-    pagination?: PaginationParams,
+    pagination?: PaginationParams & { dateFilter?: DateRangeFilter },
     requestingUser?: { id: string; role: Role; scope?: string | null },
   ): Promise<any> {
     const where: Prisma.DeliveryWhereInput = {};
@@ -154,6 +154,11 @@ export class DeliveryService {
       where.supervisors = {
         some: { supervisorId: requestingUser.id },
       };
+    }
+
+    const dateRange = buildDateRange(pagination?.dateFilter);
+    if (dateRange) {
+      where.createdAt = dateRange;
     }
 
     const includeRelations = {
@@ -284,7 +289,7 @@ export class DeliveryService {
 
     if (pagination?.page !== undefined || pagination?.limit !== undefined) {
       const page = Math.max(1, pagination?.page || 1);
-      const limit = Math.min(Math.max(1, pagination?.limit || 25), 100);
+      const limit = Math.min(Math.max(1, pagination?.limit || 25), 500);
       const skip = (page - 1) * limit;
 
       const [deliveries, total] = await Promise.all([
@@ -311,7 +316,7 @@ export class DeliveryService {
       where,
       include: includeRelations,
       orderBy: { createdAt: 'desc' },
-      take: 100,
+      ...(dateRange ? {} : { take: 2000 }),
     });
 
     // Normalize items: if delivery has specific items saved, use those; else fallback to invoice items

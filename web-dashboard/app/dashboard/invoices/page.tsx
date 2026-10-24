@@ -85,8 +85,23 @@ export default function InvoicesPage() {
 
   const loadInitialData = useCallback(async (force = false) => {
     try {
+      const invQueryParams = new URLSearchParams();
+      if (createdById !== 'ALL') {
+        invQueryParams.set('createdById', createdById);
+      }
+      if (datePreset && datePreset !== 'ALL') {
+        if (datePreset === 'CUSTOM') {
+          if (customFromDate) invQueryParams.set('from', customFromDate);
+          if (customToDate) invQueryParams.set('to', customToDate);
+        } else {
+          invQueryParams.set('preset', datePreset);
+        }
+      }
+      const invQueryStr = invQueryParams.toString();
+      const invUrl = `/invoices${invQueryStr ? `?${invQueryStr}` : ''}`;
+
       const [invList, prodList, partyList, stockList, staffList] = await Promise.all([
-        cachedApiRequest<Invoice[]>(`/invoices${createdById !== 'ALL' ? `?createdById=${encodeURIComponent(createdById)}` : ''}`, {
+        cachedApiRequest<Invoice[]>(invUrl, {
           forceRefresh: force,
           onRevalidate: (fresh) => setInvoices(fresh),
         }).catch(() => []),
@@ -118,7 +133,7 @@ export default function InvoicesPage() {
     } finally {
       setLoading(false);
     }
-  }, [canDeleteInvoice, createdById]);
+  }, [canDeleteInvoice, createdById, datePreset, customFromDate, customToDate]);
 
   useEffect(() => {
     const timer = setTimeout(() => {

@@ -20,7 +20,7 @@ import {
   Role,
   Prisma,
 } from '@prisma/client';
-import { PaginationParams } from '../common/interfaces/pagination.interface';
+import { PaginationParams, DateRangeFilter, buildDateRange } from '../common/interfaces/pagination.interface';
 import { generateUpiIntentQr } from '../common/utils/upi.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CacheService } from '../common/cache.service';
@@ -454,15 +454,27 @@ export class PaymentsService {
   }
 
   async findAll(
-    pagination?: PaginationParams,
+    pagination?: PaginationParams & { dateFilter?: DateRangeFilter; search?: string },
     user?: { id: string; role: Role },
   ): Promise<any> {
-    const cacheKey = `payments:list:${user?.role || 'ALL'}:${user?.id || 'ALL'}:${pagination?.page || 1}:${pagination?.limit || 'all'}`;
+    const cacheKey = `payments:list:${user?.role || 'ALL'}:${user?.id || 'ALL'}:${pagination?.page || 1}:${pagination?.limit || 'all'}:${pagination?.dateFilter?.preset || ''}:${pagination?.dateFilter?.from || ''}:${pagination?.dateFilter?.to || ''}:${pagination?.search || ''}`;
     return this.cacheService.wrap(cacheKey, 1800, async () => {
       const where: Prisma.PaymentWhereInput =
         user?.role === Role.SALESMAN
           ? { invoice: { salesmanId: user.id } }
           : {};
+
+      const dateRange = buildDateRange(pagination?.dateFilter);
+      if (dateRange) {
+        where.createdAt = dateRange;
+      }
+      if (pagination?.search) {
+        where.OR = [
+          { invoice: { invoiceNo: { contains: pagination.search, mode: 'insensitive' } } },
+          { party: { name: { contains: pagination.search, mode: 'insensitive' } } },
+          { mode: { equals: pagination.search.toUpperCase() as any } },
+        ] as any;
+      }
 
       const includeRelations = {
         invoice: {
@@ -488,7 +500,7 @@ export class PaymentsService {
 
       if (pagination?.page !== undefined || pagination?.limit !== undefined) {
         const page = Math.max(1, pagination?.page || 1);
-        const limit = Math.min(Math.max(1, pagination?.limit || 25), 100);
+        const limit = Math.min(Math.max(1, pagination?.limit || 25), 500);
         const skip = (page - 1) * limit;
 
         const [data, total] = await Promise.all([
@@ -515,7 +527,7 @@ export class PaymentsService {
         where,
         include: includeRelations,
         orderBy: { createdAt: 'desc' },
-        take: 100,
+        ...(dateRange ? {} : { take: 2000 }),
       });
     });
   }

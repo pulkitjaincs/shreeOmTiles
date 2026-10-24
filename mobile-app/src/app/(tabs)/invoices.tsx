@@ -157,9 +157,24 @@ export default function InvoicesScreen() {
 
   const loadData = useCallback(async (force = false) => {
     try {
+      const invQueryParams = new URLSearchParams();
+      if (isOwnerOrAdmin && createdById !== 'ALL') {
+        invQueryParams.set('createdById', createdById);
+      }
+      if (dateFilter && dateFilter !== 'ALL') {
+        if (dateFilter === 'CUSTOM') {
+          if (dateFrom) invQueryParams.set('from', dateFrom);
+          if (dateTo) invQueryParams.set('to', dateTo);
+        } else {
+          invQueryParams.set('preset', dateFilter);
+        }
+      }
+      const invQueryStr = invQueryParams.toString();
+      const invUrl = `/invoices${invQueryStr ? `?${invQueryStr}` : ''}`;
+
       const [invData, prodData, whData, stockData, usersData] = await Promise.all([
         cachedMobileApiRequest<any[]>(
-          `/invoices${isOwnerOrAdmin && createdById !== 'ALL' ? `?createdById=${encodeURIComponent(createdById)}` : ''}`,
+          invUrl,
           {
           forceRefresh: force,
           onRevalidate: (fresh) => {
@@ -199,7 +214,7 @@ export default function InvoicesScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [createdById, isOwnerOrAdmin]);
+  }, [createdById, isOwnerOrAdmin, dateFilter, dateFrom, dateTo]);
 
   // Lazy-load parties only when the Create Invoice modal is about to open.
   // /parties carries full creditLedger arrays and can be several MB — loading it

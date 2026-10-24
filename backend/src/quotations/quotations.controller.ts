@@ -40,12 +40,16 @@ export class QuotationsController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('search') search?: string,
+    @Query('preset') preset?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
     const pageNum = page ? parseInt(page, 10) : undefined;
     const limitNum = limit ? parseInt(limit, 10) : undefined;
     return this.quotationsService.findAll(
       { page: pageNum, limit: limitNum },
       search,
+      preset || from || to ? { preset: preset as any, from, to } : undefined,
     );
   }
 

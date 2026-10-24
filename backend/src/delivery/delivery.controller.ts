@@ -53,6 +53,9 @@ export class DeliveryController {
     @Query('driverId') driverId?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('preset') preset?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
     const isDriver = req.user?.role === Role.DRIVER;
     const effectiveDriverId = isDriver ? req.user.id : driverId;
@@ -64,6 +67,7 @@ export class DeliveryController {
       {
         page: pageNum,
         limit: limitNum,
+        dateFilter: { preset: preset as any, from, to },
       },
       req.user,
     );

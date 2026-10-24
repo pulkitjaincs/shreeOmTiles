@@ -90,15 +90,16 @@ export class PaymentsController {
   findAll(
     @Query('page') page?: string,
     @Query('limit') limit?: string,
+    @Query('preset') preset?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('search') search?: string,
     @Request() req?: RequestWithUser,
   ) {
     const pageNum = page ? parseInt(page, 10) : undefined;
     const limitNum = limit ? parseInt(limit, 10) : undefined;
     return this.paymentsService.findAll(
-      {
-        page: pageNum,
-        limit: limitNum,
-      },
+      { page: pageNum, limit: limitNum, search, dateFilter: { preset: preset as any, from, to } },
       req?.user,
     );
   }

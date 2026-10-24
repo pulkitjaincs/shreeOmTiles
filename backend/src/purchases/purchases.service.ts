@@ -18,7 +18,7 @@ import {
   Party,
   Role,
 } from '@prisma/client';
-import { PaginationParams } from '../common/interfaces/pagination.interface';
+import { PaginationParams, DateRangeFilter, buildDateRange } from '../common/interfaces/pagination.interface';
 import { CacheService } from '../common/cache.service';
 
 @Injectable()
@@ -499,8 +499,9 @@ export class PurchasesService {
     pagination?: PaginationParams,
     search?: string,
     user?: { id: string; role: Role; scope?: string | null },
+    dateFilter?: DateRangeFilter,
   ) {
-    const cacheKey = `purchases:list:${user?.role || 'ALL'}:${user?.scope || 'none'}:${search || 'all'}:${pagination?.page || 1}:${pagination?.limit || 'all'}`;
+    const cacheKey = `purchases:list:${user?.role || 'ALL'}:${user?.scope || 'none'}:${search || 'all'}:${pagination?.page || 1}:${pagination?.limit || 'all'}:${dateFilter?.preset || ''}:${dateFilter?.from || ''}:${dateFilter?.to || ''}`;
     return this.cacheService.wrap(cacheKey, 1800, async () => {
       const where: Prisma.PurchaseWhereInput = {};
       if (search) {
@@ -509,6 +510,11 @@ export class PurchasesService {
           { vendorBillNo: { contains: search, mode: 'insensitive' } },
           { party: { name: { contains: search, mode: 'insensitive' } } },
         ];
+      }
+
+      const dateRange = buildDateRange(dateFilter);
+      if (dateRange) {
+        where.createdAt = dateRange;
       }
 
       const isSupervisor = user?.role === Role.SUPERVISOR;
@@ -528,7 +534,7 @@ export class PurchasesService {
 
       if (pagination?.page !== undefined || pagination?.limit !== undefined) {
         const page = Math.max(1, pagination?.page || 1);
-        const limit = Math.min(Math.max(1, pagination?.limit || 25), 100);
+        const limit = Math.min(Math.max(1, pagination?.limit || 25), 500);
         const skip = (page - 1) * limit;
 
         const [data, total] = await Promise.all([
@@ -557,7 +563,7 @@ export class PurchasesService {
         where,
         include: includeRelations,
         orderBy: { createdAt: 'desc' },
-        take: 100,
+        ...(dateRange ? {} : { take: 2000 }),
       });
 
       return isSupervisor

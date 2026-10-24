@@ -8,7 +8,7 @@ import { CacheService } from '../common/cache.service';
 import { CreateQuotationDto } from './dto/create-quotation.dto';
 import { InvoicesService } from '../invoices/invoices.service';
 import { Prisma, QuotationStatus, PaymentMode } from '@prisma/client';
-import { PaginationParams } from '../common/interfaces/pagination.interface';
+import { PaginationParams, DateRangeFilter, buildDateRange } from '../common/interfaces/pagination.interface';
 import { generateQuotationPdf } from './pdf/quotation-pdf.generator';
 import { PaymentSplitDto } from '../common/dto/payment-split.dto';
 
@@ -105,8 +105,12 @@ export class QuotationsService {
     return res;
   }
 
-  async findAll(pagination?: PaginationParams, search?: string) {
-    const cacheKey = `quotations:${search || ''}:${JSON.stringify(pagination || {})}`;
+  async findAll(
+    pagination?: PaginationParams,
+    search?: string,
+    dateFilter?: DateRangeFilter,
+  ) {
+    const cacheKey = `quotations:${search || ''}:${JSON.stringify(pagination || {})}:${dateFilter?.preset || ''}:${dateFilter?.from || ''}:${dateFilter?.to || ''}`;
     // Quotations cache: 1 hour (3600 seconds)
     return this.cacheService.wrap(cacheKey, 3600, async () => {
       const where: Prisma.QuotationWhereInput = {};
@@ -117,6 +121,11 @@ export class QuotationsService {
           { customerPhone: { contains: search, mode: 'insensitive' } },
           { party: { name: { contains: search, mode: 'insensitive' } } },
         ];
+      }
+
+      const dateRange = buildDateRange(dateFilter);
+      if (dateRange) {
+        where.createdAt = dateRange;
       }
 
       // Optimization: pruned joins for list view
@@ -139,7 +148,7 @@ export class QuotationsService {
 
       if (pagination?.page !== undefined || pagination?.limit !== undefined) {
         const page = Math.max(1, pagination?.page || 1);
-        const limit = Math.min(Math.max(1, pagination?.limit || 25), 100);
+        const limit = Math.min(Math.max(1, pagination?.limit || 25), 500);
         const skip = (page - 1) * limit;
 
         const [data, total] = await Promise.all([
@@ -166,7 +175,7 @@ export class QuotationsService {
         where,
         include: includeRelations,
         orderBy: { createdAt: 'desc' },
-        take: 100,
+        ...(dateRange ? {} : { take: 2000 }),
       });
     });
   }

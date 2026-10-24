@@ -26,7 +26,7 @@ import {
   ProcessReturnDto,
   ProcessStandaloneReturnDto,
 } from './dto/process-return.dto';
-import { PaginationParams } from '../common/interfaces/pagination.interface';
+import { PaginationParams, DateRangeFilter, buildDateRange } from '../common/interfaces/pagination.interface';
 import { generateUpiIntentQr } from '../common/utils/upi.util';
 import { GeneratedPdfResult, TaxBreakupData } from './pdf/pdf-utils';
 import { generateInvoicePdf } from './pdf/invoice-pdf.generator';
@@ -566,9 +566,9 @@ export class InvoicesService {
 
   async findAll(
     user: { id: string; role: Role },
-    pagination?: PaginationParams & { createdById?: string },
+    pagination?: PaginationParams & { createdById?: string; dateFilter?: DateRangeFilter; search?: string },
   ): Promise<any> {
-    const cacheKey = `invoices:${user.role}:${user.id}:${JSON.stringify(pagination || {})}`;
+    const cacheKey = `invoices:${user.role}:${user.id}:${pagination?.createdById || ''}:${pagination?.dateFilter?.preset || ''}:${pagination?.dateFilter?.from || ''}:${pagination?.dateFilter?.to || ''}:${pagination?.search || ''}`;
     // Invoices list cache: 30 minutes (1800 seconds)
     return this.cacheService.wrap(cacheKey, 1800, async () => {
       const where: Prisma.InvoiceWhereInput = {};
@@ -580,6 +580,18 @@ export class InvoicesService {
         (user.role === Role.OWNER || user.role === Role.ADMIN)
       ) {
         where.salesmanId = pagination.createdById;
+      }
+
+      const dateRange = buildDateRange(pagination?.dateFilter);
+      if (dateRange) {
+        where.createdAt = dateRange;
+      }
+      if (pagination?.search) {
+        where.OR = [
+          { invoiceNo: { contains: pagination.search, mode: 'insensitive' } },
+          { party: { name: { contains: pagination.search, mode: 'insensitive' } } },
+          { party: { phone: { contains: pagination.search.replace(/\D/g, ''), mode: 'insensitive' } } },
+        ] as any;
       }
 
       const includeRelations = {
@@ -649,7 +661,7 @@ export class InvoicesService {
 
       if (pagination?.page !== undefined || pagination?.limit !== undefined) {
         const page = Math.max(1, pagination?.page || 1);
-        const limit = Math.min(Math.max(1, pagination?.limit || 25), 100);
+        const limit = Math.min(Math.max(1, pagination?.limit || 25), 500);
         const skip = (page - 1) * limit;
 
         const [data, total] = await Promise.all([
@@ -681,7 +693,7 @@ export class InvoicesService {
         where,
         include: includeRelations,
         orderBy: { createdAt: 'desc' },
-        take: 100,
+        ...(dateRange ? {} : { take: 2000 }),
       });
 
       return user.role === Role.SUPERVISOR

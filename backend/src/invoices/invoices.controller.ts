@@ -102,6 +102,10 @@ export class InvoicesController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('createdById') createdById?: string,
+    @Query('preset') preset?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('search') search?: string,
   ) {
     const pageNum = page ? parseInt(page, 10) : undefined;
     const limitNum = limit ? parseInt(limit, 10) : undefined;
@@ -109,6 +113,8 @@ export class InvoicesController {
       page: pageNum,
       limit: limitNum,
       createdById,
+      search,
+      dateFilter: { preset: preset as any, from, to },
     });
   }
 
