@@ -75,7 +75,7 @@ export function FilterDropdown({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: 12,
+        paddingHorizontal: 10,
       },
       triggerFiltered: {
         backgroundColor: dark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
@@ -88,10 +88,10 @@ export function FilterDropdown({
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        marginRight: 6,
+        marginRight: 4,
       },
       triggerIcon: {
-        marginRight: 6,
+        marginRight: 5,
       },
       triggerText: {
         fontSize: 12,

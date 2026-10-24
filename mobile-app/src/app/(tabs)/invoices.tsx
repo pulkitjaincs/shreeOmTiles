@@ -16,7 +16,6 @@ import { mobileApiRequest, cachedMobileApiRequest, subscribeToAppSync } from '@/
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { Header } from '@/components/ui/Header';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { FilterDropdown } from '@/components/ui/FilterDropdown';
 import { downloadAndSharePdf } from '@/lib/pdf';
 import { buildFullInvoiceShareUrl } from '@/lib/whatsapp';
 import { Ionicons } from '@expo/vector-icons';
@@ -435,7 +434,7 @@ export default function InvoicesScreen() {
         staffOptions={
           isOwnerOrAdmin
             ? [
-                { label: 'All Creators', value: 'ALL', icon: 'people-outline' as const, color: colors.primary },
+                { label: 'All Staff', value: 'ALL', icon: 'people-outline' as const, color: colors.primary },
                 ...staff
                   .filter((member) => ['SALESMAN', 'ADMIN', 'OWNER'].includes(member.role))
                   .map((member) => ({

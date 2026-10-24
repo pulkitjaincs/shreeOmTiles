@@ -88,52 +88,7 @@ export function InvoiceListFilters({
         placeholder="Search invoice #, customer name, phone..."
       />
 
-      {staffOptions && staffOptions.length > 0 && onCreatedByIdChange ? (
-        <View style={styles.createdByRow}>
-          <FilterDropdown
-            label="Staff"
-            value={createdById || 'ALL'}
-            options={staffOptions}
-            onSelect={onCreatedByIdChange}
-            icon="people-outline"
-            showCountOnTrigger
-          />
-        </View>
-      ) : null}
-
-      {/* Line 1: Status Dropdown & Payment Mode Dropdown in one line */}
-      <View style={styles.dropdownsRow}>
-        <FilterDropdown
-          label="Status"
-          value={status}
-          options={[
-            { label: 'All Bills', value: 'ALL', count: invoiceCount, icon: 'receipt-outline' },
-            { label: 'Paid', value: 'PAID', icon: 'checkmark-circle-outline', color: '#10B981' },
-            { label: 'Partial', value: 'PARTIAL', icon: 'time-outline', color: '#F59E0B' },
-            { label: 'Created', value: 'CREATED', icon: 'document-outline', color: '#38BDF8' },
-            { label: 'Refunds', value: 'REFUNDED', icon: 'return-up-back-outline', color: '#F43F5E' },
-          ]}
-          onSelect={onStatusChange}
-          icon="receipt-outline"
-        />
-
-        <FilterDropdown
-          label="Mode"
-          value={paymentMode}
-          options={[
-            { label: 'All Modes', value: 'ALL', icon: 'wallet-outline' },
-            { label: 'UPI QR', value: 'UPI', icon: 'qr-code-outline', color: '#38BDF8' },
-            { label: 'Cash', value: 'CASH', icon: 'cash-outline', color: '#10B981' },
-            { label: 'Card (POS)', value: 'CARD', icon: 'card-outline', color: '#F59E0B' },
-            { label: 'Credit', value: 'CREDIT', icon: 'receipt-outline', color: '#EF4444' },
-            { label: 'Split (Multi)', value: 'SPLIT', icon: 'git-merge-outline', color: '#A78BFA' },
-          ]}
-          onSelect={onPaymentModeChange}
-          icon="wallet-outline"
-        />
-      </View>
-
-      {/* Line 2: Timing Date Preset FilterPills */}
+      {/* Date Preset FilterPills */}
       <View style={styles.datePillsContainer}>
         <FilterPills
           options={[
@@ -182,6 +137,52 @@ export function InvoiceListFilters({
         </View>
       ) : null}
 
+      {/* Unified Categorical Filter Dropdowns Row: Status, Mode, and Staff */}
+      <View style={styles.dropdownsRow}>
+        <FilterDropdown
+          label="Status"
+          value={status}
+          options={[
+            { label: 'All Bills', value: 'ALL', count: invoiceCount, icon: 'receipt-outline' },
+            { label: 'Paid', value: 'PAID', icon: 'checkmark-circle-outline', color: '#10B981' },
+            { label: 'Partial', value: 'PARTIAL', icon: 'time-outline', color: '#F59E0B' },
+            { label: 'Created', value: 'CREATED', icon: 'document-outline', color: '#38BDF8' },
+            { label: 'Refunds', value: 'REFUNDED', icon: 'return-up-back-outline', color: '#F43F5E' },
+          ]}
+          onSelect={onStatusChange}
+          icon="receipt-outline"
+          hideLabelPrefix
+        />
+
+        <FilterDropdown
+          label="Mode"
+          value={paymentMode}
+          options={[
+            { label: 'All Modes', value: 'ALL', icon: 'wallet-outline' },
+            { label: 'UPI QR', value: 'UPI', icon: 'qr-code-outline', color: '#38BDF8' },
+            { label: 'Cash', value: 'CASH', icon: 'cash-outline', color: '#10B981' },
+            { label: 'Card (POS)', value: 'CARD', icon: 'card-outline', color: '#F59E0B' },
+            { label: 'Credit', value: 'CREDIT', icon: 'receipt-outline', color: '#EF4444' },
+            { label: 'Split (Multi)', value: 'SPLIT', icon: 'git-merge-outline', color: '#A78BFA' },
+          ]}
+          onSelect={onPaymentModeChange}
+          icon="wallet-outline"
+          hideLabelPrefix
+        />
+
+        {staffOptions && staffOptions.length > 0 && onCreatedByIdChange ? (
+          <FilterDropdown
+            label="Staff"
+            value={createdById || 'ALL'}
+            options={staffOptions}
+            onSelect={onCreatedByIdChange}
+            icon="people-outline"
+            hideLabelPrefix
+            showCountOnTrigger
+          />
+        ) : null}
+      </View>
+
       <CalendarModal
         visible={calendarOpen}
         onClose={() => setCalendarOpen(false)}
@@ -206,20 +207,16 @@ export function InvoiceListFilters({
 
 const createStyles = (colors: any) =>
   StyleSheet.create({
-    createdByRow: {
-      paddingHorizontal: 16,
-      marginBottom: 6,
+    datePillsContainer: {
+      marginTop: -2,
+      marginBottom: 0,
     },
     dropdownsRow: {
       flexDirection: 'row',
-      gap: 10,
+      gap: 8,
       paddingHorizontal: 16,
-      marginTop: 4,
-      marginBottom: 2,
-    },
-    datePillsContainer: {
-      marginTop: -4,
-      marginBottom: -4,
+      marginTop: 2,
+      marginBottom: 4,
     },
     customDateBar: {
       flexDirection: 'row',
