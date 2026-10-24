@@ -52,20 +52,35 @@ export class PaymentsController {
 
   @Get('stats')
   @Roles(Role.OWNER, Role.ADMIN, Role.ACCOUNTANT, Role.SALESMAN)
-  getStats(@Request() req: RequestWithUser) {
-    return this.paymentsService.getStats(req.user);
+  getStats(
+    @Query('preset') preset?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Request() req?: RequestWithUser,
+  ) {
+    return this.paymentsService.getStats(req?.user, { preset: preset as any, from, to });
   }
 
   @Get(['pending', 'pending-invoices'])
   @Roles(Role.OWNER, Role.ADMIN, Role.ACCOUNTANT, Role.SALESMAN)
-  getPendingItems(@Request() req: RequestWithUser) {
-    return this.paymentsService.getPendingItems(req.user);
+  getPendingItems(
+    @Query('preset') preset?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Request() req?: RequestWithUser,
+  ) {
+    return this.paymentsService.getPendingItems(req?.user, { preset: preset as any, from, to });
   }
 
   @Get(['credits', 'credit'])
   @Roles(Role.OWNER, Role.ADMIN, Role.ACCOUNTANT, Role.SALESMAN)
-  findAllCreditLedgers(@Request() req: RequestWithUser) {
-    return this.paymentsService.findAllCreditLedgers(req.user);
+  findAllCreditLedgers(
+    @Query('preset') preset?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Request() req?: RequestWithUser,
+  ) {
+    return this.paymentsService.findAllCreditLedgers(req?.user, { preset: preset as any, from, to });
   }
 
   @Post('credit')

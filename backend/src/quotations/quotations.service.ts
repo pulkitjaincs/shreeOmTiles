@@ -148,7 +148,7 @@ export class QuotationsService {
 
       if (pagination?.page !== undefined || pagination?.limit !== undefined) {
         const page = Math.max(1, pagination?.page || 1);
-        const limit = Math.min(Math.max(1, pagination?.limit || 25), 500);
+        const limit = Math.min(Math.max(1, pagination?.limit || 40), 500);
         const skip = (page - 1) * limit;
 
         const [data, total] = await Promise.all([
@@ -175,7 +175,7 @@ export class QuotationsService {
         where,
         include: includeRelations,
         orderBy: { createdAt: 'desc' },
-        ...(dateRange ? {} : { take: 2000 }),
+        ...(dateRange || search ? {} : { take: 2000 }),
       });
     });
   }

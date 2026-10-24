@@ -133,7 +133,7 @@ export class DeliveryService {
   async findAll(
     driverId?: string,
     isDriverRole: boolean = false,
-    pagination?: PaginationParams & { dateFilter?: DateRangeFilter },
+    pagination?: PaginationParams & { dateFilter?: DateRangeFilter; search?: string },
     requestingUser?: { id: string; role: Role; scope?: string | null },
   ): Promise<any> {
     const where: Prisma.DeliveryWhereInput = {};
@@ -289,7 +289,7 @@ export class DeliveryService {
 
     if (pagination?.page !== undefined || pagination?.limit !== undefined) {
       const page = Math.max(1, pagination?.page || 1);
-      const limit = Math.min(Math.max(1, pagination?.limit || 25), 500);
+      const limit = Math.min(Math.max(1, pagination?.limit || 40), 500);
       const skip = (page - 1) * limit;
 
       const [deliveries, total] = await Promise.all([
@@ -316,7 +316,7 @@ export class DeliveryService {
       where,
       include: includeRelations,
       orderBy: { createdAt: 'desc' },
-      ...(dateRange ? {} : { take: 2000 }),
+      ...(dateRange || pagination?.search ? {} : { take: 2000 }),
     });
 
     // Normalize items: if delivery has specific items saved, use those; else fallback to invoice items

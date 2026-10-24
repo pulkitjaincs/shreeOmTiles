@@ -22,6 +22,8 @@ import {
   Pencil,
   Trash2,
   X,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { buildCustomerDuesReminderUrl } from '@/lib/whatsapp';
 import { PaymentStatsGrid } from '@/components/payments/payment-stats-grid';
@@ -146,6 +148,7 @@ export default function TransactionsPage() {
   const [appliedToDate, setAppliedToDate] = useState('');
   const [dayBookData, setDayBookData] = useState<DayBookResponse | null>(null);
   const [dayBookLoading, setDayBookLoading] = useState(false);
+  const [isTillOpen, setIsTillOpen] = useState(false);
   const [ownedInvoiceIds, setOwnedInvoiceIds] = useState<Set<string> | null>(null);
 
   // Modal states
@@ -282,14 +285,18 @@ export default function TransactionsPage() {
         }
       }
       const paymentsQueryStr = paymentsParams.toString();
-      const paymentsUrl = `/payments${paymentsQueryStr ? `?${paymentsQueryStr}` : ''}`;
+      const querySuffix = paymentsQueryStr ? `?${paymentsQueryStr}` : '';
+      const paymentsUrl = `/payments${querySuffix}`;
+      const statsUrl = `/payments/stats${querySuffix}`;
+      const pendingUrl = `/payments/pending${querySuffix}`;
+      const creditsUrl = `/payments/credits${querySuffix}`;
 
       const [paymentsData, statsData, pendingData, creditsData, partiesData, invoicesData] = await Promise.all([
         cachedApiRequest<PaymentRecord[]>(paymentsUrl, {
           forceRefresh: force,
           onRevalidate: user?.role === 'SALESMAN' ? undefined : (fresh) => setPayments(fresh),
         }).catch(() => []),
-        cachedApiRequest<FinancialStats>('/payments/stats', {
+        cachedApiRequest<FinancialStats>(statsUrl, {
           forceRefresh: force,
           onRevalidate: (fresh) => setStats(fresh),
         }).catch(() => ({
@@ -303,7 +310,7 @@ export default function TransactionsPage() {
           pendingReceivables: 0,
           creditsOwed: 0,
         })),
-        cachedApiRequest<{ invoices: PendingItem[]; ledgers: PendingCreditLedger[] }>('/payments/pending', {
+        cachedApiRequest<{ invoices: PendingItem[]; ledgers: PendingCreditLedger[] }>(pendingUrl, {
           forceRefresh: force,
           onRevalidate:
             user?.role === 'SALESMAN' ? undefined : (fresh) => setPendingItems(formatPendingList(fresh)),
@@ -311,7 +318,7 @@ export default function TransactionsPage() {
           invoices: [],
           ledgers: [],
         })),
-        cachedApiRequest<CreditLedgerRecord[]>('/payments/credits', {
+        cachedApiRequest<CreditLedgerRecord[]>(creditsUrl, {
           forceRefresh: force,
           onRevalidate: (fresh) => setCreditLedgers(fresh),
         }).catch(() => []),
@@ -407,13 +414,6 @@ export default function TransactionsPage() {
     };
   }, []);
 
-  const handleShiftDay = (days: number) => {
-    const cur = new Date(selectedDate);
-    cur.setDate(cur.getDate() + days);
-    setSelectedDate(cur.toISOString().slice(0, 10));
-    setDateFilterMode('specific');
-  };
-
   const yesterdayStr = useMemo(() => {
     const d = new Date();
     d.setDate(d.getDate() - 1);
@@ -422,14 +422,57 @@ export default function TransactionsPage() {
 
   const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
-  const handleToday = () => {
-    setSelectedDate(todayStr);
+  const handleSelectPreset = (preset: 'ALL' | 'TODAY' | 'YESTERDAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'CUSTOM') => {
+    setDatePreset(preset);
+    if (preset === 'TODAY') {
+      setSelectedDate(todayStr);
+      setDateFilterMode('specific');
+      setIsTillOpen(true);
+      void fetchDayBook(todayStr);
+    } else if (preset === 'YESTERDAY') {
+      setSelectedDate(yesterdayStr);
+      setDateFilterMode('specific');
+      setIsTillOpen(false);
+      void fetchDayBook(yesterdayStr);
+    } else {
+      setIsTillOpen(false);
+      if (preset === 'ALL') {
+        setDateFilterMode('all');
+      }
+    }
+    if (preset !== 'CUSTOM') {
+      setAppliedFromDate('');
+      setAppliedToDate('');
+    }
+  };
+
+  const handleShiftDay = (days: number) => {
+    const cur = new Date(selectedDate);
+    cur.setDate(cur.getDate() + days);
+    const newDateStr = cur.toISOString().slice(0, 10);
+    setSelectedDate(newDateStr);
     setDateFilterMode('specific');
+    if (newDateStr === todayStr) {
+      setDatePreset('TODAY');
+      setIsTillOpen(true);
+    } else if (newDateStr === yesterdayStr) {
+      setDatePreset('YESTERDAY');
+      setIsTillOpen(false);
+    } else {
+      setDatePreset('CUSTOM');
+      setAppliedFromDate(newDateStr);
+      setAppliedToDate(newDateStr);
+      setIsTillOpen(false);
+    }
+    void fetchDayBook(newDateStr);
+  };
+
+  const handleToday = () => {
+    handleSelectPreset('TODAY');
   };
 
   const handleYesterday = () => {
-    setSelectedDate(yesterdayStr);
-    setDateFilterMode('specific');
+    handleSelectPreset('YESTERDAY');
   };
 
   const handleAllTime = () => {
@@ -692,249 +735,223 @@ export default function TransactionsPage() {
 
       {/* Date-wise Navigation Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-card/80 p-2.5 rounded-2xl border border-border/80 shadow-2xs">
-        {activeTab === 'daybook' ? (
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5 ml-1">
-              <Calendar className="h-4 w-4 text-primary" />
-              Day Book Date:
-            </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5 ml-1 mr-1">
+            <Calendar className="h-4 w-4 text-primary" />
+            Date Filter:
+          </span>
 
-            <div className="flex items-center gap-1.5 bg-muted/40 border border-border/60 p-1 rounded-xl">
-              <button
-                type="button"
-                onClick={() => handleShiftDay(-1)}
-                className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition"
-                title="Previous Day"
-              >
-                <ArrowLeft className="h-3.5 w-3.5" />
-              </button>
+          {(['ALL', 'TODAY', 'YESTERDAY', 'THIS_WEEK', 'THIS_MONTH', 'CUSTOM'] as const).map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => handleSelectPreset(preset)}
+              className={`px-2.5 py-1 rounded-[0.5rem] text-[0.75rem] font-semibold transition ${
+                datePreset === preset
+                  ? 'bg-primary text-primary-foreground shadow-2xs'
+                  : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
+              }`}
+            >
+              {preset === 'ALL'
+                ? 'All Time'
+                : preset === 'TODAY'
+                ? 'Today'
+                : preset === 'YESTERDAY'
+                ? 'Yesterday'
+                : preset === 'THIS_WEEK'
+                ? 'This Week'
+                : preset === 'THIS_MONTH'
+                ? 'This Month'
+                : 'Custom'}
+            </button>
+          ))}
 
+          {datePreset === 'CUSTOM' && (
+            <div className="flex items-center gap-1.5 ml-2">
               <input
                 type="date"
-                value={selectedDate}
-                onChange={(e) => {
-                  setSelectedDate(e.target.value);
-                  setDateFilterMode('specific');
-                }}
-                className="bg-transparent border-none text-xs font-semibold text-foreground focus:outline-none cursor-pointer px-1"
+                value={customFromDate}
+                onChange={(e) => setCustomFromDate(e.target.value)}
+                className="rounded-[0.5rem] border border-input bg-background px-2 py-0.5 text-[0.75rem] text-foreground focus:outline-none focus:border-primary"
+                title="From date"
               />
-
+              <span className="text-[0.75rem] text-muted-foreground">to</span>
+              <input
+                type="date"
+                value={customToDate}
+                onChange={(e) => setCustomToDate(e.target.value)}
+                className="rounded-[0.5rem] border border-input bg-background px-2 py-0.5 text-[0.75rem] text-foreground focus:outline-none focus:border-primary"
+                title="To date"
+              />
               <button
-                type="button"
-                onClick={() => handleShiftDay(1)}
-                className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition"
-                title="Next Day"
-              >
-                <ArrowRight className="h-3.5 w-3.5" />
-              </button>
-            </div>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleYesterday}
-              className={`text-xs h-7 px-2.5 rounded-xl ${
-                dateFilterMode === 'specific' &&
-                selectedDate === yesterdayStr
-                  ? 'bg-muted font-bold text-foreground'
-                  : 'text-muted-foreground'
-              }`}
-            >
-              Yesterday
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleToday}
-              className={`text-xs h-7 px-2.5 rounded-xl ${
-                dateFilterMode === 'specific' &&
-                selectedDate === todayStr
-                  ? 'bg-primary/10 text-primary font-bold border-primary/30'
-                  : 'text-muted-foreground'
-              }`}
-            >
-              Today
-            </Button>
-          </div>
-        ) : (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1.5 ml-1 mr-1">
-              <Calendar className="h-4 w-4 text-primary" />
-              Date Filter:
-            </span>
-
-            {(['ALL', 'TODAY', 'YESTERDAY', 'THIS_WEEK', 'THIS_MONTH', 'CUSTOM'] as const).map((preset) => (
-              <button
-                key={preset}
                 type="button"
                 onClick={() => {
-                  setDatePreset(preset);
-                  if (preset !== 'CUSTOM') {
-                    setAppliedFromDate('');
-                    setAppliedToDate('');
+                  if (customFromDate && customToDate) {
+                    setAppliedFromDate(customFromDate);
+                    setAppliedToDate(customToDate);
+                    if (customFromDate === customToDate) {
+                      setSelectedDate(customFromDate);
+                      setDateFilterMode('specific');
+                      setIsTillOpen(customFromDate === todayStr);
+                      void fetchDayBook(customFromDate);
+                    } else {
+                      setIsTillOpen(false);
+                    }
                   }
                 }}
-                className={`px-2.5 py-1 rounded-[0.5rem] text-[0.75rem] font-semibold transition ${
-                  datePreset === preset
-                    ? 'bg-primary text-primary-foreground shadow-2xs'
-                    : 'bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted'
-                }`}
+                disabled={!customFromDate || !customToDate}
+                className="px-2.5 py-0.5 rounded-[0.5rem] bg-primary text-primary-foreground text-[0.75rem] font-bold disabled:opacity-50 hover:bg-primary/90 transition shadow-2xs"
               >
-                {preset === 'ALL'
-                  ? 'All Time'
-                  : preset === 'TODAY'
-                  ? 'Today'
-                  : preset === 'YESTERDAY'
-                  ? 'Yesterday'
-                  : preset === 'THIS_WEEK'
-                  ? 'This Week'
-                  : preset === 'THIS_MONTH'
-                  ? 'This Month'
-                  : 'Custom'}
+                Apply
               </button>
-            ))}
+            </div>
+          )}
+        </div>
 
-            {datePreset === 'CUSTOM' && (
-              <div className="flex items-center gap-1.5 ml-2">
-                <input
-                  type="date"
-                  value={customFromDate}
-                  onChange={(e) => setCustomFromDate(e.target.value)}
-                  className="rounded-[0.5rem] border border-input bg-background px-2 py-0.5 text-[0.75rem] text-foreground focus:outline-none focus:border-primary"
-                  title="From date"
-                />
-                <span className="text-[0.75rem] text-muted-foreground">to</span>
-                <input
-                  type="date"
-                  value={customToDate}
-                  onChange={(e) => setCustomToDate(e.target.value)}
-                  className="rounded-[0.5rem] border border-input bg-background px-2 py-0.5 text-[0.75rem] text-foreground focus:outline-none focus:border-primary"
-                  title="To date"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (customFromDate && customToDate) {
-                      setAppliedFromDate(customFromDate);
-                      setAppliedToDate(customToDate);
-                    }
-                  }}
-                  disabled={!customFromDate || !customToDate}
-                  className="px-2.5 py-0.5 rounded-[0.5rem] bg-primary text-primary-foreground text-[0.75rem] font-bold disabled:opacity-50 hover:bg-primary/90 transition shadow-2xs"
-                >
-                  Apply
-                </button>
-              </div>
-            )}
+        {/* Day Book specific day stepper when on daybook tab or single day */}
+        {(datePreset === 'TODAY' || datePreset === 'YESTERDAY' || activeTab === 'daybook') && (
+          <div className="flex items-center gap-1.5 bg-muted/40 border border-border/60 p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => handleShiftDay(-1)}
+              className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition"
+              title="Previous Day"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+            </button>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => {
+                setSelectedDate(e.target.value);
+                setDateFilterMode('specific');
+                setIsTillOpen(e.target.value === todayStr);
+                void fetchDayBook(e.target.value);
+              }}
+              className="bg-transparent border-none text-xs font-semibold text-foreground focus:outline-none cursor-pointer px-1"
+            />
+            <button
+              type="button"
+              onClick={() => handleShiftDay(1)}
+              className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition"
+              title="Next Day"
+            >
+              <ArrowRight className="h-3.5 w-3.5" />
+            </button>
           </div>
         )}
-
-        <div className="flex items-center gap-2">
-          <Button
-            variant={activeTab === 'daybook' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => {
-              setActiveTab('daybook');
-              setDateFilterMode('specific');
-            }}
-            className="text-xs h-7 px-3 rounded-xl inline-flex items-center gap-1.5"
-          >
-            <BookOpen className="h-3.5 w-3.5" />
-            Till Drawer ({selectedDate})
-          </Button>
-        </div>
       </div>
 
       {/* Daily Till Drawer Summary (Opening Cash, Inflows, Outflows, Expenses, Net Flow & Closing Cash) */}
-      {!isSalesman && (dateFilterMode === 'specific' || activeTab === 'daybook') && (
-        <div className="rounded-2xl border border-border/80 bg-card/90 p-4 shadow-sm space-y-3">
-          <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
-            <div className="flex items-center gap-2">
+      {!isSalesman && (
+        <div className="rounded-2xl border border-border/80 bg-card/90 shadow-sm overflow-hidden transition-all">
+          <button
+            type="button"
+            onClick={() => setIsTillOpen((prev) => !prev)}
+            className="w-full flex items-center justify-between p-3.5 hover:bg-muted/30 transition text-left"
+          >
+            <div className="flex items-center gap-2.5">
               <BookOpen className="h-4 w-4 text-primary" />
               <h2 className="text-xs font-bold uppercase tracking-wider text-foreground">
                 Till Reconciliation & Closing Balance ({selectedDate})
               </h2>
-            </div>
-            {dayBookLoading && (
-              <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                <Loader2 className="h-3 w-3 animate-spin text-primary" />
-                Balancing till drawer...
-              </span>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
-            {/* 1. Opening Cash */}
-            <div className="p-3 rounded-xl border border-border/60 bg-muted/20">
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">Opening Cash</span>
-              <div className="text-base font-bold font-mono text-foreground mt-1">
-                ₹{(dayBookData?.summary.openingCash || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-              </div>
-              <span className="text-[10px] text-muted-foreground">Drawer starting cash</span>
-            </div>
-
-            {/* 2. Cash In */}
-            <div className="p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
-              <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider block">Cash Inflows</span>
-              <div className="text-base font-bold font-mono text-emerald-700 dark:text-emerald-300 mt-1">
-                +₹{(dayBookData?.summary.cashIn || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-              </div>
-              <span className="text-[10px] text-emerald-700/70 dark:text-emerald-300/70">Sales & collected cash</span>
-            </div>
-
-            {/* 3. Cash Out */}
-            <div className="p-3 rounded-xl border border-rose-500/20 bg-rose-500/5">
-              <span className="text-[10px] font-semibold text-rose-700 dark:text-rose-300 uppercase tracking-wider block">Cash Outflows</span>
-              <div className="text-base font-bold font-mono text-rose-700 dark:text-rose-300 mt-1">
-                -₹{(dayBookData?.summary.cashOut || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-              </div>
-              <span className="text-[10px] text-rose-700/70 dark:text-rose-300/70">Customer refunds</span>
-            </div>
-
-            {/* 4. Daily Expenses */}
-            <div className="p-3 rounded-xl border border-amber-500/20 bg-amber-500/5">
-              <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wider block">Cash Expenses</span>
-              <div className="text-base font-bold font-mono text-amber-700 dark:text-amber-300 mt-1">
-                -₹{(dayBookData?.summary.expenseCash || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-              </div>
-              <span className="text-[10px] text-amber-700/70 dark:text-amber-300/70">Daily operational expenses</span>
-            </div>
-
-            {/* 5. Net Cash Flow */}
-            <div className="p-3 rounded-xl border border-primary/20 bg-primary/5">
-              <span className="text-[10px] font-semibold text-primary uppercase tracking-wider block">Net Cash Flow</span>
-              <div className="text-base font-bold font-mono text-foreground mt-1">
-                {(dayBookData?.summary.netCashFlow || 0) >= 0 ? '+' : ''}₹{(dayBookData?.summary.netCashFlow || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-              </div>
-              <span className="text-[10px] text-muted-foreground">Inflows - Outflows - Exp</span>
-            </div>
-
-            {/* 6. Closing Cash Balance (Till Drawer) */}
-            <div className="p-3 rounded-xl border-2 border-emerald-500/60 bg-emerald-500/10 shadow-xs col-span-2 sm:col-span-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-200 uppercase tracking-wider block">
-                  Closing Cash (Till)
+              {dayBookLoading && (
+                <span className="text-[11px] text-muted-foreground flex items-center gap-1 ml-2">
+                  <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                  Balancing till drawer...
                 </span>
-                <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-emerald-600 text-white font-bold">DRAWER</span>
-              </div>
-              <div className="text-lg font-extrabold font-mono text-emerald-800 dark:text-emerald-100 mt-1">
-                ₹{(dayBookData?.summary.closingCash || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-              </div>
-              <span className="text-[10px] font-medium text-emerald-800/80 dark:text-emerald-300/80">Target physical cash</span>
+              )}
             </div>
-
-            {/* 7. Digital Collections */}
-            <div className="p-3 rounded-xl border border-border/60 bg-muted/20 col-span-2 sm:col-span-1">
-              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">Digital Inflows</span>
-              <div className="text-base font-bold font-mono text-foreground mt-1">
-                ₹{(dayBookData?.summary.digital.totalDigital || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-              </div>
-              <span className="text-[10px] text-muted-foreground truncate block">
-                UPI: ₹{(dayBookData?.summary.digital.upiIn || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })} • Bank: ₹{(dayBookData?.summary.digital.bankIn || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })} • Card: ₹{(dayBookData?.summary.digital.cardIn || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+            <div className="flex items-center gap-2.5">
+              <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                Target Cash: ₹{(dayBookData?.summary.closingCash || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
               </span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-semibold">
+                {isTillOpen ? 'Collapse' : 'Expand Drawer'}
+              </span>
+              {isTillOpen ? (
+                <ChevronUp className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              )}
             </div>
-          </div>
+          </button>
+
+          {isTillOpen && (
+            <div className="p-4 pt-1 border-t border-border/40 space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5 pt-2">
+                {/* 1. Opening Cash */}
+                <div className="p-3 rounded-xl border border-border/60 bg-muted/20">
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">Opening Cash</span>
+                  <div className="text-base font-bold font-mono text-foreground mt-1">
+                    ₹{(dayBookData?.summary.openingCash || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">Drawer starting cash</span>
+                </div>
+
+                {/* 2. Cash In */}
+                <div className="p-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
+                  <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider block">Cash Inflows</span>
+                  <div className="text-base font-bold font-mono text-emerald-700 dark:text-emerald-300 mt-1">
+                    +₹{(dayBookData?.summary.cashIn || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  </div>
+                  <span className="text-[10px] text-emerald-700/70 dark:text-emerald-300/70">Sales & collected cash</span>
+                </div>
+
+                {/* 3. Cash Out */}
+                <div className="p-3 rounded-xl border border-rose-500/20 bg-rose-500/5">
+                  <span className="text-[10px] font-semibold text-rose-700 dark:text-rose-300 uppercase tracking-wider block">Cash Outflows</span>
+                  <div className="text-base font-bold font-mono text-rose-700 dark:text-rose-300 mt-1">
+                    -₹{(dayBookData?.summary.cashOut || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  </div>
+                  <span className="text-[10px] text-rose-700/70 dark:text-rose-300/70">Customer refunds</span>
+                </div>
+
+                {/* 4. Daily Expenses */}
+                <div className="p-3 rounded-xl border border-amber-500/20 bg-amber-500/5">
+                  <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 uppercase tracking-wider block">Cash Expenses</span>
+                  <div className="text-base font-bold font-mono text-amber-700 dark:text-amber-300 mt-1">
+                    -₹{(dayBookData?.summary.expenseCash || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  </div>
+                  <span className="text-[10px] text-amber-700/70 dark:text-amber-300/70">Daily operational expenses</span>
+                </div>
+
+                {/* 5. Net Cash Flow */}
+                <div className="p-3 rounded-xl border border-primary/20 bg-primary/5">
+                  <span className="text-[10px] font-semibold text-primary uppercase tracking-wider block">Net Cash Flow</span>
+                  <div className="text-base font-bold font-mono text-foreground mt-1">
+                    {(dayBookData?.summary.netCashFlow || 0) >= 0 ? '+' : ''}₹{(dayBookData?.summary.netCashFlow || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground">Inflows - Outflows - Exp</span>
+                </div>
+
+                {/* 6. Closing Cash Balance (Till Drawer) */}
+                <div className="p-3 rounded-xl border-2 border-emerald-500/60 bg-emerald-500/10 shadow-xs col-span-2 sm:col-span-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-emerald-800 dark:text-emerald-200 uppercase tracking-wider block">
+                      Closing Cash (Till)
+                    </span>
+                    <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-emerald-600 text-white font-bold">DRAWER</span>
+                  </div>
+                  <div className="text-lg font-extrabold font-mono text-emerald-800 dark:text-emerald-100 mt-1">
+                    ₹{(dayBookData?.summary.closingCash || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  </div>
+                  <span className="text-[10px] font-medium text-emerald-800/80 dark:text-emerald-300/80">Target physical cash</span>
+                </div>
+
+                {/* 7. Digital Collections */}
+                <div className="p-3 rounded-xl border border-border/60 bg-muted/20 col-span-2 sm:col-span-1">
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider block">Digital Inflows</span>
+                  <div className="text-base font-bold font-mono text-foreground mt-1">
+                    ₹{(dayBookData?.summary.digital.totalDigital || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+                  </div>
+                  <span className="text-[10px] text-muted-foreground truncate block">
+                    UPI: ₹{(dayBookData?.summary.digital.upiIn || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })} • Bank: ₹{(dayBookData?.summary.digital.bankIn || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })} • Card: ₹{(dayBookData?.summary.digital.cardIn || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

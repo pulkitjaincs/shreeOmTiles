@@ -374,11 +374,12 @@ export default function InvoicesScreen() {
       search,
       status: statusFilter,
       paymentMode: modeFilter,
+      createdById,
       datePreset: dateFilter,
       dateFrom,
       dateTo,
     }),
-    [invoices, search, statusFilter, modeFilter, dateFilter, dateFrom, dateTo],
+    [invoices, search, statusFilter, modeFilter, createdById, dateFilter, dateFrom, dateTo],
   );
 
   return (
@@ -434,7 +435,7 @@ export default function InvoicesScreen() {
         staffOptions={
           isOwnerOrAdmin
             ? [
-                { label: 'All Creators', value: 'ALL', icon: 'people-outline' as const, color: '#FFFFFF' },
+                { label: 'All Creators', value: 'ALL', icon: 'people-outline' as const, color: colors.primary },
                 ...staff
                   .filter((member) => ['SALESMAN', 'ADMIN', 'OWNER'].includes(member.role))
                   .map((member) => ({

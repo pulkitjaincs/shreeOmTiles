@@ -91,11 +91,11 @@ export function InvoiceListFilters({
       {staffOptions && staffOptions.length > 0 && onCreatedByIdChange ? (
         <View style={styles.createdByRow}>
           <FilterDropdown
-            label="Created By"
+            label="Staff"
             value={createdById || 'ALL'}
             options={staffOptions}
             onSelect={onCreatedByIdChange}
-            hideLabelPrefix
+            icon="people-outline"
             showCountOnTrigger
           />
         </View>

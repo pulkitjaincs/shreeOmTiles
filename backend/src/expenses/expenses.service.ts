@@ -162,7 +162,7 @@ export class ExpensesService {
 
       if (pagination?.page !== undefined || pagination?.limit !== undefined) {
         const page = Math.max(1, pagination?.page || 1);
-        const limit = Math.min(Math.max(1, pagination?.limit || 25), 500);
+        const limit = Math.min(Math.max(1, pagination?.limit || 40), 500);
         const skip = (page - 1) * limit;
 
         const [data, total, totalAmountAgg] = await Promise.all([
@@ -194,7 +194,7 @@ export class ExpensesService {
         where,
         include: includeRelations,
         orderBy: { expenseDate: 'desc' },
-        ...(!filters?.startDate && !filters?.endDate ? { take: 2000 } : {}),
+        ...(!filters?.startDate && !filters?.endDate && !filters?.search ? { take: 2000 } : {}),
       });
     });
   }

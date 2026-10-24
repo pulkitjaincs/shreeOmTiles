@@ -4,6 +4,7 @@ export interface InvoiceListFilterValues {
   search: string;
   status: string;
   paymentMode: string;
+  createdById?: string;
   datePreset: string;
   dateFrom: string;
   dateTo: string;
@@ -56,6 +57,12 @@ export function filterInvoiceList(
       ((!customStart || (Number.isFinite(customStart.getTime()) && date >= customStart)) &&
         (!customEnd || (Number.isFinite(customEnd.getTime()) && date <= customEnd)));
 
-    return matchesSearch && matchesStatus && matchesMode && matchesPreset && matchesCustom;
+    const matchesCreator =
+      !filters.createdById ||
+      filters.createdById === 'ALL' ||
+      invoice.salesmanId === filters.createdById ||
+      (invoice as any).createdById === filters.createdById;
+
+    return matchesSearch && matchesStatus && matchesMode && matchesCreator && matchesPreset && matchesCustom;
   });
 }

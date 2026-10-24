@@ -615,26 +615,7 @@ export class InvoicesService {
         items: {
           select: {
             id: true,
-            productId: true,
-            warehouseId: true,
-            batchNo: true,
             qty: true,
-            unitPrice: true,
-            discount: true,
-            total: true,
-            product: {
-              select: {
-                id: true,
-                name: true,
-                unit: true,
-              },
-            },
-            warehouse: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
           },
         },
         refundInvoices: {
@@ -661,7 +642,7 @@ export class InvoicesService {
 
       if (pagination?.page !== undefined || pagination?.limit !== undefined) {
         const page = Math.max(1, pagination?.page || 1);
-        const limit = Math.min(Math.max(1, pagination?.limit || 25), 500);
+        const limit = Math.min(Math.max(1, pagination?.limit || 40), 500);
         const skip = (page - 1) * limit;
 
         const [data, total] = await Promise.all([
@@ -693,7 +674,7 @@ export class InvoicesService {
         where,
         include: includeRelations,
         orderBy: { createdAt: 'desc' },
-        ...(dateRange ? {} : { take: 2000 }),
+        ...(dateRange || pagination?.search ? {} : { take: 2000 }),
       });
 
       return user.role === Role.SUPERVISOR

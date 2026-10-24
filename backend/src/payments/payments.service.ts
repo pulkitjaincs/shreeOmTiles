@@ -500,7 +500,7 @@ export class PaymentsService {
 
       if (pagination?.page !== undefined || pagination?.limit !== undefined) {
         const page = Math.max(1, pagination?.page || 1);
-        const limit = Math.min(Math.max(1, pagination?.limit || 25), 500);
+        const limit = Math.min(Math.max(1, pagination?.limit || 40), 500);
         const skip = (page - 1) * limit;
 
         const [data, total] = await Promise.all([
@@ -527,7 +527,7 @@ export class PaymentsService {
         where,
         include: includeRelations,
         orderBy: { createdAt: 'desc' },
-        ...(dateRange ? {} : { take: 2000 }),
+        ...(dateRange || pagination?.search ? {} : { take: 2000 }),
       });
     });
   }
@@ -789,13 +789,21 @@ export class PaymentsService {
     return credit;
   }
 
-  async findAllCreditLedgers(user?: { id: string; role: Role }) {
-    const cacheKey = `payments:credits:${user?.role || 'ALL'}:${user?.id || 'ALL'}`;
+  async findAllCreditLedgers(
+    user?: { id: string; role: Role },
+    dateFilter?: DateRangeFilter,
+  ) {
+    const cacheKey = `payments:credits:${user?.role || 'ALL'}:${user?.id || 'ALL'}:${dateFilter?.preset || ''}:${dateFilter?.from || ''}:${dateFilter?.to || ''}`;
     return this.cacheService.wrap(cacheKey, 1800, async () => {
       const where: Prisma.CreditLedgerWhereInput =
         user?.role === Role.SALESMAN
           ? { invoice: { salesmanId: user.id } }
           : {};
+
+      const dateRange = buildDateRange(dateFilter);
+      if (dateRange) {
+        where.createdAt = dateRange;
+      }
 
       return this.prisma.creditLedger.findMany({
         where,
@@ -808,8 +816,11 @@ export class PaymentsService {
     });
   }
 
-  async getStats(user?: { id: string; role: Role }) {
-    const cacheKey = `payments:stats:${user?.role || 'ALL'}:${user?.id || 'ALL'}`;
+  async getStats(
+    user?: { id: string; role: Role },
+    dateFilter?: DateRangeFilter,
+  ) {
+    const cacheKey = `payments:stats:${user?.role || 'ALL'}:${user?.id || 'ALL'}:${dateFilter?.preset || ''}:${dateFilter?.from || ''}:${dateFilter?.to || ''}`;
     return this.cacheService.wrap(cacheKey, 1800, async () => {
       const isSalesman = user?.role === Role.SALESMAN;
       const invoiceFilter = isSalesman ? { salesmanId: user.id } : {};
@@ -819,6 +830,11 @@ export class PaymentsService {
       const creditInvoiceFilter = isSalesman
         ? { invoice: { salesmanId: user.id } }
         : {};
+
+      const dateRange = buildDateRange(dateFilter);
+      const invoiceDateFilter = dateRange ? { createdAt: dateRange } : {};
+      const paymentDateFilter = dateRange ? { createdAt: dateRange } : {};
+      const creditDateFilter = dateRange ? { createdAt: dateRange } : {};
 
       const [
         invoiceAgg,
@@ -834,6 +850,7 @@ export class PaymentsService {
         this.prisma.invoice.aggregate({
           where: {
             ...invoiceFilter,
+            ...invoiceDateFilter,
             status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
           },
           _sum: { total: true },
@@ -841,6 +858,7 @@ export class PaymentsService {
         this.prisma.payment.aggregate({
           where: {
             ...paymentInvoiceFilter,
+            ...paymentDateFilter,
             status: PaymentStatus.CONFIRMED,
             type: PaymentType.INFLOW,
           },
@@ -850,6 +868,7 @@ export class PaymentsService {
           ? Promise.resolve({ _sum: { amount: null } })
           : this.prisma.payment.aggregate({
               where: {
+                ...paymentDateFilter,
                 status: PaymentStatus.CONFIRMED,
                 type: PaymentType.OUTFLOW,
               },
@@ -858,6 +877,7 @@ export class PaymentsService {
         this.prisma.payment.aggregate({
           where: {
             ...paymentInvoiceFilter,
+            ...paymentDateFilter,
             status: PaymentStatus.CONFIRMED,
             mode: PaymentMode.CASH,
             type: PaymentType.INFLOW,
@@ -867,6 +887,7 @@ export class PaymentsService {
         this.prisma.payment.aggregate({
           where: {
             ...paymentInvoiceFilter,
+            ...paymentDateFilter,
             status: PaymentStatus.CONFIRMED,
             mode: PaymentMode.UPI,
             type: PaymentType.INFLOW,
@@ -876,6 +897,7 @@ export class PaymentsService {
         this.prisma.payment.aggregate({
           where: {
             ...paymentInvoiceFilter,
+            ...paymentDateFilter,
             status: PaymentStatus.CONFIRMED,
             mode: PaymentMode.BANK_TRANSFER,
             type: PaymentType.INFLOW,
@@ -885,6 +907,7 @@ export class PaymentsService {
         this.prisma.payment.aggregate({
           where: {
             ...paymentInvoiceFilter,
+            ...paymentDateFilter,
             status: PaymentStatus.CONFIRMED,
             mode: PaymentMode.CARD,
             type: PaymentType.INFLOW,
@@ -894,6 +917,7 @@ export class PaymentsService {
         this.prisma.creditLedger.aggregate({
           where: {
             ...creditInvoiceFilter,
+            ...creditDateFilter,
             status: { not: 'SETTLED' },
             type: CreditType.RECEIVABLE,
           },
@@ -902,7 +926,11 @@ export class PaymentsService {
         isSalesman
           ? Promise.resolve({ _sum: { amountDue: null } })
           : this.prisma.creditLedger.aggregate({
-              where: { status: { not: 'SETTLED' }, type: CreditType.PAYABLE },
+              where: {
+                ...creditDateFilter,
+                status: { not: 'SETTLED' },
+                type: CreditType.PAYABLE,
+              },
               _sum: { amountDue: true },
             }),
       ]);
@@ -927,15 +955,22 @@ export class PaymentsService {
     });
   }
 
-  async getPendingItems(user?: { id: string; role: Role }) {
-    const cacheKey = `payments:pending:${user?.role || 'ALL'}:${user?.id || 'ALL'}`;
+  async getPendingItems(
+    user?: { id: string; role: Role },
+    dateFilter?: DateRangeFilter,
+  ) {
+    const cacheKey = `payments:pending:${user?.role || 'ALL'}:${user?.id || 'ALL'}:${dateFilter?.preset || ''}:${dateFilter?.from || ''}:${dateFilter?.to || ''}`;
     return this.cacheService.wrap(cacheKey, 1800, async () => {
       const isSalesman = user?.role === Role.SALESMAN;
+      const dateRange = buildDateRange(dateFilter);
+      const invoiceDateFilter = dateRange ? { createdAt: dateRange } : {};
+      const ledgerDateFilter = dateRange ? { createdAt: dateRange } : {};
 
       // 1. Invoices that are CREATED or PARTIAL
       const pendingInvoices = await this.prisma.invoice.findMany({
         where: {
           ...(isSalesman ? { salesmanId: user.id } : {}),
+          ...invoiceDateFilter,
           status: { in: [InvoiceStatus.CREATED, InvoiceStatus.PARTIAL] },
         },
         include: {
@@ -954,9 +989,11 @@ export class PaymentsService {
               status: { not: 'SETTLED' },
               type: CreditType.RECEIVABLE,
               invoice: { salesmanId: user.id },
+              ...ledgerDateFilter,
             }
           : {
               status: { not: 'SETTLED' },
+              ...ledgerDateFilter,
               OR: [{ type: CreditType.PAYABLE }, { invoiceId: null }],
             },
         include: {

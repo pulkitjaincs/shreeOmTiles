@@ -125,6 +125,7 @@ export default function TransactionsScreen() {
   const [txnDateTo, setTxnDateTo] = useState('');
   const [calendarModalOpen, setCalendarModalOpen] = useState(false);
   const [calendarModalMode, setCalendarModalMode] = useState<'range' | 'single'>('range');
+  const [isTillOpen, setIsTillOpen] = useState(false);
 
   useEffect(() => {
     if (params.tab === 'daybook') {
@@ -198,7 +199,11 @@ export default function TransactionsScreen() {
         }
       }
       const paymentsQueryStr = paymentsParams.toString();
-      const paymentsUrl = `/payments${paymentsQueryStr ? `?${paymentsQueryStr}` : ''}`;
+      const querySuffix = paymentsQueryStr ? `?${paymentsQueryStr}` : '';
+      const paymentsUrl = `/payments${querySuffix}`;
+      const statsUrl = `/payments/stats${querySuffix}`;
+      const pendingUrl = `/payments/pending${querySuffix}`;
+      const creditsUrl = `/payments/credits${querySuffix}`;
 
       const [paymentsData, statsData, pendingData, creditsData, partiesData, invoicesData] = await Promise.all([
         cachedMobileApiRequest<PaymentRecord[]>(paymentsUrl, {
@@ -211,7 +216,7 @@ export default function TransactionsScreen() {
                   setPayments(list);
                 },
         }).catch(() => []),
-        cachedMobileApiRequest<FinancialStats>('/payments/stats', {
+        cachedMobileApiRequest<FinancialStats>(statsUrl, {
           forceRefresh: force,
           onRevalidate: (fresh) => setStats(fresh),
         }).catch(() => ({
@@ -226,7 +231,7 @@ export default function TransactionsScreen() {
           creditsOwed: 0,
         })),
         cachedMobileApiRequest<{ invoices: PendingItem[]; ledgers: PendingCreditLedger[] }>(
-          '/payments/pending',
+          pendingUrl,
           {
             forceRefresh: force,
           },
@@ -234,7 +239,7 @@ export default function TransactionsScreen() {
           invoices: [],
           ledgers: [],
         })),
-        cachedMobileApiRequest<CreditLedgerRecord[]>('/payments/credits', {
+        cachedMobileApiRequest<CreditLedgerRecord[]>(creditsUrl, {
           forceRefresh: force,
           onRevalidate: (fresh) => {
             const list = Array.isArray(fresh) ? fresh : (fresh as any)?.data || [];
@@ -369,23 +374,57 @@ export default function TransactionsScreen() {
     }
   }, [selectedDate, activeTab, dateFilterMode, loadDayBook]);
 
+  const handleSelectPreset = (preset: string) => {
+    setTxnDatePreset(preset);
+    if (preset === 'TODAY') {
+      setSelectedDate(todayStr);
+      setDateFilterMode('specific');
+      setIsTillOpen(true);
+      void loadDayBook(todayStr, true);
+    } else if (preset === 'YESTERDAY') {
+      setSelectedDate(yesterdayStr);
+      setDateFilterMode('specific');
+      setIsTillOpen(false);
+      void loadDayBook(yesterdayStr, true);
+    } else {
+      setIsTillOpen(false);
+      if (preset === 'ALL') {
+        setDateFilterMode('all');
+      }
+    }
+    if (preset !== 'CUSTOM') {
+      setTxnDateFrom('');
+      setTxnDateTo('');
+    }
+  };
+
   const handleShiftDay = (days: number) => {
     const cur = new Date(selectedDate);
     cur.setDate(cur.getDate() + days);
-    setSelectedDate(cur.toISOString().slice(0, 10));
+    const newDateStr = cur.toISOString().slice(0, 10);
+    setSelectedDate(newDateStr);
     setDateFilterMode('specific');
+    if (newDateStr === todayStr) {
+      setTxnDatePreset('TODAY');
+      setIsTillOpen(true);
+    } else if (newDateStr === yesterdayStr) {
+      setTxnDatePreset('YESTERDAY');
+      setIsTillOpen(false);
+    } else {
+      setTxnDatePreset('CUSTOM');
+      setTxnDateFrom(newDateStr);
+      setTxnDateTo(newDateStr);
+      setIsTillOpen(false);
+    }
+    void loadDayBook(newDateStr, true);
   };
 
   const handleToday = () => {
-    setSelectedDate(new Date().toISOString().slice(0, 10));
-    setDateFilterMode('specific');
+    handleSelectPreset('TODAY');
   };
 
   const handleYesterday = () => {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    setSelectedDate(d.toISOString().slice(0, 10));
-    setDateFilterMode('specific');
+    handleSelectPreset('YESTERDAY');
   };
 
   const handleAllTime = () => {
@@ -630,135 +669,168 @@ export default function TransactionsScreen() {
         contentContainerStyle={styles.listContent}
         ListHeaderComponent={
           <View>
-            {/* Date-wise Navigation Toolbar */}
-            <View style={styles.dateToolbar}>
-              <TouchableOpacity
-                onPress={handleAllTime}
-                style={[
-                  styles.dateModePill,
-                  dateFilterMode === 'all' && styles.dateModePillActive,
+            {/* Top Date Filter Pills (Available Across All Tabs) */}
+            <View style={styles.filterPillsContainer}>
+              <FilterPills
+                options={[
+                  { label: 'All Time', value: 'ALL' },
+                  { label: 'Today', value: 'TODAY' },
+                  { label: 'Yesterday', value: 'YESTERDAY' },
+                  { label: 'This Week', value: 'THIS_WEEK' },
+                  { label: 'This Month', value: 'THIS_MONTH' },
+                  { label: 'Custom Range', value: 'CUSTOM' },
                 ]}
-              >
-                <Text
-                  style={[
-                    styles.dateModePillText,
-                    dateFilterMode === 'all' && styles.dateModePillTextActive,
-                  ]}
-                >
-                  All Dates
-                </Text>
-              </TouchableOpacity>
+                selected={txnDatePreset}
+                onSelect={(val) => {
+                  handleSelectPreset(val);
+                  if (val === 'CUSTOM' && (!txnDateFrom || !txnDateTo)) {
+                    setCalendarModalMode('range');
+                    setCalendarModalOpen(true);
+                  }
+                }}
+              />
+            </View>
 
-              <View style={styles.datePickerBox}>
-                <TouchableOpacity onPress={() => handleShiftDay(-1)} style={styles.dateArrowBtn}>
-                  <Ionicons name="chevron-back" size={16} color={colors.text} />
-                </TouchableOpacity>
+            {/* Custom Range Trigger Bar */}
+            {txnDatePreset === 'CUSTOM' ? (
+              <View style={styles.customDateBar}>
                 <TouchableOpacity
+                  style={styles.customDateTrigger}
                   onPress={() => {
-                    setCalendarModalMode('single');
+                    setCalendarModalMode('range');
                     setCalendarModalOpen(true);
                   }}
                   activeOpacity={0.7}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginHorizontal: 4 }}
                 >
-                  <Ionicons name="calendar-outline" size={13} color={colors.primary} />
-                  <Text style={styles.selectedDateText}>{selectedDate}</Text>
+                  <Ionicons name="calendar-outline" size={16} color={colors.primary} />
+                  <Text style={styles.customDateLabel}>
+                    {txnDateFrom || 'From'}
+                  </Text>
+                  <Ionicons name="arrow-forward" size={13} color={colors.textSecondary} />
+                  <Text style={styles.customDateLabel}>
+                    {txnDateTo || 'To'}
+                  </Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => handleShiftDay(1)} style={styles.dateArrowBtn}>
-                  <Ionicons name="chevron-forward" size={16} color={colors.text} />
+
+                <TouchableOpacity
+                  style={[styles.applyButton, (!txnDateFrom || !txnDateTo) && styles.applyButtonDisabled]}
+                  onPress={() => void loadData(true)}
+                  disabled={!txnDateFrom || !txnDateTo}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.applyButtonText}>Apply</Text>
                 </TouchableOpacity>
               </View>
+            ) : null}
 
-              <TouchableOpacity
-                onPress={handleYesterday}
-                style={[
-                  styles.quickDateBtn,
-                  dateFilterMode === 'specific' &&
-                    selectedDate === yesterdayStr &&
-                    styles.quickDateBtnActive,
-                ]}
-              >
-                <Text style={styles.quickDateText}>Yest</Text>
-              </TouchableOpacity>
+            {/* Stepper for single date when on Day Book tab or single date */}
+            {(txnDatePreset === 'TODAY' || txnDatePreset === 'YESTERDAY' || activeTab === 'daybook') ? (
+              <View style={[styles.dateToolbar, { marginTop: 4, marginBottom: 8 }]}>
+                <View style={[styles.datePickerBox, { flex: 1, justifyContent: 'space-between' }]}>
+                  <TouchableOpacity onPress={() => handleShiftDay(-1)} style={styles.dateArrowBtn}>
+                    <Ionicons name="chevron-back" size={16} color={colors.text} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setCalendarModalMode('single');
+                      setCalendarModalOpen(true);
+                    }}
+                    activeOpacity={0.7}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                  >
+                    <Ionicons name="calendar-outline" size={13} color={colors.primary} />
+                    <Text style={styles.selectedDateText}>{selectedDate}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => handleShiftDay(1)} style={styles.dateArrowBtn}>
+                    <Ionicons name="chevron-forward" size={16} color={colors.text} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : null}
 
-              <TouchableOpacity
-                onPress={handleToday}
-                style={[
-                  styles.quickDateBtn,
-                  dateFilterMode === 'specific' &&
-                    selectedDate === todayStr &&
-                    styles.quickDateBtnActive,
-                ]}
-              >
-                <Text style={styles.quickDateText}>Today</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Daily Till Drawer Summary Card */}
-            {user?.role !== 'SALESMAN' && (dateFilterMode === 'specific' || activeTab === 'daybook') && (
+            {/* Daily Till Drawer Summary Card (Collapsible Dropdown) */}
+            {user?.role !== 'SALESMAN' && (
               <Card elevated style={styles.tillCard}>
-                <View style={styles.tillHeader}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <TouchableOpacity
+                  activeOpacity={0.75}
+                  onPress={() => setIsTillOpen(!isTillOpen)}
+                  style={[styles.tillHeader, { paddingVertical: 10 }]}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
                     <Ionicons name="wallet-outline" size={16} color="#10B981" />
-                    <Text style={styles.tillTitle}>
-                      Till Drawer Reconciliation ({selectedDate})
+                    <Text style={styles.tillTitle} numberOfLines={1}>
+                      Till Reconciliation ({selectedDate})
                     </Text>
+                    {dayBookLoading && !dayBookData ? (
+                      <ActivityIndicator size="small" color="#10B981" />
+                    ) : null}
                   </View>
-                  {dayBookLoading && !dayBookData && (
-                    <ActivityIndicator size="small" color="#10B981" />
-                  )}
-                </View>
-
-                <View style={styles.tillGrid}>
-                  <View style={styles.tillGridCol}>
-                    <Text style={styles.tillMiniLabel}>Opening Cash</Text>
-                    <Text style={styles.tillMiniVal}>
-                      {formatINR(dayBookData?.summary.openingCash || 0)}
-                    </Text>
-                  </View>
-                  <View style={styles.tillGridCol}>
-                    <Text style={[styles.tillMiniLabel, { color: '#10B981' }]}>Cash In</Text>
-                    <Text style={[styles.tillMiniVal, { color: '#10B981' }]}>
-                      +{formatINR(dayBookData?.summary.cashIn || 0)}
-                    </Text>
-                  </View>
-                  <View style={styles.tillGridCol}>
-                    <Text style={[styles.tillMiniLabel, { color: '#EF4444' }]}>Cash Out</Text>
-                    <Text style={[styles.tillMiniVal, { color: '#EF4444' }]}>
-                      -{formatINR(dayBookData?.summary.cashOut || 0)}
-                    </Text>
-                  </View>
-                  <View style={styles.tillGridCol}>
-                    <Text style={[styles.tillMiniLabel, { color: '#F59E0B' }]}>Expenses</Text>
-                    <Text style={[styles.tillMiniVal, { color: '#F59E0B' }]}>
-                      -{formatINR(dayBookData?.summary.expenseCash || 0)}
-                    </Text>
-                  </View>
-                </View>
-
-                {/* Closing Cash Till Highlight Box */}
-                <View style={styles.closingTillBox}>
-                  <View>
-                    <Text style={styles.closingTillLabel}>Closing Cash (Till Drawer)</Text>
-                    <Text style={styles.closingTillSub}>Target physical cash in till</Text>
-                  </View>
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={styles.closingTillAmount}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={{ fontSize: 12, fontWeight: '800', color: '#10B981' }}>
                       {formatINR(dayBookData?.summary.closingCash || 0)}
                     </Text>
-                    <Text style={styles.netFlowText}>
-                      Net: {(dayBookData?.summary.netCashFlow || 0) >= 0 ? '+' : ''}
-                      {formatINR(dayBookData?.summary.netCashFlow || 0)}
-                    </Text>
+                    <Ionicons
+                      name={isTillOpen ? 'chevron-up' : 'chevron-down'}
+                      size={16}
+                      color={colors.textSecondary}
+                    />
                   </View>
-                </View>
+                </TouchableOpacity>
 
-                <View style={styles.digitalSplitRow}>
-                  <Text style={styles.digitalSplitLabel}>Digital Collections:</Text>
-                  <Text style={styles.digitalSplitVal}>
-                    UPI: {formatINR(dayBookData?.summary.digital.upiIn || 0)} • Bank: {formatINR(dayBookData?.summary.digital.bankIn || 0)} • Card: {formatINR(dayBookData?.summary.digital.cardIn || 0)}
-                  </Text>
-                </View>
+                {isTillOpen ? (
+                  <View style={{ marginTop: 6 }}>
+                    <View style={styles.tillGrid}>
+                      <View style={styles.tillGridCol}>
+                        <Text style={styles.tillMiniLabel}>Opening Cash</Text>
+                        <Text style={styles.tillMiniVal}>
+                          {formatINR(dayBookData?.summary.openingCash || 0)}
+                        </Text>
+                      </View>
+                      <View style={styles.tillGridCol}>
+                        <Text style={[styles.tillMiniLabel, { color: '#10B981' }]}>Cash In</Text>
+                        <Text style={[styles.tillMiniVal, { color: '#10B981' }]}>
+                          +{formatINR(dayBookData?.summary.cashIn || 0)}
+                        </Text>
+                      </View>
+                      <View style={styles.tillGridCol}>
+                        <Text style={[styles.tillMiniLabel, { color: '#EF4444' }]}>Cash Out</Text>
+                        <Text style={[styles.tillMiniVal, { color: '#EF4444' }]}>
+                          -{formatINR(dayBookData?.summary.cashOut || 0)}
+                        </Text>
+                      </View>
+                      <View style={styles.tillGridCol}>
+                        <Text style={[styles.tillMiniLabel, { color: '#F59E0B' }]}>Expenses</Text>
+                        <Text style={[styles.tillMiniVal, { color: '#F59E0B' }]}>
+                          -{formatINR(dayBookData?.summary.expenseCash || 0)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Closing Cash Till Highlight Box */}
+                    <View style={styles.closingTillBox}>
+                      <View>
+                        <Text style={styles.closingTillLabel}>Closing Cash (Till Drawer)</Text>
+                        <Text style={styles.closingTillSub}>Target physical cash in till</Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={styles.closingTillAmount}>
+                          {formatINR(dayBookData?.summary.closingCash || 0)}
+                        </Text>
+                        <Text style={styles.netFlowText}>
+                          Net: {(dayBookData?.summary.netCashFlow || 0) >= 0 ? '+' : ''}
+                          {formatINR(dayBookData?.summary.netCashFlow || 0)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.digitalSplitRow}>
+                      <Text style={styles.digitalSplitLabel}>Digital Collections:</Text>
+                      <Text style={styles.digitalSplitVal}>
+                        UPI: {formatINR(dayBookData?.summary.digital.upiIn || 0)} • Bank: {formatINR(dayBookData?.summary.digital.bankIn || 0)} • Card: {formatINR(dayBookData?.summary.digital.cardIn || 0)}
+                      </Text>
+                    </View>
+                  </View>
+                ) : null}
               </Card>
             )}
 
@@ -880,61 +952,6 @@ export default function TransactionsScreen() {
                 }
               />
             </View>
-
-            {/* Date Preset Filter Pills on All Transactions */}
-            {activeTab === 'all' ? (
-              <View style={styles.filterPillsContainer}>
-                <FilterPills
-                  options={[
-                    { label: 'All Time', value: 'ALL' },
-                    { label: 'Today', value: 'TODAY' },
-                    { label: 'Yesterday', value: 'YESTERDAY' },
-                    { label: 'This Week', value: 'THIS_WEEK' },
-                    { label: 'This Month', value: 'THIS_MONTH' },
-                    { label: 'Custom Range', value: 'CUSTOM' },
-                  ]}
-                  selected={txnDatePreset}
-                  onSelect={(val) => {
-                    setTxnDatePreset(val);
-                    if (val === 'CUSTOM' && (!txnDateFrom || !txnDateTo)) {
-                      setCalendarModalMode('range');
-                      setCalendarModalOpen(true);
-                    }
-                  }}
-                />
-              </View>
-            ) : null}
-
-            {activeTab === 'all' && txnDatePreset === 'CUSTOM' ? (
-              <View style={styles.customDateBar}>
-                <TouchableOpacity
-                  style={styles.customDateTrigger}
-                  onPress={() => {
-                    setCalendarModalMode('range');
-                    setCalendarModalOpen(true);
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name="calendar-outline" size={16} color={colors.primary} />
-                  <Text style={styles.customDateLabel}>
-                    {txnDateFrom || 'From'}
-                  </Text>
-                  <Ionicons name="arrow-forward" size={13} color={colors.textSecondary} />
-                  <Text style={styles.customDateLabel}>
-                    {txnDateTo || 'To'}
-                  </Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.applyButton, (!txnDateFrom || !txnDateTo) && styles.applyButtonDisabled]}
-                  onPress={() => void loadData(true)}
-                  disabled={!txnDateFrom || !txnDateTo}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.applyButtonText}>Apply</Text>
-                </TouchableOpacity>
-              </View>
-            ) : null}
 
             {/* Mode Filter Pills (Only on All Transactions tab) */}
             {activeTab === 'all' ? (
