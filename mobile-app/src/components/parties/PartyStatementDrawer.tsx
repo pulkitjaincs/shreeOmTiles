@@ -143,7 +143,7 @@ export function PartyStatementDrawer({
     }, 0);
 
   const invoiceDues = invoices
-    .filter((inv: any) => inv.status !== 'PAID' && inv.status !== 'CANCELLED' && inv.status !== 'DRAFT')
+    .filter((inv: any) => inv.status !== 'CANCELLED' && inv.status !== 'DRAFT')
     .reduce((sum: number, inv: any) => {
       const hasCreditLedger = ledgers.some(
         (cl: any) => (cl.invoiceId === inv.id || cl.invoice?.id === inv.id) && cl.status !== 'SETTLED'

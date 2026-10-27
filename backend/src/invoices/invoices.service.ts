@@ -522,13 +522,70 @@ export class InvoicesService {
         });
       }
 
-      // 5. If remaining balance is greater than 0, record in Credit Ledger
-      if (balanceCredit > 0) {
+      // 5. If customer has active store credit / advance overpayment (PAYABLE), offset it against this invoice
+      let effectiveBalanceCredit = balanceCredit;
+      if (effectiveBalanceCredit > 0) {
+        const payableLedgers = await tx.creditLedger.findMany({
+          where: {
+            partyId: party.id,
+            type: CreditType.PAYABLE,
+            status: { not: CreditStatus.SETTLED },
+            invoiceId: null,
+            purchaseId: null,
+            refundInvoiceId: null,
+          },
+          orderBy: { createdAt: 'asc' },
+        });
+
+        for (const pl of payableLedgers) {
+          if (effectiveBalanceCredit <= 0.001) break;
+          const plAmt = Number(pl.amountDue || 0);
+          if (plAmt <= 0.001) continue;
+          const plDeduct = Math.min(plAmt, effectiveBalanceCredit);
+          const plRem = Math.max(0, plAmt - plDeduct);
+          effectiveBalanceCredit = Math.max(
+            0,
+            Math.round((effectiveBalanceCredit - plDeduct) * 100) / 100,
+          );
+
+          await tx.creditLedger.update({
+            where: { id: pl.id },
+            data: {
+              amountDue: new Prisma.Decimal(plRem.toFixed(2)),
+              status:
+                plRem <= 0.005 ? CreditStatus.SETTLED : CreditStatus.PARTIAL,
+            },
+          });
+
+          await tx.payment.create({
+            data: {
+              invoiceId: invoice.id,
+              partyId: party.id,
+              mode: PaymentMode.CREDIT,
+              amount: new Prisma.Decimal(plDeduct.toFixed(2)),
+              status: PaymentStatus.CONFIRMED,
+              paidAt: new Date(),
+              confirmedById: salesmanId,
+              notes: `Offset against customer Store Credit (₹${plDeduct.toFixed(2)})`,
+            },
+          });
+        }
+
+        if (effectiveBalanceCredit <= 0.005) {
+          await tx.invoice.update({
+            where: { id: invoice.id },
+            data: { status: InvoiceStatus.PAID },
+          });
+        }
+      }
+
+      // 6. If remaining balance is greater than 0, record in Credit Ledger
+      if (effectiveBalanceCredit > 0.005) {
         await tx.creditLedger.create({
           data: {
             partyId: party.id,
             invoiceId: invoice.id,
-            amountDue: new Prisma.Decimal(balanceCredit.toFixed(2)),
+            amountDue: new Prisma.Decimal(effectiveBalanceCredit.toFixed(2)),
             type: CreditType.RECEIVABLE,
             dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Default 30 days credit
             notes: `Balance receivable for Invoice #${invoiceNo}`,
@@ -536,14 +593,14 @@ export class InvoicesService {
         });
       }
 
-      // 6. Automatically dispatch to Delivery section in PENDING status
+      // 7. Automatically dispatch to Delivery section in PENDING status
       // Cash Sales are customer pickup at counter by default - do NOT push to deliveries!
       if (!data.isCashSale) {
         await tx.delivery.create({
           data: {
             invoiceId: invoice.id,
             status: DeliveryStatus.PENDING,
-            amountToCollect: new Prisma.Decimal(balanceCredit.toFixed(2)),
+            amountToCollect: new Prisma.Decimal(effectiveBalanceCredit.toFixed(2)),
             notes: data.notes || null,
           },
         });

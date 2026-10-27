@@ -509,6 +509,14 @@ export class PartiesService {
     }
 
     for (const cl of standaloneCreditLedgers) {
+      // If payment was made to record an advance overpayment, skip here because the payment
+      // itself is already accounted for in party.payments. Adding it again double-deducts.
+      if (
+        cl.notes?.toLowerCase().includes('overpayment from payment') ||
+        cl.notes?.toLowerCase().includes('advance customer balance')
+      ) {
+        continue;
+      }
       if (new Date(cl.createdAt) < start) {
         const amt = Number(cl.amountDue || 0);
         if (cl.type === 'RECEIVABLE') {
@@ -735,6 +743,13 @@ export class PartiesService {
     }
 
     for (const cl of standaloneCreditLedgers) {
+      // Skip overpayment ledgers created from payments already included in party.payments
+      if (
+        cl.notes?.toLowerCase().includes('overpayment from payment') ||
+        cl.notes?.toLowerCase().includes('advance customer balance')
+      ) {
+        continue;
+      }
       const d = new Date(cl.createdAt);
       if (d >= start && d <= end) {
         const amt = Number(cl.amountDue || 0);
