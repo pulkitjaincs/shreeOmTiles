@@ -7,8 +7,10 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  ScrollView,
 } from 'react-native';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
+import { CalendarModal } from '@/components/ui/CalendarModal';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { StatusBadge } from '@/components/ui/StatusBadge';
@@ -44,13 +46,16 @@ export function PartyStatementDrawer({
   const styles = useThemedStyles(createStyles);
   const [statementData, setStatementData] = useState<{
     invoices: StatementInvoice[];
+    purchases?: any[];
     creditLedgers: StatementCreditLedger[];
     payments?: any[];
   } | null>(null);
   const [loading, setLoading] = useState(false);
-  const [tab, setTab] = useState<'orders' | 'credits'>('orders');
+  const [tab, setTab] = useState<'orders' | 'purchases' | 'transactions' | 'credits'>('orders');
   const [deleting, setDeleting] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ from: '', to: '' });
   const [now] = useState(() => Date.now());
 
   const partyId = party?.id;
@@ -91,11 +96,16 @@ export function PartyStatementDrawer({
   if (!visible || !party || !partyId) return null;
 
   const invoices = statementData?.invoices || [];
+  const purchases = statementData?.purchases || [];
   const ledgers = statementData?.creditLedgers || [];
 
   const lifetimeTotal = invoices
     .filter((inv: any) => inv.status !== 'CANCELLED' && inv.status !== 'DRAFT')
     .reduce((sum: number, inv: any) => sum + Number(inv.total || 0), 0);
+
+  const lifetimePurchases = purchases
+    .filter((p: any) => p.status !== 'CANCELLED')
+    .reduce((sum: number, p: any) => sum + Number(p.total || 0), 0);
 
   const partyPayments = statementData?.payments || [];
   const settledPayments =
@@ -125,12 +135,34 @@ export function PartyStatementDrawer({
           return sum + Math.max(0, paid);
         }, 0);
 
-  const totalDues = ledgers
+  const creditLedgerDues = ledgers
     .filter((cl) => cl.status !== 'SETTLED')
     .reduce((sum, cl) => {
       const amt = Number(cl.amountDue || 0);
       return cl.type === 'RECEIVABLE' ? sum + amt : sum - amt;
     }, 0);
+
+  const invoiceDues = invoices
+    .filter((inv: any) => inv.status !== 'PAID' && inv.status !== 'CANCELLED' && inv.status !== 'DRAFT')
+    .reduce((sum: number, inv: any) => {
+      const hasCreditLedger = ledgers.some(
+        (cl: any) => (cl.invoiceId === inv.id || cl.invoice?.id === inv.id) && cl.status !== 'SETTLED'
+      );
+      if (hasCreditLedger) return sum;
+      const invTotal = Number(inv.total || 0);
+      const paid = (inv.payments || [])
+        .filter((p: any) => p.status === 'CONFIRMED')
+        .reduce(
+          (pSum: number, p: any) =>
+            p.type === 'OUTFLOW'
+              ? pSum - Number(p.amount || 0)
+              : pSum + Number(p.amount || 0),
+          0
+        );
+      return sum + Math.max(0, invTotal - paid);
+    }, 0);
+
+  const totalDues = creditLedgerDues + invoiceDues;
 
   const partyPayables = ledgers
     .filter((cl) => cl.status !== 'SETTLED' && cl.type === 'PAYABLE')
@@ -158,12 +190,21 @@ export function PartyStatementDrawer({
     });
   };
 
-  const handleDownloadPdf = async () => {
+  const handleDownloadPdf = async (customFrom?: string, customTo?: string) => {
     if (!party || downloadingPdf) return;
     setDownloadingPdf(true);
     try {
+      const from = customFrom !== undefined ? customFrom : dateRange.from;
+      const to = customTo !== undefined ? customTo : dateRange.to;
+      const q = [
+        from ? `startDate=${from}` : '',
+        to ? `endDate=${to}` : '',
+      ].filter(Boolean).join('&');
       const safeName = (party.name || 'Party').replace(/[^a-zA-Z0-9_-]/g, '_');
-      await downloadAndSharePdf(`parties/${party.id}/statement-pdf`, `Statement_${safeName}`);
+      await downloadAndSharePdf(
+        `parties/${party.id}/statement-pdf${q ? `?${q}` : ''}`,
+        `Statement_${safeName}`,
+      );
     } catch (err: any) {
       Alert.alert('Download Failed', err.message || 'Could not download statement PDF');
     } finally {
@@ -245,15 +286,24 @@ export function PartyStatementDrawer({
           {/* KPI Summary Cards (4 Cards matching Web Dashboard) */}
           <View style={styles.kpiRow}>
             <Card style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>Lifetime Billed</Text>
+              <Text style={styles.kpiLabel}>
+                {purchases.length > 0 ? 'Sales / Purchases' : 'Lifetime Billed'}
+              </Text>
               <Text style={styles.kpiValue}>{formatINR(lifetimeTotal)}</Text>
-              <Text style={styles.kpiSub}>All orders</Text>
+              <Text style={styles.kpiSub}>
+                {purchases.length > 0
+                  ? `Purchases: ${formatINR(lifetimePurchases)}`
+                  : 'All orders'}
+              </Text>
             </Card>
 
             <Card style={styles.kpiCard}>
               <Text style={styles.kpiLabel}>Total Orders</Text>
-              <Text style={styles.kpiValue}>{invoices.length}</Text>
-              <Text style={styles.kpiSub}>Invoices generated</Text>
+              <Text style={styles.kpiValue}>
+                {invoices.length}
+                {purchases.length > 0 ? ` (+${purchases.length} pur)` : ''}
+              </Text>
+              <Text style={styles.kpiSub}>Recorded transactions</Text>
             </Card>
           </View>
 
@@ -300,7 +350,7 @@ export function PartyStatementDrawer({
               <Text style={[styles.kpiValue, { color: '#10B981' }]}>
                 {formatINR(settledPayments)}
               </Text>
-              <Text style={styles.kpiSub}>Confirmed receipts</Text>
+              <Text style={styles.kpiSub}>Confirmed net receipts</Text>
             </Card>
           </View>
 
@@ -312,9 +362,27 @@ export function PartyStatementDrawer({
               variant="outline"
               size="sm"
               loading={downloadingPdf}
-              onPress={handleDownloadPdf}
+              onPress={() => void handleDownloadPdf()}
               style={styles.pdfStatementBtn}
             />
+            <TouchableOpacity
+              style={[
+                styles.drawerIconBtn,
+                Boolean(dateRange.from || dateRange.to) && {
+                  borderColor: colors.primary,
+                  backgroundColor: colors.primary + '1A',
+                },
+              ]}
+              onPress={() => setCalendarOpen(true)}
+              activeOpacity={0.7}
+              accessibilityLabel="Select statement date range"
+            >
+              <Ionicons
+                name="calendar-outline"
+                size={18}
+                color={Boolean(dateRange.from || dateRange.to) ? colors.primary : colors.textSecondary}
+              />
+            </TouchableOpacity>
             <Button
               title="WhatsApp"
               icon="logo-whatsapp"
@@ -353,8 +421,13 @@ export function PartyStatementDrawer({
             ) : null}
           </View>
 
-          {/* Tabs: Orders vs Credit Ledgers */}
-          <View style={styles.tabToggle}>
+          {/* Tabs: Orders, Purchases, Transactions, Credits */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabToggleScroll}
+            style={{ marginBottom: 10 }}
+          >
             <TouchableOpacity
               style={[styles.tabBtn, tab === 'orders' && styles.tabBtnActive]}
               onPress={() => setTab('orders')}
@@ -365,14 +438,32 @@ export function PartyStatementDrawer({
             </TouchableOpacity>
 
             <TouchableOpacity
+              style={[styles.tabBtn, tab === 'purchases' && styles.tabBtnActive]}
+              onPress={() => setTab('purchases')}
+            >
+              <Text style={[styles.tabText, tab === 'purchases' && styles.tabTextActive]}>
+                Purchases ({purchases.length})
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.tabBtn, tab === 'transactions' && styles.tabBtnActive]}
+              onPress={() => setTab('transactions')}
+            >
+              <Text style={[styles.tabText, tab === 'transactions' && styles.tabTextActive]}>
+                Transactions ({partyPayments.length})
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
               style={[styles.tabBtn, tab === 'credits' && styles.tabBtnActive]}
               onPress={() => setTab('credits')}
             >
               <Text style={[styles.tabText, tab === 'credits' && styles.tabTextActive]}>
-                Credit Ledgers ({ledgers.length})
+                Credits ({ledgers.length})
               </Text>
             </TouchableOpacity>
-          </View>
+          </ScrollView>
 
           {/* Tab 1: Orders */}
           {tab === 'orders' ? (
@@ -450,7 +541,7 @@ export function PartyStatementDrawer({
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                           <Text style={styles.orderNo}>
                             {cl.invoice?.invoiceNo
-                              ? `Invoice #${cl.invoice.invoiceNo}`
+                              ? `Bill of Supply #${cl.invoice.invoiceNo}`
                               : isClPayable
                               ? 'Store Credit / Payable'
                               : 'Direct Credit'}
@@ -505,8 +596,130 @@ export function PartyStatementDrawer({
               <Text style={styles.emptyText}>No credit ledger entries found</Text>
             )
           ) : null}
+
+          {/* Tab 3: Purchases */}
+          {tab === 'purchases' ? (
+            purchases.length > 0 ? (
+              purchases.map((pur: any) => (
+                <Card key={pur.id} style={styles.orderCard}>
+                  <View style={styles.orderTop}>
+                    <View>
+                      <Text style={styles.orderNo}>#{pur.purchaseNo}</Text>
+                      {pur.vendorBillNo ? (
+                        <Text style={styles.ledgerMetaText}>Ref: {pur.vendorBillNo}</Text>
+                      ) : null}
+                      <Text style={styles.orderDate}>{formatDate(pur.createdAt)}</Text>
+                    </View>
+                    <View style={{ alignItems: 'flex-end' }}>
+                      <Text style={styles.orderAmount}>{formatINR(pur.total)}</Text>
+                      <StatusBadge status={pur.status} size="sm" />
+                    </View>
+                  </View>
+
+                  <Text style={styles.orderItemsCount}>
+                    {(pur.items || []).length} item{(pur.items || []).length === 1 ? '' : 's'}
+                    {pur.paymentMode ? ` • Mode: ${pur.paymentMode}` : ''}
+                  </Text>
+
+                  {pur.items && pur.items.length > 0 ? (
+                    <View style={styles.itemsContainer}>
+                      {pur.items.map((item: any, idx: number) => (
+                        <View key={item.id || idx} style={styles.itemRow}>
+                          <View style={{ flex: 1, paddingRight: 8 }}>
+                            <Text style={styles.itemName} numberOfLines={1}>
+                              {item.product?.name || 'Item'}
+                            </Text>
+                            <Text style={styles.itemMeta}>
+                              {Number(item.qty || 1)} {item.product?.unit || 'Box'}
+                              {item.unitPrice ? ` • ${formatINR(item.unitPrice)}/unit` : ''}
+                            </Text>
+                          </View>
+                          <Text style={styles.itemTotal}>{formatINR(item.total)}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  ) : null}
+
+                  {pur.createdBy?.name ? (
+                    <View style={styles.salesmanRow}>
+                      <Ionicons name="person-outline" size={11} color={colors.textTertiary} />
+                      <Text style={styles.salesmanText}>Recorded by {pur.createdBy.name}</Text>
+                    </View>
+                  ) : null}
+                </Card>
+              ))
+            ) : (
+              <Text style={styles.emptyText}>No purchases recorded from this party</Text>
+            )
+          ) : null}
+
+          {/* Tab 4: Payments & Transactions */}
+          {tab === 'transactions' ? (
+            partyPayments.length > 0 ? (
+              partyPayments.map((p: any) => {
+                const isOutflow = p.type === 'OUTFLOW';
+                const dateVal = p.paidAt || p.createdAt;
+                return (
+                  <Card key={p.id} style={styles.orderCard}>
+                    <View style={styles.orderTop}>
+                      <View style={{ flex: 1, paddingRight: 8 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Ionicons
+                            name={isOutflow ? 'arrow-up-circle' : 'arrow-down-circle'}
+                            size={16}
+                            color={isOutflow ? '#F59E0B' : '#10B981'}
+                          />
+                          <Text style={styles.orderNo}>
+                            {isOutflow ? 'Payment Out' : 'Payment In'}
+                          </Text>
+                        </View>
+                        <Text style={styles.orderDate}>{formatDate(dateVal)}</Text>
+                        <Text style={styles.ledgerMetaText}>
+                          Mode: {p.mode}
+                          {p.invoice?.invoiceNo
+                            ? ` • Inv #${p.invoice.invoiceNo}`
+                            : p.purchase?.purchaseNo
+                            ? ` • Pur #${p.purchase.purchaseNo}`
+                            : p.notes
+                            ? ` • ${p.notes}`
+                            : ''}
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text
+                          style={[
+                            styles.orderAmount,
+                            { color: isOutflow ? '#F59E0B' : '#10B981' },
+                          ]}
+                        >
+                          {isOutflow ? '- ' : '+ '}{formatINR(p.amount)}
+                        </Text>
+                        <StatusBadge status={p.status} size="sm" />
+                      </View>
+                    </View>
+                  </Card>
+                );
+              })
+            ) : (
+              <Text style={styles.emptyText}>No payment transactions recorded for this party</Text>
+            )
+          ) : null}
         </View>
       )}
+
+      <CalendarModal
+        visible={calendarOpen}
+        onClose={() => setCalendarOpen(false)}
+        initialFrom={dateRange.from}
+        initialTo={dateRange.to}
+        mode="range"
+        title="Statement Date Range"
+        onApply={(from, to) => {
+          setDateRange({ from, to });
+          setCalendarOpen(false);
+          void handleDownloadPdf(from, to);
+        }}
+      />
     </BottomSheetModal>
   );
 }
@@ -609,8 +822,17 @@ const createStyles = (colors: ThemeColors) =>
       padding: 3,
       marginBottom: 10,
     },
+    tabToggleScroll: {
+      flexDirection: 'row',
+      backgroundColor: colors.card,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 3,
+      gap: 4,
+    },
     tabBtn: {
-      flex: 1,
+      paddingHorizontal: 12,
       paddingVertical: 7,
       alignItems: 'center',
       borderRadius: 8,

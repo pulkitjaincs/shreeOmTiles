@@ -68,6 +68,8 @@ export interface StatementInvoice {
 
 export interface StatementCreditLedger {
   id: string;
+  invoiceId?: string | null;
+  purchaseId?: string | null;
   amountDue: number | string;
   status: string;
   type?: 'RECEIVABLE' | 'PAYABLE';
@@ -82,10 +84,28 @@ export interface StatementCreditLedger {
   };
 }
 
+export interface StatementPurchase {
+  id: string;
+  purchaseNo: string;
+  vendorBillNo?: string | null;
+  total: number;
+  status: string;
+  paymentMode?: string | null;
+  createdAt: string;
+  items?: StatementInvoiceItem[];
+  payments?: StatementPayment[];
+  createdBy?: {
+    id?: string;
+    name: string;
+  };
+}
+
 export interface PartyStatementData {
   party: Party;
   invoices: StatementInvoice[];
+  purchases?: StatementPurchase[];
   creditLedgers: StatementCreditLedger[];
+  payments?: any[];
 }
 
 export interface CreditAgeingBuckets {

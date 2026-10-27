@@ -3,6 +3,7 @@ import {
   NotFoundException,
   BadRequestException,
   ForbiddenException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -34,18 +35,54 @@ export type PaymentWithRelations = Prisma.PaymentGetPayload<{
 }>;
 
 @Injectable()
-export class PaymentsService {
+export class PaymentsService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly cacheService: CacheService,
   ) {}
 
+  async onModuleInit() {
+    // Auto-heal historical records: synchronize Invoice & Purchase statuses
+    // for any records where all linked credit ledgers are already settled
+    try {
+      await this.prisma.$executeRawUnsafe(`
+        UPDATE "Invoice"
+        SET status = 'PAID', "updatedAt" = NOW()
+        WHERE status IN ('CREATED', 'PARTIAL')
+          AND id IN (
+            SELECT "invoiceId"
+            FROM "CreditLedger"
+            WHERE "invoiceId" IS NOT NULL
+            GROUP BY "invoiceId"
+            HAVING BOOL_AND(status = 'SETTLED' OR "amountDue" <= 0.005)
+          );
+      `);
+
+      await this.prisma.$executeRawUnsafe(`
+        UPDATE "Purchase"
+        SET status = 'PAID', "updatedAt" = NOW()
+        WHERE status IN ('CREATED', 'PARTIAL')
+          AND id IN (
+            SELECT "purchaseId"
+            FROM "CreditLedger"
+            WHERE "purchaseId" IS NOT NULL
+            GROUP BY "purchaseId"
+            HAVING BOOL_AND(status = 'SETTLED' OR "amountDue" <= 0.005)
+          );
+      `);
+      this.invalidatePaymentCaches();
+    } catch {
+      // Non-fatal if DB migration/schema not yet initialized
+    }
+  }
+
   private invalidatePaymentCaches(): void {
     this.cacheService.invalidatePrefix('payments:');
     this.cacheService.invalidatePrefix('analytics:');
     this.cacheService.invalidatePrefix('parties:');
     this.cacheService.invalidatePrefix('invoices:');
+    this.cacheService.invalidatePrefix('purchases:');
   }
 
   async updateReceivedPayment(
@@ -381,6 +418,50 @@ export class PaymentsService {
                 status: remainingDue === 0 ? 'SETTLED' : 'PARTIAL',
               },
             });
+
+            // If this credit ledger is linked to an invoice, synchronize invoice status & active deliveries
+            if (creditEntry.invoiceId) {
+              await tx.invoice.update({
+                where: { id: creditEntry.invoiceId },
+                data: {
+                  status:
+                    remainingDue <= 0.005
+                      ? InvoiceStatus.PAID
+                      : InvoiceStatus.PARTIAL,
+                },
+              });
+              await tx.delivery.updateMany({
+                where: {
+                  invoiceId: creditEntry.invoiceId,
+                  status: {
+                    in: [
+                      DeliveryStatus.PENDING,
+                      DeliveryStatus.ASSIGNED,
+                      DeliveryStatus.OUT_FOR_PICKUP,
+                      DeliveryStatus.PICKED_UP,
+                      DeliveryStatus.OUT_FOR_DELIVERY,
+                    ],
+                  },
+                },
+                data: {
+                  amountToCollect: new Prisma.Decimal(remainingDue.toFixed(2)),
+                },
+              });
+            }
+
+            // If this credit ledger is linked to a purchase, synchronize purchase status
+            if (creditEntry.purchaseId) {
+              await tx.purchase.update({
+                where: { id: creditEntry.purchaseId },
+                data: {
+                  status:
+                    remainingDue <= 0.005
+                      ? InvoiceStatus.PAID
+                      : InvoiceStatus.PARTIAL,
+                },
+              });
+            }
+
             remainingPayment -= deduct;
           }
 
@@ -392,6 +473,19 @@ export class PaymentsService {
                 type: CreditType.PAYABLE,
                 status: 'UNPAID',
                 notes: `Advance customer overpayment from Payment #${primaryPayment?.id ? primaryPayment.id.slice(0, 8) : ''}`,
+              },
+            });
+          } else if (
+            remainingPayment > 0.01 &&
+            paymentType === PaymentType.OUTFLOW
+          ) {
+            await tx.creditLedger.create({
+              data: {
+                partyId,
+                amountDue: new Prisma.Decimal(remainingPayment.toFixed(2)),
+                type: CreditType.RECEIVABLE,
+                status: 'UNPAID',
+                notes: `Advance store overpayment to vendor from Payment #${primaryPayment?.id ? primaryPayment.id.slice(0, 8) : ''}`,
               },
             });
           }
@@ -421,6 +515,7 @@ export class PaymentsService {
         },
       );
 
+      this.invalidatePaymentCaches();
       return createdPayments.length === 1
         ? createdPayments[0]
         : createdPayments;
@@ -976,6 +1071,10 @@ export class PaymentsService {
         include: {
           party: true,
           payments: { where: { status: PaymentStatus.CONFIRMED } },
+          creditLedgers: {
+            where: { type: CreditType.RECEIVABLE },
+            select: { amountDue: true, status: true },
+          },
         },
         orderBy: { createdAt: 'desc' },
       });
@@ -999,6 +1098,7 @@ export class PaymentsService {
         include: {
           party: true,
           invoice: true,
+          purchase: true,
         },
         orderBy: { createdAt: 'desc' },
       });
@@ -1013,7 +1113,25 @@ export class PaymentsService {
                   : sum + Number(p.amount),
               0,
             );
-            const remainingDue = Math.max(0, Number(inv.total) - paid);
+            const paymentDue = Math.max(0, Number(inv.total) - paid);
+            let remainingDue = paymentDue;
+            if (inv.creditLedgers && inv.creditLedgers.length > 0) {
+              const allSettled = inv.creditLedgers.every(
+                (cl) => cl.status === 'SETTLED' || Number(cl.amountDue) <= 0.005,
+              );
+              if (allSettled) {
+                remainingDue = 0;
+              } else {
+                const ledgerDue = inv.creditLedgers.reduce(
+                  (sum, cl) =>
+                    cl.status !== 'SETTLED'
+                      ? sum + Number(cl.amountDue)
+                      : sum,
+                  0,
+                );
+                remainingDue = Math.min(paymentDue, ledgerDue);
+              }
+            }
             return {
               id: inv.id,
               invoiceNo: inv.invoiceNo,
@@ -1036,7 +1154,13 @@ export class PaymentsService {
             partyName: cl.party?.name || 'Party',
             partyPhone: cl.party?.phone || '',
             invoiceId: cl.invoiceId,
-            invoiceNo: cl.invoice?.invoiceNo,
+            invoiceNo:
+              cl.invoice?.invoiceNo ||
+              cl.purchase?.vendorBillNo ||
+              cl.purchase?.purchaseNo,
+            purchaseId: cl.purchaseId,
+            purchaseNo: cl.purchase?.purchaseNo,
+            vendorBillNo: cl.purchase?.vendorBillNo,
             amountDue: Number(cl.amountDue),
             type: cl.type,
             dueDate: cl.dueDate,
@@ -1133,6 +1257,34 @@ export class PaymentsService {
             data: {
               amountDue: new Prisma.Decimal(due.toFixed(2)),
               status: due === 0 ? 'SETTLED' : paid > 0 ? 'PARTIAL' : 'UNPAID',
+            },
+          });
+        }
+      }
+
+      if (!payment.invoiceId && !payment.purchaseId && payment.partyId) {
+        const targetType =
+          payment.type === PaymentType.INFLOW
+            ? CreditType.RECEIVABLE
+            : CreditType.PAYABLE;
+
+        const settledLedger = await tx.creditLedger.findFirst({
+          where: {
+            partyId: payment.partyId,
+            type: targetType,
+            status: { in: ['SETTLED', 'PARTIAL'] },
+          },
+          orderBy: { updatedAt: 'desc' },
+        });
+
+        if (settledLedger) {
+          const restoredAmt =
+            Number(settledLedger.amountDue) + Number(payment.amount);
+          await tx.creditLedger.update({
+            where: { id: settledLedger.id },
+            data: {
+              amountDue: new Prisma.Decimal(restoredAmt.toFixed(2)),
+              status: 'UNPAID',
             },
           });
         }

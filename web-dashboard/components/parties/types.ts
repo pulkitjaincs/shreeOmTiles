@@ -78,6 +78,8 @@ export interface PartyPurchase {
 
 export interface PartyCreditLedger {
   id: string;
+  invoiceId?: string;
+  purchaseId?: string;
   amountDue: number;
   type?: 'RECEIVABLE' | 'PAYABLE';
   dueDate?: string;

@@ -7,11 +7,18 @@ import { CreatePartyDto } from './dto/create-party.dto';
 import { UpdatePartyDto } from './dto/update-party.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { CacheService } from '../common/cache.service';
-import { Prisma, CreditStatus } from '@prisma/client';
+import {
+  Prisma,
+  CreditStatus,
+  InvoiceStatus,
+  PaymentStatus,
+  PaymentType,
+} from '@prisma/client';
 import { PaginationParams } from '../common/interfaces/pagination.interface';
 import {
   generatePartyStatementPdf,
-  LedgerEntry,
+  StatementEntry,
+  StatementItem,
 } from './pdf/party-statement-pdf.generator';
 
 function getCreditLedgerOriginalAmount(cl: {
@@ -30,6 +37,49 @@ function getCreditLedgerOriginalAmount(cl: {
     }
   }
   return Number(cl.amountDue || 0);
+}
+
+function getStatementDateRange(startDate?: string, endDate?: string): {
+  start: Date;
+  end: Date;
+  startFormatted: string;
+  endFormatted: string;
+} {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const formatDDMMYYYY = (d: Date) =>
+    `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+
+  if (startDate || endDate) {
+    const start = startDate ? new Date(startDate) : new Date(0);
+    start.setHours(0, 0, 0, 0);
+
+    const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999);
+
+    return {
+      start,
+      end,
+      startFormatted: startDate ? formatDDMMYYYY(start) : 'All Time',
+      endFormatted: formatDDMMYYYY(end),
+    };
+  }
+
+  // Default to active Indian Financial Year (April 1 to March 31)
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const startYear = currentMonth >= 3 ? currentYear : currentYear - 1;
+  const endYear = startYear + 1;
+
+  const start = new Date(startYear, 3, 1, 0, 0, 0, 0);
+  const end = new Date(endYear, 2, 31, 23, 59, 59, 999);
+
+  return {
+    start,
+    end,
+    startFormatted: formatDDMMYYYY(start),
+    endFormatted: formatDDMMYYYY(end),
+  };
 }
 
 @Injectable()
@@ -349,18 +399,54 @@ export class PartiesService {
   }
 
   async generateStatementPdf(id: string, startDate?: string, endDate?: string) {
+    const { start, end, startFormatted, endFormatted } = getStatementDateRange(
+      startDate,
+      endDate,
+    );
+
     const party = await this.prisma.party.findUnique({
       where: { id },
       include: {
         invoices: {
-          include: { items: { include: { product: true } }, payments: true },
+          where: {
+            status: { not: InvoiceStatus.DRAFT },
+          },
+          include: {
+            items: { include: { product: true } },
+            payments: {
+              where: { status: PaymentStatus.CONFIRMED },
+              orderBy: { paidAt: 'asc' },
+            },
+            refundInvoices: true,
+          },
+          orderBy: { createdAt: 'asc' },
+        },
+        purchases: {
+          where: {
+            status: { not: 'CANCELLED' },
+          },
+          include: {
+            items: { include: { product: true } },
+            payments: {
+              where: { status: PaymentStatus.CONFIRMED },
+              orderBy: { paidAt: 'asc' },
+            },
+          },
           orderBy: { createdAt: 'asc' },
         },
         refundInvoices: {
-          include: { items: { include: { product: true } } },
+          include: {
+            items: { include: { product: true } },
+            payments: { where: { status: PaymentStatus.CONFIRMED } },
+          },
           orderBy: { createdAt: 'asc' },
         },
         payments: {
+          where: { status: PaymentStatus.CONFIRMED },
+          include: {
+            invoice: { select: { id: true, invoiceNo: true, status: true } },
+            purchase: { select: { id: true, purchaseNo: true } },
+          },
           orderBy: { createdAt: 'asc' },
         },
         creditLedgers: {
@@ -376,33 +462,55 @@ export class PartiesService {
 
     if (!party) throw new NotFoundException(`Party ${id} not found`);
 
-    const start = startDate ? new Date(startDate) : new Date(0);
-    const end = endDate ? new Date(endDate) : new Date();
+    const standaloneCreditLedgers = party.creditLedgers || [];
 
-    // Opening Balance prior to start
+    // 1. Calculate Opening Balance strictly before start date
     let runningBal = 0;
+
     for (const inv of party.invoices) {
+      if (
+        inv.status === InvoiceStatus.CANCELLED &&
+        inv.payments.length === 0 &&
+        (!inv.refundInvoices || inv.refundInvoices.length === 0)
+      ) {
+        continue;
+      }
       if (new Date(inv.createdAt) < start) {
         runningBal += Number(inv.total);
       }
     }
+
+    for (const pur of party.purchases || []) {
+      if (new Date(pur.createdAt) < start) {
+        runningBal -= Number(pur.total);
+      }
+    }
+
     for (const p of party.payments) {
-      if (p.status === 'CONFIRMED' && new Date(p.createdAt) < start) {
-        if (p.type === 'INFLOW') {
+      const pDate = new Date(p.paidAt || p.createdAt);
+      if (pDate < start) {
+        // If payment was made to settle a standalone debt/credit ledger (no invoice, purchase, or refund),
+        // skip deducting it here because standaloneCreditLedgers already reflects the remaining net balance.
+        if (!p.invoiceId && !p.purchaseId && !p.refundInvoiceId) {
+          continue;
+        }
+        if (p.type === PaymentType.INFLOW) {
           runningBal -= Number(p.amount);
         } else {
           runningBal += Number(p.amount);
         }
       }
     }
+
     for (const r of party.refundInvoices) {
       if (new Date(r.createdAt) < start) {
         runningBal -= Number(r.total);
       }
     }
-    for (const cl of party.creditLedgers || []) {
+
+    for (const cl of standaloneCreditLedgers) {
       if (new Date(cl.createdAt) < start) {
-        const amt = getCreditLedgerOriginalAmount(cl);
+        const amt = Number(cl.amountDue || 0);
         if (cl.type === 'RECEIVABLE') {
           runningBal += amt;
         } else {
@@ -412,198 +520,305 @@ export class PartiesService {
     }
 
     const openingBalance = runningBal;
-    const entries: LedgerEntry[] = [];
 
-    if (startDate) {
-      entries.push({
-        date: start,
-        voucherType: 'Opening Balance',
-        refNo: 'B/F',
-        particulars: 'Balance Brought Forward',
-        debit: openingBalance > 0 ? openingBalance : 0,
-        credit: openingBalance < 0 ? Math.abs(openingBalance) : 0,
-        balance: openingBalance,
-      });
-    }
-
-    // Collect transactions between start and end
+    // 2. Identify in-period transactions
     interface RawTx {
       date: Date;
-      type:
-        | 'INVOICE'
-        | 'PAYMENT'
-        | 'PAYOUT'
-        | 'REFUND'
-        | 'OPENING_DUE'
-        | 'OPENING_PAYABLE';
+      txnType: string;
       refNo: string;
-      particulars: string;
-      amount: number;
+      status: string;
+      totalAmount: number;
+      receivedAmount: number;
+      txnBalance: number;
+      paymentType?: string | null;
+      items?: StatementItem[];
+      subtotal?: number;
+      shipping?: number;
+      discount?: number;
+      tax?: number;
+      roundOff?: number;
     }
-    const rawTxs: RawTx[] = [];
 
-    for (const cl of party.creditLedgers || []) {
-      const d = new Date(cl.createdAt);
+    const rawTxs: RawTx[] = [];
+    const upfrontPaymentIds = new Set<string>();
+
+    for (const inv of party.invoices) {
+      if (
+        inv.status === InvoiceStatus.CANCELLED &&
+        inv.payments.length === 0 &&
+        (!inv.refundInvoices || inv.refundInvoices.length === 0)
+      ) {
+        continue;
+      }
+      const d = new Date(inv.createdAt);
       if (d >= start && d <= end) {
-        const amt = getCreditLedgerOriginalAmount(cl);
+        // Collect upfront payments made at invoice creation time
+        const upfrontSplits = inv.payments.filter((p) =>
+          p.notes?.toLowerCase().includes('upfront') ||
+          p.notes?.toLowerCase().includes('invoice creation'),
+        );
+
+        for (const p of upfrontSplits) {
+          upfrontPaymentIds.add(p.id);
+        }
+
+        const totalUpfrontPaid = upfrontSplits.reduce(
+          (sum, p) => sum + Number(p.amount),
+          0,
+        );
+        const invTotal = Number(inv.total);
+        const receivedAmount = totalUpfrontPaid;
+        const txnBalance = Math.max(0, invTotal - Math.min(invTotal, totalUpfrontPaid));
+
+        const allConfirmedPaid = inv.payments.reduce(
+          (sum, p) => sum + Number(p.amount),
+          0,
+        );
+        let status = 'Unpaid';
+        if (inv.status === InvoiceStatus.CANCELLED) {
+          status = 'Cancelled';
+        } else if (invTotal - allConfirmedPaid <= 0.01) {
+          status = 'Paid';
+        } else if (allConfirmedPaid > 0) {
+          status = 'Partial';
+        }
+
+        const upfrontModes = upfrontSplits.map((p) => p.mode).filter(Boolean);
+        const paymentTypeStr =
+          upfrontModes.length > 0
+            ? upfrontModes.join(', ')
+            : inv.paymentMode || null;
+
+        const items: StatementItem[] = inv.items.map((it) => ({
+          name: it.product?.name || 'Item',
+          quantity: Number(it.qty || 1),
+          unit: it.product?.unit || 'Box',
+          price: Number(it.unitPrice || 0),
+          total: Number(it.total || 0),
+        }));
+
+        const taxBreakup = (inv as any).taxBreakup as {
+          cgst?: number;
+          sgst?: number;
+          igst?: number;
+        } | null;
+        const totalTax = taxBreakup
+          ? (Number(taxBreakup.cgst) || 0) +
+            (Number(taxBreakup.sgst) || 0) +
+            (Number(taxBreakup.igst) || 0)
+          : 0;
+
         rawTxs.push({
           date: d,
-          type: cl.type === 'RECEIVABLE' ? 'OPENING_DUE' : 'OPENING_PAYABLE',
-          refNo: `OB-${cl.id.slice(0, 6).toUpperCase()}`,
-          particulars:
-            cl.notes ||
-            (cl.type === 'RECEIVABLE'
-              ? 'Opening Balance Due'
-              : 'Opening Balance Payable'),
-          amount: amt,
+          txnType: 'Sale',
+          refNo: inv.invoiceNo,
+          status,
+          totalAmount: invTotal,
+          receivedAmount,
+          txnBalance,
+          paymentType: paymentTypeStr,
+          items,
+          subtotal: Number(inv.subtotal || 0),
+          shipping: Number(inv.transportCost || 0),
+          discount: Number(inv.discountAmount || 0),
+          tax: totalTax > 0 ? totalTax : undefined,
+          roundOff: Number(inv.roundOffAmount || 0),
         });
       }
     }
 
-    for (const inv of party.invoices) {
-      const d = new Date(inv.createdAt);
+    for (const pur of party.purchases || []) {
+      const d = new Date(pur.createdAt);
       if (d >= start && d <= end) {
-        const itemNames =
-          inv.items
-            .map((i) => i.product?.name)
-            .filter(Boolean)
-            .join(', ') || 'Goods sale';
+        const upfrontSplits = pur.payments.filter((p) =>
+          p.notes?.toLowerCase().includes('upfront') ||
+          p.notes?.toLowerCase().includes('purchase creation'),
+        );
+
+        for (const p of upfrontSplits) {
+          upfrontPaymentIds.add(p.id);
+        }
+
+        const totalUpfrontPaid = upfrontSplits.reduce(
+          (sum, p) => sum + Number(p.amount),
+          0,
+        );
+        const purTotal = Number(pur.total);
+        const receivedAmount = totalUpfrontPaid;
+        const txnBalance = Math.max(0, purTotal - Math.min(purTotal, totalUpfrontPaid));
+
+        const allConfirmedPaid = pur.payments.reduce(
+          (sum, p) => sum + Number(p.amount),
+          0,
+        );
+        let status = 'Unpaid';
+        if (purTotal - allConfirmedPaid <= 0.01) {
+          status = 'Paid';
+        } else if (allConfirmedPaid > 0) {
+          status = 'Partial';
+        }
+
+        const items: StatementItem[] = pur.items.map((it) => ({
+          name: it.product?.name || 'Item',
+          quantity: Number(it.qty || 1),
+          unit: it.product?.unit || 'Box',
+          price: Number(it.unitPrice || 0),
+          total: Number(it.total || 0),
+        }));
+
         rawTxs.push({
           date: d,
-          type: 'INVOICE',
-          refNo: inv.invoiceNo,
-          particulars: itemNames.slice(0, 30),
-          amount: Number(inv.total),
+          txnType: 'Purchase',
+          refNo: pur.purchaseNo,
+          status,
+          totalAmount: purTotal,
+          receivedAmount,
+          txnBalance,
+          paymentType: pur.paymentMode || null,
+          items,
+          subtotal: Number(pur.subtotal || 0),
         });
       }
     }
 
     for (const p of party.payments) {
-      const d = new Date(p.createdAt);
-      if (p.status === 'CONFIRMED' && d >= start && d <= end) {
-        if (p.type === 'INFLOW') {
-          rawTxs.push({
-            date: d,
-            type: 'PAYMENT',
-            refNo: p.upiTxnRef || `PAY-${p.id.slice(0, 6)}`,
-            particulars: `Payment (${p.mode})`,
-            amount: Number(p.amount),
-          });
-        } else {
-          rawTxs.push({
-            date: d,
-            type: 'PAYOUT',
-            refNo: p.upiTxnRef || `OUT-${p.id.slice(0, 6)}`,
-            particulars: p.refundInvoiceId
-              ? `Refund Payout (${p.mode})`
-              : `Payout / Settlement (${p.mode})`,
-            amount: Number(p.amount),
-          });
+      const d = new Date(p.paidAt || p.createdAt);
+      if (d >= start && d <= end) {
+        if (upfrontPaymentIds.has(p.id)) {
+          continue; // Already accounted for in Sale row
         }
+
+        const amt = Number(p.amount);
+        const isInflow = p.type === PaymentType.INFLOW;
+        rawTxs.push({
+          date: d,
+          txnType: isInflow ? 'Payment-in' : 'Payment-out',
+          refNo:
+            p.upiTxnRef ||
+            p.upiUtr ||
+            p.invoice?.invoiceNo ||
+            p.id.slice(0, 6),
+          status: 'Used',
+          totalAmount: amt,
+          receivedAmount: amt,
+          txnBalance: 0,
+          paymentType: p.mode || 'Cash',
+        });
       }
     }
 
     for (const r of party.refundInvoices) {
       const d = new Date(r.createdAt);
       if (d >= start && d <= end) {
+        const rTotal = Number(r.total);
+        const items: StatementItem[] = r.items.map((it) => ({
+          name: it.product?.name || it.customItemName || 'Returned Goods',
+          quantity: Number(it.qty || 1),
+          unit: it.product?.unit || 'Box',
+          price: Number(it.unitPrice || 0),
+          total: Number(it.total || 0),
+        }));
+
         rawTxs.push({
           date: d,
-          type: 'REFUND',
+          txnType: 'Credit Note',
           refNo: r.refundNo,
-          particulars: r.reason || 'Goods Return',
-          amount: Number(r.total),
+          status: 'Paid',
+          totalAmount: rTotal,
+          receivedAmount: 0,
+          txnBalance: rTotal,
+          paymentType: r.refundMode || null,
+          items,
+          subtotal: Number(r.subtotal || 0),
+        });
+      }
+    }
+
+    for (const cl of standaloneCreditLedgers) {
+      const d = new Date(cl.createdAt);
+      if (d >= start && d <= end) {
+        const amt = Number(cl.amountDue || 0);
+        rawTxs.push({
+          date: d,
+          txnType:
+            cl.type === 'RECEIVABLE' ? 'Direct Due' : 'Store Payable',
+          refNo: cl.id.slice(0, 6).toUpperCase(),
+          status: cl.status,
+          totalAmount: amt,
+          receivedAmount: 0,
+          txnBalance: amt,
+          paymentType: cl.notes || null,
         });
       }
     }
 
     rawTxs.sort((a, b) => a.date.getTime() - b.date.getTime());
 
-    let totalBilled = 0;
-    let totalPaid = 0;
-    let totalReturns = 0;
+    // 3. Construct chronological statement entries with running Receivable & Payable balances
+    const entries: StatementEntry[] = [];
+    let currentBal = openingBalance;
+
+    // Row 1: Beginning Balance
+    if (startDate || openingBalance !== 0) {
+      entries.push({
+        date: start,
+        txnType:
+          currentBal < 0
+            ? 'Payable Beginning Balance'
+            : 'Receivable Beginning Balance',
+        refNo: '—',
+        status: '—',
+        totalAmount: 0,
+        receivedAmount: 0,
+        txnBalance: 0,
+        receivableBalance: currentBal >= 0 ? currentBal : null,
+        payableBalance: currentBal < 0 ? Math.abs(currentBal) : null,
+      });
+    }
 
     for (const tx of rawTxs) {
-      if (tx.type === 'INVOICE') {
-        runningBal += tx.amount;
-        totalBilled += tx.amount;
-        entries.push({
-          date: tx.date,
-          voucherType: 'Tax Invoice',
-          refNo: tx.refNo,
-          particulars: tx.particulars,
-          debit: tx.amount,
-          credit: 0,
-          balance: runningBal,
-        });
-      } else if (tx.type === 'PAYMENT') {
-        runningBal -= tx.amount;
-        totalPaid += tx.amount;
-        entries.push({
-          date: tx.date,
-          voucherType: 'Payment Received',
-          refNo: tx.refNo,
-          particulars: tx.particulars,
-          debit: 0,
-          credit: tx.amount,
-          balance: runningBal,
-        });
-      } else if (tx.type === 'PAYOUT') {
-        runningBal += tx.amount;
-        entries.push({
-          date: tx.date,
-          voucherType: 'Payment Paid Out',
-          refNo: tx.refNo,
-          particulars: tx.particulars,
-          debit: tx.amount,
-          credit: 0,
-          balance: runningBal,
-        });
-      } else if (tx.type === 'REFUND') {
-        runningBal -= tx.amount;
-        totalReturns += tx.amount;
-        entries.push({
-          date: tx.date,
-          voucherType: 'Credit Note',
-          refNo: tx.refNo,
-          particulars: tx.particulars,
-          debit: 0,
-          credit: tx.amount,
-          balance: runningBal,
-        });
-      } else if (tx.type === 'OPENING_DUE') {
-        runningBal += tx.amount;
-        entries.push({
-          date: tx.date,
-          voucherType: 'Opening Balance',
-          refNo: tx.refNo,
-          particulars: tx.particulars,
-          debit: tx.amount,
-          credit: 0,
-          balance: runningBal,
-        });
-      } else if (tx.type === 'OPENING_PAYABLE') {
-        runningBal -= tx.amount;
-        entries.push({
-          date: tx.date,
-          voucherType: 'Opening Balance',
-          refNo: tx.refNo,
-          particulars: tx.particulars,
-          debit: 0,
-          credit: tx.amount,
-          balance: runningBal,
-        });
+      if (tx.txnType === 'Sale') {
+        currentBal += tx.txnBalance;
+      } else if (tx.txnType === 'Purchase') {
+        currentBal -= tx.txnBalance;
+      } else if (tx.txnType === 'Payment-in') {
+        currentBal -= tx.receivedAmount;
+      } else if (tx.txnType === 'Payment-out') {
+        currentBal += tx.receivedAmount;
+      } else if (tx.txnType === 'Credit Note') {
+        currentBal -= tx.totalAmount;
+      } else if (tx.txnType === 'Direct Due') {
+        currentBal += tx.totalAmount;
+      } else if (tx.txnType === 'Store Payable') {
+        currentBal -= tx.totalAmount;
       }
+
+      entries.push({
+        date: tx.date,
+        txnType: tx.txnType,
+        refNo: tx.refNo,
+        status: tx.status,
+        totalAmount: tx.totalAmount,
+        receivedAmount: tx.receivedAmount,
+        txnBalance: tx.txnBalance,
+        receivableBalance: currentBal >= 0 ? currentBal : null,
+        payableBalance: currentBal < 0 ? Math.abs(currentBal) : null,
+        paymentType: tx.paymentType,
+        items: tx.items,
+        subtotal: tx.subtotal,
+        shipping: tx.shipping,
+        discount: tx.discount,
+        tax: tx.tax,
+        roundOff: tx.roundOff,
+      });
     }
 
     return generatePartyStatementPdf({
       party,
-      startDate,
-      endDate,
+      startDate: startFormatted,
+      endDate: endFormatted,
       openingBalance,
-      totalBilled,
-      totalPaid,
-      totalReturns,
-      closingBalance: runningBal,
+      closingBalance: currentBal,
       entries,
     });
   }

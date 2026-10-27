@@ -42,12 +42,18 @@ export function PartyStatementDrawer({
   const [loading, setLoading] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [activeTab, setActiveTab] = useState<'orders' | 'purchases' | 'transactions' | 'credits'>('orders');
+  const [pdfStartDate, setPdfStartDate] = useState('');
+  const [pdfEndDate, setPdfEndDate] = useState('');
 
   const handleDownloadStatementPdf = async () => {
     if (!party || downloadingPdf) return;
     setDownloadingPdf(true);
     try {
-      const blob = await apiRequest<Blob>(`/parties/${party.id}/statement-pdf`);
+      const q = new URLSearchParams();
+      if (pdfStartDate) q.set('startDate', pdfStartDate);
+      if (pdfEndDate) q.set('endDate', pdfEndDate);
+      const queryStr = q.toString() ? `?${q.toString()}` : '';
+      const blob = await apiRequest<Blob>(`/parties/${party.id}/statement-pdf${queryStr}`);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -118,7 +124,7 @@ export function PartyStatementDrawer({
 
   const settledPayments =
     paymentsReceived > 0 || paymentsDisbursed > 0
-      ? paymentsReceived
+      ? Math.max(0, paymentsReceived - paymentsDisbursed)
       : (partyData?.invoices || []).reduce((sum, inv) => {
           const paid = (inv.payments || [])
             .filter((p) => p.status === 'CONFIRMED')
@@ -132,12 +138,34 @@ export function PartyStatementDrawer({
           return sum + Math.max(0, paid);
         }, 0);
 
-  const totalDues = (partyData?.creditLedgers || [])
+  const creditLedgerDues = (partyData?.creditLedgers || [])
     .filter((cl) => cl.status !== 'SETTLED')
     .reduce((sum, cl) => {
       const amt = Number(cl.amountDue || 0);
       return cl.type === 'RECEIVABLE' ? sum + amt : sum - amt;
     }, 0);
+
+  const invoiceDues = (partyData?.invoices || [])
+    .filter((inv) => inv.status !== 'PAID' && inv.status !== 'CANCELLED' && inv.status !== 'DRAFT')
+    .reduce((sum, inv) => {
+      const hasCreditLedger = (partyData?.creditLedgers || []).some(
+        (cl) => (cl.invoiceId === inv.id || cl.invoice?.id === inv.id) && cl.status !== 'SETTLED'
+      );
+      if (hasCreditLedger) return sum;
+      const invTotal = Number(inv.total || 0);
+      const paid = (inv.payments || [])
+        .filter((p) => p.status === 'CONFIRMED')
+        .reduce(
+          (pSum, p) =>
+            p.type === 'OUTFLOW'
+              ? pSum - Number(p.amount || 0)
+              : pSum + Number(p.amount || 0),
+          0
+        );
+      return sum + Math.max(0, invTotal - paid);
+    }, 0);
+
+  const totalDues = creditLedgerDues + invoiceDues;
 
   // WhatsApp Reminder handler
   const handleSendReminder = () => {
@@ -189,7 +217,23 @@ export function PartyStatementDrawer({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="hidden sm:flex items-center gap-1.5 bg-muted/40 border border-border/80 rounded-xl px-2 py-1 text-xs">
+              <span className="text-muted-foreground text-[11px]">From:</span>
+              <input
+                type="date"
+                value={pdfStartDate}
+                onChange={(e) => setPdfStartDate(e.target.value)}
+                className="bg-transparent border-0 text-foreground text-xs focus:ring-0 p-0 cursor-pointer"
+              />
+              <span className="text-muted-foreground text-[11px] ml-1">To:</span>
+              <input
+                type="date"
+                value={pdfEndDate}
+                onChange={(e) => setPdfEndDate(e.target.value)}
+                className="bg-transparent border-0 text-foreground text-xs focus:ring-0 p-0 cursor-pointer"
+              />
+            </div>
             <Button
               onClick={handleDownloadStatementPdf}
               disabled={downloadingPdf}
@@ -646,7 +690,7 @@ export function PartyStatementDrawer({
                       <table className="w-full text-left text-xs text-foreground">
                         <thead className="bg-muted/50 text-muted-foreground uppercase tracking-wider border-b border-border/80">
                           <tr>
-                            <th className="py-3 px-4">Invoice / Purchase Ref</th>
+                            <th className="py-3 px-4">Bill of Supply / Purchase Ref</th>
                             <th className="py-3 px-4">Date Issued</th>
                             <th className="py-3 px-4">Due Date</th>
                             <th className="py-3 px-4">Amount Due</th>
