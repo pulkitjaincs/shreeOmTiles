@@ -27,7 +27,7 @@ function getCreditLedgerOriginalAmount(cl: {
 }): number {
   if (cl.notes) {
     const match = cl.notes.match(
-      /Opening balance (?:due from customer|payable to vendor): ₹([0-9.]+)/i,
+      /Opening balance (?:due from customer|payable to vendor):? ?(?:₹|Rs\.?)? ?([0-9.]+)/i,
     );
     if (match && match[1]) {
       const parsed = parseFloat(match[1]);
@@ -489,11 +489,6 @@ export class PartiesService {
     for (const p of party.payments) {
       const pDate = new Date(p.paidAt || p.createdAt);
       if (pDate < start) {
-        // If payment was made to settle a standalone debt/credit ledger (no invoice, purchase, or refund),
-        // skip deducting it here because standaloneCreditLedgers already reflects the remaining net balance.
-        if (!p.invoiceId && !p.purchaseId && !p.refundInvoiceId) {
-          continue;
-        }
         if (p.type === PaymentType.INFLOW) {
           runningBal -= Number(p.amount);
         } else {
@@ -512,13 +507,13 @@ export class PartiesService {
       // If payment was made to record an advance overpayment, skip here because the payment
       // itself is already accounted for in party.payments. Adding it again double-deducts.
       if (
-        cl.notes?.toLowerCase().includes('overpayment from payment') ||
-        cl.notes?.toLowerCase().includes('advance customer balance')
+        cl.notes?.toLowerCase().includes('overpayment') ||
+        cl.notes?.toLowerCase().includes('advance customer')
       ) {
         continue;
       }
       if (new Date(cl.createdAt) < start) {
-        const amt = Number(cl.amountDue || 0);
+        const amt = getCreditLedgerOriginalAmount(cl);
         if (cl.type === 'RECEIVABLE') {
           runningBal += amt;
         } else {
@@ -745,14 +740,14 @@ export class PartiesService {
     for (const cl of standaloneCreditLedgers) {
       // Skip overpayment ledgers created from payments already included in party.payments
       if (
-        cl.notes?.toLowerCase().includes('overpayment from payment') ||
-        cl.notes?.toLowerCase().includes('advance customer balance')
+        cl.notes?.toLowerCase().includes('overpayment') ||
+        cl.notes?.toLowerCase().includes('advance customer')
       ) {
         continue;
       }
       const d = new Date(cl.createdAt);
       if (d >= start && d <= end) {
-        const amt = Number(cl.amountDue || 0);
+        const amt = getCreditLedgerOriginalAmount(cl);
         rawTxs.push({
           date: d,
           txnType:

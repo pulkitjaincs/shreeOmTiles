@@ -150,7 +150,7 @@ export class PaymentsService implements OnModuleInit {
 
       if (!party) return;
 
-      // 2. Identify opening receivable
+      // 2. Identify opening receivable and payable
       const openingReceivableLedger = party.creditLedgers.find(
         (cl) =>
           cl.type === CreditType.RECEIVABLE &&
@@ -164,6 +164,19 @@ export class PaymentsService implements OnModuleInit {
           0
         : 0;
 
+      const openingPayableLedger = party.creditLedgers.find(
+        (cl) =>
+          cl.type === CreditType.PAYABLE &&
+          !cl.invoiceId &&
+          !cl.purchaseId &&
+          cl.notes?.toLowerCase().includes('opening balance'),
+      );
+      const openingPayableAmt = openingPayableLedger
+        ? Number(openingPayableLedger.notes?.match(/([0-9.]+)/)?.[1]) ||
+          Number(openingPayableLedger.amountDue) ||
+          0
+        : 0;
+
       // 3. Compute net inflows
       const totalInflows = party.payments
         .filter((p) => p.type === PaymentType.INFLOW)
@@ -172,6 +185,24 @@ export class PaymentsService implements OnModuleInit {
         .filter((p) => p.type === PaymentType.OUTFLOW)
         .reduce((s, p) => s + Number(p.amount), 0);
       let remainingPayment = Math.max(0, totalInflows - totalOutflows);
+
+      // Consume opening payable against invoice debt if applicable
+      const totalInvoiced = party.invoices.reduce((s, inv) => s + Number(inv.total), 0);
+      if (openingPayableLedger && openingPayableAmt > 0 && totalInvoiced > 0) {
+        const payableUsed = Math.min(openingPayableAmt, totalInvoiced);
+        const remOpeningPayable = Math.max(0, openingPayableAmt - payableUsed);
+        remainingPayment += payableUsed;
+        await tx.creditLedger.update({
+          where: { id: openingPayableLedger.id },
+          data: {
+            amountDue: new Prisma.Decimal(remOpeningPayable.toFixed(2)),
+            status:
+              remOpeningPayable <= 0.01
+                ? CreditStatus.SETTLED
+                : CreditStatus.PARTIAL,
+          },
+        });
+      }
 
       // 4. Settle opening balance
       if (openingReceivableLedger) {
@@ -204,6 +235,16 @@ export class PaymentsService implements OnModuleInit {
         await tx.invoice.update({
           where: { id: inv.id },
           data: { status: newStatus },
+        });
+
+        await tx.delivery.updateMany({
+          where: {
+            invoiceId: inv.id,
+            status: { not: DeliveryStatus.DELIVERED },
+          },
+          data: {
+            amountToCollect: new Prisma.Decimal(remainingDue.toFixed(2)),
+          },
         });
 
         const invLedger = inv.creditLedgers.find(
@@ -708,6 +749,20 @@ export class PaymentsService implements OnModuleInit {
               },
             });
           }
+        }
+
+        const targetPartyId =
+          partyId ||
+          (data.invoiceId
+            ? (
+                await tx.invoice.findUnique({
+                  where: { id: data.invoiceId },
+                  select: { partyId: true },
+                })
+              )?.partyId
+            : null);
+        if (targetPartyId) {
+          await this.reconcilePartyFinancials(targetPartyId, tx);
         }
 
         return txPayments;
@@ -1324,6 +1379,7 @@ export class PaymentsService implements OnModuleInit {
 
       return {
         invoices: pendingInvoices
+          .filter((inv) => inv.status !== InvoiceStatus.PAID)
           .map((inv) => {
             const paid = inv.payments.reduce(
               (sum, p) =>
@@ -1332,8 +1388,11 @@ export class PaymentsService implements OnModuleInit {
                   : sum + Number(p.amount),
               0,
             );
-            const paymentDue = Math.max(0, Number(inv.total) - paid);
-            const remainingDue = paymentDue;
+            const receivableLedger = inv.creditLedgers[0];
+            const remainingDue = receivableLedger
+              ? Number(receivableLedger.amountDue || 0)
+              : Math.max(0, Number(inv.total) - paid);
+
             return {
               id: inv.id,
               invoiceNo: inv.invoiceNo,

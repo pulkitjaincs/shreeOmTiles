@@ -146,10 +146,10 @@ export function PartyStatementDrawer({
     }, 0);
 
   const invoiceDues = (partyData?.invoices || [])
-    .filter((inv) => inv.status !== 'CANCELLED' && inv.status !== 'DRAFT')
+    .filter((inv) => inv.status !== 'PAID' && inv.status !== 'CANCELLED' && inv.status !== 'DRAFT')
     .reduce((sum, inv) => {
       const hasCreditLedger = (partyData?.creditLedgers || []).some(
-        (cl) => (cl.invoiceId === inv.id || cl.invoice?.id === inv.id) && cl.status !== 'SETTLED'
+        (cl) => cl.invoiceId === inv.id || cl.invoice?.id === inv.id
       );
       if (hasCreditLedger) return sum;
       const invTotal = Number(inv.total || 0);
