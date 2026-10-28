@@ -135,7 +135,7 @@ export class PaymentsService implements OnModuleInit {
         include: {
           invoices: {
             where: { status: { not: InvoiceStatus.CANCELLED } },
-            include: { creditLedgers: true },
+            include: { creditLedgers: true, refundInvoices: true },
             orderBy: { createdAt: 'asc' },
           },
           payments: {
@@ -179,15 +179,19 @@ export class PaymentsService implements OnModuleInit {
 
       // 3. Compute net inflows
       const totalInflows = party.payments
-        .filter((p) => p.type === PaymentType.INFLOW)
+        .filter((p) => p.type === PaymentType.INFLOW && !p.purchaseId)
         .reduce((s, p) => s + Number(p.amount), 0);
       const totalOutflows = party.payments
-        .filter((p) => p.type === PaymentType.OUTFLOW)
+        .filter((p) => p.type === PaymentType.OUTFLOW && !p.purchaseId)
         .reduce((s, p) => s + Number(p.amount), 0);
       let remainingPayment = Math.max(0, totalInflows - totalOutflows);
 
       // Consume opening payable against invoice debt if applicable
-      const totalInvoiced = party.invoices.reduce((s, inv) => s + Number(inv.total), 0);
+      const totalInvoiced = party.invoices.reduce((s, inv) => {
+        const refunded =
+          inv.refundInvoices?.reduce((rs, r) => rs + Number(r.total), 0) || 0;
+        return s + Math.max(0, Number(inv.total) - refunded);
+      }, 0);
       if (openingPayableLedger && openingPayableAmt > 0 && totalInvoiced > 0) {
         const payableUsed = Math.min(openingPayableAmt, totalInvoiced);
         const remOpeningPayable = Math.max(0, openingPayableAmt - payableUsed);
@@ -220,15 +224,20 @@ export class PaymentsService implements OnModuleInit {
 
       // 5. Settle invoices in FIFO order
       for (const inv of party.invoices) {
-        const invTotal = Number(inv.total);
+        const refunded =
+          inv.refundInvoices?.reduce((rs, r) => rs + Number(r.total), 0) || 0;
+        const invTotal = Math.max(0, Number(inv.total) - refunded);
         const deduct = Math.min(invTotal, remainingPayment);
         const remainingDue = Math.max(0, invTotal - deduct);
         remainingPayment -= deduct;
 
-        const newStatus =
-          remainingDue <= 0.01
+        const isFullyRefunded =
+          Number(inv.total) > 0 && refunded >= Number(inv.total) - 0.01;
+        const newStatus = isFullyRefunded
+          ? InvoiceStatus.CANCELLED
+          : remainingDue <= 0.01
             ? InvoiceStatus.PAID
-            : deduct > 0.01
+            : deduct > 0.01 || refunded > 0.01
               ? InvoiceStatus.PARTIAL
               : InvoiceStatus.CREATED;
 
@@ -258,7 +267,7 @@ export class PaymentsService implements OnModuleInit {
               status:
                 remainingDue <= 0.01
                   ? CreditStatus.SETTLED
-                  : deduct > 0.01
+                  : deduct > 0.01 || refunded > 0.01
                     ? CreditStatus.PARTIAL
                     : CreditStatus.UNPAID,
             },
@@ -270,7 +279,10 @@ export class PaymentsService implements OnModuleInit {
               invoiceId: inv.id,
               amountDue: new Prisma.Decimal(remainingDue.toFixed(2)),
               type: CreditType.RECEIVABLE,
-              status: deduct > 0.01 ? CreditStatus.PARTIAL : CreditStatus.UNPAID,
+              status:
+                deduct > 0.01 || refunded > 0.01
+                  ? CreditStatus.PARTIAL
+                  : CreditStatus.UNPAID,
               notes: `Balance receivable for Invoice #${inv.invoiceNo}`,
             },
           });

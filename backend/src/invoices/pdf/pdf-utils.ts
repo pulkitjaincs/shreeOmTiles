@@ -33,6 +33,7 @@ export type InvoicePdfPayload = Omit<
       items: { include: { product: true; warehouse: true } };
       payments: true;
       refundInvoices: { include: { items: true } };
+      creditLedgers: true;
     };
   }>,
   'previousBalance'

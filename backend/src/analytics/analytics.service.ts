@@ -143,13 +143,23 @@ export class AnalyticsService {
         }),
         // 5. Total Actual Transactions (Confirmed Inflow Payments)
         this.prisma.payment.aggregate({
-          where: { status: PaymentStatus.CONFIRMED, type: PaymentType.INFLOW },
+          where: {
+            status: PaymentStatus.CONFIRMED,
+            type: PaymentType.INFLOW,
+            mode: { not: PaymentMode.CREDIT },
+            NOT: { notes: { contains: 'Store Credit', mode: 'insensitive' } },
+          },
           _sum: { amount: true },
           _count: { id: true },
         }),
         // Confirmed Outflow Payments (Refunds / Payouts)
         this.prisma.payment.aggregate({
-          where: { status: PaymentStatus.CONFIRMED, type: PaymentType.OUTFLOW },
+          where: {
+            status: PaymentStatus.CONFIRMED,
+            type: PaymentType.OUTFLOW,
+            mode: { not: PaymentMode.CREDIT },
+            NOT: { notes: { contains: 'Store Credit', mode: 'insensitive' } },
+          },
           _sum: { amount: true },
         }),
         // Total Refunds (Credit Notes)
@@ -203,7 +213,11 @@ export class AnalyticsService {
 
   async getRecentTransactions(limit = 15) {
     const payments = await this.prisma.payment.findMany({
-      where: { status: PaymentStatus.CONFIRMED },
+      where: {
+        status: PaymentStatus.CONFIRMED,
+        mode: { not: PaymentMode.CREDIT },
+        NOT: { notes: { contains: 'Store Credit', mode: 'insensitive' } },
+      },
       orderBy: { paidAt: 'desc' },
       take: limit,
       include: {
@@ -265,6 +279,8 @@ export class AnalyticsService {
       where: {
         status: PaymentStatus.CONFIRMED,
         type: PaymentType.INFLOW,
+        mode: { not: PaymentMode.CREDIT },
+        NOT: { notes: { contains: 'Store Credit', mode: 'insensitive' } },
       },
       select: { mode: true, amount: true, invoiceId: true },
     });
@@ -551,6 +567,8 @@ export class AnalyticsService {
               where: {
                 status: PaymentStatus.CONFIRMED,
                 type: PaymentType.INFLOW,
+                mode: { not: PaymentMode.CREDIT },
+                NOT: { notes: { contains: 'Store Credit', mode: 'insensitive' } },
                 ...(dateFilter ? { paidAt: dateFilter } : {}),
               },
               _sum: { amount: true },
@@ -563,6 +581,8 @@ export class AnalyticsService {
               where: {
                 status: PaymentStatus.CONFIRMED,
                 type: PaymentType.OUTFLOW,
+                mode: { not: PaymentMode.CREDIT },
+                NOT: { notes: { contains: 'Store Credit', mode: 'insensitive' } },
                 ...(dateFilter ? { paidAt: dateFilter } : {}),
               },
               _sum: { amount: true },
@@ -658,6 +678,8 @@ export class AnalyticsService {
           where: {
             status: PaymentStatus.CONFIRMED,
             type: PaymentType.INFLOW,
+            mode: { not: PaymentMode.CREDIT },
+            NOT: { notes: { contains: 'Store Credit', mode: 'insensitive' } },
             ...(dateFilter ? { paidAt: dateFilter } : {}),
             ...(salesmanScope
               ? { invoice: { salesmanId: salesmanScope.salesmanId } }
@@ -687,7 +709,11 @@ export class AnalyticsService {
         isSalesman
           ? Promise.resolve<RecentPaymentItem[]>([])
           : this.prisma.payment.findMany({
-              where: { status: PaymentStatus.CONFIRMED },
+              where: {
+                status: PaymentStatus.CONFIRMED,
+                mode: { not: PaymentMode.CREDIT },
+                NOT: { notes: { contains: 'Store Credit', mode: 'insensitive' } },
+              },
               orderBy: { paidAt: 'desc' },
               take: 12,
               include: {
@@ -756,6 +782,8 @@ export class AnalyticsService {
               ROUND(COALESCE(SUM(CASE WHEN type = 'INFLOW' THEN amount ELSE -amount END), 0))::int AS amount
             FROM "Payment"
             WHERE status = 'CONFIRMED'
+              AND mode != 'CREDIT'
+              AND (notes IS NULL OR notes NOT ILIKE '%Store Credit%')
               AND "paidAt" >= ${trendStart} AND "paidAt" <= ${trendEnd}
             GROUP BY TO_CHAR("paidAt", 'YYYY-MM-DD')
           `,
@@ -1048,6 +1076,7 @@ export class AnalyticsService {
               mode: PaymentMode.CASH,
               status: PaymentStatus.CONFIRMED,
               type: PaymentType.INFLOW,
+              NOT: { notes: { contains: 'Store Credit', mode: 'insensitive' } },
               OR: [
                 { paidAt: { lt: startOfDay } },
                 { paidAt: null, createdAt: { lt: startOfDay } },
@@ -1060,6 +1089,7 @@ export class AnalyticsService {
               mode: PaymentMode.CASH,
               status: PaymentStatus.CONFIRMED,
               type: PaymentType.OUTFLOW,
+              NOT: { notes: { contains: 'Store Credit', mode: 'insensitive' } },
               OR: [
                 { paidAt: { lt: startOfDay } },
                 { paidAt: null, createdAt: { lt: startOfDay } },
@@ -1087,6 +1117,8 @@ export class AnalyticsService {
             this.prisma.payment.findMany({
               where: {
                 status: PaymentStatus.CONFIRMED,
+                mode: { not: PaymentMode.CREDIT },
+                NOT: { notes: { contains: 'Store Credit', mode: 'insensitive' } },
                 OR: [
                   { paidAt: { gte: startOfDay, lte: endOfDay } },
                   {
@@ -1133,6 +1165,12 @@ export class AnalyticsService {
         let expenseCash = 0;
 
         for (const p of todayPayments) {
+          if (
+            p.mode === PaymentMode.CREDIT ||
+            p.notes?.toLowerCase().includes('store credit')
+          ) {
+            continue;
+          }
           const amt = Number(p.amount);
           if (p.mode === PaymentMode.CASH) {
             if (p.type === PaymentType.INFLOW) {

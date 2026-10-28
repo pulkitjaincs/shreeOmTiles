@@ -14,6 +14,7 @@ import {
   PaymentType,
   CreditType,
   CreditStatus,
+  InvoiceStatus,
   Prisma,
   Party,
   Role,
@@ -57,9 +58,39 @@ export class PurchasesService {
     const updated = await this.prisma.$transaction(async (tx) => {
       const existing = await tx.purchase.findUnique({
         where: { id },
-        include: { items: true },
+        include: {
+          items: true,
+          debitNotes: true,
+          payments: true,
+          creditLedgers: true,
+        },
       });
       if (!existing) throw new NotFoundException('Purchase not found');
+
+      if (existing.debitNotes && existing.debitNotes.length > 0) {
+        throw new BadRequestException(
+          'Cannot edit purchase with associated debit notes',
+        );
+      }
+
+      const hasPostCreationPayments = existing.payments.some((p) => {
+        const isUpfront =
+          p.notes?.toLowerCase().includes('upfront') ||
+          p.notes?.toLowerCase().includes('purchase creation');
+        return !isUpfront;
+      });
+
+      const hasSettledLedgers = existing.creditLedgers.some(
+        (cl) =>
+          cl.status === CreditStatus.SETTLED ||
+          cl.status === CreditStatus.PARTIAL,
+      );
+
+      if (hasPostCreationPayments || hasSettledLedgers) {
+        throw new BadRequestException(
+          'Cannot edit purchase with subsequent payments or settled credit ledgers',
+        );
+      }
 
       const partyId = data.partyId || existing.partyId;
       const party = await tx.party.findUnique({ where: { id: partyId } });
@@ -657,6 +688,11 @@ export class PurchasesService {
     userId: string,
   ) {
     const purchase = await this.findOne(purchaseId);
+    if (purchase.status === InvoiceStatus.CANCELLED) {
+      throw new BadRequestException(
+        'Cannot create debit note for cancelled purchase',
+      );
+    }
     const fy = this.getFinancialYear();
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -689,13 +725,23 @@ export class PurchasesService {
       if (existingPayable) {
         const curDue = Number(existingPayable.amountDue);
         if (curDue >= dto.amount) {
-          const newDue = curDue - dto.amount;
+          const newDue = Math.max(0, curDue - dto.amount);
+          const isSettled = newDue <= 0.005;
           await tx.creditLedger.update({
             where: { id: existingPayable.id },
             data: {
-              amountDue: new Prisma.Decimal(newDue.toFixed(2)),
+              amountDue: new Prisma.Decimal(
+                isSettled ? 0 : Number(newDue.toFixed(2)),
+              ),
               status:
-                newDue === 0 ? CreditStatus.SETTLED : CreditStatus.PARTIAL,
+                isSettled ? CreditStatus.SETTLED : CreditStatus.PARTIAL,
+            },
+          });
+          await tx.purchase.update({
+            where: { id: purchase.id },
+            data: {
+              status:
+                isSettled ? InvoiceStatus.PAID : InvoiceStatus.PARTIAL,
             },
           });
         } else {
@@ -705,6 +751,10 @@ export class PurchasesService {
               amountDue: new Prisma.Decimal(0),
               status: CreditStatus.SETTLED,
             },
+          });
+          await tx.purchase.update({
+            where: { id: purchase.id },
+            data: { status: InvoiceStatus.PAID },
           });
           const excess = dto.amount - curDue;
           if (excess > 0.01) {
@@ -719,6 +769,23 @@ export class PurchasesService {
               },
             });
           }
+        }
+      } else {
+        await tx.creditLedger.create({
+          data: {
+            partyId: purchase.partyId,
+            purchaseId: purchase.id,
+            amountDue: new Prisma.Decimal(dto.amount.toFixed(2)),
+            type: CreditType.RECEIVABLE,
+            status: CreditStatus.UNPAID,
+            notes: `Advance supplier credit from Debit Note #${debitNoteNo} against Purchase #${purchase.purchaseNo}`,
+          },
+        });
+        if (purchase.status !== InvoiceStatus.PAID) {
+          await tx.purchase.update({
+            where: { id: purchase.id },
+            data: { status: InvoiceStatus.PAID },
+          });
         }
       }
 

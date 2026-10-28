@@ -325,7 +325,7 @@ export class PartiesService {
         inv.status !== 'DRAFT'
       ) {
         const hasCreditLedger = (party.creditLedgers || []).some(
-          (cl) => cl.invoiceId === inv.id && cl.status !== 'SETTLED',
+          (cl) => cl.invoiceId === inv.id,
         );
         if (!hasCreditLedger) {
           const total = Number(inv.total || 0);
@@ -457,6 +457,9 @@ export class PartiesService {
           },
           orderBy: { createdAt: 'asc' },
         },
+        debitNotes: {
+          orderBy: { createdAt: 'asc' },
+        },
       },
     });
 
@@ -487,6 +490,13 @@ export class PartiesService {
     }
 
     for (const p of party.payments) {
+      const isInternalCredit =
+        p.mode === 'CREDIT' ||
+        p.notes?.toLowerCase().includes('store credit') ||
+        p.notes?.toLowerCase().includes('offset');
+      if (isInternalCredit) {
+        continue;
+      }
       const pDate = new Date(p.paidAt || p.createdAt);
       if (pDate < start) {
         if (p.type === PaymentType.INFLOW) {
@@ -500,6 +510,12 @@ export class PartiesService {
     for (const r of party.refundInvoices) {
       if (new Date(r.createdAt) < start) {
         runningBal -= Number(r.total);
+      }
+    }
+
+    for (const dn of party.debitNotes || []) {
+      if (new Date(dn.createdAt) < start) {
+        runningBal += Number(dn.amount);
       }
     }
 
@@ -557,8 +573,11 @@ export class PartiesService {
       if (d >= start && d <= end) {
         // Collect upfront payments made at invoice creation time
         const upfrontSplits = inv.payments.filter((p) =>
+          p.mode === 'CREDIT' ||
           p.notes?.toLowerCase().includes('upfront') ||
-          p.notes?.toLowerCase().includes('invoice creation'),
+          p.notes?.toLowerCase().includes('invoice creation') ||
+          p.notes?.toLowerCase().includes('store credit') ||
+          p.notes?.toLowerCase().includes('offset'),
         );
 
         for (const p of upfrontSplits) {
@@ -690,6 +709,13 @@ export class PartiesService {
         if (upfrontPaymentIds.has(p.id)) {
           continue; // Already accounted for in Sale row
         }
+        const isInternalCredit =
+          p.mode === 'CREDIT' ||
+          p.notes?.toLowerCase().includes('store credit') ||
+          p.notes?.toLowerCase().includes('offset');
+        if (isInternalCredit) {
+          continue; // Skip standalone Payment-in emission for internal credit notes
+        }
 
         const amt = Number(p.amount);
         const isInflow = p.type === PaymentType.INFLOW;
@@ -733,6 +759,23 @@ export class PartiesService {
           paymentType: r.refundMode || null,
           items,
           subtotal: Number(r.subtotal || 0),
+        });
+      }
+    }
+
+    for (const dn of party.debitNotes || []) {
+      const d = new Date(dn.createdAt);
+      if (d >= start && d <= end) {
+        const dnTotal = Number(dn.amount);
+        rawTxs.push({
+          date: d,
+          txnType: 'Debit Note',
+          refNo: dn.debitNoteNo,
+          status: 'Applied',
+          totalAmount: dnTotal,
+          receivedAmount: 0,
+          txnBalance: dnTotal,
+          paymentType: dn.reason || null,
         });
       }
     }
@@ -797,6 +840,8 @@ export class PartiesService {
         currentBal += tx.receivedAmount;
       } else if (tx.txnType === 'Credit Note') {
         currentBal -= tx.totalAmount;
+      } else if (tx.txnType === 'Debit Note') {
+        currentBal += tx.totalAmount;
       } else if (tx.txnType === 'Direct Due') {
         currentBal += tx.totalAmount;
       } else if (tx.txnType === 'Store Payable') {

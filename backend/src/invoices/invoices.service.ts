@@ -786,6 +786,7 @@ export class InvoicesService {
         items: { include: { product: true, warehouse: true } },
         payments: true,
         deliveries: { include: { trips: true, driver: true } },
+        creditLedgers: true,
         refundInvoices: {
           include: {
             items: { include: { product: true, warehouse: true } },

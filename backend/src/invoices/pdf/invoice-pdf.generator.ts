@@ -35,7 +35,18 @@ export async function generateInvoicePdf(
         0,
       ),
   );
-  const cacheKey = `${invoice.id}:${invoice.updatedAt ? new Date(invoice.updatedAt).getTime() : 0}:${(invoice.refundInvoices || []).length}:${totalReturns}:${totalReceived}`;
+  const linkedLedgers = invoice.creditLedgers || [];
+  const receivableLedgers = linkedLedgers.filter(
+    (cl) => cl.type === 'RECEIVABLE' || !cl.type,
+  );
+  const hasSettledLedger =
+    receivableLedgers.length > 0 &&
+    receivableLedgers.every(
+      (cl) => cl.status === 'SETTLED' || Number(cl.amountDue || 0) <= 0.005,
+    );
+  const isPaidOrSettled = invoice.status === 'PAID' || hasSettledLedger;
+
+  const cacheKey = `${invoice.id}:${invoice.status}:${invoice.updatedAt ? new Date(invoice.updatedAt).getTime() : 0}:${(invoice.refundInvoices || []).length}:${totalReturns}:${totalReceived}:${isPaidOrSettled}`;
   const cached = pdfBufferCache.get(cacheKey);
   if (cached) {
     return cached;
@@ -79,10 +90,16 @@ export async function generateInvoicePdf(
 
   const hasReturns = totalReturns > 0;
   const netPayable = Math.max(0, totalAmount - totalReturns);
-  const netBalanceDue = Math.max(0, netPayable - totalReceived);
-  const balance = hasReturns
-    ? netBalanceDue
+  const rawBalance = hasReturns
+    ? Math.max(0, netPayable - totalReceived)
     : Math.max(0, totalAmount - totalReceived);
+  const balance = isPaidOrSettled ? 0 : rawBalance;
+  const netBalanceDue = isPaidOrSettled
+    ? 0
+    : Math.max(0, netPayable - totalReceived);
+  const effectiveReceived = isPaidOrSettled
+    ? Math.max(totalReceived, hasReturns ? netPayable : totalAmount)
+    : totalReceived;
   const previousBalance = Number(invoice.previousBalance || 0);
   const currentBalance = previousBalance + balance;
 
@@ -632,6 +649,15 @@ export async function generateInvoicePdf(
         },
       );
       payLineY -= payLineHeight;
+    } else if (isPaidOrSettled && linesRendered < maxLines) {
+      page.drawText(safePdfText('• Status: Fully Settled / Paid'), {
+        x: wordsLeftX,
+        y: payLineY,
+        size: 7,
+        font: fontBold,
+        color: black,
+      });
+      payLineY -= payLineHeight;
     }
   } else {
     const modeLabel = formatModeLabel(invoice.paymentMode || 'CREDIT');
@@ -648,6 +674,16 @@ export async function generateInvoicePdf(
       color: black,
     });
     payLineY -= payLineHeight;
+    if (isPaidOrSettled) {
+      page.drawText(safePdfText('• Status: Fully Settled / Paid'), {
+        x: wordsLeftX,
+        y: payLineY,
+        size: 7,
+        font: fontBold,
+        color: black,
+      });
+      payLineY -= payLineHeight;
+    }
   }
 
   if (hasReturns) {
@@ -782,7 +818,7 @@ export async function generateInvoicePdf(
       false,
       true,
     );
-    drawAmountLine('Received', `Rs. ${totalReceived.toLocaleString('en-IN')}`);
+    drawAmountLine('Received', `Rs. ${effectiveReceived.toLocaleString('en-IN')}`);
     drawAmountLine(
       'Net Balance Due',
       `Rs. ${netBalanceDue.toLocaleString('en-IN')}`,
@@ -791,7 +827,7 @@ export async function generateInvoicePdf(
     );
   } else {
     drawAmountLine('Total', `Rs. ${totalAmount.toLocaleString('en-IN')}`, true);
-    drawAmountLine('Received', `Rs. ${totalReceived.toLocaleString('en-IN')}`);
+    drawAmountLine('Received', `Rs. ${effectiveReceived.toLocaleString('en-IN')}`);
     drawAmountLine('Balance', `Rs. ${balance.toLocaleString('en-IN')}`, true);
   }
 

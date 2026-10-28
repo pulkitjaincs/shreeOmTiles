@@ -24,6 +24,7 @@ import {
 import { PaginationParams, DateRangeFilter, buildDateRange } from '../common/interfaces/pagination.interface';
 
 import { NotificationsService } from '../notifications/notifications.service';
+import { PaymentsService } from '../payments/payments.service';
 import {
   generateDeliveryChallanPdf,
   DeliveryChallanPayload,
@@ -72,6 +73,7 @@ export class DeliveryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
+    private readonly paymentsService: PaymentsService,
   ) {}
 
   async create(data: CreateDeliveryDto) {
@@ -1077,7 +1079,7 @@ export class DeliveryService {
       // 3. Calculate all confirmed payments and invoice balance
       const invoice = await tx.invoice.findUnique({
         where: { id: delivery.invoiceId },
-        include: { payments: true, party: true },
+        include: { payments: true, party: true, refundInvoices: true },
       });
 
       if (invoice) {
@@ -1095,10 +1097,14 @@ export class DeliveryService {
               : sum + Number(p.amount),
           0,
         );
-        const invoiceTotal = Number(invoice.total);
+        const totalReturns = (invoice.refundInvoices || []).reduce(
+          (sum, r) => sum + Number(r.total || 0),
+          0,
+        );
+        const netInvoiceTotal = Math.max(0, Number(invoice.total) - totalReturns);
         const remainingDue = Math.max(
           0,
-          Math.round((invoiceTotal - totalPaid) * 100) / 100,
+          Math.round((netInvoiceTotal - totalPaid) * 100) / 100,
         );
 
         // Ensure the party is registered & saved permanently in the party directory
@@ -1147,11 +1153,16 @@ export class DeliveryService {
             });
           }
         } else {
-          // Invoice is 100% paid
+          // Invoice is 100% paid or cancelled via return
+          const isFullyRefunded =
+            Number(invoice.total) > 0 &&
+            totalReturns >= Number(invoice.total) - 0.01;
           await tx.invoice.update({
             where: { id: invoice.id },
             data: {
-              status: InvoiceStatus.PAID,
+              status: isFullyRefunded
+                ? InvoiceStatus.CANCELLED
+                : InvoiceStatus.PAID,
             },
           });
 
@@ -1165,6 +1176,8 @@ export class DeliveryService {
             });
           }
         }
+
+        await this.paymentsService.reconcilePartyFinancials(invoice.partyId, tx);
       }
 
       return {
