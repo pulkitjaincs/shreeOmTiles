@@ -202,7 +202,7 @@ export function buildFullInvoiceMessage(invoice: any): string {
   const paid = Number.isFinite(explicitPaid)
     ? Math.max(0, explicitPaid)
     : (invoice.payments || [])
-        .filter((payment: any) => payment.status === 'CONFIRMED' && payment.mode !== 'OUTFLOW')
+        .filter((payment: any) => payment.status === 'CONFIRMED' && payment.type !== 'OUTFLOW')
         .reduce((sum: number, payment: any) => sum + Number(payment.amount || 0), 0);
   const subtotal = Number(invoice.subtotal || 0);
   const discount = Number(invoice.discountAmount || 0);

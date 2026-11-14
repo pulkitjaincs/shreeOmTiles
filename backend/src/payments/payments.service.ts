@@ -135,7 +135,7 @@ export class PaymentsService implements OnModuleInit {
         include: {
           invoices: {
             where: { status: { not: InvoiceStatus.CANCELLED } },
-            include: { creditLedgers: true, refundInvoices: true },
+            include: { creditLedgers: true, refundInvoices: true, payments: true },
             orderBy: { createdAt: 'asc' },
           },
           payments: {
@@ -143,6 +143,9 @@ export class PaymentsService implements OnModuleInit {
             orderBy: { createdAt: 'asc' },
           },
           creditLedgers: {
+            orderBy: { createdAt: 'asc' },
+          },
+          refundInvoices: {
             orderBy: { createdAt: 'asc' },
           },
         },
@@ -158,10 +161,13 @@ export class PaymentsService implements OnModuleInit {
           !cl.purchaseId &&
           cl.notes?.toLowerCase().includes('opening balance'),
       );
+      const openingReceivableMatch = openingReceivableLedger?.notes?.match(
+        /balance\s*(?:of\s*)?(?:₹|rs\.?)?\s*([0-9]+(?:\.[0-9]+)?)/i,
+      );
       const openingReceivableAmt = openingReceivableLedger
-        ? Number(openingReceivableLedger.notes?.match(/([0-9.]+)/)?.[1]) ||
-          Number(openingReceivableLedger.amountDue) ||
-          0
+        ? (openingReceivableMatch
+            ? Number(openingReceivableMatch[1])
+            : Number(openingReceivableLedger.amountDue)) || 0
         : 0;
 
       const openingPayableLedger = party.creditLedgers.find(
@@ -171,172 +177,292 @@ export class PaymentsService implements OnModuleInit {
           !cl.purchaseId &&
           cl.notes?.toLowerCase().includes('opening balance'),
       );
+      const openingPayableMatch = openingPayableLedger?.notes?.match(
+        /balance\s*(?:of\s*)?(?:₹|rs\.?)?\s*([0-9]+(?:\.[0-9]+)?)/i,
+      );
       const openingPayableAmt = openingPayableLedger
-        ? Number(openingPayableLedger.notes?.match(/([0-9.]+)/)?.[1]) ||
-          Number(openingPayableLedger.amountDue) ||
-          0
+        ? (openingPayableMatch
+            ? Number(openingPayableMatch[1])
+            : Number(openingPayableLedger.amountDue)) || 0
         : 0;
 
-      // 3. Compute net inflows
-      const totalInflows = party.payments
-        .filter((p) => p.type === PaymentType.INFLOW && !p.purchaseId)
-        .reduce((s, p) => s + Number(p.amount), 0);
-      const totalOutflows = party.payments
-        .filter((p) => p.type === PaymentType.OUTFLOW && !p.purchaseId)
-        .reduce((s, p) => s + Number(p.amount), 0);
-      let remainingPayment = Math.max(0, totalInflows - totalOutflows);
+      // 3. Settle invoices with dedicated confirmed payments first (Bug B fix)
+      // Dedicated payments tied to inv.id are applied to that invoice before any shared pooling
+      interface InvoiceWorkingState {
+        inv: (typeof party.invoices)[0];
+        netBilled: number;
+        directPaid: number;
+        remainingDue: number;
+      }
 
-      // Consume opening payable against invoice debt if applicable
-      const totalInvoiced = party.invoices.reduce((s, inv) => {
+      const invoiceStates: InvoiceWorkingState[] = [];
+      let totalDirectExcess = 0;
+
+      for (const inv of party.invoices) {
         const refunded =
           inv.refundInvoices?.reduce((rs, r) => rs + Number(r.total), 0) || 0;
-        return s + Math.max(0, Number(inv.total) - refunded);
-      }, 0);
-      if (openingPayableLedger && openingPayableAmt > 0 && totalInvoiced > 0) {
-        const payableUsed = Math.min(openingPayableAmt, totalInvoiced);
-        const remOpeningPayable = Math.max(0, openingPayableAmt - payableUsed);
-        remainingPayment += payableUsed;
+        const netBilled = Math.max(0, Number(inv.total) - refunded);
+
+        // Payments specifically linked to this invoice
+        const invPayments = party.payments.filter((p) => p.invoiceId === inv.id);
+        const invInflows = invPayments
+          .filter((p) => p.type === PaymentType.INFLOW)
+          .reduce((s, p) => s + Number(p.amount), 0);
+        const invOutflows = invPayments
+          .filter((p) => p.type === PaymentType.OUTFLOW)
+          .reduce((s, p) => s + Number(p.amount), 0);
+        const directPaid = Math.max(0, invInflows - invOutflows);
+        const remainingDue = Math.max(0, netBilled - directPaid);
+
+        if (directPaid > netBilled) {
+          totalDirectExcess += directPaid - netBilled;
+        }
+
+        invoiceStates.push({
+          inv,
+          netBilled,
+          directPaid,
+          remainingDue,
+        });
+      }
+
+      // 4. Compute unallocated available cash pool & store credits (Bug A & Bug C fix)
+      // Unallocated payments are not tied to any invoice, purchase, or refund
+      const unallocatedInflows = party.payments
+        .filter(
+          (p) =>
+            !p.invoiceId &&
+            !p.purchaseId &&
+            !p.refundInvoiceId &&
+            p.type === PaymentType.INFLOW &&
+            p.mode !== PaymentMode.CREDIT &&
+            !p.notes?.toLowerCase().includes('store credit') &&
+            !p.notes?.toLowerCase().includes('offset'),
+        )
+        .reduce((s, p) => s + Number(p.amount), 0);
+
+      const unallocatedOutflows = party.payments
+        .filter(
+          (p) =>
+            !p.invoiceId &&
+            !p.purchaseId &&
+            !p.refundInvoiceId &&
+            p.type === PaymentType.OUTFLOW,
+        )
+        .reduce((s, p) => s + Number(p.amount), 0);
+
+      let unallocatedPool = Math.max(
+        0,
+        unallocatedInflows - unallocatedOutflows + totalDirectExcess,
+      );
+
+      // Settle opening receivable first from unallocated pool
+      if (openingReceivableLedger && openingReceivableAmt > 0) {
+        const deduct = Math.min(openingReceivableAmt, unallocatedPool);
+        const remainingOpening = Math.max(0, openingReceivableAmt - deduct);
+        unallocatedPool -= deduct;
         await tx.creditLedger.update({
-          where: { id: openingPayableLedger.id },
+          where: { id: openingReceivableLedger.id },
           data: {
-            amountDue: new Prisma.Decimal(remOpeningPayable.toFixed(2)),
+            amountDue: new Prisma.Decimal(remainingOpening.toFixed(2)),
             status:
-              remOpeningPayable <= 0.01
+              remainingOpening <= 0.01
                 ? CreditStatus.SETTLED
                 : CreditStatus.PARTIAL,
           },
         });
       }
 
-      // 4. Settle opening balance
-      if (openingReceivableLedger) {
-        const deduct = Math.min(openingReceivableAmt, remainingPayment);
-        const remainingOpening = Math.max(0, openingReceivableAmt - deduct);
-        remainingPayment -= deduct;
-        await tx.creditLedger.update({
-          where: { id: openingReceivableLedger.id },
-          data: {
-            amountDue: new Prisma.Decimal(remainingOpening.toFixed(2)),
-            status: remainingOpening <= 0.01 ? CreditStatus.SETTLED : CreditStatus.PARTIAL,
-          },
-        });
-      }
+      // Collect available store credits (PAYABLE credit ledgers)
+      const availableStoreCreditLedgers = party.creditLedgers.filter(
+        (cl) =>
+          cl.type === CreditType.PAYABLE &&
+          !cl.purchaseId &&
+          cl.status !== CreditStatus.SETTLED &&
+          Number(cl.amountDue) > 0.005,
+      );
 
-      // 5. Settle invoices in FIFO order
-      for (const inv of party.invoices) {
-        const refunded =
-          inv.refundInvoices?.reduce((rs, r) => rs + Number(r.total), 0) || 0;
-        const invTotal = Math.max(0, Number(inv.total) - refunded);
-        const deduct = Math.min(invTotal, remainingPayment);
-        const remainingDue = Math.max(0, invTotal - deduct);
-        remainingPayment -= deduct;
+      const totalStoreCredit = availableStoreCreditLedgers.reduce(
+        (s, cl) => s + Number(cl.amountDue),
+        0,
+      );
+
+      let totalAvailableCredit = unallocatedPool + totalStoreCredit;
+
+      // 5. Apply unallocated funds & store credits FIFO to remaining dues
+      for (const state of invoiceStates) {
+        let finalDue = state.remainingDue;
+        if (finalDue > 0.005 && totalAvailableCredit > 0.005) {
+          const deduct = Math.min(finalDue, totalAvailableCredit);
+          finalDue = Math.max(0, finalDue - deduct);
+          totalAvailableCredit -= deduct;
+        }
 
         const isFullyRefunded =
-          Number(inv.total) > 0 && refunded >= Number(inv.total) - 0.01;
+          Number(state.inv.total) > 0 &&
+          (state.inv.refundInvoices?.reduce((rs, r) => rs + Number(r.total), 0) || 0) >=
+            Number(state.inv.total) - 0.01;
+
         const newStatus = isFullyRefunded
           ? InvoiceStatus.CANCELLED
-          : remainingDue <= 0.01
+          : finalDue <= 0.01
             ? InvoiceStatus.PAID
-            : deduct > 0.01 || refunded > 0.01
+            : state.directPaid > 0.01 || state.netBilled - finalDue > 0.01
               ? InvoiceStatus.PARTIAL
               : InvoiceStatus.CREATED;
 
         await tx.invoice.update({
-          where: { id: inv.id },
+          where: { id: state.inv.id },
           data: { status: newStatus },
         });
 
         await tx.delivery.updateMany({
           where: {
-            invoiceId: inv.id,
+            invoiceId: state.inv.id,
             status: { not: DeliveryStatus.DELIVERED },
           },
           data: {
-            amountToCollect: new Prisma.Decimal(remainingDue.toFixed(2)),
+            amountToCollect: new Prisma.Decimal(finalDue.toFixed(2)),
           },
         });
 
-        const invLedger = inv.creditLedgers.find(
+        const invLedger = state.inv.creditLedgers.find(
           (cl) => cl.type === CreditType.RECEIVABLE,
         );
         if (invLedger) {
           await tx.creditLedger.update({
             where: { id: invLedger.id },
             data: {
-              amountDue: new Prisma.Decimal(remainingDue.toFixed(2)),
+              amountDue: new Prisma.Decimal(finalDue.toFixed(2)),
               status:
-                remainingDue <= 0.01
+                finalDue <= 0.01
                   ? CreditStatus.SETTLED
-                  : deduct > 0.01 || refunded > 0.01
+                  : state.netBilled - finalDue > 0.01
                     ? CreditStatus.PARTIAL
                     : CreditStatus.UNPAID,
             },
           });
-        } else if (remainingDue > 0.01) {
+        } else if (finalDue > 0.01) {
           await tx.creditLedger.create({
             data: {
               partyId: party.id,
-              invoiceId: inv.id,
-              amountDue: new Prisma.Decimal(remainingDue.toFixed(2)),
+              invoiceId: state.inv.id,
+              amountDue: new Prisma.Decimal(finalDue.toFixed(2)),
               type: CreditType.RECEIVABLE,
               status:
-                deduct > 0.01 || refunded > 0.01
+                state.netBilled - finalDue > 0.01
                   ? CreditStatus.PARTIAL
                   : CreditStatus.UNPAID,
-              notes: `Balance receivable for Invoice #${inv.invoiceNo}`,
+              notes: `Balance receivable for Invoice #${state.inv.invoiceNo}`,
             },
           });
         }
       }
 
-      // 6. Settle or consolidate overpayment ledgers (Store Payables)
-      const remainingPayableLedgers = await tx.creditLedger.findMany({
-        where: {
-          partyId,
-          type: CreditType.PAYABLE,
-          invoiceId: null,
-          purchaseId: null,
-          refundInvoiceId: null,
-        },
-        orderBy: { createdAt: 'asc' },
-      });
+      // Settle used store credits
+      const storeCreditUsed = Math.max(
+        0,
+        totalStoreCredit - Math.max(0, totalAvailableCredit - unallocatedPool),
+      );
+      let creditToDeduct = storeCreditUsed;
+      for (const cl of availableStoreCreditLedgers) {
+        if (creditToDeduct <= 0.005) break;
+        const curAmt = Number(cl.amountDue);
+        const deduct = Math.min(curAmt, creditToDeduct);
+        const rem = Math.max(0, curAmt - deduct);
+        creditToDeduct -= deduct;
+        await tx.creditLedger.update({
+          where: { id: cl.id },
+          data: {
+            amountDue: new Prisma.Decimal(rem.toFixed(2)),
+            status: rem <= 0.01 ? CreditStatus.SETTLED : CreditStatus.PARTIAL,
+          },
+        });
+      }
 
-      const advanceOverpaymentLedgers = remainingPayableLedgers.filter(
+      // 6. Settle or consolidate advance customer overpayment
+      const remainingAdvance = Math.max(
+        0,
+        totalAvailableCredit - Math.max(0, totalStoreCredit - storeCreditUsed),
+      );
+      const remainingAdvanceLedgers = (
+        await tx.creditLedger.findMany({
+          where: {
+            partyId,
+            type: CreditType.PAYABLE,
+            invoiceId: null,
+            purchaseId: null,
+            refundInvoiceId: null,
+          },
+          orderBy: { createdAt: 'asc' },
+        })
+      ).filter(
         (cl) =>
-          cl.notes?.includes('Advance customer overpayment') ||
-          cl.notes?.includes('Advance customer balance'),
+          !cl.notes?.toLowerCase().includes('opening balance') &&
+          (cl.notes?.includes('Advance customer overpayment') ||
+            cl.notes?.includes('Advance customer balance')),
       );
 
-      if (remainingPayment > 0.01) {
-        const primaryOverpayment = advanceOverpaymentLedgers[0];
+      if (remainingAdvance > 0.01) {
+        const primaryOverpayment = remainingAdvanceLedgers[0];
         if (primaryOverpayment) {
           await tx.creditLedger.update({
             where: { id: primaryOverpayment.id },
             data: {
-              amountDue: new Prisma.Decimal(remainingPayment.toFixed(2)),
+              amountDue: new Prisma.Decimal(remainingAdvance.toFixed(2)),
               status: CreditStatus.UNPAID,
-              notes: `Advance customer balance (₹${remainingPayment.toFixed(2)})`,
+              notes: `Advance customer balance (₹${remainingAdvance.toFixed(2)})`,
             },
           });
-          for (let i = 1; i < advanceOverpaymentLedgers.length; i++) {
+          for (let i = 1; i < remainingAdvanceLedgers.length; i++) {
             await tx.creditLedger.delete({
-              where: { id: advanceOverpaymentLedgers[i].id },
+              where: { id: remainingAdvanceLedgers[i].id },
             });
           }
         } else {
           await tx.creditLedger.create({
             data: {
               partyId,
-              amountDue: new Prisma.Decimal(remainingPayment.toFixed(2)),
+              amountDue: new Prisma.Decimal(remainingAdvance.toFixed(2)),
               type: CreditType.PAYABLE,
               status: CreditStatus.UNPAID,
-              notes: `Advance customer balance (₹${remainingPayment.toFixed(2)})`,
+              notes: `Advance customer balance (₹${remainingAdvance.toFixed(2)})`,
             },
           });
         }
       } else {
-        for (const cl of advanceOverpaymentLedgers) {
+        for (const cl of remainingAdvanceLedgers) {
           await tx.creditLedger.delete({ where: { id: cl.id } });
+        }
+      }
+
+      // 7. Auto-heal historical invoice.previousBalance values (Bug D fix)
+      for (const inv of party.invoices) {
+        const priorLedgers = await tx.creditLedger.findMany({
+          where: {
+            partyId: party.id,
+            status: { not: CreditStatus.SETTLED },
+            createdAt: { lt: inv.createdAt },
+          },
+        });
+        const truePriorBalance = priorLedgers.reduce(
+          (sum, cl) =>
+            cl.type === CreditType.RECEIVABLE
+              ? sum + Number(cl.amountDue || 0)
+              : sum - Number(cl.amountDue || 0),
+          0,
+        );
+        const resolvedTruePrior = Math.max(0, truePriorBalance);
+        if (
+          inv.previousBalance !== null &&
+          Math.abs(Number(inv.previousBalance) - resolvedTruePrior) > 0.05
+        ) {
+          await tx.invoice.update({
+            where: { id: inv.id },
+            data: {
+              previousBalance: new Prisma.Decimal(resolvedTruePrior.toFixed(2)),
+            },
+          });
         }
       }
     };
@@ -344,7 +470,7 @@ export class PaymentsService implements OnModuleInit {
     if (existingTx) {
       await run(existingTx);
     } else {
-      await this.prisma.$transaction(run);
+      await this.prisma.$transaction(run, { timeout: 15000, maxWait: 10000 });
       this.invalidatePaymentCaches();
     }
   }
@@ -939,7 +1065,7 @@ export class PaymentsService implements OnModuleInit {
       const payment = await tx.payment.findUnique({
         where: { id },
         include: {
-          invoice: { include: { party: true } },
+          invoice: { include: { party: true, refundInvoices: true } },
           party: true,
           confirmedBy: { select: { id: true, name: true } },
         },
@@ -962,7 +1088,7 @@ export class PaymentsService implements OnModuleInit {
           paidAt: new Date(),
         },
         include: {
-          invoice: { include: { party: true } },
+          invoice: { include: { party: true, refundInvoices: true } },
           party: true,
           confirmedBy: { select: { id: true, name: true } },
         },
@@ -984,11 +1110,19 @@ export class PaymentsService implements OnModuleInit {
               : sum + Number(p.amount),
           0,
         );
-        const invoiceTotal = Number(payment.invoice.total);
+        const refundTotal = (payment.invoice.refundInvoices || []).reduce(
+          (s, r) => s + Number(r.total || 0),
+          0,
+        );
+        const netInvoiceTotal = Math.max(
+          0,
+          Number(payment.invoice.total) - refundTotal,
+        );
+        const remainingDue = Math.max(0, netInvoiceTotal - totalPaid);
 
         // 3. Update Invoice status
         let newInvoiceStatus: InvoiceStatus = InvoiceStatus.CREATED;
-        if (totalPaid >= invoiceTotal) {
+        if (remainingDue <= 0.005) {
           newInvoiceStatus = InvoiceStatus.PAID;
         } else if (totalPaid > 0) {
           newInvoiceStatus = InvoiceStatus.PARTIAL;
@@ -1000,7 +1134,6 @@ export class PaymentsService implements OnModuleInit {
         });
 
         // 4. Update Credit Ledger if credit entry exists
-        const remainingDue = Math.max(0, invoiceTotal - totalPaid);
         const creditEntry = await tx.creditLedger.findFirst({
           where: { invoiceId: payment.invoiceId },
         });
@@ -1077,6 +1210,21 @@ export class PaymentsService implements OnModuleInit {
             },
           });
         }
+      }
+
+      const targetPartyId =
+        payment.partyId ||
+        payment.invoice?.partyId ||
+        (payment.purchaseId
+          ? (
+              await tx.purchase.findUnique({
+                where: { id: payment.purchaseId },
+                select: { partyId: true },
+              })
+            )?.partyId
+          : null);
+      if (targetPartyId) {
+        await this.reconcilePartyFinancials(targetPartyId, tx);
       }
 
       return updatedPayment;
@@ -1357,6 +1505,7 @@ export class PaymentsService implements OnModuleInit {
         include: {
           party: true,
           payments: { where: { status: PaymentStatus.CONFIRMED } },
+          refundInvoices: true,
           creditLedgers: {
             where: { type: CreditType.RECEIVABLE },
             select: { amountDue: true, status: true },
@@ -1400,10 +1549,15 @@ export class PaymentsService implements OnModuleInit {
                   : sum + Number(p.amount),
               0,
             );
+            const refunded = (inv.refundInvoices || []).reduce(
+              (s, r) => s + Number(r.total || 0),
+              0,
+            );
+            const netTotal = Math.max(0, Number(inv.total) - refunded);
             const receivableLedger = inv.creditLedgers[0];
             const remainingDue = receivableLedger
               ? Number(receivableLedger.amountDue || 0)
-              : Math.max(0, Number(inv.total) - paid);
+              : Math.max(0, netTotal - paid);
 
             return {
               id: inv.id,
@@ -1449,7 +1603,11 @@ export class PaymentsService implements OnModuleInit {
     const result = await this.prisma.$transaction(async (tx) => {
       const payment = await tx.payment.findUnique({
         where: { id },
-        include: { invoice: true, purchase: true, refundInvoice: true },
+        include: {
+          invoice: { include: { refundInvoices: true } },
+          purchase: true,
+          refundInvoice: true,
+        },
       });
       if (!payment) throw new NotFoundException(`Payment ${id} not found`);
 
@@ -1480,12 +1638,18 @@ export class PaymentsService implements OnModuleInit {
             0,
           ),
         );
-        const total = Number(payment.invoice.total);
+        const refunded = (payment.invoice.refundInvoices || []).reduce(
+          (s, r) => s + Number(r.total || 0),
+          0,
+        );
+        const netTotal = Math.max(0, Number(payment.invoice.total) - refunded);
+        const due = Math.max(0, netTotal - totalPaid);
+
         await tx.invoice.update({
           where: { id: payment.invoiceId },
           data: {
             status:
-              totalPaid >= total
+              due <= 0.005
                 ? InvoiceStatus.PAID
                 : totalPaid > 0
                   ? InvoiceStatus.PARTIAL
@@ -1496,7 +1660,6 @@ export class PaymentsService implements OnModuleInit {
           where: { invoiceId: payment.invoiceId, type: CreditType.RECEIVABLE },
         });
         if (ledger) {
-          const due = Math.max(0, total - totalPaid);
           await tx.creditLedger.update({
             where: { id: ledger.id },
             data: {
@@ -1512,9 +1675,7 @@ export class PaymentsService implements OnModuleInit {
             status: { not: DeliveryStatus.DELIVERED },
           },
           data: {
-            amountToCollect: new Prisma.Decimal(
-              Math.max(0, total - totalPaid).toFixed(2),
-            ),
+            amountToCollect: new Prisma.Decimal(due.toFixed(2)),
           },
         });
       }
@@ -1546,7 +1707,14 @@ export class PaymentsService implements OnModuleInit {
       const targetPartyId =
         payment.partyId ||
         payment.invoice?.partyId ||
-        payment.purchase?.partyId;
+        (payment.purchaseId
+          ? (
+              await tx.purchase.findUnique({
+                where: { id: payment.purchaseId },
+                select: { partyId: true },
+              })
+            )?.partyId
+          : null);
       if (targetPartyId) {
         await this.reconcilePartyFinancials(targetPartyId, tx);
       }

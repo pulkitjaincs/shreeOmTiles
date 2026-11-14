@@ -46,7 +46,8 @@ export async function generateInvoicePdf(
     );
   const isPaidOrSettled = invoice.status === 'PAID' || hasSettledLedger;
 
-  const cacheKey = `${invoice.id}:${invoice.status}:${invoice.updatedAt ? new Date(invoice.updatedAt).getTime() : 0}:${(invoice.refundInvoices || []).length}:${totalReturns}:${totalReceived}:${isPaidOrSettled}`;
+  const previousBalanceNum = Number(invoice.previousBalance || 0);
+  const cacheKey = `${invoice.id}:${invoice.status}:${invoice.updatedAt ? new Date(invoice.updatedAt).getTime() : 0}:${(invoice.refundInvoices || []).length}:${totalReturns}:${totalReceived}:${isPaidOrSettled}:${previousBalanceNum}`;
   const cached = pdfBufferCache.get(cacheKey);
   if (cached) {
     return cached;

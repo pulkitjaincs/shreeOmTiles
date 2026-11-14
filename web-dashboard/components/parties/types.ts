@@ -15,6 +15,7 @@ export interface InvoiceItem {
 export interface Payment {
   id: string;
   type?: 'INFLOW' | 'OUTFLOW';
+  refundInvoiceId?: string | null;
   mode: string;
   amount: number;
   status: string;
@@ -34,6 +35,14 @@ export interface Payment {
   };
 }
 
+export interface PartyRefundInvoice {
+  id: string;
+  refundNo?: string;
+  total?: number;
+  totalRefundAmount?: number;
+  originalInvoiceId?: string | null;
+}
+
 export interface Delivery {
   id: string;
   status: string;
@@ -49,6 +58,7 @@ export interface PartyInvoice {
   items?: InvoiceItem[];
   payments?: Payment[];
   deliveries?: Delivery[];
+  refundInvoices?: PartyRefundInvoice[];
   salesman?: {
     id: string;
     name: string;
@@ -114,6 +124,7 @@ export interface PartyDetail {
   purchases?: PartyPurchase[];
   creditLedgers?: PartyCreditLedger[];
   payments?: Payment[];
+  refundInvoices?: PartyRefundInvoice[];
 }
 
 export interface Party {

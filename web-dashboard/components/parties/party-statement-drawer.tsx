@@ -105,10 +105,15 @@ export function PartyStatementDrawer({
 
   if (!isOpen || !party) return null;
 
-  // Aggregate stats
-  const lifetimeTotal = (partyData?.invoices || [])
+  // Aggregate stats: calculate Net Sales by deducting returns
+  const totalPartyRefunds = (partyData?.refundInvoices || []).reduce(
+    (sum: number, r) => sum + Number(r.total || r.totalRefundAmount || 0),
+    0,
+  );
+  const rawInvoicesTotal = (partyData?.invoices || [])
     .filter((inv) => inv.status !== 'CANCELLED' && inv.status !== 'DRAFT')
     .reduce((sum, inv) => sum + Number(inv.total || 0), 0);
+  const lifetimeTotal = Math.max(0, rawInvoicesTotal - totalPartyRefunds);
 
   const lifetimePurchases = (partyData?.purchases || [])
     .filter((p) => p.status !== 'CANCELLED')
@@ -122,9 +127,19 @@ export function PartyStatementDrawer({
     .filter((p) => p.status === 'CONFIRMED' && p.type === 'OUTFLOW')
     .reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
+  // Non-refund outflows (e.g. supplier payments) vs refund payouts
+  const refundOutflows = (partyData?.payments || [])
+    .filter(
+      (p) =>
+        p.status === 'CONFIRMED' &&
+        p.type === 'OUTFLOW' &&
+        (p.refundInvoiceId || p.notes?.toLowerCase().includes('refund payout')),
+    )
+    .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
   const settledPayments =
     paymentsReceived > 0 || paymentsDisbursed > 0
-      ? Math.max(0, paymentsReceived - paymentsDisbursed)
+      ? Math.max(0, paymentsReceived - (paymentsDisbursed - refundOutflows))
       : (partyData?.invoices || []).reduce((sum, inv) => {
           const paid = (inv.payments || [])
             .filter((p) => p.status === 'CONFIRMED')
@@ -146,13 +161,24 @@ export function PartyStatementDrawer({
     }, 0);
 
   const invoiceDues = (partyData?.invoices || [])
-    .filter((inv) => inv.status !== 'PAID' && inv.status !== 'CANCELLED' && inv.status !== 'DRAFT')
+    .filter(
+      (inv) =>
+        inv.status !== 'PAID' &&
+        inv.status !== 'CANCELLED' &&
+        inv.status !== 'DRAFT',
+    )
     .reduce((sum, inv) => {
       const hasCreditLedger = (partyData?.creditLedgers || []).some(
-        (cl) => cl.invoiceId === inv.id || cl.invoice?.id === inv.id
+        (cl) => cl.invoiceId === inv.id || cl.invoice?.id === inv.id,
       );
       if (hasCreditLedger) return sum;
       const invTotal = Number(inv.total || 0);
+      const invRefunds = (inv.refundInvoices || []).reduce(
+        (rSum: number, r) =>
+          rSum + Number(r.total || r.totalRefundAmount || 0),
+        0,
+      );
+      const netInvTotal = Math.max(0, invTotal - invRefunds);
       const paid = (inv.payments || [])
         .filter((p) => p.status === 'CONFIRMED')
         .reduce(
@@ -160,9 +186,9 @@ export function PartyStatementDrawer({
             p.type === 'OUTFLOW'
               ? pSum - Number(p.amount || 0)
               : pSum + Number(p.amount || 0),
-          0
+          0,
         );
-      return sum + Math.max(0, invTotal - paid);
+      return sum + Math.max(0, netInvTotal - paid);
     }, 0);
 
   const totalDues = creditLedgerDues + invoiceDues;

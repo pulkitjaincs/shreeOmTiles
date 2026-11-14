@@ -10,11 +10,11 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.shreeomtiles.erp",
-      "buildNumber": "6"
+      "buildNumber": "7"
     },
     "android": {
       "package": "com.shreeomtiles.erp",
-      "versionCode": 6,
+      "versionCode": 7,
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE",

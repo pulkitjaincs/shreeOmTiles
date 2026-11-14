@@ -49,6 +49,7 @@ export function PartyStatementDrawer({
     purchases?: any[];
     creditLedgers: StatementCreditLedger[];
     payments?: any[];
+    refundInvoices?: any[];
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<'orders' | 'purchases' | 'transactions' | 'credits'>('orders');
@@ -99,9 +100,14 @@ export function PartyStatementDrawer({
   const purchases = statementData?.purchases || [];
   const ledgers = statementData?.creditLedgers || [];
 
-  const lifetimeTotal = invoices
+  const totalPartyRefunds = (statementData?.refundInvoices || []).reduce(
+    (sum: number, r: any) => sum + Number(r.total || 0),
+    0,
+  );
+  const rawInvoicesTotal = invoices
     .filter((inv: any) => inv.status !== 'CANCELLED' && inv.status !== 'DRAFT')
     .reduce((sum: number, inv: any) => sum + Number(inv.total || 0), 0);
+  const lifetimeTotal = Math.max(0, rawInvoicesTotal - totalPartyRefunds);
 
   const lifetimePurchases = purchases
     .filter((p: any) => p.status !== 'CANCELLED')
@@ -117,7 +123,7 @@ export function PartyStatementDrawer({
             .reduce(
               (pSum: number, p: any) =>
                 p.type === 'OUTFLOW'
-                  ? pSum - Number(p.amount || 0)
+                  ? pSum - (p.refundInvoiceId ? 0 : Number(p.amount || 0))
                   : pSum + Number(p.amount || 0),
               0
             )
@@ -150,6 +156,11 @@ export function PartyStatementDrawer({
       );
       if (hasCreditLedger) return sum;
       const invTotal = Number(inv.total || 0);
+      const invRefunds = (inv.refundInvoices || []).reduce(
+        (rSum: number, r: any) => rSum + Number(r.total || 0),
+        0,
+      );
+      const netInvTotal = Math.max(0, invTotal - invRefunds);
       const paid = (inv.payments || [])
         .filter((p: any) => p.status === 'CONFIRMED')
         .reduce(
@@ -159,7 +170,7 @@ export function PartyStatementDrawer({
               : pSum + Number(p.amount || 0),
           0
         );
-      return sum + Math.max(0, invTotal - paid);
+      return sum + Math.max(0, netInvTotal - paid);
     }, 0);
 
   const totalDues = creditLedgerDues + invoiceDues;

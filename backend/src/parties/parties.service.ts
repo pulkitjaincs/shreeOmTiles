@@ -213,6 +213,8 @@ export class PartiesService {
             },
             payments: true,
             deliveries: true,
+            refundInvoices: true,
+            creditLedgers: true,
             salesman: {
               select: { id: true, name: true, phone: true },
             },
@@ -273,6 +275,9 @@ export class PartiesService {
               },
             },
           },
+        },
+        refundInvoices: {
+          orderBy: { createdAt: 'desc' },
         },
       },
     });

@@ -1301,16 +1301,47 @@ export class InvoicesService {
       );
       const totalRefundedSoFar = prevRefundTotal + totalRefund;
       const invoiceTotal = Number(invoice.total);
+
+      const allConfirmedPayments = await tx.payment.findMany({
+        where: {
+          invoiceId: invoice.id,
+          status: PaymentStatus.CONFIRMED,
+        },
+      });
+      const confirmedPaid = allConfirmedPayments.reduce(
+        (sum, p) =>
+          p.type === PaymentType.OUTFLOW
+            ? sum - Number(p.amount)
+            : sum + Number(p.amount),
+        0,
+      );
+      const netBilled = Math.max(0, invoiceTotal - totalRefundedSoFar);
+      const remainingDue = Math.max(0, netBilled - confirmedPaid);
+
       const newStatus =
         totalRefundedSoFar >= invoiceTotal - 0.01
           ? InvoiceStatus.CANCELLED
-          : InvoiceStatus.PARTIAL;
+          : remainingDue <= 0.005
+            ? InvoiceStatus.PAID
+            : confirmedPaid > 0
+              ? InvoiceStatus.PARTIAL
+              : InvoiceStatus.CREATED;
 
       await tx.invoice.update({
         where: { id: invoice.id },
         data: {
           notes: invoice.notes ? `${invoice.notes}\n${returnNote}` : returnNote,
           status: newStatus,
+        },
+      });
+
+      await tx.delivery.updateMany({
+        where: {
+          invoiceId: invoice.id,
+          status: { not: DeliveryStatus.DELIVERED },
+        },
+        data: {
+          amountToCollect: new Prisma.Decimal(remainingDue.toFixed(2)),
         },
       });
 
@@ -2676,13 +2707,36 @@ export class InvoicesService {
         (sum, item) => sum + Number(item.total),
         0,
       );
+      const allConfirmedPayments = await tx.payment.findMany({
+        where: {
+          invoiceId: refund.originalInvoiceId,
+          status: PaymentStatus.CONFIRMED,
+        },
+      });
+      const confirmedPaid = allConfirmedPayments.reduce(
+        (sum, p) =>
+          p.type === PaymentType.OUTFLOW
+            ? sum - Number(p.amount)
+            : sum + Number(p.amount),
+        0,
+      );
+      const invTotal = Number(refund.originalInvoice.total);
+      const netBilled = Math.max(0, invTotal - refundedTotal);
+      const remainingDue = Math.max(0, netBilled - confirmedPaid);
+
+      const newStatus =
+        refundedTotal >= invTotal - 0.01
+          ? InvoiceStatus.CANCELLED
+          : remainingDue <= 0.005
+            ? InvoiceStatus.PAID
+            : confirmedPaid > 0
+              ? InvoiceStatus.PARTIAL
+              : InvoiceStatus.CREATED;
+
       await tx.invoice.update({
         where: { id: refund.originalInvoiceId },
         data: {
-          status:
-            refundedTotal >= Number(refund.originalInvoice.total) - 0.01
-              ? InvoiceStatus.CANCELLED
-              : InvoiceStatus.PARTIAL,
+          status: newStatus,
         },
       });
       await tx.auditLog.create({
