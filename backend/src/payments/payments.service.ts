@@ -35,6 +35,27 @@ export type PaymentWithRelations = Prisma.PaymentGetPayload<{
   };
 }>;
 
+export function parseOpeningBalanceAmount(
+  cl?: { amountDue: any; notes?: string | null } | null,
+): number {
+  if (!cl) return 0;
+  if (cl.notes) {
+    const match1 = cl.notes.match(
+      /opening\s+balance\s+(?:due\s+from\s+customer|payable\s+to\s+vendor):?\s*(?:₹|rs\.?)?\s*([0-9]+(?:\.[0-9]+)?)/i,
+    );
+    if (match1?.[1]) return parseFloat(match1[1]);
+
+    const match2 = cl.notes.match(
+      /opening\s+balance\s*(?:of|:)?\s*(?:₹|rs\.?)?\s*([0-9]+(?:\.[0-9]+)?)/i,
+    );
+    if (match2?.[1]) return parseFloat(match2[1]);
+
+    const match3 = cl.notes.match(/(?:₹|rs\.?)\s*([0-9]+(?:\.[0-9]+)?)/i);
+    if (match3?.[1]) return parseFloat(match3[1]);
+  }
+  return Number(cl.amountDue || 0);
+}
+
 @Injectable()
 export class PaymentsService implements OnModuleInit {
   constructor(
@@ -161,14 +182,7 @@ export class PaymentsService implements OnModuleInit {
           !cl.purchaseId &&
           cl.notes?.toLowerCase().includes('opening balance'),
       );
-      const openingReceivableMatch = openingReceivableLedger?.notes?.match(
-        /balance\s*(?:of\s*)?(?:₹|rs\.?)?\s*([0-9]+(?:\.[0-9]+)?)/i,
-      );
-      const openingReceivableAmt = openingReceivableLedger
-        ? (openingReceivableMatch
-            ? Number(openingReceivableMatch[1])
-            : Number(openingReceivableLedger.amountDue)) || 0
-        : 0;
+      const openingReceivableAmt = parseOpeningBalanceAmount(openingReceivableLedger);
 
       const openingPayableLedger = party.creditLedgers.find(
         (cl) =>
@@ -177,14 +191,7 @@ export class PaymentsService implements OnModuleInit {
           !cl.purchaseId &&
           cl.notes?.toLowerCase().includes('opening balance'),
       );
-      const openingPayableMatch = openingPayableLedger?.notes?.match(
-        /balance\s*(?:of\s*)?(?:₹|rs\.?)?\s*([0-9]+(?:\.[0-9]+)?)/i,
-      );
-      const openingPayableAmt = openingPayableLedger
-        ? (openingPayableMatch
-            ? Number(openingPayableMatch[1])
-            : Number(openingPayableLedger.amountDue)) || 0
-        : 0;
+      const openingPayableAmt = parseOpeningBalanceAmount(openingPayableLedger);
 
       // 3. Settle invoices with dedicated confirmed payments first (Bug B fix)
       // Dedicated payments tied to inv.id are applied to that invoice before any shared pooling
@@ -203,10 +210,16 @@ export class PaymentsService implements OnModuleInit {
           inv.refundInvoices?.reduce((rs, r) => rs + Number(r.total), 0) || 0;
         const netBilled = Math.max(0, Number(inv.total) - refunded);
 
-        // Payments specifically linked to this invoice
+        // Payments specifically linked to this invoice (real money inflows only)
         const invPayments = party.payments.filter((p) => p.invoiceId === inv.id);
         const invInflows = invPayments
-          .filter((p) => p.type === PaymentType.INFLOW)
+          .filter(
+            (p) =>
+              p.type === PaymentType.INFLOW &&
+              p.mode !== PaymentMode.CREDIT &&
+              !p.notes?.toLowerCase().includes('store credit') &&
+              !p.notes?.toLowerCase().includes('offset'),
+          )
           .reduce((s, p) => s + Number(p.amount), 0);
         const invOutflows = invPayments
           .filter((p) => p.type === PaymentType.OUTFLOW)
@@ -256,38 +269,68 @@ export class PaymentsService implements OnModuleInit {
         unallocatedInflows - unallocatedOutflows + totalDirectExcess,
       );
 
-      // Settle opening receivable first from unallocated pool
+      // Settle opening receivable first from unallocated cash pool
+      let remainingOpeningReceivable = openingReceivableAmt;
       if (openingReceivableLedger && openingReceivableAmt > 0) {
-        const deduct = Math.min(openingReceivableAmt, unallocatedPool);
-        const remainingOpening = Math.max(0, openingReceivableAmt - deduct);
+        const deduct = Math.min(remainingOpeningReceivable, unallocatedPool);
+        remainingOpeningReceivable = Math.max(
+          0,
+          remainingOpeningReceivable - deduct,
+        );
         unallocatedPool -= deduct;
+      }
+
+      // Collect available real store credits (PAYABLE credit ledgers from returns or opening payable)
+      // Exclude phantom advance customer ledgers which are outputs of reconciliation
+      const availableStoreCreditLedgers = party.creditLedgers.filter(
+        (cl) =>
+          cl.type === CreditType.PAYABLE &&
+          !cl.purchaseId &&
+          (cl.refundInvoiceId != null ||
+            cl.notes?.toLowerCase().includes('opening balance')),
+      );
+
+      const totalStoreCredit = availableStoreCreditLedgers.reduce((s, cl) => {
+        const ret = party.refundInvoices.find(
+          (r) => r.id === cl.refundInvoiceId,
+        );
+        return (
+          s +
+          (ret
+            ? Number(ret.total)
+            : parseOpeningBalanceAmount(cl) || Number(cl.amountDue))
+        );
+      }, 0);
+
+      let totalAvailableCredit = unallocatedPool + totalStoreCredit;
+
+      // Settle any remaining opening receivable from available store credit
+      if (remainingOpeningReceivable > 0.005 && totalAvailableCredit > 0.005) {
+        const deduct = Math.min(
+          remainingOpeningReceivable,
+          totalAvailableCredit,
+        );
+        remainingOpeningReceivable = Math.max(
+          0,
+          remainingOpeningReceivable - deduct,
+        );
+        totalAvailableCredit -= deduct;
+      }
+
+      if (openingReceivableLedger) {
         await tx.creditLedger.update({
           where: { id: openingReceivableLedger.id },
           data: {
-            amountDue: new Prisma.Decimal(remainingOpening.toFixed(2)),
+            amountDue: new Prisma.Decimal(
+              remainingOpeningReceivable.toFixed(2),
+            ),
             status:
-              remainingOpening <= 0.01
+              remainingOpeningReceivable <= 0.01
                 ? CreditStatus.SETTLED
                 : CreditStatus.PARTIAL,
           },
         });
       }
-
-      // Collect available store credits (PAYABLE credit ledgers)
-      const availableStoreCreditLedgers = party.creditLedgers.filter(
-        (cl) =>
-          cl.type === CreditType.PAYABLE &&
-          !cl.purchaseId &&
-          cl.status !== CreditStatus.SETTLED &&
-          Number(cl.amountDue) > 0.005,
-      );
-
-      const totalStoreCredit = availableStoreCreditLedgers.reduce(
-        (s, cl) => s + Number(cl.amountDue),
-        0,
-      );
-
-      let totalAvailableCredit = unallocatedPool + totalStoreCredit;
 
       // 5. Apply unallocated funds & store credits FIFO to remaining dues
       for (const state of invoiceStates) {
@@ -367,7 +410,13 @@ export class PaymentsService implements OnModuleInit {
       let creditToDeduct = storeCreditUsed;
       for (const cl of availableStoreCreditLedgers) {
         if (creditToDeduct <= 0.005) break;
-        const curAmt = Number(cl.amountDue);
+        const curAmt =
+          cl.refundInvoiceId != null
+            ? Number(
+                party.refundInvoices.find((r) => r.id === cl.refundInvoiceId)
+                  ?.total || cl.amountDue,
+              )
+            : parseOpeningBalanceAmount(cl) || Number(cl.amountDue);
         const deduct = Math.min(curAmt, creditToDeduct);
         const rem = Math.max(0, curAmt - deduct);
         creditToDeduct -= deduct;
@@ -381,10 +430,18 @@ export class PaymentsService implements OnModuleInit {
       }
 
       // 6. Settle or consolidate advance customer overpayment
-      const remainingAdvance = Math.max(
-        0,
-        totalAvailableCredit - Math.max(0, totalStoreCredit - storeCreditUsed),
-      );
+      const totalOutstandingDues =
+        remainingOpeningReceivable +
+        invoiceStates.reduce((s, st) => s + (st.remainingDue > 0 ? 1 : 0), 0);
+
+      const remainingAdvance =
+        totalOutstandingDues > 0
+          ? 0
+          : Math.max(
+              0,
+              totalAvailableCredit -
+                Math.max(0, totalStoreCredit - storeCreditUsed),
+            );
       const remainingAdvanceLedgers = (
         await tx.creditLedger.findMany({
           where: {
