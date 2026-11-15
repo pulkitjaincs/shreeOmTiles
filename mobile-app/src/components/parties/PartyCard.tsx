@@ -39,19 +39,23 @@ export const PartyCard = React.memo(function PartyCard({
   const totalDue =
     typeof due === 'number'
       ? due
-      : (party.creditLedgers || [])
-          .filter((c) => c.status !== 'SETTLED')
-          .reduce((sum, c) => {
-            const amt = Number(c.amountDue || 0);
-            return c.type === 'RECEIVABLE' ? sum + amt : sum - amt;
-          }, 0);
+      : typeof party.outstandingDue === 'number'
+        ? party.outstandingDue
+        : (party.creditLedgers || [])
+            .filter((c) => c.status !== 'SETTLED')
+            .reduce((sum, c) => {
+              const amt = Number(c.amountDue || 0);
+              return c.type === 'RECEIVABLE' ? sum + amt : sum - amt;
+            }, 0);
 
   const partyPayable =
     typeof payable === 'number'
       ? payable
-      : (party.creditLedgers || [])
-          .filter((c) => c.status !== 'SETTLED' && c.type === 'PAYABLE')
-          .reduce((sum, c) => sum + Number(c.amountDue || 0), 0);
+      : typeof party.storePayable === 'number'
+        ? party.storePayable
+        : (party.creditLedgers || [])
+            .filter((c) => c.status !== 'SETTLED' && c.type === 'PAYABLE')
+            .reduce((sum, c) => sum + Number(c.amountDue || 0), 0);
 
   const orderCount = party._count?.invoices || 0;
 

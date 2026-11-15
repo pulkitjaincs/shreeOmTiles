@@ -239,9 +239,9 @@ export function getDefaultTtlMs(endpoint: string): number {
   if (ep.includes('/products') || ep.includes('/warehouses') || ep.includes('/settings')) {
     return 3 * 60 * 60 * 1000;
   }
-  // 2 hours (7,200,000ms): Parties Directory
+  // 60 seconds (60,000ms): Parties Directory (fast balance reconciliation)
   if (ep.includes('/parties')) {
-    return 2 * 60 * 60 * 1000;
+    return 60 * 1000;
   }
   // 1 hour (3,600,000ms): Quotations / Estimates
   if (ep.includes('/quotations')) {
@@ -292,7 +292,7 @@ export async function cachedApiRequest<T = unknown>(
         const age = Date.now() - parsed.timestamp;
         const isFresh = age < ttlMs;
 
-        if (isFresh) {
+        if (isFresh && !options.onRevalidate) {
           return parsed.data;
         }
 

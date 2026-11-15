@@ -120,6 +120,8 @@ export interface PartyDetail {
   gstin?: string;
   category?: 'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER';
   createdAt: string;
+  outstandingDue?: number;
+  storePayable?: number;
   invoices?: PartyInvoice[];
   purchases?: PartyPurchase[];
   creditLedgers?: PartyCreditLedger[];
@@ -136,6 +138,8 @@ export interface Party {
   category?: 'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER';
   isSaved?: boolean;
   createdAt?: string;
+  outstandingDue?: number;
+  storePayable?: number;
   creditLedgers?: {
     id?: string;
     amountDue: number;

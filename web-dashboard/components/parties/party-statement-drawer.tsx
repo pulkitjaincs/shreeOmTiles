@@ -191,7 +191,15 @@ export function PartyStatementDrawer({
       return sum + Math.max(0, netInvTotal - paid);
     }, 0);
 
-  const totalDues = creditLedgerDues + invoiceDues;
+  const totalDues =
+    typeof partyData?.outstandingDue === 'number' &&
+    typeof partyData?.storePayable === 'number'
+      ? partyData.outstandingDue > 0.005
+        ? partyData.outstandingDue
+        : partyData.storePayable > 0.005
+          ? -partyData.storePayable
+          : 0
+      : creditLedgerDues + invoiceDues;
 
   // WhatsApp Reminder handler
   const handleSendReminder = () => {

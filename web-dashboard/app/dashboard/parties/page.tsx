@@ -71,6 +71,10 @@ export default function PartiesPage() {
   const partyMeta = useMemo(() => {
     const map = new Map<string, { due: number; payable: number }>();
     for (const p of parties) {
+      if (typeof p.outstandingDue === 'number' && typeof p.storePayable === 'number') {
+        map.set(p.id, { due: p.outstandingDue, payable: p.storePayable });
+        continue;
+      }
       let due = 0;
       let payable = 0;
       for (const c of p.creditLedgers || []) {

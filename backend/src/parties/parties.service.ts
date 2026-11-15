@@ -20,6 +20,88 @@ import {
   StatementEntry,
   StatementItem,
 } from './pdf/party-statement-pdf.generator';
+import { parseOpeningBalanceAmount } from '../payments/payments.service';
+
+export interface PartyFinancialSummary {
+  openingBalance: number;
+  totalSales: number;
+  totalReturns: number;
+  totalPaid: number;
+  totalRefundPayouts: number;
+  netBalance: number;
+  outstandingDue: number;
+  storePayable: number;
+}
+
+export function computePartyFinancialSummary(party: {
+  creditLedgers?: any[];
+  invoices?: any[];
+  refundInvoices?: any[];
+  payments?: any[];
+}): PartyFinancialSummary {
+  let openingBalance = 0;
+  for (const cl of party.creditLedgers || []) {
+    if (!cl.invoiceId && !cl.purchaseId && !cl.refundInvoiceId) {
+      if (cl.notes?.toLowerCase().includes('opening balance')) {
+        const amt = parseOpeningBalanceAmount(cl);
+        if (cl.type === 'RECEIVABLE') {
+          openingBalance += amt;
+        } else if (cl.type === 'PAYABLE') {
+          openingBalance -= amt;
+        }
+      }
+    }
+  }
+
+  const totalSales = (party.invoices || [])
+    .filter(
+      (inv) =>
+        inv.status !== InvoiceStatus.CANCELLED &&
+        inv.status !== InvoiceStatus.DRAFT,
+    )
+    .reduce((sum, inv) => sum + Number(inv.total || 0), 0);
+
+  const totalReturns = (party.refundInvoices || []).reduce(
+    (sum, r) => sum + Number(r.total || r.totalRefundAmount || 0),
+    0,
+  );
+
+  let totalPaid = 0;
+  let totalRefundPayouts = 0;
+  for (const p of party.payments || []) {
+    if (p.status !== PaymentStatus.CONFIRMED) continue;
+    const isInternalCredit =
+      p.mode === 'CREDIT' ||
+      p.notes?.toLowerCase().includes('store credit') ||
+      p.notes?.toLowerCase().includes('offset');
+    if (isInternalCredit) continue;
+
+    if (p.type === PaymentType.INFLOW) {
+      totalPaid += Number(p.amount || 0);
+    } else if (p.type === PaymentType.OUTFLOW) {
+      totalRefundPayouts += Number(p.amount || 0);
+    }
+  }
+
+  const netBalance =
+    Math.round(
+      (openingBalance + totalSales - totalReturns - totalPaid + totalRefundPayouts) * 100,
+    ) / 100;
+
+  const outstandingDue = netBalance > 0.01 ? netBalance : 0;
+  const storePayable = netBalance < -0.01 ? Math.abs(netBalance) : 0;
+
+  return {
+    openingBalance,
+    totalSales,
+    totalReturns,
+    totalPaid,
+    totalRefundPayouts,
+    netBalance,
+    outstandingDue,
+    storePayable,
+  };
+}
 
 function getCreditLedgerOriginalAmount(cl: {
   amountDue: any;
@@ -109,8 +191,8 @@ export class PartiesService {
     pagination?: PaginationParams,
   ): Promise<any> {
     const cacheKey = `parties:${includeUnsaved}:${search || ''}:${JSON.stringify(pagination || {})}`;
-    // Parties cache: 2 hours (7200 seconds)
-    return this.cacheService.wrap(cacheKey, 7200, async () => {
+    // Parties cache: 60 seconds (1 minute)
+    return this.cacheService.wrap(cacheKey, 60, async () => {
       const andConditions: Prisma.PartyWhereInput[] = [];
 
       if (!includeUnsaved) {
@@ -181,8 +263,24 @@ export class PartiesService {
           this.prisma.party.count({ where }),
         ]);
 
+        const enriched = data.map((p) => {
+          let due = 0;
+          let payable = 0;
+          for (const cl of p.creditLedgers || []) {
+            const amt = Number(cl.amountDue || 0);
+            if (cl.type === 'RECEIVABLE') due += amt;
+            else if (cl.type === 'PAYABLE') payable += amt;
+          }
+          const net = Math.round((due - payable) * 100) / 100;
+          return {
+            ...p,
+            outstandingDue: net > 0.01 ? net : 0,
+            storePayable: net < -0.01 ? Math.abs(net) : 0,
+          };
+        });
+
         return {
-          data,
+          data: enriched,
           total,
           page,
           limit,
@@ -191,10 +289,26 @@ export class PartiesService {
       }
 
       // Return all matching parties with no artificial 200-party cut-off
-      return this.prisma.party.findMany({
+      const data = await this.prisma.party.findMany({
         where,
         include: includeRelations,
         orderBy: { name: 'asc' },
+      });
+
+      return data.map((p) => {
+        let due = 0;
+        let payable = 0;
+        for (const cl of p.creditLedgers || []) {
+          const amt = Number(cl.amountDue || 0);
+          if (cl.type === 'RECEIVABLE') due += amt;
+          else if (cl.type === 'PAYABLE') payable += amt;
+        }
+        const net = Math.round((due - payable) * 100) / 100;
+        return {
+          ...p,
+          outstandingDue: net > 0.01 ? net : 0,
+          storePayable: net < -0.01 ? Math.abs(net) : 0,
+        };
       });
     });
   }
@@ -282,7 +396,13 @@ export class PartiesService {
       },
     });
     if (!party) throw new NotFoundException(`Party ${id} not found`);
-    return party;
+    const summary = computePartyFinancialSummary(party);
+    return {
+      ...party,
+      financialSummary: summary,
+      outstandingDue: summary.outstandingDue,
+      storePayable: summary.storePayable,
+    };
   }
 
   async update(id: string, data: UpdatePartyDto) {

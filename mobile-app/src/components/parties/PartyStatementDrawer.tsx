@@ -50,6 +50,8 @@ export function PartyStatementDrawer({
     creditLedgers: StatementCreditLedger[];
     payments?: any[];
     refundInvoices?: any[];
+    outstandingDue?: number;
+    storePayable?: number;
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<'orders' | 'purchases' | 'transactions' | 'credits'>('orders');
@@ -173,7 +175,15 @@ export function PartyStatementDrawer({
       return sum + Math.max(0, netInvTotal - paid);
     }, 0);
 
-  const totalDues = creditLedgerDues + invoiceDues;
+  const totalDues =
+    typeof statementData?.outstandingDue === 'number' &&
+    typeof statementData?.storePayable === 'number'
+      ? statementData.outstandingDue > 0.005
+        ? statementData.outstandingDue
+        : statementData.storePayable > 0.005
+          ? -statementData.storePayable
+          : 0
+      : creditLedgerDues + invoiceDues;
 
   const partyPayables = ledgers
     .filter((cl) => cl.status !== 'SETTLED' && cl.type === 'PAYABLE')

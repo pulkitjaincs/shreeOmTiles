@@ -22,6 +22,8 @@ export interface Party {
   category?: 'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER';
   isSaved?: boolean;
   createdAt?: string;
+  outstandingDue?: number;
+  storePayable?: number;
   creditLedgers?: PartyCreditLedger[];
   _count?: {
     invoices: number;
@@ -102,6 +104,8 @@ export interface StatementPurchase {
 
 export interface PartyStatementData {
   party: Party;
+  outstandingDue?: number;
+  storePayable?: number;
   invoices: StatementInvoice[];
   purchases?: StatementPurchase[];
   creditLedgers: StatementCreditLedger[];
