@@ -696,13 +696,15 @@ export class PartiesService {
       }
       const d = new Date(inv.createdAt);
       if (d >= start && d <= end) {
-        // Collect upfront payments made at invoice creation time
+        // Collect real money upfront payments made at invoice creation time
+        // Internal credit offsets (PaymentMode.CREDIT / Store Credit) are ledger offsets, not cash inflows,
+        // and must not zero out the invoice debit in a running balance statement.
         const upfrontSplits = inv.payments.filter((p) =>
-          p.mode === 'CREDIT' ||
-          p.notes?.toLowerCase().includes('upfront') ||
-          p.notes?.toLowerCase().includes('invoice creation') ||
-          p.notes?.toLowerCase().includes('store credit') ||
-          p.notes?.toLowerCase().includes('offset'),
+          p.mode !== 'CREDIT' &&
+          !p.notes?.toLowerCase().includes('store credit') &&
+          !p.notes?.toLowerCase().includes('offset') &&
+          (p.notes?.toLowerCase().includes('upfront') ||
+           p.notes?.toLowerCase().includes('invoice creation')),
         );
 
         for (const p of upfrontSplits) {
