@@ -26,6 +26,7 @@ export interface SalesmanRecentInvoice {
   status: string;
   paymentMode: string;
   createdAt: string;
+  invoiceDate?: string;
 }
 
 export interface SalesmanDashboardProps {
@@ -550,7 +551,7 @@ export default function SalesmanDashboard({
                     <td className="py-3 px-3.5 text-muted-foreground text-[0.6875rem]">
                       <div className="flex items-center gap-1">
                         <Clock className="h-3 w-3 text-muted-foreground" />
-                        {new Date(inv.createdAt).toLocaleDateString('en-IN', {
+                        {new Date(inv.invoiceDate || inv.createdAt).toLocaleDateString('en-IN', {
                           day: '2-digit',
                           month: 'short',
                           year: 'numeric',

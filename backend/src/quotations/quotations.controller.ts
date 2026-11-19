@@ -95,6 +95,7 @@ export class QuotationsController {
       paymentMode?: PaymentMode;
       amountPaidNow?: number;
       payments?: any[];
+      invoiceDate?: string;
     },
     @Request() req: RequestWithUser,
   ) {
@@ -104,6 +105,7 @@ export class QuotationsController {
       body.paymentMode,
       body.amountPaidNow,
       body.payments,
+      body.invoiceDate,
     );
   }
 

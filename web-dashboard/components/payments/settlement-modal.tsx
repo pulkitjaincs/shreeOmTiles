@@ -10,7 +10,11 @@ import {
   X,
   Loader2,
   UserPlus,
+  AlertCircle,
+  Wallet,
+  CheckCircle2,
 } from 'lucide-react';
+import { formatINR } from '@/lib/formatters';
 import { ThemedSelect } from '@/components/ui/themed-select';
 import { Party, UpiPreviewData, UpiAccount } from './types';
 import { MultiPaymentSplitSelector, SplitRow, PaymentMethodType } from '@/components/shared/multi-payment-split-selector';
@@ -72,6 +76,60 @@ export function SettlementModal({
   const [spotPartyGstin, setSpotPartyGstin] = useState('');
   const [spotPartyLoading, setSpotPartyLoading] = useState(false);
   const [spotPartyError, setSpotPartyError] = useState('');
+
+  // Real-Time Party Balance State & Race-Condition Guard
+  const [liveBalance, setLiveBalance] = useState<{
+    netBalance: number;
+    outstandingDue: number;
+    storePayable: number;
+  } | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(false);
+  const activePartyReqRef = useRef<string>('');
+  const partiesRef = useRef<Party[]>(parties);
+  partiesRef.current = parties;
+
+  useEffect(() => {
+    if (!selectedPartyId) {
+      setLiveBalance(null);
+      activePartyReqRef.current = '';
+      return;
+    }
+    const currentReqPartyId = selectedPartyId;
+    activePartyReqRef.current = currentReqPartyId;
+
+    const found = partiesRef.current.find((p) => p.id === currentReqPartyId);
+    if (found) {
+      setLiveBalance({
+        netBalance:
+          found.netBalance ??
+          Number(found.outstandingDue || 0) - Number(found.storePayable || 0),
+        outstandingDue: Number(found.outstandingDue || 0),
+        storePayable: Number(found.storePayable || 0),
+      });
+    }
+
+    setBalanceLoading(true);
+    void apiRequest<{
+      netBalance: number;
+      outstandingDue: number;
+      storePayable: number;
+    }>(`/parties/${currentReqPartyId}/balance`)
+      .then((res) => {
+        if (activePartyReqRef.current === currentReqPartyId && res) {
+          setLiveBalance({
+            netBalance: Number(res.netBalance || 0),
+            outstandingDue: Number(res.outstandingDue || 0),
+            storePayable: Number(res.storePayable || 0),
+          });
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (activePartyReqRef.current === currentReqPartyId) {
+          setBalanceLoading(false);
+        }
+      });
+  }, [selectedPartyId]);
 
   const generateUpiQr = useCallback(
     async (amountNum: number, note?: string, account?: UpiAccount | null) => {
@@ -405,15 +463,110 @@ export function SettlementModal({
                 searchPlaceholder="Search party by name or phone..."
                 options={[
                   { value: '', label: '-- Choose Party --' },
-                  ...parties.map((p) => ({
-                    value: p.id,
-                    label: p.name,
-                    subLabel: p.phone,
-                    badge: p.type,
-                  })),
+                  ...parties.map((p) => {
+                    const bal =
+                      p.netBalance ??
+                      (Number(p.outstandingDue || 0) - Number(p.storePayable || 0));
+                    const balText =
+                      bal > 0.01
+                        ? `Due: ${formatINR(bal)}`
+                        : bal < -0.01
+                        ? `Advance: ${formatINR(Math.abs(bal))}`
+                        : 'Settled (₹0)';
+                    return {
+                      value: p.id,
+                      label: p.name,
+                      subLabel: `${p.phone ? p.phone + ' • ' : ''}${balText}`,
+                      badge: bal > 0.01 ? 'DUE' : bal < -0.01 ? 'PAYABLE' : undefined,
+                    };
+                  }),
                 ]}
                 placeholder="-- Choose Party --"
               />
+
+              {/* Party Current Balance Context Banner */}
+              {selectedPartyId && liveBalance && (
+                <div
+                  className={`mt-2.5 p-3 rounded-[0.75rem] border transition-all ${
+                    liveBalance.netBalance > 0.01
+                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-950 dark:text-amber-100'
+                      : liveBalance.netBalance < -0.01
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-950 dark:text-emerald-100'
+                      : 'bg-muted/40 border-border/60 text-muted-foreground'
+                  }`}
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-start gap-2.5">
+                      {liveBalance.netBalance > 0.01 ? (
+                        <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      ) : liveBalance.netBalance < -0.01 ? (
+                        <Wallet className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+                      )}
+                      <div>
+                        <div className="text-xs font-bold flex items-center gap-1.5 flex-wrap">
+                          <span>Current Party Balance:</span>
+                          <span className="font-mono text-sm font-extrabold">
+                            {liveBalance.netBalance > 0.01
+                              ? `${formatINR(liveBalance.netBalance)} (Customer Dues)`
+                              : liveBalance.netBalance < -0.01
+                              ? `${formatINR(Math.abs(liveBalance.netBalance))} (Store Payable / Advance)`
+                              : '₹0.00 (All Dues Settled)'}
+                          </span>
+                          {balanceLoading && (
+                            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground ml-1" />
+                          )}
+                        </div>
+                        <div className="text-[0.6875rem] opacity-90 mt-0.5 leading-tight">
+                          {liveBalance.netBalance > 0.01 && modalDirection === 'COLLECT' && (
+                            <span>Party owes outstanding credit balance to the business.</span>
+                          )}
+                          {liveBalance.netBalance > 0.01 && modalDirection === 'PAY' && (
+                            <span className="text-amber-700 dark:text-amber-300 font-semibold">
+                              ⚠️ Warning: Party currently owes ₹{liveBalance.netBalance.toLocaleString('en-IN')} in dues. Confirm if sending payout is intended.
+                            </span>
+                          )}
+                          {liveBalance.netBalance < -0.01 && modalDirection === 'PAY' && (
+                            <span>Store owes disbursement or debt repayment to vendor/party.</span>
+                          )}
+                          {liveBalance.netBalance < -0.01 && modalDirection === 'COLLECT' && (
+                            <span className="text-emerald-700 dark:text-emerald-300 font-semibold">
+                              ℹ️ Notice: Party already has an advance credit / store payable balance of ₹{Math.abs(liveBalance.netBalance).toLocaleString('en-IN')}.
+                            </span>
+                          )}
+                          {Math.abs(liveBalance.netBalance) <= 0.01 && (
+                            <span>Party account is squared off with zero pending dues.</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Quick Fill Action */}
+                    {((modalDirection === 'COLLECT' && liveBalance.netBalance > 0.01) ||
+                      (modalDirection === 'PAY' && liveBalance.netBalance < -0.01)) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const targetAmt =
+                            modalDirection === 'COLLECT'
+                              ? liveBalance.netBalance
+                              : Math.abs(liveBalance.netBalance);
+                          handleCollectAmountChange(targetAmt.toFixed(2));
+                        }}
+                        className={`px-2.5 py-1 text-[0.6875rem] font-bold rounded-[0.5rem] shrink-0 transition active:scale-95 flex items-center gap-1 shadow-2xs ${
+                          modalDirection === 'COLLECT'
+                            ? 'bg-amber-600 hover:bg-amber-500 text-white'
+                            : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                        }`}
+                        title="Set payment amount to match full party balance"
+                      >
+                        <span>Fill Full {modalDirection === 'COLLECT' ? 'Due' : 'Payable'}</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Spot Amount Entry */}

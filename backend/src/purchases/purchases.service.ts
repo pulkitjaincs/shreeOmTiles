@@ -19,7 +19,11 @@ import {
   Party,
   Role,
 } from '@prisma/client';
-import { PaginationParams, DateRangeFilter, buildDateRange } from '../common/interfaces/pagination.interface';
+import {
+  PaginationParams,
+  DateRangeFilter,
+  buildDateRange,
+} from '../common/interfaces/pagination.interface';
 import { CacheService } from '../common/cache.service';
 
 @Injectable()
@@ -733,15 +737,13 @@ export class PurchasesService {
               amountDue: new Prisma.Decimal(
                 isSettled ? 0 : Number(newDue.toFixed(2)),
               ),
-              status:
-                isSettled ? CreditStatus.SETTLED : CreditStatus.PARTIAL,
+              status: isSettled ? CreditStatus.SETTLED : CreditStatus.PARTIAL,
             },
           });
           await tx.purchase.update({
             where: { id: purchase.id },
             data: {
-              status:
-                isSettled ? InvoiceStatus.PAID : InvoiceStatus.PARTIAL,
+              status: isSettled ? InvoiceStatus.PAID : InvoiceStatus.PARTIAL,
             },
           });
         } else {

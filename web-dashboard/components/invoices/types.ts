@@ -155,6 +155,7 @@ export interface Invoice {
   } | null;
   paymentMode: string;
   status: string;
+  invoiceDate?: string;
   createdAt: string;
   notes?: string;
   items: InvoiceItemDetail[];

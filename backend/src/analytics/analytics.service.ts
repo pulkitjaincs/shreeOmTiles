@@ -65,6 +65,7 @@ interface SalesmanRecentInvoiceItem {
   total: Prisma.Decimal | number;
   status: InvoiceStatus;
   paymentMode: PaymentMode | null;
+  invoiceDate?: Date;
   createdAt: Date;
 }
 
@@ -80,6 +81,8 @@ export class AnalyticsService {
     return this.cacheService.wrap('analytics:summary', 1800, async () => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      const todayEnd = new Date();
+      todayEnd.setHours(23, 59, 59, 999);
 
       const [
         revenueAgg,
@@ -104,7 +107,7 @@ export class AnalyticsService {
         // Today Invoices
         this.prisma.invoice.count({
           where: {
-            createdAt: { gte: today },
+            invoiceDate: { gte: today, lte: todayEnd },
             status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
           },
         }),
@@ -423,6 +426,15 @@ export class AnalyticsService {
         0,
         0,
       );
+      const todayEnd = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        23,
+        59,
+        59,
+        999,
+      );
 
       // Trend bounds: for 'all' or long spans, default to last 14 days
       const trendDays =
@@ -442,10 +454,10 @@ export class AnalyticsService {
         Prisma.sql`"status" NOT IN ('CANCELLED', 'DRAFT')`,
       ];
       if (startDate) {
-        salesmanSalesConditions.push(Prisma.sql`"createdAt" >= ${startDate}`);
+        salesmanSalesConditions.push(Prisma.sql`"invoiceDate" >= ${startDate}`);
       }
       if (endDate) {
-        salesmanSalesConditions.push(Prisma.sql`"createdAt" <= ${endDate}`);
+        salesmanSalesConditions.push(Prisma.sql`"invoiceDate" <= ${endDate}`);
       }
       const salesmanSalesWhere =
         salesmanSalesConditions.length > 0
@@ -457,11 +469,13 @@ export class AnalyticsService {
       ];
       if (startDate) {
         categorySplitConditions.push(
-          Prisma.sql`inv."createdAt" >= ${startDate}`,
+          Prisma.sql`inv."invoiceDate" >= ${startDate}`,
         );
       }
       if (endDate) {
-        categorySplitConditions.push(Prisma.sql`inv."createdAt" <= ${endDate}`);
+        categorySplitConditions.push(
+          Prisma.sql`inv."invoiceDate" <= ${endDate}`,
+        );
       }
       if (salesmanScope?.salesmanId) {
         categorySplitConditions.push(
@@ -474,8 +488,8 @@ export class AnalyticsService {
           : Prisma.empty;
 
       const trendInvoicesConditions: Prisma.Sql[] = [
-        Prisma.sql`"createdAt" >= ${trendStart}`,
-        Prisma.sql`"createdAt" <= ${trendEnd}`,
+        Prisma.sql`"invoiceDate" >= ${trendStart}`,
+        Prisma.sql`"invoiceDate" <= ${trendEnd}`,
         Prisma.sql`status NOT IN ('CANCELLED', 'DRAFT')`,
       ];
       if (salesmanScope?.salesmanId) {
@@ -516,7 +530,7 @@ export class AnalyticsService {
           where: {
             status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
             ...(salesmanScope || {}),
-            ...(dateFilter ? { createdAt: dateFilter } : {}),
+            ...(dateFilter ? { invoiceDate: dateFilter } : {}),
           },
           _sum: { total: true },
           _count: { id: true },
@@ -529,7 +543,7 @@ export class AnalyticsService {
                   notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT],
                 },
                 ...(salesmanScope || {}),
-                createdAt: prevDateFilter,
+                invoiceDate: prevDateFilter,
               },
               _sum: { total: true },
               _count: { id: true },
@@ -550,7 +564,7 @@ export class AnalyticsService {
           where: {
             status: { notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT] },
             ...(salesmanScope || {}),
-            createdAt: { gte: todayStart },
+            invoiceDate: { gte: todayStart, lte: todayEnd },
           },
         }),
         // All-Time Invoices Count
@@ -568,7 +582,9 @@ export class AnalyticsService {
                 status: PaymentStatus.CONFIRMED,
                 type: PaymentType.INFLOW,
                 mode: { not: PaymentMode.CREDIT },
-                NOT: { notes: { contains: 'Store Credit', mode: 'insensitive' } },
+                NOT: {
+                  notes: { contains: 'Store Credit', mode: 'insensitive' },
+                },
                 ...(dateFilter ? { paidAt: dateFilter } : {}),
               },
               _sum: { amount: true },
@@ -582,7 +598,9 @@ export class AnalyticsService {
                 status: PaymentStatus.CONFIRMED,
                 type: PaymentType.OUTFLOW,
                 mode: { not: PaymentMode.CREDIT },
-                NOT: { notes: { contains: 'Store Credit', mode: 'insensitive' } },
+                NOT: {
+                  notes: { contains: 'Store Credit', mode: 'insensitive' },
+                },
                 ...(dateFilter ? { paidAt: dateFilter } : {}),
               },
               _sum: { amount: true },
@@ -712,7 +730,9 @@ export class AnalyticsService {
               where: {
                 status: PaymentStatus.CONFIRMED,
                 mode: { not: PaymentMode.CREDIT },
-                NOT: { notes: { contains: 'Store Credit', mode: 'insensitive' } },
+                NOT: {
+                  notes: { contains: 'Store Credit', mode: 'insensitive' },
+                },
               },
               orderBy: { paidAt: 'desc' },
               take: 12,
@@ -767,11 +787,11 @@ export class AnalyticsService {
         // Trend: Invoices in trend window aggregated by day (Zero in-memory array loops)
         this.prisma.$queryRaw<Array<{ day: string; total: number }>>`
         SELECT 
-          TO_CHAR("createdAt", 'YYYY-MM-DD') AS day,
+          TO_CHAR("invoiceDate", 'YYYY-MM-DD') AS day,
           ROUND(COALESCE(SUM(total), 0))::int AS total
         FROM "Invoice"
         ${trendInvoicesWhere}
-        GROUP BY TO_CHAR("createdAt", 'YYYY-MM-DD')
+        GROUP BY TO_CHAR("invoiceDate", 'YYYY-MM-DD')
       `,
         // Trend: Confirmed Net Payments in trend window aggregated by day
         isSalesman
@@ -807,9 +827,9 @@ export class AnalyticsService {
                 status: {
                   notIn: [InvoiceStatus.CANCELLED, InvoiceStatus.DRAFT],
                 },
-                ...(dateFilter ? { createdAt: dateFilter } : {}),
+                ...(dateFilter ? { invoiceDate: dateFilter } : {}),
               },
-              orderBy: { createdAt: 'desc' },
+              orderBy: [{ invoiceDate: 'desc' }, { createdAt: 'desc' }],
               take: 10,
               include: { party: { select: { name: true, phone: true } } },
             }) as unknown as Promise<SalesmanRecentInvoiceItem[]>)
@@ -1051,6 +1071,7 @@ export class AnalyticsService {
           total: Number(inv.total),
           status: inv.status,
           paymentMode: inv.paymentMode,
+          invoiceDate: inv.invoiceDate || inv.createdAt,
           createdAt: inv.createdAt,
         })),
       };
@@ -1118,7 +1139,9 @@ export class AnalyticsService {
               where: {
                 status: PaymentStatus.CONFIRMED,
                 mode: { not: PaymentMode.CREDIT },
-                NOT: { notes: { contains: 'Store Credit', mode: 'insensitive' } },
+                NOT: {
+                  notes: { contains: 'Store Credit', mode: 'insensitive' },
+                },
                 OR: [
                   { paidAt: { gte: startOfDay, lte: endOfDay } },
                   {
@@ -1273,7 +1296,7 @@ export class AnalyticsService {
     const [invoices, purchases] = await Promise.all([
       this.prisma.invoice.findMany({
         where: {
-          createdAt: { gte: startOfMonth, lte: endOfMonth },
+          invoiceDate: { gte: startOfMonth, lte: endOfMonth },
           status: { not: InvoiceStatus.CANCELLED },
         },
         include: { party: true },

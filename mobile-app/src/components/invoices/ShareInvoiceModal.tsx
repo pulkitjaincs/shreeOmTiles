@@ -86,7 +86,7 @@ export function ShareInvoiceModal({
             <View style={styles.statusBadge}>
               <Text style={styles.statusText}>{invoice.status || 'PAID'}</Text>
             </View>
-            <Text style={styles.dateText}>{formatDate(invoice.createdAt)}</Text>
+            <Text style={styles.dateText}>{formatDate(invoice.invoiceDate || invoice.createdAt)}</Text>
           </View>
         </View>
 

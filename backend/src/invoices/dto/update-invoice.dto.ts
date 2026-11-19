@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   IsEnum,
+  IsISO8601,
   IsNumber,
   IsOptional,
   IsString,
@@ -13,6 +14,10 @@ import { PaymentSplitDto } from '../../common/dto/payment-split.dto';
 import { CreateInvoiceItemDto, CreateNewPartyDto } from './create-invoice.dto';
 
 export class UpdateInvoiceDto {
+  @IsISO8601()
+  @IsOptional()
+  invoiceDate?: string;
+
   @IsString()
   @IsOptional()
   partyId?: string;

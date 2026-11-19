@@ -59,7 +59,7 @@ export const InvoiceListCard = React.memo(function InvoiceListCard({
           {invoice.party?.phone || invoice.partyPhone ? (
             <Text style={styles.partyPhone} numberOfLines={1}>{invoice.party?.phone || invoice.partyPhone}</Text>
           ) : null}
-          <Text style={styles.dateText}>{formatDate(invoice.createdAt)}</Text>
+          <Text style={styles.dateText}>{formatDate(invoice.invoiceDate || invoice.createdAt)}</Text>
         </View>
         <View style={{ alignItems: 'flex-end', flexShrink: 0, gap: 3 }}>
           {!isSupervisor ? (

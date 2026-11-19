@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { apiRequest } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { ThemedSelect } from '@/components/ui/themed-select';
-import { CreditCard, X } from 'lucide-react';
+import { CreditCard, X, AlertCircle, Wallet, CheckCircle2 } from 'lucide-react';
+import { formatINR } from '@/lib/formatters';
 import { Party } from './types';
 
 interface CreditLedgerModalProps {
@@ -139,13 +140,63 @@ export function CreditLedgerModal({
               searchable
               searchPlaceholder="Search party by name or phone..."
               placeholder="-- Choose Party --"
-              options={parties.map((p) => ({
-                value: p.id,
-                label: p.name,
-                subLabel: p.phone,
-                badge: p.type,
-              }))}
+              options={parties.map((p) => {
+                const bal =
+                  p.netBalance ??
+                  (Number(p.outstandingDue || 0) - Number(p.storePayable || 0));
+                const balText =
+                  bal > 0.01
+                    ? `Due: ${formatINR(bal)}`
+                    : bal < -0.01
+                    ? `Advance: ${formatINR(Math.abs(bal))}`
+                    : 'Settled (₹0)';
+                return {
+                  value: p.id,
+                  label: p.name,
+                  subLabel: `${p.phone ? p.phone + ' • ' : ''}${balText}`,
+                  badge: bal > 0.01 ? 'DUE' : bal < -0.01 ? 'PAYABLE' : undefined,
+                };
+              })}
             />
+
+            {/* Current Balance Indicator */}
+            {(() => {
+              const selectedParty = parties.find((p) => p.id === creditPartyId);
+              if (!selectedParty) return null;
+              const bal =
+                selectedParty.netBalance ??
+                (Number(selectedParty.outstandingDue || 0) -
+                  Number(selectedParty.storePayable || 0));
+              return (
+                <div
+                  className={`mt-2 p-2.5 rounded-[0.75rem] border text-xs flex items-center gap-2 ${
+                    bal > 0.01
+                      ? 'bg-amber-500/10 border-amber-500/30 text-amber-950 dark:text-amber-100'
+                      : bal < -0.01
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-950 dark:text-emerald-100'
+                      : 'bg-muted/40 border-border/60 text-muted-foreground'
+                  }`}
+                >
+                  {bal > 0.01 ? (
+                    <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  ) : bal < -0.01 ? (
+                    <Wallet className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4 text-muted-foreground shrink-0" />
+                  )}
+                  <div className="flex-1">
+                    <span className="font-semibold">Current Balance: </span>
+                    <span className="font-mono font-bold">
+                      {bal > 0.01
+                        ? `${formatINR(bal)} (Customer Dues)`
+                        : bal < -0.01
+                        ? `${formatINR(Math.abs(bal))} (Store Payable / Advance)`
+                        : '₹0.00 (Settled)'}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Amount */}

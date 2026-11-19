@@ -59,6 +59,7 @@ export interface StatementInvoice {
   status: string;
   paymentMode?: string;
   createdAt: string;
+  invoiceDate?: string;
   items?: StatementInvoiceItem[];
   payments?: StatementPayment[];
   salesman?: {

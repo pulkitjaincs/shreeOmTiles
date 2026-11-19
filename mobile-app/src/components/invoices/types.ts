@@ -144,6 +144,7 @@ export interface InvoicePayment {
 export interface Invoice {
   id: string;
   invoiceNo: string;
+  invoiceDate?: string;
   createdAt: string;
   total: number | string;
   subtotal?: number | string;

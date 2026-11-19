@@ -85,7 +85,12 @@ export function computePartyFinancialSummary(party: {
 
   const netBalance =
     Math.round(
-      (openingBalance + totalSales - totalReturns - totalPaid + totalRefundPayouts) * 100,
+      (openingBalance +
+        totalSales -
+        totalReturns -
+        totalPaid +
+        totalRefundPayouts) *
+        100,
     ) / 100;
 
   const outstandingDue = netBalance > 0.01 ? netBalance : 0;
@@ -121,7 +126,10 @@ function getCreditLedgerOriginalAmount(cl: {
   return Number(cl.amountDue || 0);
 }
 
-function getStatementDateRange(startDate?: string, endDate?: string): {
+function getStatementDateRange(
+  startDate?: string,
+  endDate?: string,
+): {
   start: Date;
   end: Date;
   startFormatted: string;
@@ -182,7 +190,14 @@ export class PartiesService {
       },
     });
     this.cacheService.invalidatePrefix('parties:');
-    return res;
+    return {
+      ...res,
+      netBalance: 0,
+      outstandingDue: 0,
+      storePayable: 0,
+      totalReceivable: 0,
+      totalPayable: 0,
+    };
   }
 
   async findAll(
@@ -274,6 +289,9 @@ export class PartiesService {
           const net = Math.round((due - payable) * 100) / 100;
           return {
             ...p,
+            netBalance: net,
+            totalReceivable: Math.round(due * 100) / 100,
+            totalPayable: Math.round(payable * 100) / 100,
             outstandingDue: net > 0.01 ? net : 0,
             storePayable: net < -0.01 ? Math.abs(net) : 0,
           };
@@ -306,6 +324,9 @@ export class PartiesService {
         const net = Math.round((due - payable) * 100) / 100;
         return {
           ...p,
+          netBalance: net,
+          totalReceivable: Math.round(due * 100) / 100,
+          totalPayable: Math.round(payable * 100) / 100,
           outstandingDue: net > 0.01 ? net : 0,
           storePayable: net < -0.01 ? Math.abs(net) : 0,
         };
@@ -318,7 +339,7 @@ export class PartiesService {
       where: { id },
       include: {
         invoices: {
-          orderBy: { createdAt: 'desc' },
+          orderBy: [{ invoiceDate: 'desc' }, { createdAt: 'desc' }],
           include: {
             items: {
               include: {
@@ -400,8 +421,52 @@ export class PartiesService {
     return {
       ...party,
       financialSummary: summary,
+      netBalance: summary.netBalance,
       outstandingDue: summary.outstandingDue,
       storePayable: summary.storePayable,
+    };
+  }
+
+  async getPartyBalance(id: string) {
+    const party = await this.prisma.party.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        creditLedgers: {
+          where: {
+            status: { not: CreditStatus.SETTLED },
+          },
+          select: {
+            id: true,
+            amountDue: true,
+            type: true,
+            status: true,
+          },
+        },
+      },
+    });
+    if (!party) throw new NotFoundException(`Party ${id} not found`);
+
+    let due = 0;
+    let payable = 0;
+    for (const cl of party.creditLedgers || []) {
+      const amt = Math.max(0, Number(cl.amountDue || 0));
+      if (cl.type === 'RECEIVABLE') due += amt;
+      else if (cl.type === 'PAYABLE') payable += amt;
+    }
+    const net = Math.round((due - payable) * 100) / 100;
+    return {
+      partyId: party.id,
+      name: party.name,
+      phone: party.phone,
+      netBalance: net,
+      totalReceivable: Math.round(due * 100) / 100,
+      totalPayable: Math.round(payable * 100) / 100,
+      outstandingDue: net > 0.01 ? net : 0,
+      storePayable: net < -0.01 ? Math.abs(net) : 0,
+      unsettledCount: (party.creditLedgers || []).length,
     };
   }
 
@@ -544,7 +609,7 @@ export class PartiesService {
             },
             refundInvoices: true,
           },
-          orderBy: { createdAt: 'asc' },
+          orderBy: [{ invoiceDate: 'asc' }, { createdAt: 'asc' }],
         },
         purchases: {
           where: {
@@ -603,7 +668,7 @@ export class PartiesService {
       ) {
         continue;
       }
-      if (new Date(inv.createdAt) < start) {
+      if (new Date(inv.invoiceDate || inv.createdAt) < start) {
         runningBal += Number(inv.total);
       }
     }
@@ -694,17 +759,18 @@ export class PartiesService {
       ) {
         continue;
       }
-      const d = new Date(inv.createdAt);
+      const d = new Date(inv.invoiceDate || inv.createdAt);
       if (d >= start && d <= end) {
         // Collect real money upfront payments made at invoice creation time
         // Internal credit offsets (PaymentMode.CREDIT / Store Credit) are ledger offsets, not cash inflows,
         // and must not zero out the invoice debit in a running balance statement.
-        const upfrontSplits = inv.payments.filter((p) =>
-          p.mode !== 'CREDIT' &&
-          !p.notes?.toLowerCase().includes('store credit') &&
-          !p.notes?.toLowerCase().includes('offset') &&
-          (p.notes?.toLowerCase().includes('upfront') ||
-           p.notes?.toLowerCase().includes('invoice creation')),
+        const upfrontSplits = inv.payments.filter(
+          (p) =>
+            p.mode !== 'CREDIT' &&
+            !p.notes?.toLowerCase().includes('store credit') &&
+            !p.notes?.toLowerCase().includes('offset') &&
+            (p.notes?.toLowerCase().includes('upfront') ||
+              p.notes?.toLowerCase().includes('invoice creation')),
         );
 
         for (const p of upfrontSplits) {
@@ -717,7 +783,10 @@ export class PartiesService {
         );
         const invTotal = Number(inv.total);
         const receivedAmount = totalUpfrontPaid;
-        const txnBalance = Math.max(0, invTotal - Math.min(invTotal, totalUpfrontPaid));
+        const txnBalance = Math.max(
+          0,
+          invTotal - Math.min(invTotal, totalUpfrontPaid),
+        );
 
         const allConfirmedPaid = inv.payments.reduce(
           (sum, p) => sum + Number(p.amount),
@@ -779,9 +848,10 @@ export class PartiesService {
     for (const pur of party.purchases || []) {
       const d = new Date(pur.createdAt);
       if (d >= start && d <= end) {
-        const upfrontSplits = pur.payments.filter((p) =>
-          p.notes?.toLowerCase().includes('upfront') ||
-          p.notes?.toLowerCase().includes('purchase creation'),
+        const upfrontSplits = pur.payments.filter(
+          (p) =>
+            p.notes?.toLowerCase().includes('upfront') ||
+            p.notes?.toLowerCase().includes('purchase creation'),
         );
 
         for (const p of upfrontSplits) {
@@ -794,7 +864,10 @@ export class PartiesService {
         );
         const purTotal = Number(pur.total);
         const receivedAmount = totalUpfrontPaid;
-        const txnBalance = Math.max(0, purTotal - Math.min(purTotal, totalUpfrontPaid));
+        const txnBalance = Math.max(
+          0,
+          purTotal - Math.min(purTotal, totalUpfrontPaid),
+        );
 
         const allConfirmedPaid = pur.payments.reduce(
           (sum, p) => sum + Number(p.amount),
@@ -850,10 +923,7 @@ export class PartiesService {
           date: d,
           txnType: isInflow ? 'Payment-in' : 'Payment-out',
           refNo:
-            p.upiTxnRef ||
-            p.upiUtr ||
-            p.invoice?.invoiceNo ||
-            p.id.slice(0, 6),
+            p.upiTxnRef || p.upiUtr || p.invoice?.invoiceNo || p.id.slice(0, 6),
           status: 'Used',
           totalAmount: amt,
           receivedAmount: amt,
@@ -920,8 +990,7 @@ export class PartiesService {
         const amt = getCreditLedgerOriginalAmount(cl);
         rawTxs.push({
           date: d,
-          txnType:
-            cl.type === 'RECEIVABLE' ? 'Direct Due' : 'Store Payable',
+          txnType: cl.type === 'RECEIVABLE' ? 'Direct Due' : 'Store Payable',
           refNo: cl.id.slice(0, 6).toUpperCase(),
           status: cl.status,
           totalAmount: amt,

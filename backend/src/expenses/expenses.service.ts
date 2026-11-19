@@ -194,7 +194,9 @@ export class ExpensesService {
         where,
         include: includeRelations,
         orderBy: { expenseDate: 'desc' },
-        ...(!filters?.startDate && !filters?.endDate && !filters?.search ? { take: 2000 } : {}),
+        ...(!filters?.startDate && !filters?.endDate && !filters?.search
+          ? { take: 2000 }
+          : {}),
       });
     });
   }

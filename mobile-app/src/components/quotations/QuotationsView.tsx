@@ -19,6 +19,7 @@ import { downloadAndSharePdf } from '@/lib/pdf';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/lib/auth-context';
 import { CreateQuotationModal } from './CreateQuotationModal';
+import { CalendarModal } from '@/components/ui/CalendarModal';
 import { Party, Product } from '@/components/invoices/types';
 
 export function QuotationsView() {
@@ -34,6 +35,8 @@ export function QuotationsView() {
   const { user } = useAuth();
   const isDirectorOrAdmin = user?.role === 'OWNER' || (user?.role as any) === 'DIRECTOR' || user?.role === 'ADMIN';
   const [editingQuotation, setEditingQuotation] = useState<any | null>(null);
+  const [convertTargetQuote, setConvertTargetQuote] = useState<any | null>(null);
+  const [convertCalendarOpen, setConvertCalendarOpen] = useState(false);
 
   const handleDeleteQuotation = (item: any) => {
     Alert.alert(
@@ -140,31 +143,41 @@ export function QuotationsView() {
     return filteredQuotations.slice(start, start + PAGE_SIZE);
   }, [filteredQuotations, currentPage]);
 
+  const executeConvert = async (quote: any, invoiceDate?: string) => {
+    setConvertingId(quote.id);
+    try {
+      const res = await mobileApiRequest<any>(`/quotations/${quote.id}/convert-to-invoice`, {
+        method: 'POST',
+        body: JSON.stringify(invoiceDate ? { invoiceDate } : {}),
+      });
+      Alert.alert(
+        'Converted Successfully',
+        `Official Invoice #${res.invoiceNo} has been generated!`,
+      );
+      loadQuotations(true);
+    } catch (err: any) {
+      Alert.alert('Conversion Failed', err.message || 'Could not convert quotation');
+    } finally {
+      setConvertingId(null);
+    }
+  };
+
   const handleConvert = (quote: any) => {
     Alert.alert(
       'Convert to Invoice',
-      `Generate official Tax Invoice from Price Estimate #${quote.quotationNo || quote.estimateNo}? This will reserve inventory.`,
+      `Generate official Tax Invoice from Price Estimate #${quote.quotationNo || quote.estimateNo}? Select invoice date:`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Convert & Invoice',
-          onPress: async () => {
-            setConvertingId(quote.id);
-            try {
-              const res = await mobileApiRequest<any>(`/quotations/${quote.id}/convert-to-invoice`, {
-                method: 'POST',
-              });
-              Alert.alert(
-                'Converted Successfully',
-                `Official Invoice #${res.invoiceNo} has been generated!`,
-              );
-              loadQuotations(true);
-            } catch (err: any) {
-              Alert.alert('Conversion Failed', err.message || 'Could not convert quotation');
-            } finally {
-              setConvertingId(null);
-            }
+          text: 'Custom Date',
+          onPress: () => {
+            setConvertTargetQuote(quote);
+            setConvertCalendarOpen(true);
           },
+        },
+        {
+          text: "Today's Date",
+          onPress: () => executeConvert(quote, new Date().toISOString()),
         },
       ],
     );
@@ -381,6 +394,23 @@ export function QuotationsView() {
         onSuccess={() => {
           setEditingQuotation(null);
           loadQuotations(true);
+        }}
+      />
+
+      <CalendarModal
+        visible={convertCalendarOpen}
+        onClose={() => {
+          setConvertCalendarOpen(false);
+          setConvertTargetQuote(null);
+        }}
+        mode="single"
+        title="Select Invoice Date"
+        onApply={(selected) => {
+          setConvertCalendarOpen(false);
+          if (convertTargetQuote && selected) {
+            executeConvert(convertTargetQuote, new Date(selected).toISOString());
+            setConvertTargetQuote(null);
+          }
         }}
       />
     </View>

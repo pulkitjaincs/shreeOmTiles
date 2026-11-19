@@ -469,7 +469,7 @@ export function PartyStatementDrawer({
                             </span>
                             <span className="text-xs text-muted-foreground flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
-                              {new Date(inv.createdAt).toLocaleDateString('en-IN', {
+                              {new Date(inv.invoiceDate || inv.createdAt).toLocaleDateString('en-IN', {
                                 day: 'numeric',
                                 month: 'short',
                                 year: 'numeric',

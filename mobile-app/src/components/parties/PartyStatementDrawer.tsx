@@ -494,7 +494,7 @@ export function PartyStatementDrawer({
                   <View style={styles.orderTop}>
                     <View>
                       <Text style={styles.orderNo}>#{inv.invoiceNo}</Text>
-                      <Text style={styles.orderDate}>{formatDate(inv.createdAt)}</Text>
+                      <Text style={styles.orderDate}>{formatDate(inv.invoiceDate || inv.createdAt)}</Text>
                     </View>
                     <View style={{ alignItems: 'flex-end' }}>
                       <Text style={styles.orderAmount}>{formatINR(inv.total)}</Text>

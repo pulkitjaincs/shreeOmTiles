@@ -15,6 +15,7 @@ import {
   Check,
   Banknote,
   Plus,
+  Calendar,
 } from 'lucide-react';
 import { ThemedSelect } from '@/components/ui/themed-select';
 import {
@@ -28,6 +29,31 @@ import {
   CustomerMode
 } from './types';
 import { MultiPaymentSplitSelector, SplitRow, PaymentMethodType } from '@/components/shared/multi-payment-split-selector';
+
+function formatDateToIST(dateInput: Date | string): string {
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(d);
+  const y = parts.find((p) => p.type === 'year')?.value;
+  const m = parts.find((p) => p.type === 'month')?.value;
+  const day = parts.find((p) => p.type === 'day')?.value;
+  return `${y}-${m}-${day}`;
+}
+
+function getTodayLocalDate(): string {
+  return formatDateToIST(new Date());
+}
+
+function getYesterdayLocalDate(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return formatDateToIST(d);
+}
 
 interface CreateInvoiceModalProps {
   isOpen: boolean;
@@ -51,6 +77,7 @@ export function CreateInvoiceModal({
   invoiceToEdit,
 }: CreateInvoiceModalProps) {
   const [customerMode, setCustomerMode] = useState<CustomerMode>('EXISTING');
+  const [invoiceDate, setInvoiceDate] = useState<string>(getTodayLocalDate);
   const [customerSearch, setCustomerSearch] = useState('');
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
   const [partyId, setPartyId] = useState('');
@@ -158,6 +185,12 @@ export function CreateInvoiceModal({
             : '',
         );
         setCustomerMode(invoiceToEdit.isCashSale ? 'UNREGISTERED' : 'EXISTING');
+        const rawDate = invoiceToEdit.invoiceDate || invoiceToEdit.createdAt;
+        if (rawDate) {
+          setInvoiceDate(formatDateToIST(rawDate));
+        } else {
+          setInvoiceDate(getTodayLocalDate());
+        }
         setBillAddress(invoiceToEdit.address || invoiceToEdit.party?.address || '');
         setTaxRate(
           invoiceToEdit.taxRate !== undefined && invoiceToEdit.taxRate !== null
@@ -205,6 +238,7 @@ export function CreateInvoiceModal({
         setPartyId('');
         setBillAddress('');
         setPaymentSplits([{ mode: 'CASH', amount: '' }]);
+        setInvoiceDate(getTodayLocalDate());
         setCustomerMode('EXISTING');
         setCustomerSearch('');
         setIsCustomerDropdownOpen(false);
@@ -472,6 +506,7 @@ export function CreateInvoiceModal({
       discountAmount: discount,
       roundOffEnabled,
       roundOffAmount,
+      invoiceDate: invoiceDate ? new Date(invoiceDate).toISOString() : undefined,
       notes: notes || undefined,
       items: invoicePayloadItems,
     };
@@ -577,6 +612,55 @@ export function CreateInvoiceModal({
             className="flex-1 overflow-y-auto overscroll-contain p-6 space-y-6 [scrollbar-gutter:stable] [contain:paint]"
             style={{ WebkitOverflowScrolling: 'touch' }}
           >
+            {/* Invoice Date Selection */}
+            <div className="rounded-[1rem] border border-border bg-muted/30 p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-primary shrink-0" />
+                  <div>
+                    <label className="text-[0.6875rem] font-semibold text-foreground uppercase tracking-wider block">
+                      Invoice Date *
+                    </label>
+                    <span className="text-[0.6875rem] text-muted-foreground">
+                      Past and future business dates allowed
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setInvoiceDate(getTodayLocalDate())}
+                    className={`px-2.5 py-1.5 rounded-lg border text-xs font-medium transition cursor-pointer ${
+                      invoiceDate === getTodayLocalDate()
+                        ? 'border-primary bg-primary/10 text-primary font-semibold'
+                        : 'border-border bg-card text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Today
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setInvoiceDate(getYesterdayLocalDate())}
+                    className={`px-2.5 py-1.5 rounded-lg border text-xs font-medium transition cursor-pointer ${
+                      invoiceDate === getYesterdayLocalDate()
+                        ? 'border-primary bg-primary/10 text-primary font-semibold'
+                        : 'border-border bg-card text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Yesterday
+                  </button>
+                  <input
+                    type="date"
+                    required
+                    value={invoiceDate}
+                    onChange={(e) => setInvoiceDate(e.target.value)}
+                    className="rounded-xl border border-input bg-background px-3 py-1.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+                  />
+                </div>
+              </div>
+            </div>
+
             {/* Customer Selection */}
             <div className="rounded-[1rem] border border-border bg-muted/30 p-4 space-y-4">
               <div>

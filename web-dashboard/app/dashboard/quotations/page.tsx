@@ -75,6 +75,10 @@ export default function QuotationsPage() {
 
   // Conversion Confirmation Dialog State
   const [convertTarget, setConvertTarget] = useState<QuotationRecord | null>(null);
+  const [convertInvoiceDate, setConvertInvoiceDate] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  });
   const [convertSplits, setConvertSplits] = useState<SplitRow[]>([{ mode: 'CASH', amount: '0' }]);
   const [convertSubmitting, setConvertSubmitting] = useState(false);
   const [convertError, setConvertError] = useState('');
@@ -212,6 +216,7 @@ export default function QuotationsPage() {
         body: JSON.stringify({
           paymentMode: resolvedMode,
           amountPaidNow: totalPaid,
+          invoiceDate: convertInvoiceDate ? new Date(convertInvoiceDate).toISOString() : undefined,
           payments: validSplits.map((s) => ({
             mode: s.mode,
             amount: parseFloat(s.amount),
@@ -656,6 +661,19 @@ export default function QuotationsPage() {
             </div>
 
             <form onSubmit={handleExecuteConversion} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  Invoice Date *
+                </label>
+                <input
+                  type="date"
+                  required
+                  value={convertInvoiceDate}
+                  onChange={(e) => setConvertInvoiceDate(e.target.value)}
+                  className="w-full rounded-xl border border-input bg-background px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+                />
+              </div>
+
               <MultiPaymentSplitSelector
                 totalAmount={Number(convertTarget.total) || 0}
                 splits={convertSplits}

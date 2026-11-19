@@ -18,6 +18,14 @@ export interface Party {
   address?: string;
   gstin?: string;
   type?: string;
+  category?: 'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER';
+  isSaved?: boolean;
+  netBalance?: number;
+  outstandingDue?: number;
+  storePayable?: number;
+  totalReceivable?: number;
+  totalPayable?: number;
+  creditLedgers?: any[];
 }
 
 export type ActiveTabType = 'daybook' | 'dues' | 'payables' | 'all' | 'inflows' | 'credits';

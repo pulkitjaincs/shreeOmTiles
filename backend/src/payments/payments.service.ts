@@ -22,7 +22,11 @@ import {
   Role,
   Prisma,
 } from '@prisma/client';
-import { PaginationParams, DateRangeFilter, buildDateRange } from '../common/interfaces/pagination.interface';
+import {
+  PaginationParams,
+  DateRangeFilter,
+  buildDateRange,
+} from '../common/interfaces/pagination.interface';
 import { generateUpiIntentQr } from '../common/utils/upi.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CacheService } from '../common/cache.service';
@@ -156,8 +160,12 @@ export class PaymentsService implements OnModuleInit {
         include: {
           invoices: {
             where: { status: { not: InvoiceStatus.CANCELLED } },
-            include: { creditLedgers: true, refundInvoices: true, payments: true },
-            orderBy: { createdAt: 'asc' },
+            include: {
+              creditLedgers: true,
+              refundInvoices: true,
+              payments: true,
+            },
+            orderBy: [{ invoiceDate: 'asc' }, { createdAt: 'asc' }],
           },
           payments: {
             where: { status: PaymentStatus.CONFIRMED },
@@ -182,7 +190,9 @@ export class PaymentsService implements OnModuleInit {
           !cl.purchaseId &&
           cl.notes?.toLowerCase().includes('opening balance'),
       );
-      const openingReceivableAmt = parseOpeningBalanceAmount(openingReceivableLedger);
+      const openingReceivableAmt = parseOpeningBalanceAmount(
+        openingReceivableLedger,
+      );
 
       const openingPayableLedger = party.creditLedgers.find(
         (cl) =>
@@ -211,7 +221,9 @@ export class PaymentsService implements OnModuleInit {
         const netBilled = Math.max(0, Number(inv.total) - refunded);
 
         // Payments specifically linked to this invoice (real money inflows only)
-        const invPayments = party.payments.filter((p) => p.invoiceId === inv.id);
+        const invPayments = party.payments.filter(
+          (p) => p.invoiceId === inv.id,
+        );
         const invInflows = invPayments
           .filter(
             (p) =>
@@ -343,7 +355,10 @@ export class PaymentsService implements OnModuleInit {
 
         const isFullyRefunded =
           Number(state.inv.total) > 0 &&
-          (state.inv.refundInvoices?.reduce((rs, r) => rs + Number(r.total), 0) || 0) >=
+          (state.inv.refundInvoices?.reduce(
+            (rs, r) => rs + Number(r.total),
+            0,
+          ) || 0) >=
             Number(state.inv.total) - 0.01;
 
         const newStatus = isFullyRefunded
@@ -386,12 +401,17 @@ export class PaymentsService implements OnModuleInit {
             },
           });
         } else if (finalDue > 0.01) {
+          const invDate = (state.inv as any).invoiceDate || state.inv.createdAt;
           await tx.creditLedger.create({
             data: {
               partyId: party.id,
               invoiceId: state.inv.id,
               amountDue: new Prisma.Decimal(finalDue.toFixed(2)),
               type: CreditType.RECEIVABLE,
+              createdAt: invDate,
+              dueDate: new Date(
+                new Date(invDate).getTime() + 30 * 24 * 60 * 60 * 1000,
+              ),
               status:
                 state.netBilled - finalDue > 0.01
                   ? CreditStatus.PARTIAL
@@ -495,11 +515,13 @@ export class PaymentsService implements OnModuleInit {
 
       // 7. Auto-heal historical invoice.previousBalance values (Bug D fix)
       for (const inv of party.invoices) {
+        const targetDate = (inv as any).invoiceDate || inv.createdAt;
         const priorLedgers = await tx.creditLedger.findMany({
           where: {
             partyId: party.id,
             status: { not: CreditStatus.SETTLED },
-            createdAt: { lt: inv.createdAt },
+            NOT: { invoiceId: inv.id },
+            createdAt: { lt: targetDate },
           },
         });
         const truePriorBalance = priorLedgers.reduce(
@@ -1018,7 +1040,10 @@ export class PaymentsService implements OnModuleInit {
   }
 
   async findAll(
-    pagination?: PaginationParams & { dateFilter?: DateRangeFilter; search?: string },
+    pagination?: PaginationParams & {
+      dateFilter?: DateRangeFilter;
+      search?: string;
+    },
     user?: { id: string; role: Role },
   ): Promise<any> {
     const cacheKey = `payments:list:${user?.role || 'ALL'}:${user?.id || 'ALL'}:${pagination?.page || 1}:${pagination?.limit || 'all'}:${pagination?.dateFilter?.preset || ''}:${pagination?.dateFilter?.from || ''}:${pagination?.dateFilter?.to || ''}:${pagination?.search || ''}`;
@@ -1034,8 +1059,16 @@ export class PaymentsService implements OnModuleInit {
       }
       if (pagination?.search) {
         where.OR = [
-          { invoice: { invoiceNo: { contains: pagination.search, mode: 'insensitive' } } },
-          { party: { name: { contains: pagination.search, mode: 'insensitive' } } },
+          {
+            invoice: {
+              invoiceNo: { contains: pagination.search, mode: 'insensitive' },
+            },
+          },
+          {
+            party: {
+              name: { contains: pagination.search, mode: 'insensitive' },
+            },
+          },
           { mode: { equals: pagination.search.toUpperCase() as any } },
         ] as any;
       }
@@ -1418,7 +1451,7 @@ export class PaymentsService implements OnModuleInit {
         : {};
 
       const dateRange = buildDateRange(dateFilter);
-      const invoiceDateFilter = dateRange ? { createdAt: dateRange } : {};
+      const invoiceDateFilter = dateRange ? { invoiceDate: dateRange } : {};
       const paymentDateFilter = dateRange ? { createdAt: dateRange } : {};
       const creditDateFilter = dateRange ? { createdAt: dateRange } : {};
 
@@ -1549,7 +1582,7 @@ export class PaymentsService implements OnModuleInit {
     return this.cacheService.wrap(cacheKey, 1800, async () => {
       const isSalesman = user?.role === Role.SALESMAN;
       const dateRange = buildDateRange(dateFilter);
-      const invoiceDateFilter = dateRange ? { createdAt: dateRange } : {};
+      const invoiceDateFilter = dateRange ? { invoiceDate: dateRange } : {};
       const ledgerDateFilter = dateRange ? { createdAt: dateRange } : {};
 
       // 1. Invoices that are not CANCELLED or DRAFT
@@ -1568,7 +1601,7 @@ export class PaymentsService implements OnModuleInit {
             select: { amountDue: true, status: true },
           },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ invoiceDate: 'desc' }, { createdAt: 'desc' }],
       });
 
       // 2. Unsettled credit ledgers:
@@ -1625,6 +1658,7 @@ export class PaymentsService implements OnModuleInit {
               total: Number(inv.total),
               paid,
               remainingDue,
+              invoiceDate: (inv as any).invoiceDate || inv.createdAt,
               createdAt: inv.createdAt,
               status: inv.status,
             };

@@ -58,7 +58,11 @@ export class PaymentsController {
     @Query('to') to?: string,
     @Request() req?: RequestWithUser,
   ) {
-    return this.paymentsService.getStats(req?.user, { preset: preset as any, from, to });
+    return this.paymentsService.getStats(req?.user, {
+      preset: preset as any,
+      from,
+      to,
+    });
   }
 
   @Get(['pending', 'pending-invoices'])
@@ -69,7 +73,11 @@ export class PaymentsController {
     @Query('to') to?: string,
     @Request() req?: RequestWithUser,
   ) {
-    return this.paymentsService.getPendingItems(req?.user, { preset: preset as any, from, to });
+    return this.paymentsService.getPendingItems(req?.user, {
+      preset: preset as any,
+      from,
+      to,
+    });
   }
 
   @Get(['credits', 'credit'])
@@ -80,7 +88,11 @@ export class PaymentsController {
     @Query('to') to?: string,
     @Request() req?: RequestWithUser,
   ) {
-    return this.paymentsService.findAllCreditLedgers(req?.user, { preset: preset as any, from, to });
+    return this.paymentsService.findAllCreditLedgers(req?.user, {
+      preset: preset as any,
+      from,
+      to,
+    });
   }
 
   @Post('credit')
@@ -114,7 +126,12 @@ export class PaymentsController {
     const pageNum = page ? parseInt(page, 10) : undefined;
     const limitNum = limit ? parseInt(limit, 10) : undefined;
     return this.paymentsService.findAll(
-      { page: pageNum, limit: limitNum, search, dateFilter: { preset: preset as any, from, to } },
+      {
+        page: pageNum,
+        limit: limitNum,
+        search,
+        dateFilter: { preset: preset as any, from, to },
+      },
       req?.user,
     );
   }

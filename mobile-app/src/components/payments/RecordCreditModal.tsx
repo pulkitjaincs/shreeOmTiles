@@ -263,12 +263,70 @@ export function RecordCreditModal({
               searchable
               searchPlaceholder="Search party name or phone..."
               icon="person-outline"
-              options={parties.map((party) => ({
-                value: party.id,
-                label: party.name,
-                subLabel: party.phone,
-              }))}
+              options={parties.map((party) => {
+                const bal =
+                  party.netBalance ??
+                  (Number(party.outstandingDue || 0) - Number(party.storePayable || 0));
+                const balText =
+                  bal > 0.01
+                    ? `Due: ${formatINR(bal)}`
+                    : bal < -0.01
+                    ? `Adv: ${formatINR(Math.abs(bal))}`
+                    : 'Settled (₹0)';
+                return {
+                  value: party.id,
+                  label: party.name,
+                  subLabel: `${party.phone} • ${balText}`,
+                  badge: bal > 0.01 ? 'DUE' : bal < -0.01 ? 'ADV' : undefined,
+                };
+              })}
             />
+
+            {/* Current Balance Indicator */}
+            {(() => {
+              const selectedParty = parties.find((p) => p.id === partyId);
+              if (!selectedParty) return null;
+              const bal =
+                selectedParty.netBalance ??
+                (Number(selectedParty.outstandingDue || 0) -
+                  Number(selectedParty.storePayable || 0));
+              return (
+                <View
+                  style={[
+                    styles.balanceCard,
+                    bal > 0.01
+                      ? styles.balanceCardDue
+                      : bal < -0.01
+                      ? styles.balanceCardAdvance
+                      : styles.balanceCardSettled,
+                  ]}
+                >
+                  <Ionicons
+                    name={
+                      bal > 0.01
+                        ? 'alert-circle'
+                        : bal < -0.01
+                        ? 'wallet-outline'
+                        : 'checkmark-circle-outline'
+                    }
+                    size={15}
+                    color={
+                      bal > 0.01 ? '#F59E0B' : bal < -0.01 ? '#10B981' : colors.textSecondary
+                    }
+                  />
+                  <Text style={styles.balanceText}>
+                    Current Party Balance:{' '}
+                    <Text style={{ fontWeight: '800', fontFamily: 'monospace' }}>
+                      {bal > 0.01
+                        ? `${formatINR(bal)} (Customer Dues)`
+                        : bal < -0.01
+                        ? `${formatINR(Math.abs(bal))} (Store Payable / Advance)`
+                        : '₹0.00 (Settled)'}
+                    </Text>
+                  </Text>
+                </View>
+              );
+            })()}
           </View>
         )}
 
@@ -479,5 +537,31 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: 11,
       color: colors.text,
       fontWeight: '600',
+    },
+    balanceCard: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      borderRadius: 8,
+      padding: 8,
+      marginTop: 6,
+      borderWidth: 1,
+    },
+    balanceCardDue: {
+      backgroundColor: 'rgba(245, 158, 11, 0.08)',
+      borderColor: 'rgba(245, 158, 11, 0.3)',
+    },
+    balanceCardAdvance: {
+      backgroundColor: 'rgba(16, 185, 129, 0.08)',
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+    },
+    balanceCardSettled: {
+      backgroundColor: colors.cardHover,
+      borderColor: colors.border,
+    },
+    balanceText: {
+      fontSize: 11,
+      color: colors.text,
+      flex: 1,
     },
   });

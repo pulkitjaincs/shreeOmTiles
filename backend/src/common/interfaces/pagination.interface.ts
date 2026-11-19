@@ -12,16 +12,25 @@ export interface PaginatedResult<T> {
 }
 
 export interface DateRangeFilter {
-  from?: string;   // ISO date string YYYY-MM-DD
-  to?: string;     // ISO date string YYYY-MM-DD
+  from?: string; // ISO date string YYYY-MM-DD
+  to?: string; // ISO date string YYYY-MM-DD
   preset?: 'TODAY' | 'YESTERDAY' | 'THIS_WEEK' | 'THIS_MONTH' | 'ALL';
 }
 
-export function buildDateRange(filter?: DateRangeFilter): { gte?: Date; lte?: Date } | undefined {
-  if (!filter || filter.preset === 'ALL' || (!filter.preset && !filter.from && !filter.to)) return undefined;
+export function buildDateRange(
+  filter?: DateRangeFilter,
+): { gte?: Date; lte?: Date } | undefined {
+  if (
+    !filter ||
+    filter.preset === 'ALL' ||
+    (!filter.preset && !filter.from && !filter.to)
+  )
+    return undefined;
   const now = new Date();
-  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+  const startOfDay = (d: Date) =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const endOfDay = (d: Date) =>
+    new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
 
   if (filter.from || filter.to) {
     return {
@@ -34,15 +43,22 @@ export function buildDateRange(filter?: DateRangeFilter): { gte?: Date; lte?: Da
     case 'TODAY':
       return { gte: startOfDay(now), lte: endOfDay(now) };
     case 'YESTERDAY': {
-      const y = new Date(now); y.setDate(y.getDate() - 1);
+      const y = new Date(now);
+      y.setDate(y.getDate() - 1);
       return { gte: startOfDay(y), lte: endOfDay(y) };
     }
     case 'THIS_WEEK': {
-      const w = new Date(now); w.setDate(w.getDate() - ((w.getDay() + 6) % 7));
-      return { gte: startOfDay(w), lte: endOfDay(now) };
+      const startW = new Date(now);
+      startW.setDate(startW.getDate() - ((startW.getDay() + 6) % 7));
+      const endW = new Date(startW);
+      endW.setDate(endW.getDate() + 6);
+      return { gte: startOfDay(startW), lte: endOfDay(endW) };
     }
-    case 'THIS_MONTH':
-      return { gte: new Date(now.getFullYear(), now.getMonth(), 1), lte: endOfDay(now) };
+    case 'THIS_MONTH': {
+      const startM = new Date(now.getFullYear(), now.getMonth(), 1);
+      const endM = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      return { gte: startM, lte: endOfDay(endM) };
+    }
     default:
       return undefined;
   }

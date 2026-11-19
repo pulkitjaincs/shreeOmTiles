@@ -71,6 +71,7 @@ export interface SalesmanRecentInvoice {
   status: string;
   paymentMode: string;
   createdAt: string;
+  invoiceDate?: string;
 }
 
 export interface DashboardKPI {

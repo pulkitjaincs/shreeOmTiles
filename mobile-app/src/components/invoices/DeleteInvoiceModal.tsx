@@ -66,7 +66,7 @@ export function DeleteInvoiceModal({
       visible={visible}
       onClose={onClose}
       title="Delete Invoice & Restore Stock"
-      subtitle={`Invoice #${invoice.invoiceNo} • ${formatDate(invoice.createdAt)}`}
+      subtitle={`Invoice #${invoice.invoiceNo} • ${formatDate(invoice.invoiceDate || invoice.createdAt)}`}
     >
       <View style={styles.container}>
         {/* Invoice Summary Card */}

@@ -4,11 +4,14 @@ import {
   Text,
   StyleSheet,
   Alert,
+  TouchableOpacity,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { BottomSheetModal } from '@/components/ui/BottomSheetModal';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { CalendarModal } from '@/components/ui/CalendarModal';
 import type { ThemeColors } from '@/constants/theme';
 import { useTheme, useThemedStyles } from '@/lib/theme-context';
 import { formatINR } from '@/lib/formatters';
@@ -18,6 +21,31 @@ import { CustomerSelector } from './CustomerSelector';
 import { InvoiceLineItemCard } from './InvoiceLineItemCard';
 import { CounterUpiModal } from './CounterUpiModal';
 import { MultiPaymentSplitSelector } from '@/components/ui/MultiPaymentSplitSelector';
+
+function formatDateToIST(dateInput: Date | string): string {
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(d);
+  const y = parts.find((p) => p.type === 'year')?.value;
+  const m = parts.find((p) => p.type === 'month')?.value;
+  const day = parts.find((p) => p.type === 'day')?.value;
+  return `${y}-${m}-${day}`;
+}
+
+function getTodayLocalDate(): string {
+  return formatDateToIST(new Date());
+}
+
+function getYesterdayLocalDate(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return formatDateToIST(d);
+}
 
 interface CreateInvoiceModalProps {
   visible: boolean;
@@ -46,6 +74,8 @@ export function CreateInvoiceModal({
   const styles = useThemedStyles(createStyles);
   const wasVisible = useRef(false);
   const [customerMode, setCustomerMode] = useState<'existing' | 'new' | 'cash_sale'>('existing');
+  const [invoiceDate, setInvoiceDate] = useState<string>(getTodayLocalDate);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [selectedPartyId, setSelectedPartyId] = useState('');
   const [billAddress, setBillAddress] = useState('');
   const [newPartyName, setNewPartyName] = useState('');
@@ -113,6 +143,7 @@ export function CreateInvoiceModal({
 
   const resetForm = useCallback(() => {
     setCustomerMode('existing');
+    setInvoiceDate(getTodayLocalDate());
     setSelectedPartyId('');
     setBillAddress('');
     setNewPartyName('');
@@ -184,6 +215,12 @@ export function CreateInvoiceModal({
       // Edit mode initialization
       const isCash = Boolean(invoiceToEdit.isCashSale);
       setCustomerMode(isCash ? 'cash_sale' : 'existing');
+      const rawDate = invoiceToEdit.invoiceDate || invoiceToEdit.createdAt;
+      if (rawDate) {
+        setInvoiceDate(formatDateToIST(rawDate));
+      } else {
+        setInvoiceDate(getTodayLocalDate());
+      }
       const pId = invoiceToEdit.partyId || invoiceToEdit.party?.id || '';
       setSelectedPartyId(pId);
       setNewPartyName(invoiceToEdit.party?.name || '');
@@ -478,6 +515,7 @@ export function CreateInvoiceModal({
     setSubmitting(true);
     try {
       const payload: any = {
+        invoiceDate: new Date(invoiceDate).toISOString(),
         taxRate,
         discountAmount: discount,
         roundOffEnabled,
@@ -564,6 +602,62 @@ export function CreateInvoiceModal({
       }
     >
       <View>
+        {/* Invoice Date Selection */}
+        <Card style={styles.dateCard}>
+          <View style={styles.dateCardHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Ionicons name="calendar-outline" size={15} color={colors.primary} />
+              <Text style={styles.dateCardLabel}>INVOICE DATE</Text>
+            </View>
+            <Text style={styles.dateCardSubtitle}>Past & future allowed</Text>
+          </View>
+          <View style={styles.dateActionRow}>
+            <TouchableOpacity
+              style={[
+                styles.dateChip,
+                invoiceDate === getTodayLocalDate() && styles.dateChipActive,
+              ]}
+              onPress={() => setInvoiceDate(getTodayLocalDate())}
+            >
+              <Text
+                style={[
+                  styles.dateChipText,
+                  invoiceDate === getTodayLocalDate() && styles.dateChipTextActive,
+                ]}
+              >
+                Today
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.dateChip,
+                invoiceDate === getYesterdayLocalDate() && styles.dateChipActive,
+              ]}
+              onPress={() => setInvoiceDate(getYesterdayLocalDate())}
+            >
+              <Text
+                style={[
+                  styles.dateChipText,
+                  invoiceDate === getYesterdayLocalDate() && styles.dateChipTextActive,
+                ]}
+              >
+                Yesterday
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.datePickerBtn}
+              onPress={() => setCalendarOpen(true)}
+            >
+              <Ionicons name="calendar" size={14} color={colors.primary} />
+              <Text style={styles.datePickerBtnText}>
+                {invoiceDate || 'Select Date'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </Card>
+
         {/* 1. Customer Section */}
         <CustomerSelector
           customerMode={customerMode}
@@ -796,6 +890,20 @@ export function CreateInvoiceModal({
           handleCreateInvoice('CASH');
         }}
       />
+
+      <CalendarModal
+        visible={calendarOpen}
+        onClose={() => setCalendarOpen(false)}
+        initialFrom={invoiceDate}
+        mode="single"
+        title="Select Invoice Date"
+        onApply={(selected) => {
+          if (selected) {
+            setInvoiceDate(selected);
+          }
+          setCalendarOpen(false);
+        }}
+      />
     </BottomSheetModal>
   );
 }
@@ -882,5 +990,72 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: 13,
       color: '#FBBF24',
       fontWeight: '800',
+    },
+    dateCard: {
+      padding: 12,
+      marginBottom: 10,
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    dateCardHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    dateCardLabel: {
+      fontSize: 11,
+      fontWeight: '800',
+      color: colors.text,
+      letterSpacing: 0.5,
+    },
+    dateCardSubtitle: {
+      fontSize: 10,
+      color: colors.textSecondary,
+    },
+    dateActionRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      flexWrap: 'wrap',
+    },
+    dateChip: {
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.background,
+    },
+    dateChipActive: {
+      borderColor: colors.primary,
+      backgroundColor: 'rgba(59, 130, 246, 0.12)',
+    },
+    dateChipText: {
+      fontSize: 12,
+      fontWeight: '500',
+      color: colors.textSecondary,
+    },
+    dateChipTextActive: {
+      color: colors.primary,
+      fontWeight: '700',
+    },
+    datePickerBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: colors.primary,
+      backgroundColor: colors.background,
+    },
+    datePickerBtnText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: colors.text,
     },
   });

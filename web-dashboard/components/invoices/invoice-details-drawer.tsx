@@ -119,7 +119,7 @@ export function InvoiceDetailsDrawer({
             <div className="flex items-center gap-4 text-[0.75rem] text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                {formatDateTime(invoice.createdAt)}
+                {formatDateTime(invoice.invoiceDate || invoice.createdAt)}
               </span>
               {invoice.salesman?.name && (
                 <span className="flex items-center gap-1">

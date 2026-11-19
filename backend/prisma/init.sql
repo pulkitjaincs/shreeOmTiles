@@ -124,6 +124,7 @@ CREATE TABLE "Invoice" (
     "roundOffAmount" DECIMAL(12,2) NOT NULL DEFAULT 0,
     "paymentMode" "PaymentMode",
     "notes" TEXT,
+    "invoiceDate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -338,13 +339,22 @@ CREATE INDEX "Invoice_partyId_idx" ON "Invoice"("partyId");
 CREATE INDEX "Invoice_salesmanId_idx" ON "Invoice"("salesmanId");
 
 -- CreateIndex
+CREATE INDEX "Invoice_invoiceDate_idx" ON "Invoice"("invoiceDate");
+
+-- CreateIndex
 CREATE INDEX "Invoice_createdAt_idx" ON "Invoice"("createdAt");
 
 -- CreateIndex
 CREATE INDEX "Invoice_partyId_status_idx" ON "Invoice"("partyId", "status");
 
 -- CreateIndex
+CREATE INDEX "Invoice_partyId_invoiceDate_idx" ON "Invoice"("partyId", "invoiceDate");
+
+-- CreateIndex
 CREATE INDEX "Invoice_status_createdAt_idx" ON "Invoice"("status", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "Invoice_status_invoiceDate_idx" ON "Invoice"("status", "invoiceDate");
 
 -- CreateIndex
 CREATE INDEX "InvoiceItem_invoiceId_idx" ON "InvoiceItem"("invoiceId");

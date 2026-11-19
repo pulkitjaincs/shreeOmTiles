@@ -65,7 +65,7 @@ export function DeleteInvoiceModal({
                 Delete Invoice & Restore Stock
               </h3>
               <p className="text-xs text-muted-foreground">
-                Invoice #{invoice.invoiceNo} • {formatDate(invoice.createdAt)}
+                Invoice #{invoice.invoiceNo} • {formatDate(invoice.invoiceDate || invoice.createdAt)}
               </p>
             </div>
           </div>

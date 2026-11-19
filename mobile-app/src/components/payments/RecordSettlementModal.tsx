@@ -84,6 +84,60 @@ export function RecordSettlementModal({
   const [upiPreview, setUpiPreview] = useState<UpiPreviewData | null>(null);
   const [upiLoading, setUpiLoading] = useState(false);
 
+  // Real-Time Party Balance State & Race-Condition Guard
+  const [liveBalance, setLiveBalance] = useState<{
+    netBalance: number;
+    outstandingDue: number;
+    storePayable: number;
+  } | null>(null);
+  const [balanceLoading, setBalanceLoading] = useState(false);
+  const activePartyReqRef = useRef<string>('');
+  const partiesRef = useRef<Party[]>(parties);
+  partiesRef.current = parties;
+
+  useEffect(() => {
+    if (!selectedPartyId) {
+      setLiveBalance(null);
+      activePartyReqRef.current = '';
+      return;
+    }
+    const currentReqPartyId = selectedPartyId;
+    activePartyReqRef.current = currentReqPartyId;
+
+    const found = partiesRef.current.find((p) => p.id === currentReqPartyId);
+    if (found) {
+      setLiveBalance({
+        netBalance:
+          found.netBalance ??
+          Number(found.outstandingDue || 0) - Number(found.storePayable || 0),
+        outstandingDue: Number(found.outstandingDue || 0),
+        storePayable: Number(found.storePayable || 0),
+      });
+    }
+
+    setBalanceLoading(true);
+    void mobileApiRequest<{
+      netBalance: number;
+      outstandingDue: number;
+      storePayable: number;
+    }>(`/parties/${currentReqPartyId}/balance`)
+      .then((res) => {
+        if (activePartyReqRef.current === currentReqPartyId && res) {
+          setLiveBalance({
+            netBalance: Number(res.netBalance || 0),
+            outstandingDue: Number(res.outstandingDue || 0),
+            storePayable: Number(res.storePayable || 0),
+          });
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (activePartyReqRef.current === currentReqPartyId) {
+          setBalanceLoading(false);
+        }
+      });
+  }, [selectedPartyId]);
+
   const generateUpiQr = useCallback(
     async (amt: number, account?: UpiAccount | null) => {
       if (isNaN(amt) || amt <= 0) {
@@ -451,13 +505,128 @@ export function RecordSettlementModal({
             searchable
             searchPlaceholder="Search party name or phone..."
             icon="person-outline"
-            options={parties.map((p) => ({
-              value: p.id,
-              label: p.name,
-              subLabel: p.phone + (p.address ? ` • ${p.address}` : ''),
-              badge: p.gstin ? 'GST' : undefined,
-            }))}
+            options={parties.map((p) => {
+              const bal =
+                p.netBalance ??
+                (Number(p.outstandingDue || 0) - Number(p.storePayable || 0));
+              const balText =
+                bal > 0.01
+                  ? `Due: ${formatINR(bal)}`
+                  : bal < -0.01
+                  ? `Adv: ${formatINR(Math.abs(bal))}`
+                  : 'Settled (₹0)';
+              return {
+                value: p.id,
+                label: p.name,
+                subLabel: `${p.phone}${p.address ? ' • ' + p.address : ''} • ${balText}`,
+                badge: bal > 0.01 ? 'DUE' : bal < -0.01 ? 'ADV' : undefined,
+              };
+            })}
           />
+
+          {/* Party Current Balance Context Card */}
+          {Boolean(selectedPartyId) && liveBalance && (
+            <View
+              style={[
+                styles.balanceBanner,
+                liveBalance.netBalance > 0.01
+                  ? styles.balanceBannerDue
+                  : liveBalance.netBalance < -0.01
+                  ? styles.balanceBannerAdvance
+                  : styles.balanceBannerSettled,
+              ]}
+            >
+              <View style={styles.balanceHeaderRow}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                  <Ionicons
+                    name={
+                      liveBalance.netBalance > 0.01
+                        ? 'alert-circle'
+                        : liveBalance.netBalance < -0.01
+                        ? 'wallet-outline'
+                        : 'checkmark-circle-outline'
+                    }
+                    size={16}
+                    color={
+                      liveBalance.netBalance > 0.01
+                        ? '#F59E0B'
+                        : liveBalance.netBalance < -0.01
+                        ? '#10B981'
+                        : colors.textSecondary
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.balanceTitle,
+                      {
+                        color:
+                          liveBalance.netBalance > 0.01
+                            ? '#D97706'
+                            : liveBalance.netBalance < -0.01
+                            ? '#059669'
+                            : colors.text,
+                      },
+                    ]}
+                  >
+                    Current Party Balance:{' '}
+                    <Text style={{ fontFamily: 'monospace', fontWeight: '800' }}>
+                      {liveBalance.netBalance > 0.01
+                        ? `${formatINR(liveBalance.netBalance)} (Customer Dues)`
+                        : liveBalance.netBalance < -0.01
+                        ? `${formatINR(Math.abs(liveBalance.netBalance))} (Store Payable / Advance)`
+                        : '₹0.00 (All Dues Settled)'}
+                    </Text>
+                  </Text>
+                </View>
+
+                {balanceLoading && <ActivityIndicator size="small" color={colors.textSecondary} />}
+              </View>
+
+              {/* Contextual notice */}
+              {liveBalance.netBalance > 0.01 && direction === 'PAY' && (
+                <Text style={[styles.balanceNoticeText, { color: '#B45309', fontWeight: '600' }]}>
+                  ⚠️ Warning: Party currently owes ₹{liveBalance.netBalance.toLocaleString('en-IN')} in dues. Please confirm before disbursing funds.
+                </Text>
+              )}
+              {liveBalance.netBalance < -0.01 && direction === 'COLLECT' && (
+                <Text style={[styles.balanceNoticeText, { color: '#047857', fontWeight: '600' }]}>
+                  ℹ️ Notice: Party has an advance credit / store payable balance of ₹{Math.abs(liveBalance.netBalance).toLocaleString('en-IN')}.
+                </Text>
+              )}
+
+              {/* Quick Fill Button Chip */}
+              {((direction === 'COLLECT' && liveBalance.netBalance > 0.01) ||
+                (direction === 'PAY' && liveBalance.netBalance < -0.01)) && (
+                <TouchableOpacity
+                  style={[
+                    styles.quickBalanceChip,
+                    direction === 'COLLECT'
+                      ? styles.quickBalanceChipDue
+                      : styles.quickBalanceChipAdvance,
+                  ]}
+                  onPress={() => {
+                    const target =
+                      direction === 'COLLECT'
+                        ? liveBalance.netBalance
+                        : Math.abs(liveBalance.netBalance);
+                    handleAmountChange(target.toFixed(2));
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons name="flash-outline" size={12} color="#FFFFFF" />
+                  <Text style={styles.quickBalanceChipText}>
+                    Quick Fill Full {direction === 'COLLECT' ? 'Due' : 'Payable'} (
+                    {formatINR(
+                      direction === 'COLLECT'
+                        ? liveBalance.netBalance
+                        : Math.abs(liveBalance.netBalance),
+                    )}
+                    )
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
         </View>
       )}
 
@@ -917,5 +1086,60 @@ const createStyles = (colors: ThemeColors) =>
       fontSize: 11,
       color: '#F59E0B',
       flex: 1,
+    },
+    balanceBanner: {
+      borderRadius: 10,
+      padding: 10,
+      marginTop: 8,
+      borderWidth: 1,
+    },
+    balanceBannerDue: {
+      backgroundColor: 'rgba(245, 158, 11, 0.08)',
+      borderColor: 'rgba(245, 158, 11, 0.3)',
+    },
+    balanceBannerAdvance: {
+      backgroundColor: 'rgba(16, 185, 129, 0.08)',
+      borderColor: 'rgba(16, 185, 129, 0.3)',
+    },
+    balanceBannerSettled: {
+      backgroundColor: colors.cardHover,
+      borderColor: colors.border,
+    },
+    balanceHeaderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 6,
+    },
+    balanceTitle: {
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    balanceNoticeText: {
+      fontSize: 11,
+      marginTop: 4,
+      lineHeight: 15,
+    },
+    quickBalanceChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 4,
+      paddingVertical: 5,
+      paddingHorizontal: 10,
+      borderRadius: 6,
+      marginTop: 8,
+      alignSelf: 'flex-start',
+    },
+    quickBalanceChipDue: {
+      backgroundColor: '#F59E0B',
+    },
+    quickBalanceChipAdvance: {
+      backgroundColor: '#10B981',
+    },
+    quickBalanceChipText: {
+      color: '#FFFFFF',
+      fontSize: 11,
+      fontWeight: '700',
     },
   });

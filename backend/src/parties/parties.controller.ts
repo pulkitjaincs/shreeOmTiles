@@ -59,6 +59,18 @@ export class PartiesController {
     });
   }
 
+  @Get(':id/balance')
+  @Roles(
+    Role.OWNER,
+    Role.ADMIN,
+    Role.SALESMAN,
+    Role.ACCOUNTANT,
+    Role.SUPERVISOR,
+  )
+  getPartyBalance(@Param('id') id: string) {
+    return this.partiesService.getPartyBalance(id);
+  }
+
   @Get(':id')
   @Roles(
     Role.OWNER,

@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   IsEnum,
+  IsISO8601,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -65,6 +66,10 @@ export class CreateNewPartyDto {
 }
 
 export class CreateInvoiceDto {
+  @IsISO8601()
+  @IsOptional()
+  invoiceDate?: string;
+
   @IsString()
   @IsOptional()
   partyId?: string;

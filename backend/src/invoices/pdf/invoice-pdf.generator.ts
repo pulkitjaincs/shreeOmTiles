@@ -47,7 +47,10 @@ export async function generateInvoicePdf(
   const isPaidOrSettled = invoice.status === 'PAID' || hasSettledLedger;
 
   const previousBalanceNum = Number(invoice.previousBalance || 0);
-  const cacheKey = `${invoice.id}:${invoice.status}:${invoice.updatedAt ? new Date(invoice.updatedAt).getTime() : 0}:${(invoice.refundInvoices || []).length}:${totalReturns}:${totalReceived}:${isPaidOrSettled}:${previousBalanceNum}`;
+  const invoiceDateTs = invoice.invoiceDate
+    ? new Date(invoice.invoiceDate).getTime()
+    : 0;
+  const cacheKey = `${invoice.id}:${invoice.status}:${invoiceDateTs}:${invoice.updatedAt ? new Date(invoice.updatedAt).getTime() : 0}:${(invoice.refundInvoices || []).length}:${totalReturns}:${totalReceived}:${isPaidOrSettled}:${previousBalanceNum}`;
   const cached = pdfBufferCache.get(cacheKey);
   if (cached) {
     return cached;
@@ -104,18 +107,23 @@ export async function generateInvoicePdf(
   const previousBalance = Number(invoice.previousBalance || 0);
   const currentBalance = previousBalance + balance;
 
-  const createdAt = invoice.createdAt
-    ? new Date(invoice.createdAt)
-    : new Date();
-  const dateStr = createdAt.toLocaleDateString('en-IN', {
+  const rawDate = invoice.invoiceDate || invoice.createdAt;
+  const targetDate = rawDate ? new Date(rawDate) : new Date();
+  const dateStr = targetDate.toLocaleDateString('en-IN', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
+    timeZone: 'Asia/Kolkata',
   });
-  const timeStr = createdAt.toLocaleTimeString('en-IN', {
+  // Time reflects actual wall-clock issuance timestamp
+  const timeSource = invoice.createdAt
+    ? new Date(invoice.createdAt)
+    : targetDate;
+  const timeStr = timeSource.toLocaleTimeString('en-IN', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: true,
+    timeZone: 'Asia/Kolkata',
   });
 
   // Return QR code
@@ -819,7 +827,10 @@ export async function generateInvoicePdf(
       false,
       true,
     );
-    drawAmountLine('Received', `Rs. ${effectiveReceived.toLocaleString('en-IN')}`);
+    drawAmountLine(
+      'Received',
+      `Rs. ${effectiveReceived.toLocaleString('en-IN')}`,
+    );
     drawAmountLine(
       'Net Balance Due',
       `Rs. ${netBalanceDue.toLocaleString('en-IN')}`,
@@ -828,7 +839,10 @@ export async function generateInvoicePdf(
     );
   } else {
     drawAmountLine('Total', `Rs. ${totalAmount.toLocaleString('en-IN')}`, true);
-    drawAmountLine('Received', `Rs. ${effectiveReceived.toLocaleString('en-IN')}`);
+    drawAmountLine(
+      'Received',
+      `Rs. ${effectiveReceived.toLocaleString('en-IN')}`,
+    );
     drawAmountLine('Balance', `Rs. ${balance.toLocaleString('en-IN')}`, true);
   }
 

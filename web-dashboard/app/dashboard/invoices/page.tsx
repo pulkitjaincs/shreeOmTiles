@@ -278,6 +278,7 @@ export default function InvoicesPage() {
 
     // --- Hoist all Date objects here (outside the .filter callback) ---
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
     const startOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
     const endOfYesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
 
@@ -285,8 +286,10 @@ export default function InvoicesPage() {
     const distanceToMonday = (dayOfWeek + 6) % 7;
     const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - distanceToMonday);
     startOfWeek.setHours(0, 0, 0, 0);
+    const endOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - distanceToMonday + 6, 23, 59, 59, 999);
 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
     // Custom date range parsed once
     const customFrom = customFromDate ? (() => { const d = new Date(customFromDate); d.setHours(0,0,0,0); return d; })() : null;
@@ -326,18 +329,18 @@ export default function InvoicesPage() {
       }
 
       // Date Presets — compare against pre-computed boundaries
-      const createdAt = new Date(inv.createdAt);
+      const invDate = new Date(inv.invoiceDate || inv.createdAt);
       if (datePreset === 'TODAY') {
-        if (createdAt < startOfToday) return false;
+        if (invDate < startOfToday || invDate > endOfToday) return false;
       } else if (datePreset === 'YESTERDAY') {
-        if (createdAt < startOfYesterday || createdAt > endOfYesterday) return false;
+        if (invDate < startOfYesterday || invDate > endOfYesterday) return false;
       } else if (datePreset === 'THIS_WEEK') {
-        if (createdAt < startOfWeek) return false;
+        if (invDate < startOfWeek || invDate > endOfWeek) return false;
       } else if (datePreset === 'THIS_MONTH') {
-        if (createdAt < startOfMonth) return false;
+        if (invDate < startOfMonth || invDate > endOfMonth) return false;
       } else if (datePreset === 'CUSTOM') {
-        if (customFrom && createdAt < customFrom) return false;
-        if (customTo && createdAt > customTo) return false;
+        if (customFrom && invDate < customFrom) return false;
+        if (customTo && invDate > customTo) return false;
       }
 
       return true;
@@ -621,7 +624,7 @@ export default function InvoicesPage() {
                       )}
                     </td>
                     <td className="py-3 px-3.5 text-muted-foreground">
-                      {formatDate(inv.createdAt)}
+                      {formatDate(inv.invoiceDate || inv.createdAt)}
                     </td>
                     {isSupervisor ? (
                       <td className="py-3 px-3.5 text-foreground font-semibold">

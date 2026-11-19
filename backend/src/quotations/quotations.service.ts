@@ -8,7 +8,11 @@ import { CacheService } from '../common/cache.service';
 import { CreateQuotationDto } from './dto/create-quotation.dto';
 import { InvoicesService } from '../invoices/invoices.service';
 import { Prisma, QuotationStatus, PaymentMode } from '@prisma/client';
-import { PaginationParams, DateRangeFilter, buildDateRange } from '../common/interfaces/pagination.interface';
+import {
+  PaginationParams,
+  DateRangeFilter,
+  buildDateRange,
+} from '../common/interfaces/pagination.interface';
 import { generateQuotationPdf } from './pdf/quotation-pdf.generator';
 import { PaymentSplitDto } from '../common/dto/payment-split.dto';
 
@@ -209,6 +213,7 @@ export class QuotationsService {
     paymentMode?: PaymentMode,
     amountPaidNow?: number,
     payments?: PaymentSplitDto[],
+    invoiceDate?: string,
   ) {
     const quotation = await this.findOne(id);
 
@@ -273,6 +278,7 @@ export class QuotationsService {
       partyId: partyId || undefined,
       newParty,
       quotationId: quotation.id,
+      invoiceDate,
       paymentMode: effectivePaymentMode,
       amountPaidNow: amountPaidNow !== undefined ? amountPaidNow : 0,
       payments: payments && payments.length > 0 ? payments : undefined,

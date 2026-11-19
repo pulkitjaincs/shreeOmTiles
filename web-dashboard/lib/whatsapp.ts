@@ -180,8 +180,9 @@ export function buildInvoiceShareUrl(
 
 export function buildFullInvoiceMessage(invoice: any): string {
   const partyName = invoice.party?.name || invoice.partyName || 'Customer';
-  const invDate = invoice.createdAt
-    ? new Date(invoice.createdAt).toLocaleDateString('en-IN', {
+  const rawDate = invoice.invoiceDate || invoice.createdAt;
+  const invDate = rawDate
+    ? new Date(rawDate).toLocaleDateString('en-IN', {
         day: 'numeric',
         month: 'short',
         year: 'numeric',

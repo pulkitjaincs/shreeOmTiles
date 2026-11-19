@@ -18,6 +18,31 @@ export interface Party {
   address?: string;
   gstin?: string;
   type?: string;
+  category?: 'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER';
+  isSaved?: boolean;
+  netBalance?: number;
+  outstandingDue?: number;
+  storePayable?: number;
+  totalReceivable?: number;
+  totalPayable?: number;
+  creditLedgers?: Array<{
+    id?: string;
+    amountDue: number;
+    type?: 'RECEIVABLE' | 'PAYABLE';
+    status: string;
+  }>;
+}
+
+export interface PartyBalanceSummary {
+  partyId: string;
+  name: string;
+  phone?: string;
+  netBalance: number;
+  outstandingDue: number;
+  storePayable: number;
+  totalReceivable: number;
+  totalPayable: number;
+  unsettledCount?: number;
 }
 
 export interface PaymentRecord {

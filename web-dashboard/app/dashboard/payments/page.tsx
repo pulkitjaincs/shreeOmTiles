@@ -235,7 +235,7 @@ export default function TransactionsPage() {
           total: inv.total,
           paid: inv.paid,
           remainingDue: inv.remainingDue,
-          createdAt: inv.createdAt,
+          createdAt: (inv as any).invoiceDate || inv.createdAt,
           status: inv.status,
           isCreditLedger: false,
           creditType: 'RECEIVABLE' as const,

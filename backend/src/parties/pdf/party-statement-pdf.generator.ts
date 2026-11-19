@@ -1,10 +1,4 @@
-import {
-  PDFDocument,
-  PDFPage,
-  PDFFont,
-  rgb,
-  StandardFonts,
-} from 'pdf-lib';
+import { PDFDocument, PDFPage, PDFFont, rgb, StandardFonts } from 'pdf-lib';
 import { safePdfText } from '../../invoices/pdf/pdf-utils';
 
 export interface StatementItem {
@@ -759,7 +753,10 @@ export async function generatePartyStatementPdf(
       }
       if (entry.roundOff && Math.abs(entry.roundOff) > 0.005) {
         const sign = entry.roundOff > 0 ? '+ ' : '- ';
-        drawSummaryLine('Round off:', `${sign}${formatAmt(Math.abs(entry.roundOff))}`);
+        drawSummaryLine(
+          'Round off:',
+          `${sign}${formatAmt(Math.abs(entry.roundOff))}`,
+        );
       }
     }
 

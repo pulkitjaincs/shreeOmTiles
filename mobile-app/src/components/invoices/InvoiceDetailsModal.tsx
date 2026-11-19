@@ -87,7 +87,7 @@ export function InvoiceDetailsModal({
                 {invoice.items?.length || 0} Line Items
               </Text>
             )}
-            <Text style={styles.detailDateText}>{formatDate(invoice.createdAt)}</Text>
+            <Text style={styles.detailDateText}>{formatDate(invoice.invoiceDate || invoice.createdAt)}</Text>
           </View>
           <StatusBadge status={invoice.status} />
         </View>

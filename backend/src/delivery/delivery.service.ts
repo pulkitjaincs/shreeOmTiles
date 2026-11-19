@@ -21,7 +21,11 @@ import {
   PaymentType,
   Role,
 } from '@prisma/client';
-import { PaginationParams, DateRangeFilter, buildDateRange } from '../common/interfaces/pagination.interface';
+import {
+  PaginationParams,
+  DateRangeFilter,
+  buildDateRange,
+} from '../common/interfaces/pagination.interface';
 
 import { NotificationsService } from '../notifications/notifications.service';
 import { PaymentsService } from '../payments/payments.service';
@@ -135,7 +139,10 @@ export class DeliveryService {
   async findAll(
     driverId?: string,
     isDriverRole: boolean = false,
-    pagination?: PaginationParams & { dateFilter?: DateRangeFilter; search?: string },
+    pagination?: PaginationParams & {
+      dateFilter?: DateRangeFilter;
+      search?: string;
+    },
     requestingUser?: { id: string; role: Role; scope?: string | null },
   ): Promise<any> {
     const where: Prisma.DeliveryWhereInput = {};
@@ -1101,7 +1108,10 @@ export class DeliveryService {
           (sum, r) => sum + Number(r.total || 0),
           0,
         );
-        const netInvoiceTotal = Math.max(0, Number(invoice.total) - totalReturns);
+        const netInvoiceTotal = Math.max(
+          0,
+          Number(invoice.total) - totalReturns,
+        );
         const remainingDue = Math.max(
           0,
           Math.round((netInvoiceTotal - totalPaid) * 100) / 100,
@@ -1177,7 +1187,10 @@ export class DeliveryService {
           }
         }
 
-        await this.paymentsService.reconcilePartyFinancials(invoice.partyId, tx);
+        await this.paymentsService.reconcilePartyFinancials(
+          invoice.partyId,
+          tx,
+        );
       }
 
       return {

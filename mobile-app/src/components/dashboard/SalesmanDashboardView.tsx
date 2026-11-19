@@ -302,7 +302,7 @@ export function SalesmanDashboardView({
                     </Text>
 
                     <View style={styles.invMetaRow}>
-                      <Text style={styles.recentDate}>{formatDateTime(inv.createdAt)}</Text>
+                      <Text style={styles.recentDate}>{formatDateTime(inv.invoiceDate || inv.createdAt)}</Text>
                       {inv.partyPhone ? (
                         <TouchableOpacity
                           style={styles.invPhoneBtn}

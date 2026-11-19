@@ -55,6 +55,7 @@ export interface PartyInvoice {
   total: number;
   paymentMode?: string;
   createdAt: string;
+  invoiceDate?: string;
   items?: InvoiceItem[];
   payments?: Payment[];
   deliveries?: Delivery[];
@@ -138,8 +139,11 @@ export interface Party {
   category?: 'RETAIL' | 'CONTRACTOR' | 'ARCHITECT' | 'WHOLESALER';
   isSaved?: boolean;
   createdAt?: string;
+  netBalance?: number;
   outstandingDue?: number;
   storePayable?: number;
+  totalReceivable?: number;
+  totalPayable?: number;
   creditLedgers?: {
     id?: string;
     amountDue: number;

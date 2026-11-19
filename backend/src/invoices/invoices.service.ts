@@ -26,7 +26,11 @@ import {
   ProcessReturnDto,
   ProcessStandaloneReturnDto,
 } from './dto/process-return.dto';
-import { PaginationParams, DateRangeFilter, buildDateRange } from '../common/interfaces/pagination.interface';
+import {
+  PaginationParams,
+  DateRangeFilter,
+  buildDateRange,
+} from '../common/interfaces/pagination.interface';
 import { generateUpiIntentQr } from '../common/utils/upi.util';
 import { GeneratedPdfResult, TaxBreakupData } from './pdf/pdf-utils';
 import { generateInvoicePdf } from './pdf/invoice-pdf.generator';
@@ -145,7 +149,10 @@ export class InvoicesService {
     const totalAmount =
       Math.round((calculatedTotal + roundOffAmount) * 100) / 100;
 
-    const fy = this.getFinancialYear();
+    const invoiceDate = data.invoiceDate
+      ? new Date(data.invoiceDate)
+      : new Date();
+    const fy = this.getFinancialYear(invoiceDate);
     let resolvedPartyName = 'Customer';
 
     const invoice = await this.prisma.$transaction(async (tx) => {
@@ -185,6 +192,7 @@ export class InvoicesService {
           where: {
             partyId: party.id,
             status: { not: CreditStatus.SETTLED },
+            createdAt: { lt: invoiceDate },
           },
         });
         previousBalance = priorLedgers.reduce(
@@ -466,6 +474,7 @@ export class InvoicesService {
         previousBalance: new Prisma.Decimal(previousBalance.toFixed(2)),
         isCashSale: Boolean(data.isCashSale),
         quotationId: data.quotationId || null,
+        invoiceDate,
         subtotal: new Prisma.Decimal(subtotal.toFixed(2)),
         discountAmount: new Prisma.Decimal(discountAmount.toFixed(2)),
         tax: new Prisma.Decimal(taxAmount.toFixed(2)),
@@ -511,13 +520,16 @@ export class InvoicesService {
             mode: split.mode,
             amount: new Prisma.Decimal(split.amount.toFixed(2)),
             status: PaymentStatus.CONFIRMED,
-            paidAt: new Date(),
+            paidAt: invoiceDate,
+            createdAt: invoiceDate,
             confirmedById: salesmanId,
             upiTxnRef: split.upiTxnRef,
             upiUtr: split.upiUtr,
-            notes:
-              split.notes ||
-              `Upfront ${split.mode} payment of ₹${split.amount.toFixed(2)} for ${invoiceNo}`,
+            notes: split.notes
+              ? split.notes.includes('Upfront')
+                ? split.notes
+                : `Upfront: ${split.notes}`
+              : `Upfront ${split.mode} payment of ₹${split.amount.toFixed(2)} for ${invoiceNo}`,
           },
         });
       }
@@ -564,9 +576,10 @@ export class InvoicesService {
               mode: PaymentMode.CREDIT,
               amount: new Prisma.Decimal(plDeduct.toFixed(2)),
               status: PaymentStatus.CONFIRMED,
-              paidAt: new Date(),
+              paidAt: invoiceDate,
+              createdAt: invoiceDate,
               confirmedById: salesmanId,
-              notes: `Offset against customer Store Credit (₹${plDeduct.toFixed(2)})`,
+              notes: `Upfront offset against customer Store Credit (₹${plDeduct.toFixed(2)})`,
             },
           });
         }
@@ -587,8 +600,9 @@ export class InvoicesService {
             invoiceId: invoice.id,
             amountDue: new Prisma.Decimal(effectiveBalanceCredit.toFixed(2)),
             type: CreditType.RECEIVABLE,
-            dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // Default 30 days credit
+            dueDate: new Date(invoiceDate.getTime() + 30 * 24 * 60 * 60 * 1000), // Default 30 days credit from invoice date
             notes: `Balance receivable for Invoice #${invoiceNo}`,
+            createdAt: invoiceDate,
           },
         });
       }
@@ -600,7 +614,9 @@ export class InvoicesService {
           data: {
             invoiceId: invoice.id,
             status: DeliveryStatus.PENDING,
-            amountToCollect: new Prisma.Decimal(effectiveBalanceCredit.toFixed(2)),
+            amountToCollect: new Prisma.Decimal(
+              effectiveBalanceCredit.toFixed(2),
+            ),
             notes: data.notes || null,
           },
         });
@@ -623,7 +639,11 @@ export class InvoicesService {
 
   async findAll(
     user: { id: string; role: Role },
-    pagination?: PaginationParams & { createdById?: string; dateFilter?: DateRangeFilter; search?: string },
+    pagination?: PaginationParams & {
+      createdById?: string;
+      dateFilter?: DateRangeFilter;
+      search?: string;
+    },
   ): Promise<any> {
     const cacheKey = `invoices:${user.role}:${user.id}:${pagination?.createdById || ''}:${pagination?.dateFilter?.preset || ''}:${pagination?.dateFilter?.from || ''}:${pagination?.dateFilter?.to || ''}:${pagination?.search || ''}`;
     // Invoices list cache: 30 minutes (1800 seconds)
@@ -641,13 +661,24 @@ export class InvoicesService {
 
       const dateRange = buildDateRange(pagination?.dateFilter);
       if (dateRange) {
-        where.createdAt = dateRange;
+        where.invoiceDate = dateRange;
       }
       if (pagination?.search) {
         where.OR = [
           { invoiceNo: { contains: pagination.search, mode: 'insensitive' } },
-          { party: { name: { contains: pagination.search, mode: 'insensitive' } } },
-          { party: { phone: { contains: pagination.search.replace(/\D/g, ''), mode: 'insensitive' } } },
+          {
+            party: {
+              name: { contains: pagination.search, mode: 'insensitive' },
+            },
+          },
+          {
+            party: {
+              phone: {
+                contains: pagination.search.replace(/\D/g, ''),
+                mode: 'insensitive',
+              },
+            },
+          },
         ] as any;
       }
 
@@ -706,7 +737,7 @@ export class InvoicesService {
           this.prisma.invoice.findMany({
             where,
             include: includeRelations,
-            orderBy: { createdAt: 'desc' },
+            orderBy: [{ invoiceDate: 'desc' }, { createdAt: 'desc' }],
             skip,
             take: limit,
           }),
@@ -730,7 +761,7 @@ export class InvoicesService {
       const invoices = await this.prisma.invoice.findMany({
         where,
         include: includeRelations,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ invoiceDate: 'desc' }, { createdAt: 'desc' }],
         ...(dateRange || pagination?.search ? {} : { take: 2000 }),
       });
 
@@ -1667,20 +1698,24 @@ export class InvoicesService {
    */
   async generatePdf(id: string): Promise<GeneratedPdfResult> {
     const invoice = await this.findOne(id);
-    const prevCreditLedgers = await this.prisma.creditLedger.findMany({
-      where: {
-        partyId: invoice.partyId,
-        status: { not: CreditStatus.SETTLED },
-        createdAt: { lt: invoice.createdAt },
-      },
-    });
-    const previousBalance = prevCreditLedgers.reduce(
-      (sum, item) =>
-        item.type === CreditType.RECEIVABLE
-          ? sum + Number(item.amountDue || 0)
-          : sum - Number(item.amountDue || 0),
-      0,
-    );
+    let previousBalance = 0;
+    if (invoice.partyId) {
+      const prevCreditLedgers = await this.prisma.creditLedger.findMany({
+        where: {
+          partyId: invoice.partyId,
+          status: { not: CreditStatus.SETTLED },
+          NOT: { invoiceId: invoice.id },
+          createdAt: { lt: invoice.invoiceDate || invoice.createdAt },
+        },
+      });
+      previousBalance = prevCreditLedgers.reduce(
+        (sum, item) =>
+          item.type === CreditType.RECEIVABLE
+            ? sum + Number(item.amountDue || 0)
+            : sum - Number(item.amountDue || 0),
+        0,
+      );
+    }
 
     return generateInvoicePdf({
       ...invoice,
@@ -1921,6 +1956,10 @@ export class InvoicesService {
         'Cannot edit invoice with processed returns. Revert refunds first.',
       );
     }
+
+    const effectiveInvoiceDate = data.invoiceDate
+      ? new Date(data.invoiceDate)
+      : existing.invoiceDate || existing.createdAt;
 
     const companyState = process.env.COMPANY_STATE_CODE || '07';
     const taxRate =
@@ -2247,8 +2286,16 @@ export class InvoicesService {
           where: { invoiceId: id },
         });
 
+        const targetInvoiceDate = effectiveInvoiceDate;
+
         for (const split of submittedSplits) {
           if (split.amount <= 0) continue;
+          const noteText = split.notes
+            ? split.notes.includes('Upfront')
+              ? split.notes
+              : `Upfront: ${split.notes}`
+            : `Upfront ${split.mode} payment of ₹${split.amount.toFixed(2)} for ${existing.invoiceNo}`;
+
           await tx.payment.create({
             data: {
               invoiceId: id,
@@ -2256,13 +2303,12 @@ export class InvoicesService {
               mode: split.mode,
               amount: new Prisma.Decimal(split.amount.toFixed(2)),
               status: PaymentStatus.CONFIRMED,
-              paidAt: new Date(),
+              paidAt: targetInvoiceDate,
+              createdAt: targetInvoiceDate,
               confirmedById: actorId,
               upiTxnRef: split.upiTxnRef,
               upiUtr: split.upiUtr,
-              notes:
-                split.notes ||
-                `Updated ${split.mode} payment of ₹${split.amount.toFixed(2)} for ${existing.invoiceNo}`,
+              notes: noteText,
             },
           });
         }
@@ -2339,8 +2385,11 @@ export class InvoicesService {
               totalSettledOrPaid > 0
                 ? CreditStatus.PARTIAL
                 : CreditStatus.UNPAID,
-            dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+            dueDate: new Date(
+              effectiveInvoiceDate.getTime() + 30 * 24 * 60 * 60 * 1000,
+            ),
             notes: `Balance receivable for Invoice #${existing.invoiceNo} (Updated)`,
+            createdAt: effectiveInvoiceDate,
           },
         });
       }
@@ -2421,31 +2470,51 @@ export class InvoicesService {
 
       // 9. Update the Invoice record
       let resolvedPreviousBalance = Number(existing.previousBalance || 0);
-      if (party.id !== existing.partyId) {
-        if (data.previousBalance !== undefined) {
-          resolvedPreviousBalance = Number(data.previousBalance);
-        } else {
-          const priorLedgers = await tx.creditLedger.findMany({
-            where: {
-              partyId: party.id,
-              invoiceId: { not: id },
-              status: { not: CreditStatus.SETTLED },
-            },
-          });
-          resolvedPreviousBalance = priorLedgers.reduce(
-            (sum, cl) =>
-              cl.type === CreditType.RECEIVABLE
-                ? sum + Number(cl.amountDue || 0)
-                : sum - Number(cl.amountDue || 0),
-            0,
-          );
-        }
-      } else if (
-        data.previousBalance !== undefined &&
-        (existing.previousBalance === null ||
-          Number(existing.previousBalance) === 0)
-      ) {
+      const isPartyChanged = party.id !== existing.partyId;
+      const existingDateMs = (
+        existing.invoiceDate || existing.createdAt
+      ).getTime();
+      const isDateChanged =
+        data.invoiceDate !== undefined &&
+        new Date(data.invoiceDate).getTime() !== existingDateMs;
+
+      if (isPartyChanged || isDateChanged) {
+        const priorLedgers = await tx.creditLedger.findMany({
+          where: {
+            partyId: party.id,
+            invoiceId: { not: id },
+            status: { not: CreditStatus.SETTLED },
+            createdAt: { lt: effectiveInvoiceDate },
+          },
+        });
+        resolvedPreviousBalance = priorLedgers.reduce(
+          (sum, cl) =>
+            cl.type === CreditType.RECEIVABLE
+              ? sum + Number(cl.amountDue || 0)
+              : sum - Number(cl.amountDue || 0),
+          0,
+        );
+      } else if (data.previousBalance !== undefined) {
         resolvedPreviousBalance = Number(data.previousBalance);
+      }
+
+      if (data.invoiceDate) {
+        const newDate = new Date(data.invoiceDate);
+        await tx.payment.updateMany({
+          where: {
+            invoiceId: id,
+            status: PaymentStatus.CONFIRMED,
+            notes: { contains: 'Upfront', mode: 'insensitive' },
+          },
+          data: { paidAt: newDate, createdAt: newDate },
+        });
+        await tx.creditLedger.updateMany({
+          where: { invoiceId: id },
+          data: {
+            createdAt: newDate,
+            dueDate: new Date(newDate.getTime() + 30 * 24 * 60 * 60 * 1000),
+          },
+        });
       }
 
       const updateData = {
@@ -2463,6 +2532,9 @@ export class InvoicesService {
           data.quotationId !== undefined
             ? data.quotationId
             : existing.quotationId,
+        ...(data.invoiceDate
+          ? { invoiceDate: new Date(data.invoiceDate) }
+          : {}),
         subtotal: new Prisma.Decimal(subtotal.toFixed(2)),
         discountAmount: new Prisma.Decimal(discountAmount.toFixed(2)),
         tax: new Prisma.Decimal(taxAmount.toFixed(2)),
