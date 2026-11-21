@@ -1,0 +1,10 @@
+export const STANDARD_TERMS_AND_CONDITIONS = [
+  'NO COMPANY WILL RESPONSIBLE AFTER LAYING OF TILE.',
+  'NO RETURN AFTER 1 WEEK.',
+  '2%-3% DAMAGE IN DELIVERY IS ACCEPTABLE.',
+  'RETURN TIMING AFTER 2:00 PM.',
+  '100% PAYMENT IN ADVANCE OR 50% AT BILLING AND 50% AT TIME OF DELIVERY.',
+] as const;
+
+export const WHATSAPP_PAYMENT_TERMS_TEXT =
+  '📋 *Payment Terms:* 100% payment in advance or 50% at billing and 50% at the time of delivery.';

@@ -1,5 +1,6 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 import { safePdfText, numberToWordsIndian } from '../../invoices/pdf/pdf-utils';
+import { STANDARD_TERMS_AND_CONDITIONS } from '../../common/constants/terms.constants';
 
 export interface QuotationPdfPayload {
   id: string;
@@ -416,22 +417,56 @@ export async function generateQuotationPdf(
 
   currentY -= sumH;
 
-  // Signatory
-  currentY -= 20;
+  // Footer: Terms & Conditions (Left) and Signatory (Right)
+  currentY -= 14;
+  const termsBoxH = 68;
+  const termsBoxW = contentWidth * 0.62;
+
+  page.drawRectangle({
+    x: leftMargin,
+    y: currentY - termsBoxH,
+    width: termsBoxW,
+    height: termsBoxH,
+    borderColor: lightBorder,
+    borderWidth: 1,
+  });
+
+  page.drawText('Terms and conditions', {
+    x: leftMargin + 8,
+    y: currentY - 11,
+    size: 7.5,
+    font: fontBold,
+    color: black,
+  });
+
+  const qTermSpacing = 9.5;
+  STANDARD_TERMS_AND_CONDITIONS.forEach((term, idx) => {
+    page.drawText(term, {
+      x: leftMargin + 8,
+      y: currentY - 21 - idx * qTermSpacing,
+      size: 5.6,
+      font: fontRegular,
+      color: darkGray,
+    });
+  });
+
+  // Signatory (Right)
   page.drawText('For : SHREE OM TILES', {
-    x: rightMargin - 180,
-    y: currentY - 10,
+    x: rightMargin - 160,
+    y: currentY - 14,
     size: 8,
     font: fontBold,
     color: black,
   });
   page.drawText('[ Authorized Signatory ]', {
-    x: rightMargin - 150,
-    y: currentY - 45,
+    x: rightMargin - 145,
+    y: currentY - 55,
     size: 7.5,
     font: fontRegular,
     color: darkGray,
   });
+
+  currentY -= termsBoxH;
 
   const pdfBytes = await doc.save();
   return { pdfBytes, quotationNo: quotation.quotationNo };

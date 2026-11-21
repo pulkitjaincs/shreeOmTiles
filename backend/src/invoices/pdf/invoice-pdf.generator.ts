@@ -7,6 +7,7 @@ import {
   TaxBreakupData,
   numberToWordsIndian,
 } from './pdf-utils';
+import { STANDARD_TERMS_AND_CONDITIONS } from '../../common/constants/terms.constants';
 
 interface CachedPdf {
   pdfBytes: Uint8Array;
@@ -860,7 +861,7 @@ export async function generateInvoicePdf(
   currentY -= amountsBoxHeight;
 
   // 6. Terms & Conditions (Left) and Authorized Signatory (Right)
-  const footerBoxHeight = 70;
+  const footerBoxHeight = 74;
   page.drawRectangle({
     x: leftMargin,
     y: currentY - footerBoxHeight,
@@ -881,38 +882,20 @@ export async function generateInvoicePdf(
   const termsX = leftMargin + 8;
   page.drawText('Terms and conditions', {
     x: termsX,
-    y: currentY - 12,
+    y: currentY - 11,
     size: 7.5,
     font: fontBold,
     color: black,
   });
-  page.drawText('NO COMPANY WILL RESPONSIBLE AFTER LAYING OF TILE.', {
-    x: termsX,
-    y: currentY - 24,
-    size: 6.5,
-    font: fontRegular,
-    color: darkGray,
-  });
-  page.drawText('NO RETURN AFTER 1 WEEK.', {
-    x: termsX,
-    y: currentY - 34,
-    size: 6.5,
-    font: fontRegular,
-    color: darkGray,
-  });
-  page.drawText('2%-3% DAMAGE IN DELIVERY IS ACCEPTABLE.', {
-    x: termsX,
-    y: currentY - 44,
-    size: 6.5,
-    font: fontRegular,
-    color: darkGray,
-  });
-  page.drawText('RETURN TIMING AFTER 2:00 PM.', {
-    x: termsX,
-    y: currentY - 54,
-    size: 6.5,
-    font: fontRegular,
-    color: darkGray,
+  const termLineSpacing = 9.5;
+  STANDARD_TERMS_AND_CONDITIONS.forEach((term, idx) => {
+    page.drawText(term, {
+      x: termsX,
+      y: currentY - 21 - idx * termLineSpacing,
+      size: 6.2,
+      font: fontRegular,
+      color: darkGray,
+    });
   });
 
   // Signatory Box
@@ -926,7 +909,7 @@ export async function generateInvoicePdf(
   });
   page.drawText('Authorized Signatory', {
     x: sigX + 45,
-    y: currentY - 58,
+    y: currentY - 60,
     size: 7,
     font: fontBold,
     color: darkGray,

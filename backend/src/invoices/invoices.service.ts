@@ -937,7 +937,7 @@ export class InvoicesService {
     });
 
     // Customer caption - strictly direct message without any external links
-    const customerMessage = `Hi ${customerName}, please find attached your Invoice #${invoice.invoiceNo} from ${companyName}. Total Amount: Rs. ${total}. Thank you for your business!`;
+    const customerMessage = `Hi ${customerName}, please find attached your Invoice #${invoice.invoiceNo} from ${companyName}. Total Amount: Rs. ${total}. Terms: 100% payment in advance or 50% at billing and 50% at delivery. Thank you for your business!`;
     const cleanPhone = customerPhone
       ? customerPhone.replace(/[^0-9]/g, '')
       : '';

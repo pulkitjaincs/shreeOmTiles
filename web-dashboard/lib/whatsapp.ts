@@ -169,6 +169,7 @@ export function buildInvoiceShareUrl(
     `• *Total Amount:* ${formatINR(totalAmount)}\n` +
     `• *Amount Paid:* ${formatINR(paidAmount)}\n` +
     (balanceDue > 0 ? `• *Balance Due:* ${formatINR(balanceDue)}\n\n` : `• *Status:* Fully Paid ✓\n\n`) +
+    `📋 *Payment Terms:* 100% payment in advance or 50% at billing and 50% at the time of delivery.\n\n` +
     `For any queries or delivery assistance, please reach out to us.\n\n` +
     `*Shree Om Tiles*`;
 
@@ -238,6 +239,8 @@ export function buildFullInvoiceMessage(invoice: any): string {
     `Paid: ₹${paid.toFixed(2)}`,
     due > 0 ? `*Balance Due: ₹${due.toFixed(2)}*` : `*Status: Fully Paid (✓)*`,
     invoice.notes ? `\n📝 Note: ${invoice.notes}` : '',
+    `----------------------------------------`,
+    `📋 *Terms:* 100% payment in advance or 50% at billing and 50% at delivery.`,
     `----------------------------------------`,
     `Thank you for your business! 🙏`,
   ].filter(Boolean).join('\n');

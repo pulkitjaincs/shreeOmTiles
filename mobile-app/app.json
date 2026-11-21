@@ -14,7 +14,7 @@
     },
     "android": {
       "package": "com.shreeomtiles.erp",
-      "versionCode": 7,
+      "versionCode": 8,
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE",
