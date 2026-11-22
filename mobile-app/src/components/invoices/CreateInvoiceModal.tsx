@@ -514,8 +514,15 @@ export function CreateInvoiceModal({
 
     setSubmitting(true);
     try {
+      const now = new Date();
+      const todayStr = getTodayLocalDate();
+      const effectiveIsoDate =
+        invoiceDate === todayStr
+          ? now.toISOString()
+          : new Date(`${invoiceDate}T12:00:00.000Z`).toISOString();
+
       const payload: any = {
-        invoiceDate: new Date(invoiceDate).toISOString(),
+        invoiceDate: effectiveIsoDate,
         taxRate,
         discountAmount: discount,
         roundOffEnabled,

@@ -30,6 +30,7 @@ import {
 import { generateUpiIntentQr } from '../common/utils/upi.util';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CacheService } from '../common/cache.service';
+import { calculateInvoicePreviousBalance } from '../invoices/invoices.service';
 
 export type PaymentWithRelations = Prisma.PaymentGetPayload<{
   include: {
@@ -515,23 +516,11 @@ export class PaymentsService implements OnModuleInit {
 
       // 7. Auto-heal historical invoice.previousBalance values (Bug D fix)
       for (const inv of party.invoices) {
-        const targetDate = (inv as any).invoiceDate || inv.createdAt;
-        const priorLedgers = await tx.creditLedger.findMany({
-          where: {
-            partyId: party.id,
-            status: { not: CreditStatus.SETTLED },
-            NOT: { invoiceId: inv.id },
-            createdAt: { lt: targetDate },
-          },
-        });
-        const truePriorBalance = priorLedgers.reduce(
-          (sum, cl) =>
-            cl.type === CreditType.RECEIVABLE
-              ? sum + Number(cl.amountDue || 0)
-              : sum - Number(cl.amountDue || 0),
-          0,
+        const resolvedTruePrior = await calculateInvoicePreviousBalance(
+          tx,
+          party.id,
+          inv,
         );
-        const resolvedTruePrior = Math.max(0, truePriorBalance);
         if (
           inv.previousBalance !== null &&
           Math.abs(Number(inv.previousBalance) - resolvedTruePrior) > 0.05

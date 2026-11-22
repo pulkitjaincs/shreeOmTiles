@@ -506,7 +506,11 @@ export function CreateInvoiceModal({
       discountAmount: discount,
       roundOffEnabled,
       roundOffAmount,
-      invoiceDate: invoiceDate ? new Date(invoiceDate).toISOString() : undefined,
+      invoiceDate: invoiceDate
+        ? invoiceDate === getTodayLocalDate()
+          ? new Date().toISOString()
+          : new Date(`${invoiceDate}T12:00:00.000Z`).toISOString()
+        : undefined,
       notes: notes || undefined,
       items: invoicePayloadItems,
     };

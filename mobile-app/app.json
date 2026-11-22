@@ -10,11 +10,11 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.shreeomtiles.erp",
-      "buildNumber": "7"
+      "buildNumber": "8"
     },
     "android": {
       "package": "com.shreeomtiles.erp",
-      "versionCode": 8,
+      "versionCode": 9,
       "permissions": [
         "INTERNET",
         "ACCESS_NETWORK_STATE",
@@ -84,7 +84,7 @@
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/7a84db34-9091-4aeb-b253-fd5636418ecb",
+      "url": "https://u.expo.dev/d6160d8b-3c20-45b3-88af-26382f339f5d",
       "checkAutomatically": "ON_LOAD",
       "fallbackToCacheTimeout": 5000
     },

@@ -3,15 +3,19 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const rawApiUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
 const normalizedUrl = rawApiUrl ? rawApiUrl.replace(/\/+$/, '') : '';
+const PRODUCTION_FALLBACK = 'https://shreeomtiles-backend.onrender.com';
+
 export const API_BASE =
   normalizedUrl && Platform.OS === 'android' && (normalizedUrl.includes('localhost') || normalizedUrl.includes('127.0.0.1'))
     ? normalizedUrl.replace('localhost', '10.0.2.2').replace('127.0.0.1', '10.0.2.2')
     : normalizedUrl ||
-      Platform.select({
-        android: 'http://10.0.2.2:3001',
-        ios: 'http://localhost:3001',
-        default: 'http://localhost:3001',
-      });
+      (__DEV__
+        ? Platform.select({
+            android: 'http://10.0.2.2:3001',
+            ios: 'http://localhost:3001',
+            default: 'http://localhost:3001',
+          })
+        : PRODUCTION_FALLBACK);
 
 export const CACHE_PREFIX = 'dhra_mobile_cache:';
 

@@ -33,7 +33,10 @@ import {
 } from '../common/interfaces/pagination.interface';
 import { generateUpiIntentQr } from '../common/utils/upi.util';
 import { GeneratedPdfResult, TaxBreakupData } from './pdf/pdf-utils';
-import { generateInvoicePdf } from './pdf/invoice-pdf.generator';
+import {
+  generateInvoicePdf,
+  clearPdfBufferCache,
+} from './pdf/invoice-pdf.generator';
 import { generateRefundInvoicePdf } from './pdf/refund-pdf.generator';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CacheService } from '../common/cache.service';
@@ -72,6 +75,116 @@ type ExtendedRefundInvoiceItemInput =
     customItemName?: string | null;
   };
 
+/**
+ * Accurately calculates previous balance for a party prior to a target invoice.
+ * Incorporates:
+ * 1. Opening balance credit ledgers (always preceding invoices).
+ * 2. Unsettled credit ledgers from strictly prior calendar dates.
+ * 3. Unsettled credit ledgers from the same calendar date that precede target invoice (by createdAt or invoiceNo).
+ * 4. Excludes the target invoice itself and any subsequent invoices.
+ */
+export async function calculateInvoicePreviousBalance(
+  prismaClient: PrismaService | Prisma.TransactionClient,
+  partyId: string,
+  targetInvoice?: {
+    id?: string;
+    invoiceDate?: Date | string | null;
+    createdAt?: Date | string | null;
+    invoiceNo?: string | null;
+  } | null,
+): Promise<number> {
+  if (!partyId) return 0;
+
+  const creditLedgers = await prismaClient.creditLedger.findMany({
+    where: {
+      partyId,
+      status: { not: CreditStatus.SETTLED },
+    },
+    include: {
+      invoice: {
+        select: {
+          id: true,
+          invoiceNo: true,
+          invoiceDate: true,
+          createdAt: true,
+        },
+      },
+    },
+  });
+
+  if (!creditLedgers || creditLedgers.length === 0) return 0;
+
+  if (!targetInvoice) {
+    const total = creditLedgers.reduce(
+      (sum, cl) =>
+        cl.type === CreditType.RECEIVABLE
+          ? sum + Number(cl.amountDue || 0)
+          : sum - Number(cl.amountDue || 0),
+      0,
+    );
+    return Math.max(0, Math.round(total * 100) / 100);
+  }
+
+  const targetDateRaw = targetInvoice.invoiceDate || targetInvoice.createdAt;
+  const targetDateObj = targetDateRaw ? new Date(targetDateRaw) : new Date();
+  const targetDateStr = targetDateObj.toISOString().slice(0, 10);
+  const targetCreated = targetInvoice.createdAt
+    ? new Date(targetInvoice.createdAt).getTime()
+    : targetDateObj.getTime();
+  const targetInvNo = targetInvoice.invoiceNo || '';
+
+  let previousBalance = 0;
+
+  for (const cl of creditLedgers) {
+    if (cl.invoiceId && targetInvoice.id && cl.invoiceId === targetInvoice.id) {
+      continue;
+    }
+
+    if (!cl.invoiceId) {
+      if (cl.notes?.toLowerCase().includes('opening balance')) {
+        const amt = Number(cl.amountDue || 0);
+        previousBalance += cl.type === CreditType.RECEIVABLE ? amt : -amt;
+        continue;
+      }
+      const clCreated = new Date(cl.createdAt).getTime();
+      if (clCreated <= targetCreated) {
+        const amt = Number(cl.amountDue || 0);
+        previousBalance += cl.type === CreditType.RECEIVABLE ? amt : -amt;
+      }
+      continue;
+    }
+
+    const clInv = cl.invoice;
+    const clDateRaw = clInv?.invoiceDate || clInv?.createdAt || cl.createdAt;
+    const clDateObj = new Date(clDateRaw);
+    const clDateStr = clDateObj.toISOString().slice(0, 10);
+    const clCreated = clInv?.createdAt
+      ? new Date(clInv.createdAt).getTime()
+      : new Date(cl.createdAt).getTime();
+    const clInvNo = clInv?.invoiceNo || '';
+
+    let isPrior = false;
+    if (clDateStr < targetDateStr) {
+      isPrior = true;
+    } else if (clDateStr === targetDateStr) {
+      if (clCreated > 0 && targetCreated > 0 && clCreated !== targetCreated) {
+        isPrior = clCreated < targetCreated;
+      } else if (clInvNo && targetInvNo) {
+        isPrior = clInvNo < targetInvNo;
+      } else {
+        isPrior = !targetInvoice.id;
+      }
+    }
+
+    if (isPrior) {
+      const amt = Number(cl.amountDue || 0);
+      previousBalance += cl.type === CreditType.RECEIVABLE ? amt : -amt;
+    }
+  }
+
+  return Math.max(0, Math.round(previousBalance * 100) / 100);
+}
+
 @Injectable()
 export class InvoicesService {
   constructor(
@@ -81,6 +194,7 @@ export class InvoicesService {
   ) {}
 
   private invalidateInvoiceCaches(): void {
+    clearPdfBufferCache();
     this.cacheService.invalidatePrefix('invoices:');
     this.cacheService.invalidatePrefix('analytics:');
     this.cacheService.invalidatePrefix('parties:');
@@ -188,20 +302,19 @@ export class InvoicesService {
 
       let previousBalance = Number(data.previousBalance || 0);
       if (party) {
-        const priorLedgers = await tx.creditLedger.findMany({
-          where: {
-            partyId: party.id,
-            status: { not: CreditStatus.SETTLED },
-            createdAt: { lt: invoiceDate },
-          },
-        });
-        previousBalance = priorLedgers.reduce(
-          (sum, cl) =>
-            cl.type === CreditType.RECEIVABLE
-              ? sum + Number(cl.amountDue || 0)
-              : sum - Number(cl.amountDue || 0),
-          0,
-        );
+        if (
+          data.previousBalance !== undefined &&
+          data.previousBalance !== null &&
+          Number(data.previousBalance) > 0
+        ) {
+          previousBalance = Number(data.previousBalance);
+        } else {
+          previousBalance = await calculateInvoicePreviousBalance(
+            tx,
+            party.id,
+            { invoiceDate, createdAt: new Date() },
+          );
+        }
       }
 
       // GST Breakup based on validated party state
@@ -594,6 +707,12 @@ export class InvoicesService {
 
       // 6. If remaining balance is greater than 0, record in Credit Ledger
       if (effectiveBalanceCredit > 0.005) {
+        const effectiveLedgerCreatedAt =
+          invoiceDate.toISOString().slice(0, 10) ===
+          new Date().toISOString().slice(0, 10)
+            ? new Date()
+            : invoiceDate;
+
         await tx.creditLedger.create({
           data: {
             partyId: party.id,
@@ -602,7 +721,7 @@ export class InvoicesService {
             type: CreditType.RECEIVABLE,
             dueDate: new Date(invoiceDate.getTime() + 30 * 24 * 60 * 60 * 1000), // Default 30 days credit from invoice date
             notes: `Balance receivable for Invoice #${invoiceNo}`,
-            createdAt: invoiceDate,
+            createdAt: effectiveLedgerCreatedAt,
           },
         });
       }
@@ -1698,22 +1817,12 @@ export class InvoicesService {
    */
   async generatePdf(id: string): Promise<GeneratedPdfResult> {
     const invoice = await this.findOne(id);
-    let previousBalance = 0;
+    let previousBalance = Number(invoice.previousBalance || 0);
     if (invoice.partyId) {
-      const prevCreditLedgers = await this.prisma.creditLedger.findMany({
-        where: {
-          partyId: invoice.partyId,
-          status: { not: CreditStatus.SETTLED },
-          NOT: { invoiceId: invoice.id },
-          createdAt: { lt: invoice.invoiceDate || invoice.createdAt },
-        },
-      });
-      previousBalance = prevCreditLedgers.reduce(
-        (sum, item) =>
-          item.type === CreditType.RECEIVABLE
-            ? sum + Number(item.amountDue || 0)
-            : sum - Number(item.amountDue || 0),
-        0,
+      previousBalance = await calculateInvoicePreviousBalance(
+        this.prisma,
+        invoice.partyId,
+        invoice,
       );
     }
 
@@ -2479,20 +2588,15 @@ export class InvoicesService {
         new Date(data.invoiceDate).getTime() !== existingDateMs;
 
       if (isPartyChanged || isDateChanged) {
-        const priorLedgers = await tx.creditLedger.findMany({
-          where: {
-            partyId: party.id,
-            invoiceId: { not: id },
-            status: { not: CreditStatus.SETTLED },
-            createdAt: { lt: effectiveInvoiceDate },
+        resolvedPreviousBalance = await calculateInvoicePreviousBalance(
+          tx,
+          party.id,
+          {
+            id,
+            invoiceDate: effectiveInvoiceDate,
+            createdAt: existing.createdAt,
+            invoiceNo: existing.invoiceNo,
           },
-        });
-        resolvedPreviousBalance = priorLedgers.reduce(
-          (sum, cl) =>
-            cl.type === CreditType.RECEIVABLE
-              ? sum + Number(cl.amountDue || 0)
-              : sum - Number(cl.amountDue || 0),
-          0,
         );
       } else if (data.previousBalance !== undefined) {
         resolvedPreviousBalance = Number(data.previousBalance);

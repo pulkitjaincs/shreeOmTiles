@@ -17,6 +17,10 @@ interface CachedPdf {
 const pdfBufferCache = new Map<string, CachedPdf>();
 const MAX_PDF_CACHE_SIZE = 50;
 
+export function clearPdfBufferCache(): void {
+  pdfBufferCache.clear();
+}
+
 export async function generateInvoicePdf(
   invoice: InvoicePdfPayload,
 ): Promise<GeneratedPdfResult> {
