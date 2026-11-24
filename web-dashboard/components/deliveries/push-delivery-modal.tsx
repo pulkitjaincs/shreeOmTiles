@@ -81,7 +81,11 @@ export function PushDeliveryModal({ delivery, drivers = [], onClose, onSuccess }
     const timer = setTimeout(() => {
       setActiveTab('DELIVERY');
       setSelectedDriverId(delivery.driverId || delivery.driver?.id || '');
-      setAmountToCollect(delivery.amountToCollect ?? 0);
+      const isPaid =
+        delivery.invoice?.status === 'PAID' ||
+        delivery.invoice?.status === 'CANCELLED' ||
+        delivery.cashHandedOver === true;
+      setAmountToCollect(isPaid ? 0 : (delivery.amountToCollect ?? 0));
       setVehicle(delivery.trips?.[0]?.vehicle || '');
       setNotes(delivery.notes || '');
 
@@ -181,10 +185,14 @@ export function PushDeliveryModal({ delivery, drivers = [], onClose, onSuccess }
       ? `\n\n🛡️ *ASSIGNED SUPERVISOR(S):*\n${supervisorDetails}\n(Coordinate item pickup with the supervisor)`
       : '';
 
+    const isPaid =
+      inv?.status === 'PAID' ||
+      inv?.status === 'CANCELLED' ||
+      delivery.cashHandedOver === true;
     const paymentLine =
-      collectAmount > 0
+      !isPaid && collectAmount > 0
         ? `💵 *AMOUNT TO COLLECT FROM CUSTOMER:* *₹${collectAmount.toFixed(2)}* (Please collect from customer before delivering)`
-        : `💵 *PAYMENT:* Already Settled / Collect ₹0`;
+        : `💵 *AMOUNT TO COLLECT:* *₹0 (Prepaid / Already Settled)*`;
 
     return `📦 *DELIVERY ASSIGNMENT — OUT FOR PICKUP*
 *Invoice:* #${inv?.invoiceNo}

@@ -56,7 +56,10 @@ export function DriverDashboardView({
           d.status === 'OUT_FOR_DELIVERY' ||
           d.status === 'PICKED_UP' ||
           (d.status === 'DELIVERED' &&
-            Number(d.amountToCollect || 0) > 0 &&
+            d.invoice?.status !== 'PAID' &&
+            d.invoice?.status !== 'CANCELLED' &&
+            d.cashHandedOver !== true &&
+            Number(d.amountToCollect || 0) > 0.01 &&
             Number(d.cashCollected || 0) === 0),
       ) ||
       driverDeliveries.find((d) => d.status === 'ASSIGNED')
@@ -110,7 +113,11 @@ export function DriverDashboardView({
 
       if (newStatus === 'DELIVERED') {
         const target = driverDeliveries.find((d) => d.id === deliveryId) || updated;
-        if (Number(target.amountToCollect || 0) > 0) {
+        const isPaid =
+          target.invoice?.status === 'PAID' ||
+          target.invoice?.status === 'CANCELLED' ||
+          target.cashHandedOver === true;
+        if (!isPaid && Number(target.amountToCollect || 0) > 0.01) {
           setCollectCashDelivery(target);
         }
       }

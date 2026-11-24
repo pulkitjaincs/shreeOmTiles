@@ -289,8 +289,20 @@ export class DeliveryService {
                 qty: it.qty,
                 pickedUp: false,
               }));
+
+        const isInvoicePaid =
+          d.invoice?.status === InvoiceStatus.PAID ||
+          d.invoice?.status === InvoiceStatus.CANCELLED;
+        let effectiveAmount = Number(d.amountToCollect || 0);
+        if (isInvoicePaid || d.cashHandedOver === true) {
+          effectiveAmount = 0;
+        } else {
+          effectiveAmount = Math.max(0, effectiveAmount);
+        }
+
         const normalized = {
           ...d,
+          amountToCollect: new Prisma.Decimal(effectiveAmount.toFixed(2)),
           items: parsedItems,
         };
         return isSupervisor ? sanitizeForSupervisor(normalized) : normalized;
@@ -378,8 +390,19 @@ export class DeliveryService {
             pickedUp: false,
           }));
 
+    const isInvoicePaid =
+      delivery.invoice?.status === InvoiceStatus.PAID ||
+      delivery.invoice?.status === InvoiceStatus.CANCELLED;
+    let effectiveAmount = Number(delivery.amountToCollect || 0);
+    if (isInvoicePaid || delivery.cashHandedOver === true) {
+      effectiveAmount = 0;
+    } else {
+      effectiveAmount = Math.max(0, effectiveAmount);
+    }
+
     const result = {
       ...delivery,
+      amountToCollect: new Prisma.Decimal(effectiveAmount.toFixed(2)),
       items: parsedItems,
     };
 
@@ -539,6 +562,11 @@ export class DeliveryService {
       }
     }
 
+    const isPrepaidOrSettled =
+      delivery.invoice?.status === InvoiceStatus.PAID ||
+      delivery.invoice?.status === InvoiceStatus.CANCELLED ||
+      Number(delivery.amountToCollect || 0) <= 0.01;
+
     const updated = await this.prisma.delivery.update({
       where: { id },
       data: {
@@ -547,6 +575,13 @@ export class DeliveryService {
           ? {
               driverId: null,
               items: updatedItems as unknown as Prisma.InputJsonValue,
+            }
+          : {}),
+        ...(status === DeliveryStatus.DELIVERED && isPrepaidOrSettled
+          ? {
+              amountToCollect: new Prisma.Decimal(0),
+              cashCollected: new Prisma.Decimal(0),
+              cashHandedOver: true,
             }
           : {}),
         ...(notes !== undefined ? { notes } : {}),
@@ -959,19 +994,81 @@ export class DeliveryService {
     id: string,
     amount: number,
     notes?: string,
-    actorId?: string,
+    requestingUser?: { id: string; role?: Role } | string,
   ) {
     const delivery = await this.findOne(id);
+    const actorId =
+      typeof requestingUser === 'string'
+        ? requestingUser
+        : requestingUser?.id;
+    const actorRole =
+      typeof requestingUser === 'object' ? requestingUser?.role : undefined;
 
-    const cashDecimal = new Prisma.Decimal((amount || 0).toFixed(2));
+    if (
+      actorRole === Role.DRIVER &&
+      delivery.driverId !== actorId
+    ) {
+      throw new ForbiddenException(
+        'Drivers can only collect cash for their own assigned deliveries.',
+      );
+    }
+
+    const actorNote = actorId ? ` [Staff: ${actorId}]` : '';
+
+    if ((amount || 0) <= 0) {
+      const zeroCashNote = notes
+        ? `${notes} (Paid online/counter)`
+        : 'Paid online/counter';
+      const finalNotes = delivery.notes
+        ? `${delivery.notes} | ${zeroCashNote}${actorNote}`
+        : `${zeroCashNote}${actorNote}`;
+
+      const updated = await this.prisma.delivery.update({
+        where: { id },
+        data: {
+          status: DeliveryStatus.DELIVERED,
+          amountToCollect: new Prisma.Decimal(0),
+          cashCollected: new Prisma.Decimal(0),
+          cashCollectedAt: new Date(),
+          cashHandedOver: true, // Cleared from driver custody
+          notes: finalNotes,
+        },
+        include: {
+          invoice: {
+            include: {
+              party: true,
+              items: { include: { product: true, warehouse: true } },
+            },
+          },
+          driver: { select: { id: true, name: true, phone: true } },
+          trips: true,
+        },
+      });
+
+      void this.notifications.notifyAdmins(
+        'Delivery Marked Delivered (Online/Counter Paid)',
+        `Driver ${delivery.driver?.name || 'Driver'} delivered Invoice #${delivery.invoice?.invoiceNo} without cash collection (Paid online/counter).`,
+        { type: 'DELIVERY_DELIVERED', deliveryId: id },
+      );
+
+      return {
+        ...updated,
+        items: Array.isArray(updated.items) ? updated.items : [],
+      };
+    }
+
+    const totalCashCollected = Number(delivery.cashCollected || 0) + amount;
+    const totalCashDecimal = new Prisma.Decimal(totalCashCollected.toFixed(2));
+    const currentAmountToCollect = Number(delivery.amountToCollect || 0);
+    const newAmountToCollect = Math.max(0, currentAmountToCollect - amount);
 
     // Update delivery record with collected cash in driver custody (not yet handed over to owner)
-    const actorNote = actorId ? ` [Staff: ${actorId}]` : '';
     const updated = await this.prisma.delivery.update({
       where: { id },
       data: {
         status: DeliveryStatus.DELIVERED,
-        cashCollected: cashDecimal,
+        amountToCollect: new Prisma.Decimal(newAmountToCollect.toFixed(2)),
+        cashCollected: totalCashDecimal,
         cashCollectedAt: new Date(),
         cashHandedOver: false,
         notes: notes
@@ -1046,6 +1143,7 @@ export class DeliveryService {
           cashHandedOverAt: new Date(),
           cashHandedOverToId: actorId || null,
           cashCollected: cashDecimal,
+          amountToCollect: new Prisma.Decimal(0),
           notes: shortfallNote
             ? delivery.notes
               ? `${delivery.notes}${shortfallNote}`

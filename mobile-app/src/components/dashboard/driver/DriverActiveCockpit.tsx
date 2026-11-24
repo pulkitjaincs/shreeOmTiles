@@ -34,6 +34,13 @@ export function DriverActiveCockpit({
   const styles = useThemedStyles(createStyles);
   if (!activeDelivery) return null;
 
+  const isInvoicePaid =
+    activeDelivery.invoice?.status === 'PAID' ||
+    activeDelivery.invoice?.status === 'CANCELLED' ||
+    activeDelivery.cashHandedOver === true;
+  const effectiveAmountDue = isInvoicePaid ? 0 : Number(activeDelivery.amountToCollect || 0);
+  const needsCashCollection = !isInvoicePaid && effectiveAmountDue > 0.01;
+
   return (
     <View style={styles.container}>
       {/* Mission Header Card */}
@@ -116,9 +123,9 @@ export function DriverActiveCockpit({
               </View>
             )
           ) : activeDelivery.status === 'OUT_FOR_DELIVERY' ? (
-            Number(activeDelivery.amountToCollect || 0) > 0 ? (
+            needsCashCollection ? (
               <Button
-                title={`Mark Delivered & Collect Cash (${formatINR(activeDelivery.amountToCollect)})`}
+                title={`Mark Delivered & Collect Cash (${formatINR(effectiveAmountDue)})`}
                 variant="primary"
                 size="md"
                 onPress={() => onOpenCollectCash(activeDelivery)}
@@ -133,10 +140,10 @@ export function DriverActiveCockpit({
               />
             )
           ) : activeDelivery.status === 'DELIVERED' &&
-            Number(activeDelivery.amountToCollect || 0) > 0 &&
+            needsCashCollection &&
             Number(activeDelivery.cashCollected || 0) === 0 ? (
             <Button
-              title={`Collect Cash (${formatINR(activeDelivery.amountToCollect)})`}
+              title={`Collect Cash (${formatINR(effectiveAmountDue)})`}
               variant="primary"
               size="md"
               onPress={() => onOpenCollectCash(activeDelivery)}

@@ -315,6 +315,7 @@ export async function mobileApiRequest<T = any>(
       await invalidateMobileApiCache('/parties');
       await invalidateMobileApiCache('/analytics');
       await invalidateMobileApiCache('/invoices');
+      await invalidateMobileApiCache('/delivery');
     } else if (endpoint.includes('/purchases')) {
       await invalidateMobileApiCache('/purchases');
       await invalidateMobileApiCache('/stock');
@@ -460,6 +461,10 @@ export function getDefaultMobileTtlMs(endpoint: string): number {
     ep.includes('/analytics')
   ) {
     return 30 * 60 * 1000;
+  }
+  // 30 seconds (30,000ms): Active Deliveries & Driver Trips
+  if (ep.includes('/delivery')) {
+    return 30 * 1000;
   }
   // Default fallback 10 minutes (600,000ms)
   return 10 * 60 * 1000;

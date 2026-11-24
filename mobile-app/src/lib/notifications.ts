@@ -165,6 +165,7 @@ export function setupNotificationListeners(): () => void {
           void invalidateMobileApiCache('/payments');
           void invalidateMobileApiCache('/parties');
           void invalidateMobileApiCache('/analytics');
+          void invalidateMobileApiCache('/delivery');
         }
       }
 
@@ -194,7 +195,12 @@ export function setupNotificationListeners(): () => void {
         router.push('/(tabs)/invoices');
       } else if (data?.type === 'PAYMENT_RECEIVED') {
         void invalidateMobileApiCache('/payments');
-        router.push('/(tabs)/transactions');
+        void invalidateMobileApiCache('/delivery');
+        if (data?.deliveryId) {
+          router.push('/(tabs)/deliveries');
+        } else {
+          router.push('/(tabs)/transactions');
+        }
       }
     });
 

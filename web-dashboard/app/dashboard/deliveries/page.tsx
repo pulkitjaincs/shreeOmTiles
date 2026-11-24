@@ -244,11 +244,15 @@ export default function DeliveriesPage() {
       })
       .join('\n\n');
 
-    const toCollect = Number(delivery.amountToCollect || 0);
+    const isPaid =
+      inv.status === 'PAID' ||
+      inv.status === 'CANCELLED' ||
+      delivery.cashHandedOver === true;
+    const toCollect = isPaid ? 0 : Number(delivery.amountToCollect || 0);
     const paymentLine =
-      toCollect > 0
+      !isPaid && toCollect > 0
         ? `💵 *AMOUNT TO COLLECT FROM CUSTOMER:* *₹${toCollect.toFixed(2)}* (Please collect from customer before delivering)`
-        : `💵 *PAYMENT:* Already Settled / Collect ₹0`;
+        : `💵 *AMOUNT TO COLLECT:* *₹0 (Prepaid / Already Settled)*`;
 
     const msg = `📦 *DELIVERY ASSIGNMENT — OUT FOR PICKUP*
 *Invoice:* #${inv.invoiceNo}
@@ -594,7 +598,10 @@ ${itemsList}
                                   )}
                                 </div>
                               )
-                            ) : Number(delivery.amountToCollect || 0) > 0 ? (
+                            ) : delivery.invoice?.status !== 'PAID' &&
+                              delivery.invoice?.status !== 'CANCELLED' &&
+                              delivery.cashHandedOver !== true &&
+                              Number(delivery.amountToCollect || 0) > 0 ? (
                               <div className="inline-flex items-center gap-1 px-2 py-1 rounded-[0.5rem] bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 font-bold text-xs">
                                 <CircleDollarSign className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
                                 <span>Collect {formatINR(delivery.amountToCollect)}</span>

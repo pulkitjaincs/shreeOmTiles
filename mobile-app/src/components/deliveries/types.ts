@@ -74,6 +74,7 @@ export interface Delivery {
   invoice: {
     id: string;
     invoiceNo: string;
+    status?: string;
     paymentMode?: string;
     party: {
       id: string;

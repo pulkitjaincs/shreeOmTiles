@@ -61,6 +61,7 @@ interface Delivery {
   invoice: {
     id: string;
     invoiceNo: string;
+    status?: string;
     party: {
       name: string;
       phone: string;
@@ -119,16 +120,32 @@ export default function DriverDashboard({ userName }: { userName?: string }) {
   const activeDelivery = useMemo(() => {
     if (activeDeliveryId) {
       const found = deliveries.find((d) => d.id === activeDeliveryId);
-      if (found && found.status !== 'CANCELLED') return found;
+      if (found && found.status !== 'CANCELLED') {
+        const isSettled =
+          found.status === 'DELIVERED' &&
+          (found.invoice?.status === 'PAID' ||
+            found.invoice?.status === 'CANCELLED' ||
+            found.cashHandedOver === true ||
+            Number(found.amountToCollect || 0) <= 0.01 ||
+            Number(found.cashCollected || 0) > 0);
+        if (!isSettled) {
+          return found;
+        }
+      }
     }
-    return deliveries.find(
-      (d) =>
-        d.status === 'OUT_FOR_PICKUP' ||
-        d.status === 'OUT_FOR_DELIVERY' ||
-        d.status === 'PICKED_UP' ||
-        (d.status === 'DELIVERED' &&
-          Number(d.amountToCollect || 0) > 0 &&
-          Number(d.cashCollected || 0) === 0)
+    return (
+      deliveries.find(
+        (d) =>
+          d.status === 'OUT_FOR_PICKUP' ||
+          d.status === 'OUT_FOR_DELIVERY' ||
+          d.status === 'PICKED_UP' ||
+          (d.status === 'DELIVERED' &&
+            d.invoice?.status !== 'PAID' &&
+            d.invoice?.status !== 'CANCELLED' &&
+            d.cashHandedOver !== true &&
+            Number(d.amountToCollect || 0) > 0.01 &&
+            Number(d.cashCollected || 0) === 0),
+      ) || deliveries.find((d) => d.status === 'ASSIGNED')
     );
   }, [deliveries, activeDeliveryId]);
 
@@ -171,8 +188,14 @@ export default function DriverDashboard({ userName }: { userName?: string }) {
       // Requirement: Once delivered, prompt "Collect Cash" ONLY if amountToCollect > 0
       if (newStatus === 'DELIVERED') {
         const target = deliveries.find((d) => d.id === deliveryId) || updated;
-        if (Number(target.amountToCollect || 0) > 0) {
+        const isPaid =
+          target.invoice?.status === 'PAID' ||
+          target.invoice?.status === 'CANCELLED' ||
+          target.cashHandedOver === true;
+        if (!isPaid && Number(target.amountToCollect || 0) > 0.01) {
           openCollectCashModal(target);
+        } else {
+          setActiveDeliveryId(null);
         }
       }
     } catch (err: unknown) {
@@ -221,6 +244,33 @@ export default function DriverDashboard({ userName }: { userName?: string }) {
       await loadDeliveries();
     } catch (err: unknown) {
       alert((err as Error).message || 'Failed to record collected cash');
+    } finally {
+      setSubmittingCash(false);
+    }
+  };
+
+  const handleMarkPaidOnlineOrCounter = async () => {
+    if (!collectCashDelivery) return;
+    setSubmittingCash(true);
+    try {
+      await apiRequest(`/delivery/${collectCashDelivery.id}/collect-cash`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          amount: 0,
+          notes: cashNotesInput.trim()
+            ? `${cashNotesInput.trim()} (Paid online/counter)`
+            : 'Customer paid online / at counter',
+        }),
+      });
+
+      setCashBanner(
+        `✓ Invoice #${collectCashDelivery.invoice.invoiceNo} marked as DELIVERED without cash collection (Paid online/counter).`
+      );
+      setCollectCashDelivery(null);
+      setActiveDeliveryId(null);
+      await loadDeliveries();
+    } catch (err: unknown) {
+      alert((err as Error).message || 'Failed to update delivery status');
     } finally {
       setSubmittingCash(false);
     }
@@ -485,7 +535,11 @@ export default function DriverDashboard({ userName }: { userName?: string }) {
                 )
               ) : activeDelivery.status === 'DELIVERED' ? (
                 /* Requirement: Current delivery delivered and has amount > 0: Collect Cash */
-                Number(activeDelivery.amountToCollect || 0) > 0 && Number(activeDelivery.cashCollected || 0) === 0 ? (
+                activeDelivery.invoice?.status !== 'PAID' &&
+                activeDelivery.invoice?.status !== 'CANCELLED' &&
+                activeDelivery.cashHandedOver !== true &&
+                Number(activeDelivery.amountToCollect || 0) > 0.01 &&
+                Number(activeDelivery.cashCollected || 0) === 0 ? (
                   <button
                     onClick={() => openCollectCashModal(activeDelivery)}
                     className="w-full md:w-auto px-5 py-2.5 rounded-[0.75rem] bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[0.75rem] transition inline-flex items-center justify-center gap-2 shadow-md shadow-emerald-600/30 animate-pulse active:scale-98"
@@ -503,11 +557,7 @@ export default function DriverDashboard({ userName }: { userName?: string }) {
                 /* Out for delivery stage: Click "Delivered" */
                 <button
                   onClick={async () => {
-                    setActiveDeliveryId(activeDelivery.id);
                     await handleStatusChange(activeDelivery.id, 'DELIVERED');
-                    if (Number(activeDelivery.amountToCollect || 0) <= 0) {
-                      setActiveDeliveryId(null);
-                    }
                   }}
                   disabled={statusUpdating}
                   className="w-full md:w-auto px-5 py-2.5 rounded-[0.75rem] bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[0.75rem] transition inline-flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 active:scale-98"
@@ -919,13 +969,21 @@ export default function DriverDashboard({ userName }: { userName?: string }) {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex justify-end gap-2.5 pt-2">
+              <div className="flex flex-wrap justify-end gap-2.5 pt-2">
                 <button
                   type="button"
                   onClick={() => setCollectCashDelivery(null)}
                   className="px-4 py-2 rounded-[0.75rem] bg-muted hover:bg-muted/80 text-foreground text-[0.75rem] font-semibold transition-colors"
                 >
                   Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={submittingCash}
+                  onClick={handleMarkPaidOnlineOrCounter}
+                  className="px-4 py-2 rounded-[0.75rem] border border-input hover:bg-muted text-foreground text-[0.75rem] font-semibold transition-colors"
+                >
+                  Customer Paid Online / At Counter (₹0)
                 </button>
                 <button
                   type="submit"

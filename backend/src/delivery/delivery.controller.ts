@@ -164,6 +164,7 @@ export class DeliveryController {
   }
 
   @Patch(':id/collect-cash')
+  @Roles(Role.DRIVER, Role.ADMIN, Role.OWNER, Role.SALESMAN)
   collectCash(
     @Param('id') id: string,
     @Body() dto: CollectCashDto,
@@ -173,7 +174,7 @@ export class DeliveryController {
       id,
       dto.amount,
       dto.notes,
-      req.user?.id,
+      req.user,
     );
   }
 

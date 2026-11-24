@@ -130,6 +130,161 @@ export class PaymentsService implements OnModuleInit {
     }
   }
 
+  private async syncDeliveriesForInvoice(
+    invoiceId: string,
+    remainingDue: number,
+    tx: Prisma.TransactionClient,
+    notifyDriver = false,
+    invoiceNo?: string,
+  ) {
+    const deliveries = await tx.delivery.findMany({
+      where: {
+        invoiceId,
+        cashHandedOver: false,
+      },
+      select: {
+        id: true,
+        amountToCollect: true,
+        cashCollected: true,
+        driverId: true,
+        status: true,
+      },
+    });
+
+    if (deliveries.length === 0) return;
+
+    // Filter to trips eligible for amount to collect adjustments:
+    // Only trips where cash has NOT yet been collected from customer.
+    // Delivered trips where cash was already collected (> 0.01) have physical cash in driver custody
+    // and must not be altered by subsequent invoice payments.
+    const eligibleDeliveries = deliveries.filter(
+      (d) => Number(d.cashCollected || 0) <= 0.01 && d.status !== DeliveryStatus.DELIVERED,
+    );
+
+    let resolvedInvoiceNo = invoiceNo;
+    if (notifyDriver && !resolvedInvoiceNo) {
+      const inv = await tx.invoice.findUnique({
+        where: { id: invoiceId },
+        select: { invoiceNo: true },
+      });
+      resolvedInvoiceNo = inv?.invoiceNo || '';
+    }
+
+    if (remainingDue <= 0.01) {
+      await tx.delivery.updateMany({
+        where: {
+          invoiceId,
+          cashHandedOver: false,
+          status: { not: DeliveryStatus.DELIVERED },
+        },
+        data: {
+          amountToCollect: new Prisma.Decimal(0),
+        },
+      });
+
+      // Also ensure any delivered trips with no cash collected are zeroed and marked handed over
+      await tx.delivery.updateMany({
+        where: {
+          invoiceId,
+          cashHandedOver: false,
+          status: DeliveryStatus.DELIVERED,
+          cashCollected: { lte: 0.01 },
+        },
+        data: {
+          amountToCollect: new Prisma.Decimal(0),
+          cashHandedOver: true,
+        },
+      });
+
+      if (notifyDriver) {
+        for (const d of eligibleDeliveries) {
+          if (d.driverId) {
+            void this.notifications.notifyUser(
+              d.driverId,
+              'Payment Received',
+              `Invoice #${resolvedInvoiceNo || ''} settled. Do not collect cash.`,
+              { type: 'PAYMENT_RECEIVED', deliveryId: d.id, invoiceId },
+            );
+          }
+        }
+      }
+      return;
+    }
+
+    if (eligibleDeliveries.length === 0) return;
+
+    // Split delivery balance apportionment
+    const totalCurrentAmount = eligibleDeliveries.reduce(
+      (sum, d) => sum + Math.max(0, Number(d.amountToCollect || 0)),
+      0,
+    );
+
+    const updatedAmounts = new Map<string, number>();
+
+    if (totalCurrentAmount <= 0) {
+      // If all were 0 but there is remaining due, assign to active/assigned delivery
+      const share = Math.round((remainingDue / eligibleDeliveries.length) * 100) / 100;
+      for (let i = 0; i < eligibleDeliveries.length; i++) {
+        const amt =
+          i === eligibleDeliveries.length - 1
+            ? Math.max(0, remainingDue - share * (eligibleDeliveries.length - 1))
+            : share;
+        const finalAmt = Number(amt.toFixed(2));
+        updatedAmounts.set(eligibleDeliveries[i].id, finalAmt);
+        await tx.delivery.update({
+          where: { id: eligibleDeliveries[i].id },
+          data: { amountToCollect: new Prisma.Decimal(finalAmt.toFixed(2)) },
+        });
+      }
+    } else if (remainingDue < totalCurrentAmount) {
+      // Payment made: reduce each delivery proportionally
+      let allocated = 0;
+      for (let i = 0; i < eligibleDeliveries.length; i++) {
+        const d = eligibleDeliveries[i];
+        let newAmt: number;
+        if (i === eligibleDeliveries.length - 1) {
+          newAmt = Math.max(0, Math.round((remainingDue - allocated) * 100) / 100);
+        } else {
+          const ratio = Math.max(0, Number(d.amountToCollect || 0)) / totalCurrentAmount;
+          newAmt = Math.max(0, Math.round(remainingDue * ratio * 100) / 100);
+          allocated += newAmt;
+        }
+        const finalAmt = Number(newAmt.toFixed(2));
+        updatedAmounts.set(d.id, finalAmt);
+        await tx.delivery.update({
+          where: { id: d.id },
+          data: { amountToCollect: new Prisma.Decimal(finalAmt.toFixed(2)) },
+        });
+      }
+    } else {
+      // remainingDue >= totalCurrentAmount: each trip keeps its capped amount
+      // Ensure no trip exceeds remainingDue
+      for (const d of eligibleDeliveries) {
+        const capped = Math.min(Number(d.amountToCollect || 0), remainingDue);
+        const finalAmt = Number(capped.toFixed(2));
+        updatedAmounts.set(d.id, finalAmt);
+        await tx.delivery.update({
+          where: { id: d.id },
+          data: { amountToCollect: new Prisma.Decimal(finalAmt.toFixed(2)) },
+        });
+      }
+    }
+
+    if (notifyDriver) {
+      for (const d of eligibleDeliveries) {
+        if (d.driverId) {
+          const currentNewAmt = updatedAmounts.get(d.id) ?? Number(d.amountToCollect || 0);
+          void this.notifications.notifyUser(
+            d.driverId,
+            'Payment Received',
+            `Payment recorded for Invoice #${resolvedInvoiceNo || ''}. Updated amount to collect: ₹${currentNewAmt.toFixed(2)}.`,
+            { type: 'PAYMENT_RECEIVED', deliveryId: d.id, invoiceId },
+          );
+        }
+      }
+    }
+  }
+
   async reconcilePartyFinancials(
     partyId: string,
     existingTx?: Prisma.TransactionClient,
@@ -375,15 +530,13 @@ export class PaymentsService implements OnModuleInit {
           data: { status: newStatus },
         });
 
-        await tx.delivery.updateMany({
-          where: {
-            invoiceId: state.inv.id,
-            status: { not: DeliveryStatus.DELIVERED },
-          },
-          data: {
-            amountToCollect: new Prisma.Decimal(finalDue.toFixed(2)),
-          },
-        });
+        await this.syncDeliveriesForInvoice(
+          state.inv.id,
+          finalDue,
+          tx,
+          false,
+          state.inv.invoiceNo,
+        );
 
         const invLedger = state.inv.creditLedgers.find(
           (cl) => cl.type === CreditType.RECEIVABLE,
@@ -640,17 +793,11 @@ export class PaymentsService implements OnModuleInit {
             },
           });
         }
-        await tx.delivery.updateMany({
-          where: {
-            invoiceId: payment.invoiceId,
-            status: { not: DeliveryStatus.DELIVERED },
-          },
-          data: {
-            amountToCollect: new Prisma.Decimal(
-              Math.max(0, total - totalPaid).toFixed(2),
-            ),
-          },
-        });
+        await this.syncDeliveriesForInvoice(
+          payment.invoiceId,
+          Math.max(0, total - totalPaid),
+          tx,
+        );
       } else if (payment.partyId) {
         throw new BadRequestException(
           'Standalone received payments cannot be edited yet',
@@ -835,25 +982,13 @@ export class PaymentsService implements OnModuleInit {
             0,
             Number(inv?.total || 0) - totalPaid,
           );
-          await tx.delivery.updateMany({
-            where: {
-              invoiceId: data.invoiceId,
-              status: {
-                in: [
-                  DeliveryStatus.PENDING,
-                  DeliveryStatus.ASSIGNED,
-                  DeliveryStatus.OUT_FOR_PICKUP,
-                  DeliveryStatus.PICKED_UP,
-                  DeliveryStatus.OUT_FOR_DELIVERY,
-                ],
-              },
-            },
-            data: {
-              amountToCollect: new Prisma.Decimal(
-                remainingInvoiceBalance.toFixed(2),
-              ),
-            },
-          });
+          await this.syncDeliveriesForInvoice(
+            data.invoiceId,
+            remainingInvoiceBalance,
+            tx,
+            true,
+            inv?.invoiceNo,
+          );
         } else if (partyId) {
           // If payment is OUTFLOW (store paying party to settle store payable debt):
           // deduct from party's oldest unsettled PAYABLE credit ledger!
@@ -896,23 +1031,12 @@ export class PaymentsService implements OnModuleInit {
                       : InvoiceStatus.PARTIAL,
                 },
               });
-              await tx.delivery.updateMany({
-                where: {
-                  invoiceId: creditEntry.invoiceId,
-                  status: {
-                    in: [
-                      DeliveryStatus.PENDING,
-                      DeliveryStatus.ASSIGNED,
-                      DeliveryStatus.OUT_FOR_PICKUP,
-                      DeliveryStatus.PICKED_UP,
-                      DeliveryStatus.OUT_FOR_DELIVERY,
-                    ],
-                  },
-                },
-                data: {
-                  amountToCollect: new Prisma.Decimal(remainingDue.toFixed(2)),
-                },
-              });
+              await this.syncDeliveriesForInvoice(
+                creditEntry.invoiceId,
+                remainingDue,
+                tx,
+                true,
+              );
             }
 
             // If this credit ledger is linked to a purchase, synchronize purchase status
@@ -1232,23 +1356,13 @@ export class PaymentsService implements OnModuleInit {
         }
 
         // 5. Sync linked active deliveries amountToCollect
-        await tx.delivery.updateMany({
-          where: {
-            invoiceId: payment.invoiceId,
-            status: {
-              in: [
-                DeliveryStatus.PENDING,
-                DeliveryStatus.ASSIGNED,
-                DeliveryStatus.OUT_FOR_PICKUP,
-                DeliveryStatus.PICKED_UP,
-                DeliveryStatus.OUT_FOR_DELIVERY,
-              ],
-            },
-          },
-          data: {
-            amountToCollect: new Prisma.Decimal(remainingDue.toFixed(2)),
-          },
-        });
+        await this.syncDeliveriesForInvoice(
+          payment.invoiceId,
+          remainingDue,
+          tx,
+          true,
+          payment.invoice?.invoiceNo,
+        );
       } else if (payment.partyId) {
         const targetCreditType =
           payment.type === PaymentType.OUTFLOW
@@ -1749,15 +1863,11 @@ export class PaymentsService implements OnModuleInit {
             },
           });
         }
-        await tx.delivery.updateMany({
-          where: {
-            invoiceId: payment.invoiceId,
-            status: { not: DeliveryStatus.DELIVERED },
-          },
-          data: {
-            amountToCollect: new Prisma.Decimal(due.toFixed(2)),
-          },
-        });
+        await this.syncDeliveriesForInvoice(
+          payment.invoiceId,
+          due,
+          tx,
+        );
       }
 
       if (payment.purchaseId && payment.purchase) {

@@ -63,6 +63,32 @@ export function CollectCashModal({
     }
   };
 
+  const handlePaidOnlineOrCounter = async () => {
+    setSubmittingCash(true);
+    try {
+      await mobileApiRequest(`/delivery/${delivery.id}/collect-cash`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          amount: 0,
+          notes: cashNotesInput.trim()
+            ? `${cashNotesInput.trim()} (Paid online/counter)`
+            : 'Customer paid online / at counter',
+        }),
+      });
+
+      Alert.alert(
+        'Delivery Complete',
+        'Marked as DELIVERED without cash collection. Cleared from driver custody.',
+      );
+      onClose();
+      onSuccess();
+    } catch (err: any) {
+      Alert.alert('Update Failed', err.message || 'Could not update delivery status');
+    } finally {
+      setSubmittingCash(false);
+    }
+  };
+
   return (
     <BottomSheetModal
       visible={visible}
@@ -98,6 +124,15 @@ export function CollectCashModal({
           variant="primary"
           size="lg"
           style={{ marginTop: 14 }}
+        />
+
+        <Button
+          title="Customer Paid Online / At Counter (₹0 Cash)"
+          onPress={handlePaidOnlineOrCounter}
+          disabled={submittingCash}
+          variant="outline"
+          size="md"
+          style={{ marginTop: 10 }}
         />
       </View>
     </BottomSheetModal>
